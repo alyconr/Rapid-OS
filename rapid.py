@@ -82,12 +82,7 @@ def regenerate_context():
     standards_dir = PROJECT_RAPID_DIR / "standards"
     full_context = ""
     
-    # ORDEN DE PRIORIDAD LÓGICA (Critico para que la IA obedezca)
-    # 1. Stack (Qué usar)
-    # 2. Seguridad (Qué NO hacer)
-    # 3. Diseño (Cómo se ve - Nuevo soporte Creative)
-    # 4. Negocio (Reglas)
-    # 5. Estilo (Cómo se escribe)
+    # ORDEN DE PRIORIDAD LÓGICA
     priority = ["tech-stack.md", "security.md", "design.md", "business.md", "coding-rules.md"]
     
     for filename in priority:
@@ -114,15 +109,27 @@ def init_project(args):
     # 2. Selección de Stack (Tecnología)
     if not args.stack:
         stacks_path = TEMPLATES_DIR / "stacks"
-        if not stacks_path.exists(): print_error("Templates no encontrados. Reinstala Rapid OS.")
+        if not stacks_path.exists(): 
+            print_error("Templates no encontrados. Reinstala Rapid OS.")
         
         stacks = sorted([f.stem for f in stacks_path.glob("*.md")])
+        if not stacks:
+            print_error("No hay stacks disponibles en templates/stacks.")
+
         print("\n🛠  SELECCIONA TECH STACK:")
         for i, s in enumerate(stacks, 1): print(f" {i}) {s}")
         
         sel = input("Opción: ").strip()
-        try: stack_name = stacks[int(sel)-1]
-        except: stack_name = stacks[0]
+        try:
+            idx = int(sel) - 1
+            if 0 <= idx < len(stacks):
+                stack_name = stacks[idx]
+            else:
+                print_warning("Opción inválida. Usando el primero por defecto.")
+                stack_name = stacks[0]
+        except ValueError:
+            print_warning("Entrada no válida. Usando el primero por defecto.")
+            stack_name = stacks[0]
     else:
         stack_name = args.stack
 
@@ -139,12 +146,21 @@ def init_project(args):
     # 4. Copia de Templates Base
     try:
         # Copiar Stack
-        shutil.copy(TEMPLATES_DIR / "stacks" / f"{stack_name}.md", standards_dest / "tech-stack.md")
+        stack_src = TEMPLATES_DIR / "stacks" / f"{stack_name}.md"
+        if stack_src.exists():
+            shutil.copy(stack_src, standards_dest / "tech-stack.md")
+        else:
+            print_warning(f"Stack '{stack_name}' no encontrado. Se omitió tech-stack.md")
+
         # Copiar Reglas de Código
-        shutil.copy(TEMPLATES_DIR / "archetypes" / archetype / "coding-rules.md", standards_dest / "coding-rules.md")
-        # Copiar Seguridad (Si existe para el arquetipo)
+        rules_src = TEMPLATES_DIR / "archetypes" / archetype / "coding-rules.md"
+        if rules_src.exists():
+            shutil.copy(rules_src, standards_dest / "coding-rules.md")
+
+        # Copiar Seguridad
         sec_src = TEMPLATES_DIR / "archetypes" / archetype / "security.md"
-        if sec_src.exists(): shutil.copy(sec_src, standards_dest / "security.md")
+        if sec_src.exists(): 
+            shutil.copy(sec_src, standards_dest / "security.md")
     except Exception as e:
         print_error(f"Error copiando templates: {e}")
 
@@ -250,4 +266,11 @@ def main():
     else: parser.print_help()
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\n❌ Operación cancelada por el usuario.")
+        sys.exit(0)
+    except Exception as e:
+        print(f"\n❌ Error inesperado: {e}")
+        sys.exit(1)
