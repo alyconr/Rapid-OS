@@ -10,38 +10,28 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity) en Ingenieros Senior insta
 
 </div>
 
-<details>
-  <summary>Table of Contents</summary>
-  <ol>
-    <li><a href="#about-the-project">📖 About the Project</a></li>
-    <li>
-      <a href="#build-with">⚒️ Build With</a>
-      <ul>
-        <li><a href="#tech-stack">Tech Stack</a></li>
-        <li><a href="#key-features">Key Features</a></li>
-      </ul>
-    </li>
-    <li><a href="#live-demo">🚀 Live Demo</a></li>
-    <li>
-      <a href="#getting-started">💻 Getting Started</a>
-      <ul>
-        <li><a href="#setup">Setup</a></li>
-        <li><a href="#prerequisites">Prerequisites</a></li>
-        <li><a href="#install">Install</a></li>
-      </ul>
-    </li>
-    <li><a href="#usage">Usage</a></li>
-    <li><a href="#run-tests">Run tests</a></li>
-    <li><a href="#deployment">Deployment</a></li>
-    <li><a href="#authors">👥 Authors</a></li>
-    <li><a href="#future-features">🕹️ Future Features</a></li>
-    <li><a href="#contributing">🤝 Contributing</a></li>
-    <li><a href="#show-your-support">⭐ Show your Support</a></li>
-    <li><a href="#acknowledgements">👏 Acknowledgements</a></li>
-    <li><a href="#faq">❓ FAQ</a></li>
-    <li><a href="#license">📃 License</a></li>
-  </ol>
-</details>
+## Table of Contents
+
+- [📖 About the Project](#about-the-project)
+- [🧩 How it Works](#how-it-works)
+- [⚒️ Build With](#build-with)
+  - [Tech Stack](#tech-stack)
+  - [Key Features](#key-features)
+- [🚀 Live Demo](#live-demo)
+- [💻 Getting Started](#getting-started)
+  - [Setup](#setup)
+  - [Prerequisites](#prerequisites)
+  - [Install](#install)
+- [Usage](#usage)
+- [Run tests](#run-tests)
+- [Deployment](#deployment)
+- [👥 Authors](#authors)
+- [🕹️ Future Features](#future-features)
+- [🤝 Contributing](#contributing)
+- [⭐ Show your Support](#show-your-support)
+- [👏 Acknowledgements](#acknowledgements)
+- [❓ FAQ](#faq)
+- [📃 License](#license)
 
 ---
 
@@ -50,6 +40,71 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity) en Ingenieros Senior insta
 **Rapid OS** es un framework de "Inyección de Contexto" diseñado para resolver el problema de la **"Amnesia de Contexto"** en los LLMs.
 
 Cuando trabajas con asistentes de IA como Cursor, Claude o Copilot, a menudo olvidan tus reglas de negocio, tu stack tecnológico o tus protocolos de seguridad. Rapid OS soluciona esto inyectando una **"Constitución de Proyecto"** estandarizada que la IA debe obedecer antes de escribir una sola línea de código.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## 🧩 How it Works <a name="how-it-works"></a>
+
+Rapid OS actúa como el **Arquitecto** que define las reglas, mientras tu IA (Cursor/Claude) actúa como el **Constructor**.
+
+```mermaid
+graph TD
+    %% Estilos
+    classDef user fill:#f9f,stroke:#333,stroke-width:2px,color:black;
+    classDef rapid fill:#005f99,stroke:#333,stroke-width:2px,color:white;
+    classDef context fill:#ffeb99,stroke:#d4a017,stroke-width:2px,stroke-dasharray: 5 5,color:black;
+    classDef ai fill:#009966,stroke:#333,stroke-width:2px,color:white;
+    classDef code fill:#333,stroke:#333,stroke-width:2px,color:white;
+
+    %% Nodos Principales
+    User(👤 Usuario):::user
+    AI(🤖 Agente IA <br> Cursor / Claude / Copilot):::ai
+    FinalCode(📦 Código de la Aplicación <br> .ts, .py, .css):::code
+
+    %% Subgrafo: Rapid OS (El Director Técnico)
+    subgraph "🛠️ FASE 1: Preparación del Contexto (Rapid OS CLI)"
+        RapidCLI(🖥️ Rapid OS CLI):::rapid
+        
+        User -->|1. Ejecuta 'rapid init'| RapidCLI
+        
+        ContextFiles[📄 Archivos de Contexto <br> .cursorrules, CLAUDE.md, etc.]:::context
+        RapidCLI -->|"Genera Reglas (Stack, Seguridad)"| ContextFiles
+    end
+
+    %% Subgrafo: Tareas Específicas (Opcional)
+    subgraph "🎯 FASE 2: Definición de Tareas (Opcional)"
+        ScopeCmd(Comando 'rapid scope'):::rapid
+        DeployCmd(Comando 'rapid deploy'):::rapid
+        
+        User -->|2a. Define funcionalidad| ScopeCmd
+        User -->|2b. Pide infraestructura| DeployCmd
+        
+        SpecsFile[📄 SPECS.md <br> Instrucciones Funcionales]:::context
+        DeployFile[📄 DEPLOY.md <br> Plan de DevOps]:::context
+        
+        ScopeCmd --> SpecsFile
+        DeployCmd --> DeployFile
+    end
+
+    %% Subgrafo: La Generación Real (El Constructor)
+    subgraph "🚀 FASE 3: La Acción de Generar (El Constructor)"
+        %% La Inyección Mágica
+        ContextFiles -.->|"⚡ INYECCIÓN AUTOMÁTICA DE CONTEXTO ⚡"| AI
+        SpecsFile -.->|"Lee instrucciones precisas"| AI
+        DeployFile -.->|"Lee plan de despliegue"| AI
+        
+        %% La Acción del Usuario - CORREGIDA
+        User == "3. Prompt Simple: 'Haz el login' o 'Implementa SPECS.md'" ==> AI
+        
+        %% El Resultado
+        AI ==>|"Genera Código Perfecto (Siguiendo Reglas)"| FinalCode
+    end
+
+    %% Leyenda
+    linkStyle 6,7,8 stroke:orange,stroke-width:2px,fill:none;
+    linkStyle 9 stroke:blue,stroke-width:3px,fill:none;
+    linkStyle 10 stroke:green,stroke-width:3px,fill:none;
+```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -83,7 +138,7 @@ Este proyecto está construido utilizando tecnologías nativas para asegurar má
 Puedes ver a Rapid OS en acción transformando un proyecto vacío en un entorno configurado en segundos.
 
 > [!NOTE]
-> Cooming Soon!
+> _Insertar enlace a Video Demo o GIF aquí_
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -108,7 +163,6 @@ Asegúrate de tener instalado:
 
 ```bash
 curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.sh | bash
-
 ```
 
 **Opción B: Windows (PowerShell Nativo)**
@@ -117,7 +171,7 @@ curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.sh | ba
 irm https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.ps1 | iex
 ```
 
-Reinicia tu terminal después de la instalación para cargar el comando rapid.
+Reinicia tu terminal después de la instalación para cargar el comando `rapid`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
