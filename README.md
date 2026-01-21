@@ -83,7 +83,7 @@ Este proyecto está construido utilizando tecnologías nativas para asegurar má
 Puedes ver a Rapid OS en acción transformando un proyecto vacío en un entorno configurado en segundos.
 
 > [!NOTE]
-> _Insertar enlace a Video Demo o GIF aquí_
+> Cooming Soon!
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
