@@ -124,7 +124,7 @@ Este proyecto está construido utilizando tecnologías nativas para asegurar má
 - 🤖 **Multi-Agente Nativo:** Genera configuraciones automáticas para:
   - **Cursor IDE** (`.cursorrules`)
   - **Claude Code** (`CLAUDE.md`)
-  - **Google Antigravity** (`.specify/memory/constitution.md`)
+  - **Google Antigravity** (`.agent/rules/constitution.md`)
   - **GitHub Copilot** (`INSTRUCTIONS.md`)
 - 🏗️ **Topologías Inteligentes:** Define la arquitectura (Frontend Only, BaaS, Fullstack) para que la IA entienda los límites de conexión y estructura de datos.
 - 🔌 **Herramientas MCP (Model Context Protocol):** Genera configuraciones para servidores MCP (Postgres, Supabase, Filesystem), permitiendo que la IA ejecute acciones reales en tu base de datos y sistema de archivos.
