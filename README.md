@@ -126,6 +126,7 @@ Este proyecto está construido utilizando tecnologías nativas para asegurar má
   - **Claude Code** (`CLAUDE.md`)
   - **Google Antigravity** (`.specify/memory/constitution.md`)
   - **GitHub Copilot** (`INSTRUCTIONS.md`)
+- 👁️ **Soporte Multimodal (Vision):** Inyecta capturas de pantalla y referencias visuales al contexto para que la IA replique diseños UI con precisión pixel-perfect.
 - 🚀 **Stacks Pre-configurados:** Incluye templates "Senior-level" para Web Moderno, Python AI, Creative Frontend, Node.js AI, entre otros.
 - 🛡️ **Seguridad por Defecto:** Inyección automática de protocolos OWASP y reglas de no-logs para PII.
 - ☁️ **Asistente DevOps:** Genera archivos de IaC (Terraform, Docker) para AWS, Vercel y GCP.
@@ -204,8 +205,15 @@ Genera archivos de configuración para la nube:
 ```bash
 rapid deploy aws
 ```
+**4. Referencias Visuales (Vision)**
 
-**4. Refinar Estándares**
+Para que la IA "vea" tus diseños y no alucine el frontend, importa capturas de pantalla o mockups:
+
+```bash
+rapid vision ruta/al/diseño.png
+```
+
+**5. Refinar Estándares**
 
 Usa la IA para mejorar tus propios documentos de reglas:
 
