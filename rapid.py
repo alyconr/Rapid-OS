@@ -82,7 +82,7 @@ def regenerate_context():
     full_context = ""
     
     # 1. ESTÁNDARES DE TEXTO
-    priority = ["tech-stack.md", "security.md", "design.md", "business.md", "coding-rules.md"]
+    priority = ["tech-stack.md", "topology.md", "security.md", "design.md", "business.md", "coding-rules.md"]
     
     for filename in priority:
         path = standards_dir / filename
@@ -110,17 +110,19 @@ def regenerate_context():
 def init_project(args):
     print_step("Inicializando Rapid OS...")
     
+    # 1. Preparar carpetas
     standards_dest = PROJECT_RAPID_DIR / "standards"
     standards_dest.mkdir(parents=True, exist_ok=True)
 
-    # Selección de Stack
+    # 2. Selección de Stack (Tecnología)
     if not args.stack:
         stacks_path = TEMPLATES_DIR / "stacks"
         if not stacks_path.exists(): 
             print_error("Templates no encontrados. Reinstala Rapid OS.")
         
         stacks = sorted([f.stem for f in stacks_path.glob("*.md")])
-        if not stacks: print_error("No hay stacks disponibles.")
+        if not stacks:
+            print_error("No hay stacks disponibles en templates/stacks.")
 
         print("\n🛠  SELECCIONA TECH STACK:")
         for i, s in enumerate(stacks, 1): print(f" {i}) {s}")
@@ -128,40 +130,82 @@ def init_project(args):
         sel = input("Opción: ").strip()
         try:
             idx = int(sel) - 1
-            stack_name = stacks[idx] if 0 <= idx < len(stacks) else stacks[0]
+            if 0 <= idx < len(stacks):
+                stack_name = stacks[idx]
+            else:
+                print_warning("Opción inválida. Usando el primero por defecto.")
+                stack_name = stacks[0]
         except ValueError:
+            print_warning("Entrada no válida. Usando el primero por defecto.")
             stack_name = stacks[0]
     else:
         stack_name = args.stack
 
-    # Selección de Arquetipo
+    # --- NUEVO: Selección de Topología (Arquitectura) ---
+    topologies_path = TEMPLATES_DIR / "topologies"
+    # Fallback por si la carpeta no existe aún
+    if not topologies_path.exists(): topologies_path.mkdir(parents=True, exist_ok=True)
+    
+    topos = sorted([f.stem for f in topologies_path.glob("*.md")])
+    
+    if topos:
+        print("\n🏗️  SELECCIONA TOPOLOGÍA (ARQUITECTURA):")
+        for i, t in enumerate(topos, 1): print(f" {i}) {t}")
+        
+        sel = input("Opción: ").strip()
+        try:
+            idx = int(sel) - 1
+            topo_name = topos[idx] if 0 <= idx < len(topos) else topos[0]
+        except ValueError:
+            topo_name = topos[0]
+            
+        # Copiar Topología
+        try:
+            shutil.copy(topologies_path / f"{topo_name}.md", standards_dest / "topology.md")
+        except Exception as e:
+            print_error(f"Error copiando topología: {e}")
+    else:
+        # Si no hay templates de topología (usuario nuevo o sin actualizar), seguimos sin error
+        pass
+
+    # 3. Selección de Arquetipo (Comportamiento)
     if not args.archetype:
         print("\n📊 SELECCIONA ARQUETIPO:")
-        print(" 1) mvp        (Velocidad)")
-        print(" 2) corporate  (Seguridad estricta)")
+        print(" 1) mvp        (Velocidad, deuda técnica aceptable)")
+        print(" 2) corporate  (Seguridad estricta, tests obligatorios)")
         sel = input("Opción [1]: ").strip()
         archetype = "corporate" if sel == "2" else "mvp"
     else:
         archetype = args.archetype
 
-    # Copia de Templates
+    # 4. Copia de Templates Base
     try:
-        shutil.copy(TEMPLATES_DIR / "stacks" / f"{stack_name}.md", standards_dest / "tech-stack.md")
-        
-        rules_src = TEMPLATES_DIR / "archetypes" / archetype / "coding-rules.md"
-        if rules_src.exists(): shutil.copy(rules_src, standards_dest / "coding-rules.md")
+        # Copiar Stack
+        stack_src = TEMPLATES_DIR / "stacks" / f"{stack_name}.md"
+        if stack_src.exists():
+            shutil.copy(stack_src, standards_dest / "tech-stack.md")
+        else:
+            print_warning(f"Stack '{stack_name}' no encontrado. Se omitió tech-stack.md")
 
+        # Copiar Reglas de Código
+        rules_src = TEMPLATES_DIR / "archetypes" / archetype / "coding-rules.md"
+        if rules_src.exists():
+            shutil.copy(rules_src, standards_dest / "coding-rules.md")
+
+        # Copiar Seguridad
         sec_src = TEMPLATES_DIR / "archetypes" / archetype / "security.md"
-        if sec_src.exists(): shutil.copy(sec_src, standards_dest / "security.md")
+        if sec_src.exists(): 
+            shutil.copy(sec_src, standards_dest / "security.md")
     except Exception as e:
         print_error(f"Error copiando templates: {e}")
 
-    # Configuración de Negocio
+    # 5. Entrevista de Negocio (Scope)
     print("\n--- CONFIGURACIÓN DE NEGOCIO ---")
-    if input("¿Definir reglas de negocio permanentes? [y/N]: ").lower() == 'y':
+    if input("¿Definir reglas de negocio permanentes? (ej. Monetización, GDPR) [y/N]: ").lower() == 'y':
         rules = input("Escribe las reglas clave: ")
         (standards_dest / "business.md").write_text(f"# BUSINESS RULES\n{rules}", encoding="utf-8")
 
+    # 6. Generación Final
     regenerate_context()
     print("\n🚀 ¡Rapid OS activo! Tu IA ahora es un Senior Engineer.")
 
