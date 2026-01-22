@@ -53,7 +53,6 @@ def generate_claude_config(context):
 
 def generate_antigravity_config(context):
     """Adaptador para Google Antigravity (Spec-Driven Development)"""
-    # Crea la estructura requerida: .specify/memory/constitution.md
     antigravity_dir = CURRENT_DIR / ".specify" / "memory"
     antigravity_dir.mkdir(parents=True, exist_ok=True)
     
@@ -78,11 +77,11 @@ def generate_vscode_instructions(context):
     print_success("Generado: INSTRUCTIONS.md (VS Code)")
 
 def regenerate_context():
-    """Compila todos los estándares en un solo bloque de texto coherente"""
+    """Compila todos los estándares + REFERENCIAS VISUALES"""
     standards_dir = PROJECT_RAPID_DIR / "standards"
     full_context = ""
     
-    # ORDEN DE PRIORIDAD LÓGICA
+    # 1. ESTÁNDARES DE TEXTO
     priority = ["tech-stack.md", "security.md", "design.md", "business.md", "coding-rules.md"]
     
     for filename in priority:
@@ -90,6 +89,15 @@ def regenerate_context():
         if path.exists():
             full_context += f"\n### 🛑 {filename.replace('.md', '').upper().replace('-', ' ')}\n"
             full_context += path.read_text(encoding='utf-8') + "\n"
+
+    # 2. REFERENCIAS VISUALES (NUEVO)
+    vision_meta = CURRENT_DIR / "references" / "VISION_CONTEXT.md"
+    if vision_meta.exists():
+        full_context += "\n### 👁️ VISUAL STANDARDS (SCREENSHOTS)\n"
+        full_context += "I have provided screenshots in the `references/` directory.\n"
+        full_context += "Use these images as Ground Truth for UI structure, spacing, and colors.\n"
+        full_context += vision_meta.read_text(encoding="utf-8")
+        full_context += "\n\nINSTRUCTION: Before generating frontend code, ANALYZE these images.\n"
             
     # Inyectar en todos los editores
     generate_cursor_rules(full_context)
@@ -102,19 +110,17 @@ def regenerate_context():
 def init_project(args):
     print_step("Inicializando Rapid OS...")
     
-    # 1. Preparar carpetas
     standards_dest = PROJECT_RAPID_DIR / "standards"
     standards_dest.mkdir(parents=True, exist_ok=True)
 
-    # 2. Selección de Stack (Tecnología)
+    # Selección de Stack
     if not args.stack:
         stacks_path = TEMPLATES_DIR / "stacks"
         if not stacks_path.exists(): 
             print_error("Templates no encontrados. Reinstala Rapid OS.")
         
         stacks = sorted([f.stem for f in stacks_path.glob("*.md")])
-        if not stacks:
-            print_error("No hay stacks disponibles en templates/stacks.")
+        if not stacks: print_error("No hay stacks disponibles.")
 
         print("\n🛠  SELECCIONA TECH STACK:")
         for i, s in enumerate(stacks, 1): print(f" {i}) {s}")
@@ -122,115 +128,115 @@ def init_project(args):
         sel = input("Opción: ").strip()
         try:
             idx = int(sel) - 1
-            if 0 <= idx < len(stacks):
-                stack_name = stacks[idx]
-            else:
-                print_warning("Opción inválida. Usando el primero por defecto.")
-                stack_name = stacks[0]
+            stack_name = stacks[idx] if 0 <= idx < len(stacks) else stacks[0]
         except ValueError:
-            print_warning("Entrada no válida. Usando el primero por defecto.")
             stack_name = stacks[0]
     else:
         stack_name = args.stack
 
-    # 3. Selección de Arquetipo (Comportamiento)
+    # Selección de Arquetipo
     if not args.archetype:
         print("\n📊 SELECCIONA ARQUETIPO:")
-        print(" 1) mvp        (Velocidad, deuda técnica aceptable)")
-        print(" 2) corporate  (Seguridad estricta, tests obligatorios)")
+        print(" 1) mvp        (Velocidad)")
+        print(" 2) corporate  (Seguridad estricta)")
         sel = input("Opción [1]: ").strip()
         archetype = "corporate" if sel == "2" else "mvp"
     else:
         archetype = args.archetype
 
-    # 4. Copia de Templates Base
+    # Copia de Templates
     try:
-        # Copiar Stack
-        stack_src = TEMPLATES_DIR / "stacks" / f"{stack_name}.md"
-        if stack_src.exists():
-            shutil.copy(stack_src, standards_dest / "tech-stack.md")
-        else:
-            print_warning(f"Stack '{stack_name}' no encontrado. Se omitió tech-stack.md")
-
-        # Copiar Reglas de Código
+        shutil.copy(TEMPLATES_DIR / "stacks" / f"{stack_name}.md", standards_dest / "tech-stack.md")
+        
         rules_src = TEMPLATES_DIR / "archetypes" / archetype / "coding-rules.md"
-        if rules_src.exists():
-            shutil.copy(rules_src, standards_dest / "coding-rules.md")
+        if rules_src.exists(): shutil.copy(rules_src, standards_dest / "coding-rules.md")
 
-        # Copiar Seguridad
         sec_src = TEMPLATES_DIR / "archetypes" / archetype / "security.md"
-        if sec_src.exists(): 
-            shutil.copy(sec_src, standards_dest / "security.md")
+        if sec_src.exists(): shutil.copy(sec_src, standards_dest / "security.md")
     except Exception as e:
         print_error(f"Error copiando templates: {e}")
 
-    # 5. Entrevista de Negocio (Scope)
+    # Configuración de Negocio
     print("\n--- CONFIGURACIÓN DE NEGOCIO ---")
-    if input("¿Definir reglas de negocio permanentes? (ej. Monetización, GDPR) [y/N]: ").lower() == 'y':
+    if input("¿Definir reglas de negocio permanentes? [y/N]: ").lower() == 'y':
         rules = input("Escribe las reglas clave: ")
         (standards_dest / "business.md").write_text(f"# BUSINESS RULES\n{rules}", encoding="utf-8")
 
-    # 6. Generación Final
     regenerate_context()
     print("\n🚀 ¡Rapid OS activo! Tu IA ahora es un Senior Engineer.")
 
 def scope_feature(args):
-    """Generador interactivo de PRD/Specs"""
     print("\n🔭 SCOPE WIZARD (Generador de Especificaciones)")
     name = input("Nombre de la funcionalidad: ").strip()
     goal = input("Objetivo (User Goal): ").strip()
     flow = input("Flujo paso a paso: ").strip()
     
     content = f"# SPEC: {name.upper()}\n\n## GOAL\n{goal}\n\n## FLOW\n{flow}"
-    
     target = CURRENT_DIR / "SPECS.md"
     target.write_text(content, encoding="utf-8")
     print_success(f"Especificación guardada en {target.name}")
-    print("👉 Instrucción para la IA: 'Implementa lo que dice en SPECS.md'")
 
 def deploy_assistant(args):
-    """Generador de Estrategia DevOps"""
-    target = args.target or input("Destino (aws, vercel, gcp, azure): ").strip()
+    target = args.target or input("Destino (aws, vercel, gcp): ").strip()
     print(f"\n☁️  Generando plan de despliegue para {target.upper()}...")
     
-    # Busca template específico o usa genérico
     tpl = TEMPLATES_DIR / "deploy" / f"{target}.md"
-    instructions = tpl.read_text(encoding="utf-8") if tpl.exists() else f"Generate comprehensive deployment configuration for {target}."
+    instructions = tpl.read_text(encoding="utf-8") if tpl.exists() else f"Generate deployment for {target}."
     
-    # Lee el stack actual para dar contexto
     stack_file = PROJECT_RAPID_DIR / "standards" / "tech-stack.md"
     stack = stack_file.read_text(encoding="utf-8") if stack_file.exists() else "Unknown Stack"
     
-    prompt = f"# DEPLOYMENT TASK\nTARGET: {target}\nCURRENT STACK: {stack}\n\nINSTRUCTIONS:\n{instructions}"
+    prompt = f"# DEPLOYMENT TASK\nTARGET: {target}\nSTACK: {stack}\n\nINSTRUCTIONS:\n{instructions}"
     (CURRENT_DIR / "DEPLOY.md").write_text(prompt, encoding="utf-8")
     print_success("Plan generado en DEPLOY.md")
 
+def add_visual_reference(args):
+    """Comando VISION: Importa referencias visuales"""
+    source_path = Path(args.path)
+    if not source_path.exists():
+        print_error(f"La imagen {source_path} no existe.")
+
+    # 1. Crear carpeta de referencias
+    refs_dir = CURRENT_DIR / "references"
+    refs_dir.mkdir(parents=True, exist_ok=True)
+
+    # 2. Copiar la imagen
+    dest_path = refs_dir / source_path.name
+    shutil.copy(source_path, dest_path)
+    
+    # 3. Metadatos
+    meta_file = refs_dir / "VISION_CONTEXT.md"
+    description = input(f"Describe qué representa '{source_path.name}': ")
+    entry = f"\n- **{source_path.name}**: {description}"
+    
+    if not meta_file.exists():
+        header = "# 🎨 VISUAL REFERENCES\n"
+        meta_file.write_text(header + entry, encoding="utf-8")
+    else:
+        with open(meta_file, "a", encoding="utf-8") as f:
+            f.write(entry)
+
+    print_success(f"Referencia visual agregada.")
+    regenerate_context()
+
 def refine_standard(args):
-    """Usa IA para auditar documentos"""
     target = Path(args.file)
     if not target.exists(): print_error("Archivo no encontrado")
-    
     content = target.read_text(encoding="utf-8")
-    prompt = f"ACT AS: Principal Architect. REFINE this document. Make rules STRICT and NEGATIVE (what NOT to do):\n\n{content}"
-    
-    print("\n📋 Copia este prompt en tu IA para mejorar el documento:")
-    print("-" * 40)
-    print(prompt)
-    print("-" * 40)
+    prompt = f"ACT AS: Principal Architect. REFINE this document:\n\n{content}"
+    print("\n📋 Copia este prompt en tu IA:\n" + "-"*40 + "\n" + prompt + "\n" + "-"*40)
 
 def show_guide():
-    """Manual Interactivo"""
     topics = {
-        "1": "Qué es Rapid OS y por qué usarlo",
-        "2": "Flujo Diario (Cursor, Claude, Antigravity)",
-        "3": "Comando 'scope' (Specs complejas)",
-        "4": "Comando 'deploy' (DevOps)"
+        "1": "Qué es Rapid OS",
+        "2": "Flujo Diario",
+        "3": "Comando 'scope'",
+        "4": "Comando 'vision' (NUEVO)"
     }
     clear_screen()
     print("📘 RAPID OS - MANUAL")
     for k,v in topics.items(): print(f"{k}) {v}")
-    print("\n(Ctrl+C para salir)")
-    input("Selecciona opción: ")
+    input("\n(Ctrl+C para salir)")
 
 # --- MAIN ENTRY POINT ---
 
@@ -238,22 +244,21 @@ def main():
     parser = argparse.ArgumentParser(description="Rapid OS - Context Injection Framework")
     subparsers = parser.add_subparsers(dest="command")
     
-    # init
+    # Comandos
     init = subparsers.add_parser("init", help="Configurar proyecto")
     init.add_argument("--stack"); init.add_argument("--archetype")
     
-    # scope
     subparsers.add_parser("scope", help="Crear especificación funcional")
     
-    # deploy
     deploy = subparsers.add_parser("deploy", help="Asistente de despliegue")
     deploy.add_argument("target", nargs="?")
     
-    # refine
-    refine = subparsers.add_parser("refine", help="Mejorar estándares con IA")
+    vision = subparsers.add_parser("vision", help="Agregar referencia visual")
+    vision.add_argument("path", help="Ruta de la imagen")
+    
+    refine = subparsers.add_parser("refine", help="Mejorar estándares")
     refine.add_argument("file")
     
-    # guide
     subparsers.add_parser("guide", help="Ayuda interactiva")
 
     args = parser.parse_args()
@@ -261,6 +266,7 @@ def main():
     if args.command == "init": init_project(args)
     elif args.command == "scope": scope_feature(args)
     elif args.command == "deploy": deploy_assistant(args)
+    elif args.command == "vision": add_visual_reference(args) # <--- CONECTADO
     elif args.command == "refine": refine_standard(args)
     elif args.command == "guide": show_guide()
     else: parser.print_help()
