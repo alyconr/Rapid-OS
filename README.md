@@ -126,8 +126,8 @@ Este proyecto está construido utilizando tecnologías nativas para asegurar má
   - **Claude Code** (`CLAUDE.md`)
   - **Google Antigravity** (`.specify/memory/constitution.md`)
   - **GitHub Copilot** (`INSTRUCTIONS.md`)
-- 🏗️ Topologías Inteligentes: Define la arquitectura (Frontend Only, BaaS, Fullstack) para que la IA entienda los límites de conexión y estructura de datos.
-- 🔌 Herramientas MCP (Model Context Protocol): Genera configuraciones para servidores MCP (Postgres, Supabase, Filesystem), permitiendo que la IA ejecute acciones reales en tu base de datos y sistema de archivos.
+- 🏗️ **Topologías Inteligentes:** Define la arquitectura (Frontend Only, BaaS, Fullstack) para que la IA entienda los límites de conexión y estructura de datos.
+- 🔌 **Herramientas MCP (Model Context Protocol):** Genera configuraciones para servidores MCP (Postgres, Supabase, Filesystem), permitiendo que la IA ejecute acciones reales en tu base de datos y sistema de archivos.
 - 👁️ **Soporte Multimodal (Vision):** Inyecta capturas de pantalla y referencias visuales al contexto para que la IA replique diseños UI con precisión pixel-perfect.
 - 🚀 **Stacks Pre-configurados:** Incluye templates "Senior-level" para Web Moderno, Python AI, Creative Frontend, Node.js AI, entre otros.
 - 🛡️ **Seguridad por Defecto:** Inyección automática de protocolos OWASP y reglas de no-logs para PII.
