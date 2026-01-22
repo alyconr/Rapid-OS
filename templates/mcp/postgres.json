@@ -1,0 +1,13 @@
+{
+  "postgres": {
+    "command": "docker",
+    "args": [
+      "run",
+      "-i",
+      "--rm",
+      "-e",
+      "POSTGRES_CONNECTION_STRING=postgresql://user:password@localhost:5432/dbname",
+      "mcp/postgres"
+    ]
+  }
+}
