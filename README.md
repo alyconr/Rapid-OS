@@ -298,7 +298,9 @@ Matches soportados actualmente: `aws`, `vercel`, `gcp`, `azure`.
 
 ## 👥 Authors <a name="authors"></a>
 
-- **Alyconr** - _Initial work_ - [GitHub](https://github.com/alyconr)
+- **Alyconr** - [GitHub](https://github.com/alyconr)
+- **Aly Contreras** - [LinkedIn](https://www.linkedin.com/in/jeysson-aly-contreras/)
+
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
