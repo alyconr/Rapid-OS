@@ -10,28 +10,39 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity) en Ingenieros Senior insta
 
 </div>
 
-## Table of Contents
-
-- [📖 About the Project](#about-the-project)
-- [🧩 How it Works](#how-it-works)
-- [⚒️ Build With](#build-with)
-  - [Tech Stack](#tech-stack)
-  - [Key Features](#key-features)
-- [🚀 Live Demo](#live-demo)
-- [💻 Getting Started](#getting-started)
-  - [Setup](#setup)
-  - [Prerequisites](#prerequisites)
-  - [Install](#install)
-- [Usage](#usage)
-- [Run tests](#run-tests)
-- [Deployment](#deployment)
-- [👥 Authors](#authors)
-- [🕹️ Future Features](#future-features)
-- [🤝 Contributing](#contributing)
-- [⭐ Show your Support](#show-your-support)
-- [👏 Acknowledgements](#acknowledgements)
-- [❓ FAQ](#faq)
-- [📃 License](#license)
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li><a href="#about-the-project">📖 About the Project</a></li>
+    <li><a href="#how-it-works">🧩 How it Works</a></li>
+    <li>
+      <a href="#build-with">⚒️ Build With</a>
+      <ul>
+        <li><a href="#tech-stack">Tech Stack</a></li>
+        <li><a href="#key-features">Key Features</a></li>
+      </ul>
+    </li>
+    <li><a href="#live-demo">🚀 Live Demo</a></li>
+    <li>
+      <a href="#getting-started">💻 Getting Started</a>
+      <ul>
+        <li><a href="#setup">Setup</a></li>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#install">Install</a></li>
+      </ul>
+    </li>
+    <li><a href="#usage">Usage</a></li>
+    <li><a href="#run-tests">Run tests</a></li>
+    <li><a href="#deployment">Deployment</a></li>
+    <li><a href="#authors">👥 Authors</a></li>
+    <li><a href="#future-features">🕹️ Future Features</a></li>
+    <li><a href="#contributing">🤝 Contributing</a></li>
+    <li><a href="#show-your-support">⭐ Show your Support</a></li>
+    <li><a href="#acknowledgements">👏 Acknowledgements</a></li>
+    <li><a href="#faq">❓ FAQ</a></li>
+    <li><a href="#license">📃 License</a></li>
+  </ol>
+</details>
 
 ---
 
@@ -64,9 +75,9 @@ graph TD
     %% Subgrafo: Rapid OS (El Director Técnico)
     subgraph "🛠️ FASE 1: Preparación del Contexto (Rapid OS CLI)"
         RapidCLI(🖥️ Rapid OS CLI):::rapid
-        
+
         User -->|1. Ejecuta 'rapid init'| RapidCLI
-        
+
         ContextFiles[📄 Archivos de Contexto <br> .cursorrules, CLAUDE.md, etc.]:::context
         RapidCLI -->|"Genera Reglas (Stack, Seguridad)"| ContextFiles
     end
@@ -75,15 +86,16 @@ graph TD
     subgraph "🎯 FASE 2: Definición de Tareas (Opcional)"
         ScopeCmd(Comando 'rapid scope'):::rapid
         DeployCmd(Comando 'rapid deploy'):::rapid
-        
+        SkillCmd(Comando 'rapid skill'):::rapid
+
         User -->|2a. Define funcionalidad| ScopeCmd
-        User -->|2b. Pide infraestructura| DeployCmd
-        
+        User -->|2b. Instala Skills| SkillCmd
+
         SpecsFile[📄 SPECS.md <br> Instrucciones Funcionales]:::context
-        DeployFile[📄 DEPLOY.md <br> Plan de DevOps]:::context
-        
+        SkillsFolder[📂 Skills Activas <br> .cursor/skills]:::context
+
         ScopeCmd --> SpecsFile
-        DeployCmd --> DeployFile
+        SkillCmd --> SkillsFolder
     end
 
     %% Subgrafo: La Generación Real (El Constructor)
@@ -91,11 +103,11 @@ graph TD
         %% La Inyección Mágica
         ContextFiles -.->|"⚡ INYECCIÓN AUTOMÁTICA DE CONTEXTO ⚡"| AI
         SpecsFile -.->|"Lee instrucciones precisas"| AI
-        DeployFile -.->|"Lee plan de despliegue"| AI
-        
+        SkillsFolder -.->|"Usa Herramientas (Ej. Deploy, DB)"| AI
+
         %% La Acción del Usuario - CORREGIDA
         User == "3. Prompt Simple: 'Haz el login' o 'Implementa SPECS.md'" ==> AI
-        
+
         %% El Resultado
         AI ==>|"Genera Código Perfecto (Siguiendo Reglas)"| FinalCode
     end
@@ -114,25 +126,24 @@ graph TD
 
 Este proyecto está construido utilizando tecnologías nativas para asegurar máxima compatibilidad y cero dependencias pesadas:
 
-- ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54) **Core Logic**
-- ![Bash Script](https://img.shields.io/badge/bash_script-%23121011.svg?style=for-the-badge&logo=gnu-bash&logoColor=white) **Installer (Linux/Mac)**
-- ![PowerShell](https://img.shields.io/badge/PowerShell-%235391FE.svg?style=for-the-badge&logo=powershell&logoColor=white) **Installer (Windows)**
-- ![Markdown](https://img.shields.io/badge/markdown-%23000000.svg?style=for-the-badge&logo=markdown&logoColor=white) **Templates & Context**
+- **Core Logic**
+- **Installer (Linux/Mac)**
+- **Installer (Windows)**
+- **Templates & Context**
 
 ### Key Features <a name="key-features"></a>
 
-- 🤖 **Multi-Agente Nativo:** Genera configuraciones automáticas para:
-  - **Cursor IDE** (`.cursorrules`)
-  - **Claude Code** (`CLAUDE.md`)
-  - **Google Antigravity** (`.agent/rules/constitution.md`)
-  - **GitHub Copilot** (`INSTRUCTIONS.md`)
-- 🏗️ **Topologías Inteligentes:** Define la arquitectura (Frontend Only, BaaS, Fullstack) para que la IA entienda los límites de conexión y estructura de datos.
-- 🔌 **Herramientas MCP (Model Context Protocol):** Genera configuraciones para servidores MCP (Postgres, Supabase, Filesystem), permitiendo que la IA ejecute acciones reales en tu base de datos y sistema de archivos.
-- 👁️ **Soporte Multimodal (Vision):** Inyecta capturas de pantalla y referencias visuales al contexto para que la IA replique diseños UI con precisión pixel-perfect.
-- 🚀 **Stacks Pre-configurados:** Incluye templates "Senior-level" para Web Moderno, Python AI, Creative Frontend, Node.js AI, entre otros.
-- 🛡️ **Seguridad por Defecto:** Inyección automática de protocolos OWASP y reglas de no-logs para PII.
-- ☁️ **Asistente DevOps:** Genera archivos de IaC (Terraform, Docker) para AWS, Vercel y GCP.
-- 🔭 **Scope Wizard:** Herramienta interactiva para crear PRDs (Product Requirement Documents) que la IA puede entender.
+- **🧰 Gestor de Skills Híbrido**: Instala capacidades activas para tu IA desde dos fuentes:
+  - _Remoto_: Acceso directo al ecosistema de la comunidad (`npx skills`) para instalar miles de herramientas.
+  - _Local_: Usa tus propios templates privados (`templates/skills`) para estandarizar flujos de tu equipo.
+- **🤖 Multi-Agente Modular**: No más ruido. Elige exactamente qué archivos de configuración generar: Cursor (`.cursorrules`), Claude Code (`CLAUDE.md`), Google Antigravity (`.agent/rules`) o VS Code.
+- **🧠 Contexto de Negocio Inteligente**: Importa tus reglas de negocio desde archivos Markdown (`.md`) existentes o guárdalas como Plantillas reutilizables para futuros proyectos.
+- **🏗️ Topologías Arquitectónicas**: Define si tu proyecto es Frontend Only, BaaS (Supabase) o Fullstack Separado para evitar alucinaciones de código.
+- **🔌 Herramientas MCP (Model Context Protocol)**: Configura automáticamente servidores de base de datos (Postgres/Supabase) para que la IA pueda ejecutar consultas reales.
+- **👁️ Soporte Multimodal (Vision)**: Inyecta capturas de pantalla y referencias visuales al contexto para diseños pixel-perfect.
+- **🚀 Stacks Senior**: Templates pre-configurados para Web Moderno, Python AI, Creative Frontend, etc.
+- **🛡️ Seguridad por Defecto**: Inyección automática de protocolos OWASP y reglas Anti-PII.
+- **☁️ Asistente DevOps**: Genera archivos de IaC (Terraform, Docker) para AWS, Vercel y GCP.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -141,7 +152,7 @@ Este proyecto está construido utilizando tecnologías nativas para asegurar má
 Puedes ver a Rapid OS en acción transformando un proyecto vacío en un entorno configurado en segundos.
 
 > [!NOTE]
-> _Insertar enlace a Video Demo o GIF aquí_
+> Insertar enlace a Video Demo o GIF aquí
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -159,16 +170,17 @@ Asegúrate de tener instalado:
 
 - **Git**: Para control de versiones.
 - **Python 3.8+**: Para ejecutar el núcleo de Rapid OS.
+- **Node.js (Opcional)**: Requerido solo si deseas instalar Skills remotas usando `npx`.
 
 ### Install <a name="install"></a>
 
-**Opción A: Linux, macOS o WSL**
+#### Opción A: Linux, macOS o WSL
 
 ```bash
 curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.sh | bash
 ```
 
-**Opción B: Windows (PowerShell Nativo)**
+#### Opción B: Windows (PowerShell Nativo)
 
 ```powershell
 irm https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.ps1 | iex
@@ -180,17 +192,57 @@ Reinicia tu terminal después de la instalación para cargar el comando `rapid`.
 
 ## Usage <a name="usage"></a>
 
-**1. Inicializar proyecto**
+### 1. Inicializar proyecto (Ahora más inteligente)
 
-Ve a la carpeta donde quieres inicializar el proyecto y ejecuta:
+Ejecuta el asistente interactivo:
 
 ```bash
 rapid init
 ```
 
-Sigue las instrucciones del asistente para seleccionar el stack que deseas para tu proyecto. (ejemplo: Web Moderno, Python AI, Creative Frontend, Node.js AI, entre otros.)
+Rapid OS te guiará por 5 dimensiones de configuración:
 
-**2. Definir una funcionalidad Compleja (Scope Wizard)**
+- **Tech Stack**: (ej. Web Moderno, Python AI).
+- **Topología**: (ej. Frontend Only, Fullstack BaaS).
+- **Arquetipo**: (MVP Rápido vs Corporate Estricto).
+- **Selección de Agentes**: Marca solo las herramientas que usas (ej. Cursor + Antigravity) para mantener tu repo limpio.
+- **Reglas de Negocio**: Escribe manualmente o arrastra un archivo Markdown con tus reglas. Rapid OS te ofrecerá guardar ese archivo como plantilla para el futuro.
+
+### 2. Instalar Skills (Capacidades Activas)
+
+Dota a tu agente de herramientas para ejecutar tareas complejas.
+
+#### Opción A: Instalar desde la Comunidad (Vercel Marketplace)
+
+```bash
+# Instala herramientas para Stripe, Navegación Web, o Análisis de Datos
+rapid skill add vercel-labs/agent-skills
+rapid skill add stripe/mcp
+```
+
+#### Opción B: Instalar Skills Privadas (Templates Locales)
+
+Usa las skills definidas por tu equipo en la carpeta `templates/skills`.
+
+```bash
+# Ver lista local
+rapid skill list
+
+# Instalar skill privada
+rapid skill install mi-flujo-interno
+```
+
+### 3. Configurar Herramientas de Base de Datos (MCP)
+
+Si tu topología incluye base de datos, genera los drivers para que la IA pueda conectarse:
+
+```bash
+rapid mcp
+```
+
+(Detecta automáticamente si usas Postgres o Supabase y genera `claude_desktop_config.json`).
+
+### 4. Definir una funcionalidad Compleja (Scope Wizard)
 
 Si necesitas que la IA construya algo grande, genera una especificación clara:
 
@@ -200,35 +252,20 @@ rapid scope
 
 Responde las preguntas y obtendrás un archivo `SPECS.md` optimizado para LLMs.
 
-**3. Asistencia de Despliegue**
+### 5. Asistencia de Despliegue
 
 Genera archivos de configuración para la nube:
 
 ```bash
 rapid deploy aws
 ```
-**4. Referencias Visuales (Vision)**
+
+### 6. Referencias Visuales (Vision)
 
 Para que la IA "vea" tus diseños y no alucine el frontend, importa capturas de pantalla o mockups:
 
 ```bash
 rapid vision ruta/al/diseño.png
-```
-
-**5 Configurar Herramientas Activas (MCP)**
-
-Habilita a tu agente para que pueda conectarse a tu base de datos y ejecutar scripts (ideal para poblar datos o auditoría):
-
-```bash
-rapid mcp
-```
-
-**6. Refinar Estándares**
-
-Usa la IA para mejorar tus propios documentos de reglas:
-
-```bash
-rapid refine mi-borrador.md
 ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -241,7 +278,7 @@ Para verificar que Rapid OS se instaló correctamente y puede acceder a los temp
 rapid --help
 ```
 
-Deberías ver la lista de comandos disponibles (init, scope, deploy, refine, guide).
+Deberías ver la lista de comandos disponibles (`init`, `skill`, `mcp`, `scope`, `deploy`, `vision`, `guide`).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -255,21 +292,18 @@ Usa el comando `rapid deploy [target]` para generar:
 - Scripts de Terraform o CloudFormation.
 - Configuraciones de CI/CD (GitHub Actions).
 
-Targets soportados actualmente: `aws`, `vercel`, `gcp`, `azure`.
+Matches soportados actualmente: `aws`, `vercel`, `gcp`, `azure`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## 👥 Authors <a name="authors"></a>
 
-👤 **Alyconr**
-
-- GitHub: [@alyconr](https://github.com/alyconr)
+- **Alyconr** - _Initial work_ - [GitHub](https://github.com/alyconr)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## 🕹️ Future Features <a name="future-features"></a>
 
-- [ ] **Marketplace de Stacks**: Permitir a la comunidad subir sus propios stacks (`rapid install-stack <url>`).
 - [ ] **Soporte para JetBrains**: Integración con IntelliJ/PyCharm AI Assistant.
 - [ ] **Agentes Autónomos**: Integración profunda con AutoGPT o BabyAGI para ejecución de tareas.
 
@@ -279,11 +313,11 @@ Targets soportados actualmente: `aws`, `vercel`, `gcp`, `azure`.
 
 ¡Las contribuciones son bienvenidas!
 
-1. Haz un Fork del proyecto.
-2. Crea tu rama de funcionalidad (`git checkout -b feature/AmazingFeature`).
-3. Haz Commit de tus cambios (`git commit -m 'Add some AmazingFeature'`).
-4. Haz Push a la rama (`git push origin feature/AmazingFeature`).
-5. Abre un Pull Request.
+1.  Haz un Fork del proyecto.
+2.  Crea tu rama de funcionalidad (`git checkout -b feature/AmazingFeature`).
+3.  Haz Commit de tus cambios (`git commit -m 'Add some AmazingFeature'`).
+4.  Haz Push a la rama (`git push origin feature/AmazingFeature`).
+5.  Abre un Pull Request.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -302,14 +336,14 @@ Si Rapid OS te ha ahorrado tiempo o dolores de cabeza con la IA, ¡dale una estr
 
 ## ❓ FAQ <a name="faq"></a>
 
-- **¿Rapid OS sube mi código a la nube?**
-  No. Rapid OS funciona 100% localmente. Solo genera archivos de texto (.md) en tu carpeta.
+**¿Rapid OS sube mi código a la nube?**
+No. Rapid OS funciona 100% localmente. Solo genera archivos de texto (`.md`) en tu carpeta.
 
-- **¿Funciona con proyectos existentes?**
-  Sí. Puedes ejecutar `rapid init` en un proyecto legacy (clonado de GitHub) para inyectar reglas de refactorización modernas.
+**¿Funciona con proyectos existentes?**
+Sí. Puedes ejecutar `rapid init` en un proyecto legacy (clonado de GitHub) para inyectar reglas de refactorización modernas.
 
-- **¿Qué pasa si vuelvo a ejecutar `rapid init`?**
-  Rapid OS detecta si ya existen archivos de configuración y crea copias de seguridad automáticas (`.bak`) antes de sobrescribir nada.
+**¿Qué pasa si vuelvo a ejecutar `rapid init`?**
+Rapid OS detecta si ya existen archivos de configuración y crea copias de seguridad automáticas (`.bak`) antes de sobrescribir nada.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
