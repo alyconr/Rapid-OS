@@ -134,12 +134,11 @@ def init_project(args):
     standards_dest = PROJECT_RAPID_DIR / "standards"
     standards_dest.mkdir(parents=True, exist_ok=True)
 
-    # 1. Selección de Stack
+    # 1. Stack (Sin cambios)
     if not args.stack:
         stacks_path = TEMPLATES_DIR / "stacks"
         if not stacks_path.exists(): print_error("Templates no encontrados.")
         stacks = sorted([f.stem for f in stacks_path.glob("*.md")])
-        
         print("\n🛠  SELECCIONA TECH STACK:")
         for i, s in enumerate(stacks, 1): print(f" {i}) {s}")
         try:
@@ -148,7 +147,7 @@ def init_project(args):
         except: stack_name = stacks[0]
     else: stack_name = args.stack
 
-    # 2. Selección de Topología
+    # 2. Topología (Sin cambios)
     topologies_path = TEMPLATES_DIR / "topologies"
     if not topologies_path.exists(): topologies_path.mkdir(parents=True, exist_ok=True)
     topos = sorted([f.stem for f in topologies_path.glob("*.md")])
@@ -161,50 +160,111 @@ def init_project(args):
         except: topo_name = topos[0]
         shutil.copy(topologies_path / f"{topo_name}.md", standards_dest / "topology.md")
 
-    # 3. Selección de Arquetipo
+    # 3. Arquetipo (Sin cambios)
     print("\n📊 SELECCIONA ARQUETIPO:")
     print(" 1) mvp        (Velocidad)")
     print(" 2) corporate  (Seguridad estricta)")
     sel = input("Opción [1]: ").strip()
     archetype = "corporate" if sel == "2" else "mvp"
 
-    # 4. Copia de Templates
+    # 4. Copia Templates (Sin cambios)
     try:
         shutil.copy(TEMPLATES_DIR / "stacks" / f"{stack_name}.md", standards_dest / "tech-stack.md")
         rules_src = TEMPLATES_DIR / "archetypes" / archetype / "coding-rules.md"
         if rules_src.exists(): shutil.copy(rules_src, standards_dest / "coding-rules.md")
         sec_src = TEMPLATES_DIR / "archetypes" / archetype / "security.md"
         if sec_src.exists(): shutil.copy(sec_src, standards_dest / "security.md")
-    except Exception as e: print_warning(f"Advertencia copiando templates: {e}")
+    except Exception as e: print_warning(f"Advertencia copiando templates base: {e}")
 
-    # 5. NUEVO: Selección de Agentes (Herramientas)
+    # 5. Agentes (Sin cambios)
     print("\n🤖 SELECCIONA TUS AGENTES (Separados por coma):")
     print(" 1) Cursor (.cursorrules)")
     print(" 2) Claude Code (CLAUDE.md)")
     print(" 3) Google Antigravity (.agent/rules)")
     print(" 4) VS Code / Copilot (INSTRUCTIONS.md)")
-    
     agent_sel = input("Opción [1]: ").strip()
     selected_tools = []
-    
-    if not agent_sel: 
-        selected_tools = ["cursor"] # Default
+    if not agent_sel: selected_tools = ["cursor"]
     else:
         parts = agent_sel.split(",")
         if "1" in parts: selected_tools.append("cursor")
         if "2" in parts: selected_tools.append("claude")
         if "3" in parts: selected_tools.append("antigravity")
         if "4" in parts: selected_tools.append("vscode")
-
-    # Guardar preferencia
     save_project_config({"tools": selected_tools})
 
-    # 6. Negocio
+    # --- 6. NEGOCIO (LÓGICA INTERACTIVA MEJORADA) ---
     print("\n--- CONFIGURACIÓN DE NEGOCIO ---")
-    if input("¿Definir reglas de negocio permanentes? [y/N]: ").lower() == 'y':
-        print("(Consejo: Define monetización, tono de marca o restricciones legales)")
-        rules = input("Escribe las reglas clave: ")
-        (standards_dest / "business.md").write_text(f"# BUSINESS RULES\n{rules}", encoding="utf-8")
+    
+    biz_templates_path = TEMPLATES_DIR / "business"
+    # Verificar y crear si no existe
+    if not biz_templates_path.exists(): 
+        biz_templates_path.mkdir(parents=True, exist_ok=True)
+    
+    biz_files = sorted([f.stem for f in biz_templates_path.glob("*.md")])
+    biz_content = ""
+
+    # CASO A: No hay templates (Carpeta vacía o nueva)
+    if not biz_files:
+        print("ℹ️  No se encontraron plantillas de negocio guardadas.")
+        print("¿Deseas importar un archivo Markdown con tus reglas ahora? (Recomendado)")
+        if input("Importar archivo [Y/n]: ").lower() != 'n':
+            path_str = input("📂 Arrastra el archivo aquí o escribe la ruta: ").strip().replace("'", "").replace('"', '')
+            local_path = Path(path_str)
+            if local_path.exists() and local_path.is_file():
+                biz_content = local_path.read_text(encoding="utf-8")
+                print_success(f"Reglas importadas desde: {local_path.name}")
+                
+                # Preguntar si quiere guardarlo como template para el futuro
+                if input("¿Guardar como plantilla para futuros proyectos? [y/N]: ").lower() == 'y':
+                    tpl_name = input("Nombre de la plantilla (ej. saas-b2b): ").strip()
+                    (biz_templates_path / f"{tpl_name}.md").write_text(biz_content, encoding="utf-8")
+                    print_success("¡Plantilla guardada!")
+            else:
+                print_error("El archivo no existe. Pasando a modo manual...")
+                # Fallback a manual si falla la importación
+                print("(Escribe las reglas clave a continuación)")
+                rules = input("> ")
+                if rules: biz_content = f"# BUSINESS RULES\n{rules}"
+        else:
+            # Usuario decidió no importar
+            print("Escribe las reglas clave manualmente:")
+            rules = input("> ")
+            if rules: biz_content = f"# BUSINESS RULES\n{rules}"
+
+    # CASO B: Sí hay templates
+    else:
+        print("¿Cómo quieres cargar las Reglas de Negocio?")
+        print(" 1) Escribir manualmente ahora")
+        print(" 2) Importar desde ruta de archivo local")
+        print(" --- PLANTILLAS ---")
+        for i, b in enumerate(biz_files, 1):
+            print(f" {i + 2}) {b}")
+            
+        opcion = input("Opción [1]: ").strip()
+        
+        if opcion == "2":
+            path_str = input("Ruta del archivo .md: ").strip().replace("'", "").replace('"', '')
+            local_path = Path(path_str)
+            if local_path.exists():
+                biz_content = local_path.read_text(encoding="utf-8")
+                print_success(f"Importado: {local_path.name}")
+            else: print_error("Archivo no encontrado.")
+            
+        elif opcion.isdigit() and int(opcion) > 2:
+            idx = int(opcion) - 3
+            if 0 <= idx < len(biz_files):
+                tpl_name = biz_files[idx]
+                biz_content = (biz_templates_path / f"{tpl_name}.md").read_text(encoding="utf-8")
+                print_success(f"Usando plantilla: {tpl_name}")
+                
+        if (opcion == "1" or not biz_content) and not (opcion.isdigit() and int(opcion) > 2):
+            rules = input("Escribe las reglas clave: ")
+            if rules: biz_content = f"# BUSINESS RULES\n{rules}"
+
+    # Guardar archivo final
+    if biz_content:
+        (standards_dest / "business.md").write_text(biz_content, encoding="utf-8")
 
     regenerate_context()
     print("\n🚀 ¡Rapid OS activo!")
