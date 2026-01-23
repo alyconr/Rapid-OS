@@ -182,7 +182,7 @@ def init_project(args):
         if "4" in parts: selected_tools.append("vscode")
     save_project_config({"tools": selected_tools})
 
-    # 5. Negocio (Smart Import)
+    # 5. Negocio (Smart Import - Soporte TXT)
     print("\n--- CONFIGURACIÓN DE NEGOCIO ---")
     biz_templates_path = TEMPLATES_DIR / "business"
     if not biz_templates_path.exists(): biz_templates_path.mkdir(parents=True, exist_ok=True)
@@ -190,15 +190,22 @@ def init_project(args):
     biz_content = ""
 
     if not biz_files:
-        print("ℹ️  No hay plantillas.")
-        if input("¿Importar archivo Markdown? [Y/n]: ").lower() != 'n':
-            path_str = input("📂 Ruta archivo: ").strip().replace("'", "").replace('"', '')
+        print("ℹ️  No hay plantillas guardadas.")
+        # --- AQUÍ ESTÁ EL CAMBIO PARA SOPORTAR TXT ---
+        if input("¿Importar archivo (md/txt)? [Y/n]: ").lower() != 'n':
+            path_str = input("📂 Arrastra el archivo (.md, .txt): ").strip().replace("'", "").replace('"', '')
             local_path = Path(path_str)
             if local_path.exists():
-                biz_content = local_path.read_text(encoding="utf-8")
-                if input("¿Guardar como plantilla? [y/N]: ").lower() == 'y':
-                    tpl_name = input("Nombre plantilla: ").strip()
-                    (biz_templates_path / f"{tpl_name}.md").write_text(biz_content, encoding="utf-8")
+                try:
+                    biz_content = local_path.read_text(encoding="utf-8")
+                    print_success(f"Leído correctamente: {local_path.name}")
+                    
+                    if input("¿Guardar como plantilla? [y/N]: ").lower() == 'y':
+                        tpl_name = input("Nombre plantilla: ").strip()
+                        # Siempre guardamos como .md internamente para mantener formato
+                        (biz_templates_path / f"{tpl_name}.md").write_text(biz_content, encoding="utf-8")
+                except Exception as e:
+                    print_error(f"No se pudo leer el archivo: {e}")
             else:
                 rules = input("Archivo no existe. Escribe reglas manuales: ")
                 if rules: biz_content = f"# BUSINESS RULES\n{rules}"
@@ -207,13 +214,20 @@ def init_project(args):
             if rules: biz_content = f"# BUSINESS RULES\n{rules}"
     else:
         print(" 1) Escribir manual")
-        print(" 2) Importar archivo")
+        print(" 2) Importar archivo local (.md, .txt)")
         for i, b in enumerate(biz_files, 1): print(f" {i + 2}) {b}")
         opcion = input("Opción [1]: ").strip()
         
         if opcion == "2":
-            path_str = input("Ruta: ").strip().replace("'", "").replace('"', '')
-            if Path(path_str).exists(): biz_content = Path(path_str).read_text(encoding="utf-8")
+            path_str = input("📂 Arrastra el archivo (.md, .txt): ").strip().replace("'", "").replace('"', '')
+            local_path = Path(path_str)
+            if local_path.exists(): 
+                try:
+                    biz_content = local_path.read_text(encoding="utf-8")
+                    print_success(f"Leído correctamente: {local_path.name}")
+                except Exception as e:
+                    print_error(f"Error leyendo archivo: {e}")
+
         elif opcion.isdigit() and int(opcion) > 2:
             idx = int(opcion) - 3
             if 0 <= idx < len(biz_files):
