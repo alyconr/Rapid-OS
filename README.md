@@ -192,81 +192,107 @@ Reinicia tu terminal después de la instalación para cargar el comando `rapid`.
 
 ## Usage <a name="usage"></a>
 
-### 1. Inicializar proyecto (Ahora más inteligente)
+## Usage <a name="usage"></a>
 
-Ejecuta el asistente interactivo:
+### 1. Inicializar Proyecto (Nuevo o Legacy)
+
+`rapid init` es el comando universal. Úsalo tanto para proyectos desde cero como para "curar" proyectos existentes con **Amnesia de Contexto**.
+
+1.  Abre tu terminal en la **raíz de tu proyecto**.
+2.  Ejecuta:
+    ```bash
+    rapid init
+    ```
+3.  Sigue el asistente interactivo:
+    - **Tech Stack**: Define las tecnologías permitidas (ej. "Solo React Functional Components").
+    - **Arquetipo**: "Corporate" para código estricto con tests, o "MVP" para velocidad.
+    - **Reglas de Negocio**: Importa tus documentos existentes o extráelos de tu cabeza.
+
+> **Para Refactorización**: Al ejecutar esto en un proyecto legacy, Rapid OS inyectará un archivo `.cursorrules` o `.agent` que obligará a la IA a respetar los nuevos estándares en cualquier refactorización futura, evitando que imite el código antiguo ("code drift").
+
+### 2. Refinamiento de Reglas (Rapid Refine)
+
+Si sientes que tu Agente (Cursor/Claude) ignora tus reglas o las malinterpreta, usa `rapid refine` para mejorar la documentación con ayuda de la IA.
+
+1.  Identifica el archivo de reglas problemático (ej. `standards/business.md`).
+2.  Ejecuta:
+    ```bash
+    rapid refine .rapid-os/standards/business.md
+    ```
+3.  **Copia el Mega-Prompt** que aparecerá en tu terminal.
+4.  **Pégalo en tu Chat** con la IA.
+5.  La IA te devolverá una versión profesional y sin ambigüedades de tus reglas. Reemplaza el contenido del archivo con esta nueva versión.
+
+### 3. Instalar Skills (Capacidades Activas)
+
+Dota a tu agente de herramientas para ejecutar tareas complejas (ej. consultar bases de datos, navegar web).
 
 ```bash
-rapid init
-```
-
-Rapid OS te guiará por 5 dimensiones de configuración:
-
-- **Tech Stack**: (ej. Web Moderno, Python AI).
-- **Topología**: (ej. Frontend Only, Fullstack BaaS).
-- **Arquetipo**: (MVP Rápido vs Corporate Estricto).
-- **Selección de Agentes**: Marca solo las herramientas que usas (ej. Cursor + Antigravity) para mantener tu repo limpio.
-- **Reglas de Negocio**: Escribe manualmente o arrastra un archivo Markdown con tus reglas. Rapid OS te ofrecerá guardar ese archivo como plantilla para el futuro.
-
-### 2. Instalar Skills (Capacidades Activas)
-
-Dota a tu agente de herramientas para ejecutar tareas complejas.
-
-#### Opción A: Instalar desde la Comunidad (Vercel Marketplace)
-
-```bash
-# Instala herramientas para Stripe, Navegación Web, o Análisis de Datos
+# Opción A: Desde el Marketplace (Vercel)
 rapid skill add vercel-labs/agent-skills
-rapid skill add stripe/mcp
+
+# Opción B: Templates Privados de tu equipo
+rapid skill install mi-workflow-interno
 ```
 
-#### Opción B: Instalar Skills Privadas (Templates Locales)
+### 4. Definir Scope y Refactorizaciones
 
-Usa las skills definidas por tu equipo en la carpeta `templates/skills`.
-
-```bash
-# Ver lista local
-rapid skill list
-
-# Instalar skill privada
-rapid skill install mi-flujo-interno
-```
-
-### 3. Configurar Herramientas de Base de Datos (MCP)
-
-Si tu topología incluye base de datos, genera los drivers para que la IA pueda conectarse:
-
-```bash
-rapid mcp
-```
-
-(Detecta automáticamente si usas Postgres o Supabase y genera `claude_desktop_config.json`).
-
-### 4. Definir una funcionalidad Compleja (Scope Wizard)
-
-Si necesitas que la IA construya algo grande, genera una especificación clara:
+Evita darle instrucciones vagas a la IA como _"Mejora el código"_. Usa el **Asistente de Alcance**.
 
 ```bash
 rapid scope
 ```
 
-Responde las preguntas y obtendrás un archivo `SPECS.md` optimizado para LLMs.
+- Responde las preguntas: **Nombre**, **Objetivo** y **Flujo**.
+- Rapid OS generará un archivo `SPECS.md` optimizado para LLMs.
+- **Tu Prompt Final**: _"Implementa el plan detallado en SPECS.md paso a paso."_
 
-### 5. Asistencia de Despliegue
+### 5. Configurar Herramientas de Base de Datos (MCP)
 
-Genera archivos de configuración para la nube:
+Si tu arquitectura incluye base de datos, genera los drivers para que la IA pueda ejecutar SQL real y ver tablas:
 
 ```bash
-rapid deploy aws
+rapid mcp
 ```
+
+(Soporta Postgres y Supabase automáticamente).
 
 ### 6. Referencias Visuales (Vision)
 
-Para que la IA "vea" tus diseños y no alucine el frontend, importa capturas de pantalla o mockups:
+Para que la IA "vea" tus diseños y no alucine el frontend:
 
 ```bash
 rapid vision ruta/al/diseño.png
 ```
+
+---
+
+## ✅ Capacidades y Limitaciones
+
+Lo que Rapid OS **ES** y lo que **NO ES**:
+
+| LO QUE PUEDES HACER (Do's)                                                         | LO QUE NO HACE (Don'ts)                                                                              |
+| :--------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------- |
+| **Inyectar Contexto Senior**: Obligar a la IA a seguir Clean Architecture y SOLID. | **Escribir código por sí solo**: Rapid OS es el _Arquitecto_, tu IA (Cursor/Claude) es el _Albañil_. |
+| **Refactorizar Legacy**: Definir reglas modernas para limpiar código antiguo.      | **Ejecutarse en la Nube**: Es una CLI 100% local. No sube tu código a ningún lado.                   |
+| **Estandarizar Equipos**: Que todos los devs (y sus IAs) escriban igual.           | **Compilar tu App**: No reemplaza a `npm run build` o compiladores.                                  |
+| **Generar Configuración**: Crea Dockerfiles, Terraform, CI/CD automáticamente.     | **Desplegar Producción**: Genera los scripts, pero TÚ ejecutas el deploy final.                      |
+
+---
+
+## 🧩 Ejemplo Práctico: Refactorización Legacy
+
+**Escenario**: Tienes un proyecto React viejo con Redux y clases que quieres migrar a Hooks y Context API.
+
+1.  **Inyección**: Entras a la carpeta y ejecutas `rapid init`. Seleccionas "Web Moderno" (Force Functional Components).
+2.  **Scope**: Ejecutas `rapid scope`.
+    - _Nombre_: "Migración Auth a Context"
+    - _Objetivo_: "Eliminar Redux de /auth y usar React Context."
+    - _Flujo_: "1. Crear AuthContext. 2. Migrar Login.js. 3. Eliminar reducers."
+3.  **Ejecución**:
+    - Abres Cursor/Claude.
+    - Escribes: _"@SPECS.md @.cursorrules Sigue el plan de refactorización. Empieza por el paso 1."_
+4.  **Resultado**: La IA escribirá el nuevo código siguiendo TUS estándares modernos, ignorando el estilo viejo del resto del proyecto.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -300,7 +326,6 @@ Matches soportados actualmente: `aws`, `vercel`, `gcp`, `azure`.
 
 - **Alyconr** - [GitHub](https://github.com/alyconr)
 - **Aly Contreras** - [LinkedIn](https://www.linkedin.com/in/jeysson-aly-contreras/)
-
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
