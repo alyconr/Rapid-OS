@@ -286,6 +286,35 @@ rapid init
 - **Versionado**: Estructura de carpetas optimizada para versionado semántico de documentación.
 - **Topología**: `doc-site` organiza tu proyecto con carpetas específicas para `docs`, `blog`, `src/components` y `static` assets.
 
+### 🧩 Estándares Universales (business.md)
+
+Rapid OS incluye por defecto un **Meta-Framework de Negocio** (`.rapid-os/standards/business.md`) que actúa como la "Constitución" de tu proyecto.
+
+Este archivo ya no es solo para Rapid OS; es una guía universal que define:
+
+- **Axiomas de Valor**: Qué problema resuelves y por qué te deben comprar.
+- **Funnel Universal**: Cómo adquieres, activas y retienes clientes.
+- **Modelo de Negocio**: Definición clara de cómo generas ingresos (SaaS, E-com, etc.).
+
+> **Tip**: Puedes editar este archivo para adaptarlo a tu nicho, pero mantén la estructura para que la IA entienda tus prioridades.
+
+---
+
+## ⚡ CLI Command Reference <a name="cli-reference"></a>
+
+Tabla completa de comandos disponibles en Rapid OS y sus resultados.
+
+| Comando                      | Descripción                                                                                     | Resultado / Output                                                                                |
+| :--------------------------- | :---------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------ |
+| `rapid init`                 | **Inicializa Rapid OS** en el directorio actual. Detecta stack y crea archivos de contexto.     | Crea `.cursorrules`, `.agent/rules`, `.rapid-os/` y backups de config existente.                  |
+| `rapid scope`                | **Asistente de Alcance**. Te entrevista para definir una nueva funcionalidad o refactorización. | Genera `SPECS.md` con un plan paso-a-paso optimizado para que la IA lo ejecute.                   |
+| `rapid refine <file>`        | **Refinamiento de Reglas**. Mejora cualquier documento de reglas usando IA.                     | Genera un Mega-Prompt para que pegues en tu chat y la IA reescriba el archivo profesionalmente.   |
+| `rapid skill add <name>`     | **Instala una Skill** desde el registro comunitario.                                            | Descarga la skill en `.cursor/skills/<name>` y la activa en el contexto.                          |
+| `rapid skill install <path>` | **Instala una Skill Local** desde una carpeta o template privado.                               | Copia la skill local a la carpeta de skills activas del proyecto.                                 |
+| `rapid mcp`                  | **Configura MCP Servers**. Genera conectores para Bases de Datos y Herramientas.                | Crea `postgres_mcp.json` o similar para que la IA pueda ejecutar SQL y ver esquemas.              |
+| `rapid vision <image_path>`  | **Inyección Visual**. Procesa una imagen para extraer contexto de diseño.                       | Genera una descripción de texto/código de la imagen para que la IA "vea" el diseño.               |
+| `rapid deploy <target>`      | **Asistente de Despliegue**. Genera IaC para la nube elegida.                                   | Crea `Dockerfile`, `docker-compose.yml` o scripts de Terraform para el target (aws, vercel, gcp). |
+
 ---
 
 ## ✅ Capacidades y Limitaciones

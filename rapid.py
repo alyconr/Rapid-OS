@@ -11,7 +11,13 @@ from pathlib import Path
 
 # --- CONFIGURACIÓN GLOBAL ---
 RAPID_HOME = Path.home() / ".rapid-os"
-TEMPLATES_DIR = RAPID_HOME / "templates"
+
+# Detect if running from source (local templates)
+SCRIPT_DIR = Path(__file__).resolve().parent
+if (SCRIPT_DIR / "templates").exists():
+    TEMPLATES_DIR = SCRIPT_DIR / "templates"
+else:
+    TEMPLATES_DIR = RAPID_HOME / "templates"
 CURRENT_DIR = Path.cwd()
 PROJECT_RAPID_DIR = CURRENT_DIR / ".rapid-os"
 CONFIG_FILE = PROJECT_RAPID_DIR / "config.json"
@@ -171,8 +177,10 @@ def init_project(args):
     if not args.stack:
         stacks_path = TEMPLATES_DIR / "stacks"
         if not stacks_path.exists():
-            print_error("Templates no encontrados.")
+            print_error(f"Templates no encontrados en {stacks_path}")
+        print(f"DEBUG: Buscando templates en {stacks_path}")
         stacks = sorted([f.stem for f in stacks_path.glob("*.md")])
+        print(f"DEBUG: Encontrados: {stacks}")
         print("\n🛠  SELECCIONA TECH STACK:")
         for i, s in enumerate(stacks, 1):
             print(f" {i}) {s}")
