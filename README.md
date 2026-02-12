@@ -266,6 +266,26 @@ Para que la IA "vea" tus diseños y no alucine el frontend:
 rapid vision ruta/al/diseño.png
 ```
 
+### 7. Documentación con Docusaurus (Nuevo)
+
+Rapid OS incluye un stack especializado para crear sitios de documentación modernos:
+
+```bash
+rapid init
+# Selecciona:
+# Stack: docs-modern
+# Topology: doc-site
+```
+
+**Incluye:**
+
+- **Framework**: Docusaurus 3+ (Static Site Generator).
+- **Lenguaje**: TypeScript y MDX (Markdown con componentes React).
+- **Diagramas**: Soporte nativo para Mermaid.js (Diagramas de flujo, secuencia, GANTT).
+- **Búsqueda**: Configuración lista para Algolia DocSearch o búsqueda local.
+- **Versionado**: Estructura de carpetas optimizada para versionado semántico de documentación.
+- **Topología**: `doc-site` organiza tu proyecto con carpetas específicas para `docs`, `blog`, `src/components` y `static` assets.
+
 ---
 
 ## ✅ Capacidades y Limitaciones
@@ -294,6 +314,25 @@ Lo que Rapid OS **ES** y lo que **NO ES**:
     - Abres Cursor/Claude.
     - Escribes: _"@SPECS.md @.cursorrules Sigue el plan de refactorización. Empieza por el paso 1."_
 4.  **Resultado**: La IA escribirá el nuevo código siguiendo TUS estándares modernos, ignorando el estilo viejo del resto del proyecto.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## 📚 Ejemplo Práctico: Documentación de Producto (Nuevo)
+
+**Escenario**: Quieres crear la documentación oficial de tu SaaS, asegurando que cada nueva página siga el mismo tono de voz, estructura y formato.
+
+1.  **Inicialización**:
+    ```bash
+    mkdir my-docs && cd my-docs
+    rapid init
+    # Selecciona Stack: "docs-modern"
+    ```
+2.  **Definición de Reglas**:
+    - Editas `.rapid-os/standards/business.md` con: _"El tono de voz debe ser amigable pero técnico. Usar diagramas Mermaid para flujos complejos."_
+3.  **Ejecución**:
+    - Abres tu editor con Cursor/Claude.
+    - Prompt: _"Crea una página 'Getting Started' que explique cómo instalar la SDK, incluyendo un diagrama de flujo de autenticación."_
+4.  **Resultado**: La IA generará un archivo `.mdx` perfecto, importando componentes de Docusaurus y renderizando el diagrama Mermaid solicitado, todo respetando tu guía de estilo.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
