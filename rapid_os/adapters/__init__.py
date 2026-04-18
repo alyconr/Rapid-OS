@@ -1,2 +1,2 @@
-"""Future adapter integrations for Rapid OS."""
+"""Adapter integrations for Rapid OS."""
 
