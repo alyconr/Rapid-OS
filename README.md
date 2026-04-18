@@ -91,7 +91,7 @@ graph TD
         User -->|2a. Define funcionalidad| ScopeCmd
         User -->|2b. Instala Skills| SkillCmd
 
-        SpecsFile[📄 SPECS.md <br> Instrucciones Funcionales]:::context
+        SpecsFile[📄 SPECS.md / TASKS.md / ACCEPTANCE.md <br> Plan de Implementación]:::context
         SkillsFolder[📂 Skills Activas <br> .cursor/skills]:::context
 
         ScopeCmd --> SpecsFile
@@ -244,9 +244,10 @@ Evita darle instrucciones vagas a la IA como _"Mejora el código"_. Usa el **Asi
 rapid scope
 ```
 
-- Responde las preguntas: **Nombre**, **Objetivo** y **Flujo**.
-- Rapid OS generará un archivo `SPECS.md` optimizado para LLMs.
-- **Tu Prompt Final**: _"Implementa el plan detallado en SPECS.md paso a paso."_
+- Selecciona el modo: **new feature**, **refactor**, **bugfix** o **legacy hardening**.
+- Responde preguntas de negocio, alcance, actores, flujo, casos borde, reglas, restricciones, impacto en datos, criterios de aceptación, pruebas y tareas.
+- Rapid OS generará `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` optimizados para implementación guiada por specs.
+- **Tu Prompt Final**: _"Implementa el plan detallado en SPECS.md paso a paso y valida contra ACCEPTANCE.md."_
 
 ### 5. Configurar Herramientas de Base de Datos (MCP)
 
@@ -327,7 +328,7 @@ Tabla completa de comandos disponibles en Rapid OS y sus resultados.
 | Comando                      | Descripción                                                                                     | Resultado / Output                                                                                |
 | :--------------------------- | :---------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------ |
 | `rapid init`                 | **Inicializa Rapid OS** en el directorio actual. Detecta stack y crea archivos de contexto.     | Crea `.cursorrules`, `.agent/rules`, `.rapid-os/` y backups de config existente.                  |
-| `rapid scope`                | **Asistente de Alcance**. Te entrevista para definir una nueva funcionalidad o refactorización. | Genera `SPECS.md` con un plan paso-a-paso optimizado para que la IA lo ejecute.                   |
+| `rapid scope`                | **Asistente de Alcance**. Te entrevista para definir una feature, refactor, bugfix o hardening. | Genera `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` con backups antes de sobrescribir.                |
 | `rapid refine <file>`        | **Refinamiento de Reglas**. Mejora cualquier documento de reglas usando IA.                     | Genera un Mega-Prompt para que pegues en tu chat y la IA reescriba el archivo profesionalmente.   |
 | `rapid skill add <name>`     | **Instala una Skill** desde el registro comunitario.                                            | Descarga la skill en `.cursor/skills/<name>` y la activa en el contexto.                          |
 | `rapid skill install <path>` | **Instala una Skill Local** desde una carpeta o template privado.                               | Copia la skill local a la carpeta de skills activas del proyecto.                                 |
@@ -357,8 +358,9 @@ Lo que Rapid OS **ES** y lo que **NO ES**:
 1.  **Inyección**: Entras a la carpeta y ejecutas `rapid init`. Seleccionas "Web Moderno" (Force Functional Components).
 2.  **Scope**: Ejecutas `rapid scope`.
     - _Nombre_: "Migración Auth a Context"
+    - _Modo_: "refactor"
     - _Objetivo_: "Eliminar Redux de /auth y usar React Context."
-    - _Flujo_: "1. Crear AuthContext. 2. Migrar Login.js. 3. Eliminar reducers."
+    - _Tareas_: "Crear AuthContext, Migrar Login.js, Eliminar reducers."
 3.  **Ejecución**:
     - Abres Cursor/Claude.
     - Escribes: _"@SPECS.md @.cursorrules Sigue el plan de refactorización. Empieza por el paso 1."_

@@ -23,6 +23,12 @@ from rapid_os.core.paths import (
     TEMPLATES_DIR,
 )
 from rapid_os.domain.agents import generate_agent_contexts
+from rapid_os.domain.scope import (
+    ScopeSpec,
+    normalize_mode,
+    parse_list,
+    write_scope_artifacts,
+)
 
 
 def parse_agent_selection(agent_sel):
@@ -363,12 +369,36 @@ def generate_mcp_config(args):
 
 def scope_feature(args):
     print("\n🔭 SCOPE WIZARD")
-    name = input("Nombre funcionalidad: ").strip()
-    goal = input("Objetivo: ").strip()
-    flow = input("Flujo: ").strip()
-    content = f"# SPEC: {name.upper()}\n\n## GOAL\n{goal}\n\n## FLOW\n{flow}"
-    (CURRENT_DIR / "SPECS.md").write_text(content, encoding="utf-8")
-    print_success("SPECS.md creado")
+    print("Modo:")
+    print(" 1) new feature")
+    print(" 2) refactor")
+    print(" 3) bugfix")
+    print(" 4) legacy hardening")
+    print("Tip: usa comas o punto y coma para respuestas tipo lista.")
+
+    spec = ScopeSpec(
+        initiative_name=input("Nombre iniciativa: ").strip(),
+        mode=normalize_mode(input("Modo [1]: ").strip()),
+        business_objective=input("Objetivo de negocio: ").strip(),
+        problem_statement=input("Problema a resolver: ").strip(),
+        scope=parse_list(input("Alcance: ").strip()),
+        out_of_scope=parse_list(input("Fuera de alcance: ").strip()),
+        actors_users=parse_list(input("Actores/usuarios: ").strip()),
+        main_flow=parse_list(input("Flujo principal: ").strip()),
+        edge_cases=parse_list(input("Casos borde: ").strip()),
+        business_rules=parse_list(input("Reglas de negocio: ").strip()),
+        technical_constraints=parse_list(input("Restricciones técnicas: ").strip()),
+        affected_files_modules=parse_list(
+            input("Archivos/módulos afectados si se conocen: ").strip()
+        ),
+        data_impact=input("Impacto en datos: ").strip(),
+        acceptance_criteria=parse_list(input("Criterios de aceptación: ").strip()),
+        testing_strategy=parse_list(input("Estrategia de pruebas: ").strip()),
+        implementation_tasks=parse_list(input("Tareas de implementación: ").strip()),
+    )
+
+    for target in write_scope_artifacts(spec, CURRENT_DIR):
+        print_success(f"{target.name} creado")
 
 
 def deploy_assistant(args):

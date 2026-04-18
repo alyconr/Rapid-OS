@@ -42,6 +42,16 @@ class CliSmokeTests(unittest.TestCase):
             ["cursor", "codex"],
         )
 
+    def test_scope_command_remains_available(self):
+        parser = create_parser()
+        subparsers = next(
+            action
+            for action in parser._actions
+            if isinstance(action, argparse._SubParsersAction)
+        )
+
+        self.assertIn("scope", subparsers.choices)
+
     def test_rapid_help_smoke(self):
         repo_root = Path(__file__).resolve().parents[1]
         env = os.environ.copy()

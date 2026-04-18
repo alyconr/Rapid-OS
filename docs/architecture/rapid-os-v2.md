@@ -15,6 +15,7 @@ Issue #6 started the Rapid OS v2 migration with extraction, not a rewrite. Issue
 - `rapid_os.core.context` composes standards and visual context in the existing priority order.
 - `rapid_os.core.output` contains shared CLI output helpers.
 - `rapid_os.domain.agents` is now a compatibility facade for the existing generation helpers.
+- `rapid_os.domain.scope` renders and writes structured spec-driven development artifacts for `rapid scope`.
 - `rapid_os.adapters.agents` owns the agent adapter contract, default registry, and implementations for Cursor, Claude, Antigravity, VS Code, and Codex.
 
 The package modules avoid command execution on import. Console UTF-8 setup happens when the CLI entrypoint runs, so importing reusable helpers remains lightweight for tests and future integrations.
@@ -41,25 +42,33 @@ Supported adapters after issue #8:
 
 Codex support is project-scoped and opt-in. Selecting `codex` writes `AGENTS.md` at the project root with the composed Rapid OS context. Rapid OS does not generate `AGENTS.override.md`, global Codex configuration, or nested Codex instruction files in this migration step.
 
+## Scope Artifact Workflow
+
+Issue #10 upgrades `rapid scope` from a minimal one-file prompt helper into a structured spec generator. The command remains interactive and keeps `SPECS.md` as the primary artifact, while also writing `TASKS.md` and `ACCEPTANCE.md`.
+
+The scope workflow collects initiative details, mode, business objective, problem statement, scope boundaries, actors, main flow, edge cases, business rules, technical constraints, affected modules, data impact, acceptance criteria, testing strategy, and implementation tasks. Supported modes are `new feature`, `refactor`, `bugfix`, and `legacy hardening`.
+
+Scope rendering is deterministic and local. Rapid OS does not infer tasks or acceptance criteria with AI in this workflow. Blank fields are rendered as `_Not specified._`, and comma- or semicolon-separated answers become Markdown lists or checklists. Existing `SPECS.md`, `TASKS.md`, and `ACCEPTANCE.md` files are backed up before being overwritten.
+
 ## Compatibility Guarantees
 
 - Existing commands remain available: `init`, `skill`, `mcp`, `scope`, `deploy`, `vision`, `refine`, `guide`, and the current `prompt` command.
 - Existing aliases that call `python rapid.py` continue to work.
 - Existing import users can still read common compatibility constants from `rapid.py`, including `SCRIPT_DIR`, `TEMPLATES_DIR`, `CURRENT_DIR`, `PROJECT_RAPID_DIR`, and `CONFIG_FILE`.
 - Existing import users can still call `generate_cursor_rules`, `generate_claude_config`, `generate_antigravity_config`, and `generate_vscode_instructions`; those helpers now delegate to adapters.
-- Generated files remain in their current locations: `.cursorrules`, `CLAUDE.md`, `.agent/rules/constitution.md`, `INSTRUCTIONS.md`, `AGENTS.md`, `claude_desktop_config.json`, `SPECS.md`, `DEPLOY.md`, and `references/VISION_CONTEXT.md`.
+- Generated files remain in their current locations: `.cursorrules`, `CLAUDE.md`, `.agent/rules/constitution.md`, `INSTRUCTIONS.md`, `AGENTS.md`, `claude_desktop_config.json`, `SPECS.md`, `TASKS.md`, `ACCEPTANCE.md`, `DEPLOY.md`, and `references/VISION_CONTEXT.md`.
 - Project config remains `.rapid-os/config.json`.
 - Missing project config still defaults to Cursor, Claude, Antigravity, and VS Code only; Codex must be explicitly selected or added to `tools`.
 - Template discovery still prefers a source checkout `templates/` directory and falls back to `~/.rapid-os/templates`.
 
 ## Intentionally Unchanged
 
-This migration does not redesign MCP generation, redesign scope/spec workflows, add validation commands, change install scripts, generate global Codex config, or add `AGENTS.override.md`.
+This migration does not redesign MCP generation, add validation commands, change install scripts, generate global Codex config, or add `AGENTS.override.md`.
 
 Some command workflows still live in `rapid_os.cli.main` because moving them wholesale into new abstractions would be a larger behavior-changing rewrite. The priority here is to isolate reusable logic first, then migrate command domains incrementally.
 
 ## Remaining Migration Work
 
-Future Codex work can add Codex-specific skill placement, deeper Codex configuration, validation helpers, or nested instruction-file support. Those additions should remain behind the adapter boundary and be introduced in separate PRs.
+Future Codex work can add Codex-specific skill placement, deeper Codex configuration, validation helpers, or nested instruction-file support. Future scope work can add non-interactive flags, richer templates, or validation. Those additions should remain behind the existing boundaries and be introduced in separate PRs.
 
 Command flows can be split further by domain once the adapter boundary is stable.
