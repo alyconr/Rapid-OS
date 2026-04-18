@@ -298,6 +298,26 @@ Este archivo ya no es solo para Rapid OS; es una guía universal que define:
 
 > **Tip**: Puedes editar este archivo para adaptarlo a tu nicho, pero mantén la estructura para que la IA entienda tus prioridades.
 
+### 🔄 Cómo Actualizar tus Reglas de Negocio
+
+Si necesitas modificar tus reglas existentes, tienes dos caminos desde la CLI:
+
+1.  **Opción A: `rapid refine` (Recomendada para Mejorar)**
+    Si ya tienes reglas pero quieres que la IA las profesionalice y elimine ambigüedades:
+
+    ```bash
+    rapid refine .rapid-os/standards/business.md
+    ```
+
+    _Genera un prompt para que tu IA reescriba las reglas con nivel Senior._
+
+2.  **Opción B: `rapid init` (Para Re-importar o Cambiar)**
+    Si quieres importar un archivo nuevo o reescribirlas desde cero:
+    ```bash
+    rapid init
+    ```
+    _Al llegar a la sección de Negocio, selecciona importar un nuevo `.txt`/`.md` o escribir nuevas reglas manuales. Esto sobrescribirá el archivo actual._
+
 ---
 
 ## ⚡ CLI Command Reference <a name="cli-reference"></a>
