@@ -17,6 +17,7 @@ Issue #6 started the Rapid OS v2 migration with extraction, not a rewrite. Issue
 - `rapid_os.domain.agents` is now a compatibility facade for the existing generation helpers.
 - `rapid_os.domain.scope` renders and writes structured spec-driven development artifacts for `rapid scope`.
 - `rapid_os.domain.validation` returns pure diagnostics for templates, project standards, config/tool references, stack/topology consistency, and composed context inspection.
+- `rapid_os.domain.scanner` detects project characteristics and returns reviewable init suggestions without printing, prompting, writing files, or mutating project choices.
 - `rapid_os.adapters.agents` owns the agent adapter contract, default registry, and implementations for Cursor, Claude, Antigravity, VS Code, and Codex.
 
 The package modules avoid command execution on import. Console UTF-8 setup happens when the CLI entrypoint runs, so importing reusable helpers remains lightweight for tests and future integrations.
@@ -63,6 +64,14 @@ New commands:
 
 Exit codes are intentionally simple: `0` means no validation errors, `1` means validation errors were found, and `--strict` makes warnings fail with `1` too. `inspect-context` does not render agent-specific previews in this migration step.
 
+## Project Scanner
+
+Issue #12 adds a bounded project scanner for safer initialization. The scanner detects probable language, framework, package manager, Docker presence, testing framework, monorepo signals, database hints, and deployment provider hints from local project files. It does not perform network calls, install dependencies, write files, or update `.rapid-os/config.json`.
+
+`rapid init` runs the scanner by default before stack/topology selection. The CLI prints a compact summary and suggested init choices, then asks for confirmation. Suggestions are applied only after the user accepts them. If the user rejects suggestions, if evidence is mixed, or if no confident suggestion exists, `rapid init` falls back to the existing manual menus.
+
+The scanner only suggests stack and topology in this migration step. `rapid init --no-scan` preserves the manual initialization flow, and `rapid init --stack <name>` remains authoritative over scanner stack suggestions.
+
 ## Compatibility Guarantees
 
 - Existing commands remain available: `init`, `skill`, `mcp`, `scope`, `deploy`, `vision`, `refine`, `guide`, the current `prompt` command, and the additive diagnostics commands `validate`, `doctor`, and `inspect-context`.
@@ -71,17 +80,18 @@ Exit codes are intentionally simple: `0` means no validation errors, `1` means v
 - Existing import users can still call `generate_cursor_rules`, `generate_claude_config`, `generate_antigravity_config`, and `generate_vscode_instructions`; those helpers now delegate to adapters.
 - Generated files remain in their current locations: `.cursorrules`, `CLAUDE.md`, `.agent/rules/constitution.md`, `INSTRUCTIONS.md`, `AGENTS.md`, `claude_desktop_config.json`, `SPECS.md`, `TASKS.md`, `ACCEPTANCE.md`, `DEPLOY.md`, and `references/VISION_CONTEXT.md`.
 - Project config remains `.rapid-os/config.json`.
+- Scanner results are not stored in project config.
 - Missing project config still defaults to Cursor, Claude, Antigravity, and VS Code only; Codex must be explicitly selected or added to `tools`.
 - Template discovery still prefers a source checkout `templates/` directory and falls back to `~/.rapid-os/templates`.
 
 ## Intentionally Unchanged
 
-This migration does not redesign MCP generation, change install scripts, generate global Codex config, add agent-specific context previews, or add `AGENTS.override.md`.
+This migration does not redesign MCP generation, validation commands, install scripts, generate global Codex config, add agent-specific context previews, or add `AGENTS.override.md`.
 
 Some command workflows still live in `rapid_os.cli.main` because moving them wholesale into new abstractions would be a larger behavior-changing rewrite. The priority here is to isolate reusable logic first, then migrate command domains incrementally.
 
 ## Remaining Migration Work
 
-Future Codex work can add Codex-specific skill placement, deeper Codex configuration, or nested instruction-file support. Future scope work can add non-interactive flags or richer templates. Future diagnostics work can add richer machine-readable categories, more formal stack/topology metadata, and agent-specific dry-run previews. Those additions should remain behind the existing boundaries and be introduced in separate PRs.
+Future Codex work can add Codex-specific skill placement, deeper Codex configuration, or nested instruction-file support. Future scope work can add non-interactive flags or richer templates. Future diagnostics work can add richer machine-readable categories, more formal stack/topology metadata, and agent-specific dry-run previews. Future scanner work can add a standalone scan command, persisted scan metadata, deeper monorepo targeting, or richer framework mappings. Those additions should remain behind the existing boundaries and be introduced in separate PRs.
 
 Command flows can be split further by domain once the adapter boundary is stable.

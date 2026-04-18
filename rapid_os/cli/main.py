@@ -25,6 +25,7 @@ from rapid_os.core.paths import (
     TEMPLATES_DIR,
 )
 from rapid_os.domain.agents import generate_agent_contexts
+from rapid_os.domain.scanner import scan_project, suggest_init_choices
 from rapid_os.domain.scope import (
     ScopeSpec,
     normalize_mode,
@@ -74,13 +75,70 @@ def regenerate_context():
     generate_agent_contexts(full_context, tools, CURRENT_DIR)
 
 
+def print_scan_summary(scan, suggestions, stack_override=None):
+    print("\nRapid OS detected:")
+    for category, label in (
+        ("language", "Language"),
+        ("framework", "Framework"),
+        ("package_manager", "Package manager"),
+        ("testing", "Testing"),
+        ("docker", "Docker"),
+        ("monorepo", "Monorepo"),
+        ("database", "Database"),
+        ("deploy_provider", "Deploy provider"),
+    ):
+        values = scan.values(category)
+        if values:
+            print(f"- {label}: {', '.join(values)}")
+        else:
+            print(f"- {label}: none detected")
+
+    if suggestions.has_any() or stack_override:
+        print("\nSuggested init choices:")
+        if stack_override:
+            print(f"- Stack: {stack_override} (--stack)")
+        elif suggestions.stack:
+            print(f"- Stack: {suggestions.stack.value}")
+        if suggestions.topology:
+            print(f"- Topology: {suggestions.topology.value}")
+
+
+def confirm_scan_suggestions(scan, suggestions, stack_override=None):
+    if not suggestions.has_any():
+        return False
+
+    print_scan_summary(scan, suggestions, stack_override)
+    try:
+        response = input("\nUse these suggestions? [Y/n]: ").strip().lower()
+    except EOFError:
+        response = "n"
+    return response != "n"
+
+
 def init_project(args):
     print_step("Inicializando Rapid OS...")
+    scan = None
+    suggestions = None
+    use_suggestions = False
+
+    if not getattr(args, "no_scan", False):
+        scan = scan_project(CURRENT_DIR)
+        suggestions = suggest_init_choices(scan)
+        if suggestions.has_any():
+            use_suggestions = confirm_scan_suggestions(scan, suggestions, args.stack)
+        else:
+            print_scan_summary(scan, suggestions, args.stack)
+
     standards_dest = PROJECT_RAPID_DIR / "standards"
     standards_dest.mkdir(parents=True, exist_ok=True)
 
     # 1. Stack
-    if not args.stack:
+    suggested_stack = suggestions.stack.value if suggestions and suggestions.stack else None
+    if args.stack:
+        stack_name = args.stack
+    elif use_suggestions and suggested_stack:
+        stack_name = suggested_stack
+    else:
         stacks_path = TEMPLATES_DIR / "stacks"
         if not stacks_path.exists():
             print_error(f"Templates no encontrados en {stacks_path}")
@@ -95,15 +153,19 @@ def init_project(args):
             stack_name = stacks[idx] if 0 <= idx < len(stacks) else stacks[0]
         except Exception:
             stack_name = stacks[0]
-    else:
-        stack_name = args.stack
 
     # 2. Topología
     topologies_path = TEMPLATES_DIR / "topologies"
     if not topologies_path.exists():
         topologies_path.mkdir(parents=True, exist_ok=True)
     topos = sorted([f.stem for f in topologies_path.glob("*.md")])
-    if topos:
+    topo_name = None
+    suggested_topology = (
+        suggestions.topology.value if suggestions and suggestions.topology else None
+    )
+    if use_suggestions and suggested_topology in topos:
+        topo_name = suggested_topology
+    if topos and topo_name is None:
         print("\n🏗️  SELECCIONA TOPOLOGÍA:")
         for i, t in enumerate(topos, 1):
             print(f" {i}) {t}")
@@ -112,6 +174,7 @@ def init_project(args):
             topo_name = topos[idx] if 0 <= idx < len(topos) else topos[0]
         except Exception:
             topo_name = topos[0]
+    if topo_name:
         shutil.copy(topologies_path / f"{topo_name}.md", standards_dest / "topology.md")
 
     # 3. Arquetipo
@@ -665,6 +728,7 @@ def create_parser():
     init = subparsers.add_parser("init")
     init.add_argument("--stack")
     init.add_argument("--archetype")
+    init.add_argument("--no-scan", action="store_true")
 
     skill = subparsers.add_parser("skill")
     skill.add_argument("action", choices=["list", "install", "add"])

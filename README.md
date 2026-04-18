@@ -204,12 +204,25 @@ Reinicia tu terminal después de la instalación para cargar el comando `rapid`.
     rapid init
     ```
 3.  Sigue el asistente interactivo:
+    - **Scanner seguro**: Rapid OS revisa seÃ±ales locales como `package.json`, `tsconfig.json`, Docker, tests, monorepo, base de datos y provider de deploy para sugerir stack/topologÃ­a. Nada se aplica sin confirmaciÃ³n.
     - **Tech Stack**: Define las tecnologías permitidas (ej. "Solo React Functional Components").
     - **Arquetipo**: "Corporate" para código estricto con tests, o "MVP" para velocidad.
     - **Reglas de Negocio**: Importa tus documentos existentes o extráelos de tu cabeza.
     - **Capacidades de Investigación (Nuevo)**: Activa `Context7` (Docs) y `Firecrawl` (Web Scraping) para que tu IA pueda investigar librerías y sitios web por sí misma.
 
 > **Para Refactorización**: Al ejecutar esto en un proyecto legacy, Rapid OS inyectará un archivo `.cursorrules` o `.agent` que obligará a la IA a respetar los nuevos estándares en cualquier refactorización futura, evitando que imite el código antiguo ("code drift").
+
+Para conservar el flujo manual anterior, usa:
+
+```bash
+rapid init --no-scan
+```
+
+Si pasas `--stack`, ese valor manda sobre cualquier sugerencia del scanner:
+
+```bash
+rapid init --stack web-modern
+```
 
 ### 2. Refinamiento de Reglas (Rapid Refine)
 
@@ -327,7 +340,7 @@ Tabla completa de comandos disponibles en Rapid OS y sus resultados.
 
 | Comando                      | Descripción                                                                                     | Resultado / Output                                                                                |
 | :--------------------------- | :---------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------ |
-| `rapid init`                 | **Inicializa Rapid OS** en el directorio actual. Detecta stack y crea archivos de contexto.     | Crea `.cursorrules`, `.agent/rules`, `.rapid-os/` y backups de config existente.                  |
+| `rapid init`                 | **Inicializa Rapid OS**. Escanea seÃ±ales locales y sugiere stack/topologÃ­a con confirmaciÃ³n.   | Crea `.cursorrules`, `.agent/rules`, `.rapid-os/` y backups de config existente. Usa `--no-scan` para modo manual. |
 | `rapid scope`                | **Asistente de Alcance**. Te entrevista para definir una feature, refactor, bugfix o hardening. | Genera `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` con backups antes de sobrescribir.                |
 | `rapid refine <file>`        | **Refinamiento de Reglas**. Mejora cualquier documento de reglas usando IA.                     | Genera un Mega-Prompt para que pegues en tu chat y la IA reescriba el archivo profesionalmente.   |
 | `rapid skill add <name>`     | **Instala una Skill** desde el registro comunitario.                                            | Descarga la skill en `.cursor/skills/<name>` y la activa en el contexto.                          |
