@@ -272,6 +272,8 @@ rapid mcp
 
 (Soporta Postgres y Supabase automáticamente).
 
+Rapid OS modela los servidores MCP internamente y renderiza la configuraciÃ³n compatible con Claude Desktop en `claude_desktop_config.json`. El flujo actual conserva soporte para filesystem, Postgres, Supabase, Context7 y Firecrawl, y avisa si hay placeholders o API keys pendientes sin bloquear la generaciÃ³n.
+
 ### 6. Referencias Visuales (Vision)
 
 Para que la IA "vea" tus diseños y no alucine el frontend:
@@ -345,7 +347,7 @@ Tabla completa de comandos disponibles en Rapid OS y sus resultados.
 | `rapid refine <file>`        | **Refinamiento de Reglas**. Mejora cualquier documento de reglas usando IA.                     | Genera un Mega-Prompt para que pegues en tu chat y la IA reescriba el archivo profesionalmente.   |
 | `rapid skill add <name>`     | **Instala una Skill** desde el registro comunitario.                                            | Descarga la skill en `.cursor/skills/<name>` y la activa en el contexto.                          |
 | `rapid skill install <path>` | **Instala una Skill Local** desde una carpeta o template privado.                               | Copia la skill local a la carpeta de skills activas del proyecto.                                 |
-| `rapid mcp`                  | **Configura MCP Servers**. Genera conectores para Bases de Datos y Herramientas.                | Crea `postgres_mcp.json` o similar para que la IA pueda ejecutar SQL y ver esquemas.              |
+| `rapid mcp`                  | **Configura MCP Servers**. Modela filesystem, BD y research tools.                              | Crea `claude_desktop_config.json` con `mcpServers` compatible y warnings para placeholders.       |
 | `rapid vision <image_path>`  | **Inyección Visual**. Procesa una imagen para extraer contexto de diseño.                       | Genera una descripción de texto/código de la imagen para que la IA "vea" el diseño.               |
 | `rapid deploy <target>`      | **Asistente de Despliegue**. Genera IaC para la nube elegida.                                   | Crea `Dockerfile`, `docker-compose.yml` o scripts de Terraform para el target (aws, vercel, gcp). |
 | `rapid validate`             | **ValidaciÃ³n de Proyecto**. Revisa templates, estÃ¡ndares, config, herramientas y contexto.      | No escribe archivos. Sale con `0` si no hay errores y `1` si encuentra errores de validaciÃ³n.     |

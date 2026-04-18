@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from rapid_os.adapters.agents import DEFAULT_AGENT_REGISTRY
+from rapid_os.adapters.mcp import render_claude_desktop_config
 from rapid_os.core.config import load_project_config, save_project_config
 from rapid_os.core.context import compose_project_context
 from rapid_os.core.filesystem import check_node_installed, create_backup
@@ -25,6 +26,7 @@ from rapid_os.core.paths import (
     TEMPLATES_DIR,
 )
 from rapid_os.domain.agents import generate_agent_contexts
+from rapid_os.domain.mcp import build_mcp_config
 from rapid_os.domain.scanner import scan_project, suggest_init_choices
 from rapid_os.domain.scope import (
     ScopeSpec,
@@ -391,58 +393,18 @@ def generate_mcp_config(args):
     if not topo_file.exists():
         print_error("Ejecuta 'init' primero.")
 
-    topo_content = topo_file.read_text(encoding="utf-8").lower()
-    mcp_config = {"mcpServers": {}}
-
-    mcp_config["mcpServers"]["filesystem"] = {
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-filesystem", str(CURRENT_DIR)],
-    }
-
-    if "postgres" in topo_content and "supabase" not in topo_content:
-        tpl_path = TEMPLATES_DIR / "mcp" / "postgres.json"
-        if tpl_path.exists():
-            try:
-                mcp_config["mcpServers"].update(json.loads(tpl_path.read_text()))
-            except Exception:
-                pass
-
-    if "supabase" in topo_content:
-        tpl_path = TEMPLATES_DIR / "mcp" / "supabase.json"
-        if tpl_path.exists():
-            try:
-                mcp_config["mcpServers"].update(json.loads(tpl_path.read_text()))
-            except Exception:
-                pass
-
-    # --- RESEARCH TOOLS ---
+    topo_content = topo_file.read_text(encoding="utf-8")
     config = load_project_config(CONFIG_FILE)
     tools = config.get("tools", [])
+    mcp_config = build_mcp_config(topo_content, tools, CURRENT_DIR, TEMPLATES_DIR)
 
-    if "context7" in tools:
-        mcp_config["mcpServers"]["context7"] = {
-            "command": "npx",
-            "args": ["-y", "@upstash/context7-mcp"],
-            "env": {"CONTEXT7_API_KEY": "YOUR_API_KEY_HERE"},  # User must fill this
-        }
-        print_warning(
-            "⚠️  Context7 agregado. Recuerda poner tu API KEY en claude_desktop_config.json"
-        )
-
-    if "firecrawl" in tools:
-        mcp_config["mcpServers"]["firecrawl"] = {
-            "command": "npx",
-            "args": ["-y", "firecrawl-mcp"],
-            "env": {"FIRECRAWL_API_KEY": "YOUR_API_KEY_HERE"},  # User must fill this
-        }
-        print_warning(
-            "⚠️  Firecrawl agregado. Recuerda poner tu API KEY en claude_desktop_config.json"
-        )
+    for warning in mcp_config.warnings:
+        print_warning(warning.message)
 
     target = CURRENT_DIR / "claude_desktop_config.json"
     create_backup(target)
     with open(target, "w", encoding="utf-8") as f:
-        json.dump(mcp_config, f, indent=2)
+        json.dump(render_claude_desktop_config(mcp_config), f, indent=2)
     print_success(f"Configuración MCP: {target.name}")
 
 

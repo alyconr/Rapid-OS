@@ -18,6 +18,8 @@ Issue #6 started the Rapid OS v2 migration with extraction, not a rewrite. Issue
 - `rapid_os.domain.scope` renders and writes structured spec-driven development artifacts for `rapid scope`.
 - `rapid_os.domain.validation` returns pure diagnostics for templates, project standards, config/tool references, stack/topology consistency, and composed context inspection.
 - `rapid_os.domain.scanner` detects project characteristics and returns reviewable init suggestions without printing, prompting, writing files, or mutating project choices.
+- `rapid_os.domain.mcp` models MCP servers, generation plans, and non-blocking warnings independently from output formats.
+- `rapid_os.adapters.mcp` renders MCP models into concrete output formats, currently the existing Claude Desktop JSON shape.
 - `rapid_os.adapters.agents` owns the agent adapter contract, default registry, and implementations for Cursor, Claude, Antigravity, VS Code, and Codex.
 
 The package modules avoid command execution on import. Console UTF-8 setup happens when the CLI entrypoint runs, so importing reusable helpers remains lightweight for tests and future integrations.
@@ -72,6 +74,14 @@ Issue #12 adds a bounded project scanner for safer initialization. The scanner d
 
 The scanner only suggests stack and topology in this migration step. `rapid init --no-scan` preserves the manual initialization flow, and `rapid init --stack <name>` remains authoritative over scanner stack suggestions.
 
+## MCP Abstraction
+
+The MCP workflow now uses a reusable model and renderer boundary. `rapid_os.domain.mcp` builds a structured `McpConfig` from topology content, selected tools, current project paths, and existing MCP templates. It supports the current server ids: `filesystem`, `postgres`, `supabase`, `context7`, and `firecrawl`.
+
+Rendering is handled outside the domain model. The current renderer in `rapid_os.adapters.mcp` produces the same `{"mcpServers": ...}` JSON shape written to `claude_desktop_config.json`. The CLI remains the facade responsible for reading project files, printing warnings, creating backups, and writing the rendered output.
+
+Unresolved placeholders and missing key hints are warnings, not hard failures. This preserves the current editable starter-config behavior while making the generation plan reusable for future MCP destinations.
+
 ## Compatibility Guarantees
 
 - Existing commands remain available: `init`, `skill`, `mcp`, `scope`, `deploy`, `vision`, `refine`, `guide`, the current `prompt` command, and the additive diagnostics commands `validate`, `doctor`, and `inspect-context`.
@@ -82,11 +92,12 @@ The scanner only suggests stack and topology in this migration step. `rapid init
 - Project config remains `.rapid-os/config.json`.
 - Scanner results are not stored in project config.
 - Missing project config still defaults to Cursor, Claude, Antigravity, and VS Code only; Codex must be explicitly selected or added to `tools`.
+- `rapid mcp` still writes `claude_desktop_config.json` with the existing `mcpServers` shape.
 - Template discovery still prefers a source checkout `templates/` directory and falls back to `~/.rapid-os/templates`.
 
 ## Intentionally Unchanged
 
-This migration does not redesign MCP generation, validation commands, install scripts, generate global Codex config, add agent-specific context previews, or add `AGENTS.override.md`.
+This migration does not redesign MCP UX, validation commands, install scripts, generate global Codex config, add agent-specific context previews, or add `AGENTS.override.md`.
 
 Some command workflows still live in `rapid_os.cli.main` because moving them wholesale into new abstractions would be a larger behavior-changing rewrite. The priority here is to isolate reusable logic first, then migrate command domains incrementally.
 
