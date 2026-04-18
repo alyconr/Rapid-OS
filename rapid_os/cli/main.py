@@ -25,6 +25,25 @@ from rapid_os.core.paths import (
 from rapid_os.domain.agents import generate_agent_contexts
 
 
+def parse_agent_selection(agent_sel):
+    selected_tools = []
+    if not agent_sel or not agent_sel.strip():
+        return ["cursor"]
+
+    parts = [part.strip() for part in agent_sel.split(",")]
+    if "1" in parts:
+        selected_tools.append("cursor")
+    if "2" in parts:
+        selected_tools.append("claude")
+    if "3" in parts:
+        selected_tools.append("antigravity")
+    if "4" in parts:
+        selected_tools.append("vscode")
+    if "5" in parts:
+        selected_tools.append("codex")
+    return selected_tools
+
+
 def regenerate_context():
     """Compila estándares y genera SOLO para las herramientas seleccionadas."""
     full_context = compose_project_context(PROJECT_RAPID_DIR, CURRENT_DIR)
@@ -100,20 +119,9 @@ def init_project(args):
     print(" 2) Claude Code (CLAUDE.md)")
     print(" 3) Google Antigravity (.agent/rules)")
     print(" 4) VS Code / Copilot (INSTRUCTIONS.md)")
+    print(" 5) Codex (AGENTS.md)")
     agent_sel = input("Opción [1]: ").strip()
-    selected_tools = []
-    if not agent_sel:
-        selected_tools = ["cursor"]
-    else:
-        parts = agent_sel.split(",")
-        if "1" in parts:
-            selected_tools.append("cursor")
-        if "2" in parts:
-            selected_tools.append("claude")
-        if "3" in parts:
-            selected_tools.append("antigravity")
-        if "4" in parts:
-            selected_tools.append("vscode")
+    selected_tools = parse_agent_selection(agent_sel)
 
     # 5. Herramientas de Investigación (Research)
     print("\n🔍 CAPACIDADES DE INVESTIGACIÓN (Opcional):")

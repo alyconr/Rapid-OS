@@ -17,11 +17,13 @@ class ProjectConfigTests(unittest.TestCase):
     def test_missing_config_returns_current_defaults(self):
         with workspace_tempdir() as tmp:
             config_file = Path(tmp) / ".rapid-os" / "config.json"
+            config = load_project_config(config_file)
 
             self.assertEqual(
-                load_project_config(config_file),
+                config,
                 {"tools": ["cursor", "claude", "antigravity", "vscode"]},
             )
+            self.assertNotIn("codex", config["tools"])
 
     def test_valid_config_loads(self):
         with workspace_tempdir() as tmp:

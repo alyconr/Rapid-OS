@@ -5,7 +5,7 @@ import sys
 import unittest
 from pathlib import Path
 
-from rapid_os.cli.main import create_parser
+from rapid_os.cli.main import create_parser, parse_agent_selection
 
 
 class CliSmokeTests(unittest.TestCase):
@@ -30,6 +30,16 @@ class CliSmokeTests(unittest.TestCase):
                 "prompt",
                 "guide",
             },
+        )
+
+    def test_agent_selection_default_remains_cursor_only(self):
+        self.assertEqual(parse_agent_selection(""), ["cursor"])
+        self.assertEqual(parse_agent_selection("   "), ["cursor"])
+
+    def test_agent_selection_includes_codex_when_explicitly_selected(self):
+        self.assertEqual(
+            parse_agent_selection("1, 5"),
+            ["cursor", "codex"],
         )
 
     def test_rapid_help_smoke(self):

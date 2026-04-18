@@ -80,9 +80,32 @@ class VSCodeAdapter(AgentAdapter):
         }
 
 
+class CodexAdapter(AgentAdapter):
+    id = "codex"
+    name = "Codex"
+    metadata = {
+        "activation": "Project root AGENTS.md",
+        "scope": "repository",
+        "agent": "Codex",
+    }
+    outputs = (
+        AgentOutput(Path("AGENTS.md"), "Generado: AGENTS.md"),
+    )
+
+    def render(self, context: str) -> Mapping[Path, str]:
+        return {
+            Path("AGENTS.md"): (
+                "# RAPID OS - CODEX PROJECT INSTRUCTIONS\n"
+                "# SOURCE OF TRUTH FOR CODEX.\n\n"
+                f"{context}"
+            )
+        }
+
+
 SUPPORTED_AGENT_ADAPTERS = (
     CursorAdapter,
     ClaudeAdapter,
     AntigravityAdapter,
     VSCodeAdapter,
+    CodexAdapter,
 )

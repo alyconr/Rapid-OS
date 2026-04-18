@@ -32,7 +32,7 @@ class AgentAdapterTests(unittest.TestCase):
 
         self.assertEqual(
             registry.ids(),
-            ("cursor", "claude", "antigravity", "vscode"),
+            ("cursor", "claude", "antigravity", "vscode", "codex"),
         )
 
     def test_adapters_declare_output_files_and_metadata(self):
@@ -52,7 +52,15 @@ class AgentAdapterTests(unittest.TestCase):
             DEFAULT_AGENT_REGISTRY.get("vscode").output_files,
             (Path("INSTRUCTIONS.md"),),
         )
+        self.assertEqual(
+            DEFAULT_AGENT_REGISTRY.get("codex").output_files,
+            (Path("AGENTS.md"),),
+        )
         self.assertIn("activation", DEFAULT_AGENT_REGISTRY.get("cursor").metadata)
+        self.assertEqual(
+            DEFAULT_AGENT_REGISTRY.get("codex").metadata["scope"],
+            "repository",
+        )
 
     def test_legacy_wrappers_render_existing_file_contents(self):
         with workspace_tempdir() as tmp:
@@ -98,7 +106,7 @@ class AgentAdapterTests(unittest.TestCase):
             generate_quietly(
                 generate_agent_contexts,
                 "project context",
-                ["context7", "vscode", "firecrawl", "cursor", "codex"],
+                ["context7", "vscode", "firecrawl", "cursor", "unknown-agent"],
                 current_dir,
             )
 
@@ -108,6 +116,45 @@ class AgentAdapterTests(unittest.TestCase):
             self.assertFalse(
                 (current_dir / ".agent" / "rules" / "constitution.md").exists()
             )
+            self.assertFalse((current_dir / "AGENTS.md").exists())
+
+    def test_codex_adapter_renders_exact_agents_md_content(self):
+        codex = DEFAULT_AGENT_REGISTRY.get("codex")
+
+        self.assertEqual(
+            codex.render("project context"),
+            {
+                Path("AGENTS.md"): (
+                    "# RAPID OS - CODEX PROJECT INSTRUCTIONS\n"
+                    "# SOURCE OF TRUTH FOR CODEX.\n\n"
+                    "project context"
+                )
+            },
+        )
+
+    def test_generate_agent_contexts_writes_codex_agents_md_when_selected(self):
+        with workspace_tempdir() as tmp:
+            current_dir = Path(tmp)
+
+            generate_quietly(
+                generate_agent_contexts,
+                "project context",
+                ["codex"],
+                current_dir,
+            )
+
+            self.assertEqual(
+                (current_dir / "AGENTS.md").read_text(encoding="utf-8"),
+                "# RAPID OS - CODEX PROJECT INSTRUCTIONS\n"
+                "# SOURCE OF TRUTH FOR CODEX.\n\n"
+                "project context",
+            )
+            self.assertFalse((current_dir / ".cursorrules").exists())
+            self.assertFalse((current_dir / "CLAUDE.md").exists())
+            self.assertFalse(
+                (current_dir / ".agent" / "rules" / "constitution.md").exists()
+            )
+            self.assertFalse((current_dir / "INSTRUCTIONS.md").exists())
 
     def test_adapter_activation_keeps_backup_behavior(self):
         with workspace_tempdir() as tmp:
