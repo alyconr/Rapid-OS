@@ -2,8 +2,10 @@ import argparse
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
+from rapid_os.adapters.agents import DEFAULT_AGENT_REGISTRY
 from rapid_os.core.config import load_project_config, save_project_config
 from rapid_os.core.context import compose_project_context
 from rapid_os.core.filesystem import check_node_installed, create_backup
@@ -28,6 +30,20 @@ from rapid_os.domain.scope import (
     normalize_mode,
     parse_list,
     write_scope_artifacts,
+)
+from rapid_os.domain.validation import (
+    ERROR,
+    INFO,
+    WARNING,
+    Diagnostic,
+    ValidationReport,
+    inspect_project_context,
+    validate_composed_context,
+    validate_project,
+    validate_project_config,
+    validate_project_standards,
+    validate_stack_topology,
+    validate_templates,
 )
 
 
@@ -511,6 +527,124 @@ def generate_prompt(args):
     print("\n" + "=" * 50)
 
 
+def render_validation_report(report, json_output=False, strict=False):
+    if json_output:
+        print(json.dumps(report.to_dict(strict=strict), indent=2))
+        return report.exit_code(strict=strict)
+
+    for diagnostic in report.diagnostics:
+        line = f"[{diagnostic.level}] {diagnostic.code} {diagnostic.message}"
+        if diagnostic.path:
+            line += f" ({diagnostic.path})"
+        print(line)
+        if diagnostic.hint:
+            print(f"  hint: {diagnostic.hint}")
+
+    counts = report.counts()
+    print(
+        "Summary: "
+        f"{counts[INFO]} info, {counts[WARNING]} warning, {counts[ERROR]} error"
+    )
+    return report.exit_code(strict=strict)
+
+
+def validate_command(args):
+    report = validate_project(
+        PROJECT_RAPID_DIR,
+        CURRENT_DIR,
+        CONFIG_FILE,
+        TEMPLATES_DIR,
+        DEFAULT_AGENT_REGISTRY,
+    )
+    sys.exit(render_validation_report(report, args.json, args.strict))
+
+
+def doctor_command(args):
+    diagnostics = [
+        Diagnostic(INFO, "RAPID900", f"Current directory: {CURRENT_DIR}", CURRENT_DIR),
+        Diagnostic(INFO, "RAPID901", f"Rapid home: {RAPID_HOME}", RAPID_HOME),
+        Diagnostic(INFO, "RAPID902", f"Script directory: {SCRIPT_DIR}", SCRIPT_DIR),
+        Diagnostic(INFO, "RAPID903", f"Templates directory: {TEMPLATES_DIR}", TEMPLATES_DIR),
+        Diagnostic(
+            INFO,
+            "RAPID904",
+            f"Project Rapid OS directory: {PROJECT_RAPID_DIR}",
+            PROJECT_RAPID_DIR,
+        ),
+        Diagnostic(INFO, "RAPID905", f"Config file: {CONFIG_FILE}", CONFIG_FILE),
+    ]
+
+    if not check_node_installed():
+        diagnostics.append(
+            Diagnostic(
+                WARNING,
+                "RAPID906",
+                "Node.js/npx is not available. Remote skills and some MCP flows may not work.",
+            )
+        )
+
+    report = ValidationReport(tuple(diagnostics)).merge(validate_templates(TEMPLATES_DIR))
+
+    if PROJECT_RAPID_DIR.exists():
+        report = report.merge(
+            validate_project_standards(PROJECT_RAPID_DIR),
+            validate_project_config(CONFIG_FILE, DEFAULT_AGENT_REGISTRY),
+            validate_stack_topology(PROJECT_RAPID_DIR),
+            validate_composed_context(PROJECT_RAPID_DIR, CURRENT_DIR),
+        )
+    else:
+        report = report.extend(
+            (
+                Diagnostic(
+                    INFO,
+                    "RAPID907",
+                    "No Rapid OS project detected in the current directory.",
+                    PROJECT_RAPID_DIR,
+                ),
+            )
+        )
+
+    sys.exit(render_validation_report(report, args.json, args.strict))
+
+
+def inspect_context_command(args):
+    inspection = inspect_project_context(PROJECT_RAPID_DIR, CURRENT_DIR, CONFIG_FILE)
+
+    if args.json:
+        print(
+            json.dumps(
+                inspection.to_dict(
+                    strict=False,
+                    include_context=not args.summary,
+                ),
+                indent=2,
+            )
+        )
+        sys.exit(inspection.report.exit_code())
+
+    render_validation_report(inspection.report)
+    print("\nIncluded sections:")
+    if inspection.included_sections:
+        for section in inspection.included_sections:
+            print(f"- {section}")
+    else:
+        print("- none")
+
+    print("\nSelected tools:")
+    if inspection.selected_tools:
+        for tool in inspection.selected_tools:
+            print(f"- {tool}")
+    else:
+        print("- none")
+
+    print(f"\nContext length: {len(inspection.context)} characters")
+    if not args.summary:
+        print("\n--- Context Preview ---")
+        print(inspection.context)
+
+    sys.exit(inspection.report.exit_code())
+
+
 def show_guide():
     print("📘 RAPID OS - COMANDOS")
     print(" init    -> Configurar proyecto")
@@ -519,6 +653,9 @@ def show_guide():
     print(" vision  -> Agregar referencias visuales")
     print(" scope   -> Crear specs")
     print(" prompt  -> Generar prompt para IA")
+    print(" validate -> Validar proyecto Rapid OS")
+    print(" doctor  -> Diagnosticar instalacion local")
+    print(" inspect-context -> Previsualizar contexto ensamblado")
 
 
 def create_parser():
@@ -542,6 +679,15 @@ def create_parser():
     refine = subparsers.add_parser("refine")
     refine.add_argument("file")
     subparsers.add_parser("prompt")
+    validate = subparsers.add_parser("validate")
+    validate.add_argument("--json", action="store_true")
+    validate.add_argument("--strict", action="store_true")
+    doctor = subparsers.add_parser("doctor")
+    doctor.add_argument("--json", action="store_true")
+    doctor.add_argument("--strict", action="store_true")
+    inspect_context = subparsers.add_parser("inspect-context")
+    inspect_context.add_argument("--json", action="store_true")
+    inspect_context.add_argument("--summary", action="store_true")
     subparsers.add_parser("guide")
     return parser
 
@@ -567,6 +713,12 @@ def main(argv=None):
         refine_standard(args)
     elif args.command == "prompt":
         generate_prompt(args)
+    elif args.command == "validate":
+        validate_command(args)
+    elif args.command == "doctor":
+        doctor_command(args)
+    elif args.command == "inspect-context":
+        inspect_context_command(args)
     elif args.command == "guide":
         show_guide()
     else:

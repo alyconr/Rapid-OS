@@ -335,6 +335,42 @@ Tabla completa de comandos disponibles en Rapid OS y sus resultados.
 | `rapid mcp`                  | **Configura MCP Servers**. Genera conectores para Bases de Datos y Herramientas.                | Crea `postgres_mcp.json` o similar para que la IA pueda ejecutar SQL y ver esquemas.              |
 | `rapid vision <image_path>`  | **Inyección Visual**. Procesa una imagen para extraer contexto de diseño.                       | Genera una descripción de texto/código de la imagen para que la IA "vea" el diseño.               |
 | `rapid deploy <target>`      | **Asistente de Despliegue**. Genera IaC para la nube elegida.                                   | Crea `Dockerfile`, `docker-compose.yml` o scripts de Terraform para el target (aws, vercel, gcp). |
+| `rapid validate`             | **ValidaciÃ³n de Proyecto**. Revisa templates, estÃ¡ndares, config, herramientas y contexto.      | No escribe archivos. Sale con `0` si no hay errores y `1` si encuentra errores de validaciÃ³n.     |
+| `rapid doctor`               | **DiagnÃ³stico Local**. Revisa rutas resueltas, templates, Node/npx opcional y proyecto actual.  | No escribe archivos. Usa advertencias para capacidades opcionales como Node/npx.                  |
+| `rapid inspect-context`      | **InspecciÃ³n de Contexto**. Ensambla y previsualiza el contexto final antes de generar archivos. | No escribe archivos. Muestra secciones incluidas, herramientas seleccionadas y preview final.     |
+
+---
+
+### ValidaciÃ³n y DiagnÃ³sticos
+
+Antes de regenerar contexto o usar Rapid OS en CI, puedes validar el estado del proyecto:
+
+```bash
+rapid validate
+rapid validate --json
+rapid validate --strict
+```
+
+`rapid validate` falla con cÃ³digo `1` cuando hay errores, como `tech-stack.md` o `topology.md` faltantes, JSON invÃ¡lido en templates MCP, herramientas desconocidas en `.rapid-os/config.json`, combinaciones stack/topologÃ­a incompatibles o contexto ensamblado vacÃ­o. Con `--strict`, las advertencias tambiÃ©n devuelven `1`.
+
+Para revisar la instalaciÃ³n local sin modificar nada:
+
+```bash
+rapid doctor
+rapid doctor --json
+```
+
+`rapid doctor` reporta rutas resueltas, directorio de templates activo, estado del proyecto actual y disponibilidad opcional de Node/npx.
+
+Para ver el contexto final antes de escribir archivos de agente:
+
+```bash
+rapid inspect-context
+rapid inspect-context --summary
+rapid inspect-context --json
+```
+
+`rapid inspect-context` usa el mismo ensamblado de contexto que la generaciÃ³n normal, pero no escribe `.cursorrules`, `CLAUDE.md`, `INSTRUCTIONS.md`, `AGENTS.md` ni archivos de Antigravity.
 
 ---
 

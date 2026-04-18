@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -28,6 +29,9 @@ class CliSmokeTests(unittest.TestCase):
                 "mcp",
                 "refine",
                 "prompt",
+                "validate",
+                "doctor",
+                "inspect-context",
                 "guide",
             },
         )
@@ -83,6 +87,66 @@ class CliSmokeTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(b"init", result.stdout)
+
+    def test_validation_command_help_smoke(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        env = os.environ.copy()
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+
+        for command in ("validate", "doctor", "inspect-context"):
+            result = subprocess.run(
+                [sys.executable, "rapid.py", command, "--help"],
+                cwd=repo_root,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(command.encode(), result.stdout)
+
+    def test_validate_json_exits_nonzero_for_current_uninitialized_project(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        env = os.environ.copy()
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+
+        result = subprocess.run(
+            [sys.executable, "rapid.py", "validate", "--json"],
+            cwd=repo_root,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        self.assertEqual(result.returncode, 1)
+        payload = json.loads(result.stdout.decode("utf-8"))
+        self.assertFalse(payload["ok"])
+        self.assertIn("diagnostics", payload)
+
+    def test_doctor_json_exit_codes_cover_success_and_strict_warning(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        env = os.environ.copy()
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+
+        relaxed = subprocess.run(
+            [sys.executable, "rapid.py", "doctor", "--json"],
+            cwd=repo_root,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        strict = subprocess.run(
+            [sys.executable, "rapid.py", "doctor", "--json", "--strict"],
+            cwd=repo_root,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        self.assertEqual(relaxed.returncode, 0, relaxed.stderr)
+        self.assertEqual(strict.returncode, 1, strict.stderr)
+        self.assertTrue(json.loads(relaxed.stdout.decode("utf-8"))["ok"])
+        self.assertFalse(json.loads(strict.stdout.decode("utf-8"))["ok"])
 
 
 if __name__ == "__main__":
