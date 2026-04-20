@@ -6,7 +6,7 @@
 
 ### Context Injection for AI Engineering
 
-Convierte a tus Agentes (Cursor, Claude, Antigravity) en Ingenieros Senior instantáneamente.
+Convierte a tus Agentes (Cursor, Claude, Antigravity, VS Code y Codex) en Ingenieros Senior instantáneamente.
 
 </div>
 
