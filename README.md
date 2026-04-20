@@ -14,6 +14,7 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity) en Ingenieros Senior insta
   <summary>Table of Contents</summary>
   <ol>
     <li><a href="#about-the-project">📖 About the Project</a></li>
+    <li><a href="#rapid-os-v2-status">Rapid OS v2 Status</a></li>
     <li><a href="#how-it-works">🧩 How it Works</a></li>
     <li>
       <a href="#build-with">⚒️ Build With</a>
@@ -22,7 +23,6 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity) en Ingenieros Senior insta
         <li><a href="#key-features">Key Features</a></li>
       </ul>
     </li>
-    <li><a href="#live-demo">🚀 Live Demo</a></li>
     <li>
       <a href="#getting-started">💻 Getting Started</a>
       <ul>
@@ -35,7 +35,7 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity) en Ingenieros Senior insta
     <li><a href="#run-tests">Run tests</a></li>
     <li><a href="#deployment">Deployment</a></li>
     <li><a href="#authors">👥 Authors</a></li>
-    <li><a href="#future-features">🕹️ Future Features</a></li>
+    <li><a href="#future-features">Future v2.1+ Enhancements</a></li>
     <li><a href="#contributing">🤝 Contributing</a></li>
     <li><a href="#show-your-support">⭐ Show your Support</a></li>
     <li><a href="#acknowledgements">👏 Acknowledgements</a></li>
@@ -51,6 +51,25 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity) en Ingenieros Senior insta
 **Rapid OS** es un framework de "Inyección de Contexto" diseñado para resolver el problema de la **"Amnesia de Contexto"** en los LLMs.
 
 Cuando trabajas con asistentes de IA como Cursor, Claude o Copilot, a menudo olvidan tus reglas de negocio, tu stack tecnológico o tus protocolos de seguridad. Rapid OS soluciona esto inyectando una **"Constitución de Proyecto"** estandarizada que la IA debe obedecer antes de escribir una sola línea de código.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Rapid OS v2 Status <a name="rapid-os-v2-status"></a>
+
+Rapid OS v2 is complete. The repository now has the v2 architecture, CLI compatibility layer, agent adapter boundary, Codex support, structured scope artifacts, validation and diagnostics, project scanner, MCP abstraction, and automated test workflow in place.
+
+Future work is tracked as post-v2 enhancement work. The v2 baseline keeps the existing command behavior and generated file locations stable.
+
+| Workstream | Status | Included in v2 |
+| :-- | :-- | :-- |
+| Core package refactor | Complete | `rapid_os.cli`, `rapid_os.core`, and domain modules with `rapid.py` compatibility. |
+| Agent adapter architecture | Complete | Cursor, Claude, Antigravity, VS Code, and Codex adapters behind a registry. |
+| First-class Codex support | Complete | Opt-in `AGENTS.md` generation through the adapter system. |
+| Structured scope generation | Complete | `SPECS.md`, `TASKS.md`, and `ACCEPTANCE.md` from `rapid scope`. |
+| Validation and diagnostics | Complete | `rapid validate`, `rapid doctor`, and `rapid inspect-context`. |
+| Project scanner | Complete | Safe local scanning and reviewable init suggestions. |
+| MCP abstraction | Complete | Structured MCP model with Claude Desktop rendering. |
+| Testing and CI hardening | Complete | GitHub Actions plus `python -m unittest discover` and CLI smoke checks. |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -147,15 +166,6 @@ Este proyecto está construido utilizando tecnologías nativas para asegurar má
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## 🚀 Live Demo <a name="live-demo"></a>
-
-Puedes ver a Rapid OS en acción transformando un proyecto vacío en un entorno configurado en segundos.
-
-> [!NOTE]
-> Insertar enlace a Video Demo o GIF aquí
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
 ## 💻 Getting Started <a name="getting-started"></a>
 
 Sigue estos pasos para instalar Rapid OS en tu entorno local.
@@ -192,8 +202,6 @@ Reinicia tu terminal después de la instalación para cargar el comando `rapid`.
 
 ## Usage <a name="usage"></a>
 
-## Usage <a name="usage"></a>
-
 ### 1. Inicializar Proyecto (Nuevo o Legacy)
 
 `rapid init` es el comando universal. Úsalo tanto para proyectos desde cero como para "curar" proyectos existentes con **Amnesia de Contexto**.
@@ -204,11 +212,11 @@ Reinicia tu terminal después de la instalación para cargar el comando `rapid`.
     rapid init
     ```
 3.  Sigue el asistente interactivo:
-    - **Scanner seguro**: Rapid OS revisa seÃ±ales locales como `package.json`, `tsconfig.json`, Docker, tests, monorepo, base de datos y provider de deploy para sugerir stack/topologÃ­a. Nada se aplica sin confirmaciÃ³n.
+    - **Scanner seguro**: Rapid OS revisa señales locales como `package.json`, `tsconfig.json`, Docker, tests, monorepo, base de datos y provider de deploy para sugerir stack/topología. Nada se aplica sin confirmación.
     - **Tech Stack**: Define las tecnologías permitidas (ej. "Solo React Functional Components").
     - **Arquetipo**: "Corporate" para código estricto con tests, o "MVP" para velocidad.
     - **Reglas de Negocio**: Importa tus documentos existentes o extráelos de tu cabeza.
-    - **Capacidades de Investigación (Nuevo)**: Activa `Context7` (Docs) y `Firecrawl` (Web Scraping) para que tu IA pueda investigar librerías y sitios web por sí misma.
+    - **Capacidades de Investigación**: Activa `Context7` (Docs) y `Firecrawl` (Web Scraping) para que tu IA pueda investigar librerías y sitios web por sí misma.
 
 > **Para Refactorización**: Al ejecutar esto en un proyecto legacy, Rapid OS inyectará un archivo `.cursorrules` o `.agent` que obligará a la IA a respetar los nuevos estándares en cualquier refactorización futura, evitando que imite el código antiguo ("code drift").
 
@@ -272,7 +280,7 @@ rapid mcp
 
 (Soporta Postgres y Supabase automáticamente).
 
-Rapid OS modela los servidores MCP internamente y renderiza la configuraciÃ³n compatible con Claude Desktop en `claude_desktop_config.json`. El flujo actual conserva soporte para filesystem, Postgres, Supabase, Context7 y Firecrawl, y avisa si hay placeholders o API keys pendientes sin bloquear la generaciÃ³n.
+Rapid OS modela los servidores MCP internamente y renderiza la configuración compatible con Claude Desktop en `claude_desktop_config.json`. El flujo actual conserva soporte para filesystem, Postgres, Supabase, Context7 y Firecrawl, y avisa si hay placeholders o API keys pendientes sin bloquear la generación.
 
 ### 6. Referencias Visuales (Vision)
 
@@ -282,7 +290,7 @@ Para que la IA "vea" tus diseños y no alucine el frontend:
 rapid vision ruta/al/diseño.png
 ```
 
-### 7. Documentación con Docusaurus (Nuevo)
+### 7. Documentación con Docusaurus
 
 Rapid OS incluye un stack especializado para crear sitios de documentación modernos:
 
@@ -342,7 +350,7 @@ Tabla completa de comandos disponibles en Rapid OS y sus resultados.
 
 | Comando                      | Descripción                                                                                     | Resultado / Output                                                                                |
 | :--------------------------- | :---------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------ |
-| `rapid init`                 | **Inicializa Rapid OS**. Escanea seÃ±ales locales y sugiere stack/topologÃ­a con confirmaciÃ³n.   | Crea `.cursorrules`, `.agent/rules`, `.rapid-os/` y backups de config existente. Usa `--no-scan` para modo manual. |
+| `rapid init`                 | **Inicializa Rapid OS**. Escanea señales locales y sugiere stack/topología con confirmación.   | Crea `.cursorrules`, `.agent/rules`, `.rapid-os/` y backups de config existente. Usa `--no-scan` para modo manual. |
 | `rapid scope`                | **Asistente de Alcance**. Te entrevista para definir una feature, refactor, bugfix o hardening. | Genera `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` con backups antes de sobrescribir.                |
 | `rapid refine <file>`        | **Refinamiento de Reglas**. Mejora cualquier documento de reglas usando IA.                     | Genera un Mega-Prompt para que pegues en tu chat y la IA reescriba el archivo profesionalmente.   |
 | `rapid skill add <name>`     | **Instala una Skill** desde el registro comunitario.                                            | Descarga la skill en `.cursor/skills/<name>` y la activa en el contexto.                          |
@@ -350,13 +358,13 @@ Tabla completa de comandos disponibles en Rapid OS y sus resultados.
 | `rapid mcp`                  | **Configura MCP Servers**. Modela filesystem, BD y research tools.                              | Crea `claude_desktop_config.json` con `mcpServers` compatible y warnings para placeholders.       |
 | `rapid vision <image_path>`  | **Inyección Visual**. Procesa una imagen para extraer contexto de diseño.                       | Genera una descripción de texto/código de la imagen para que la IA "vea" el diseño.               |
 | `rapid deploy <target>`      | **Asistente de Despliegue**. Genera IaC para la nube elegida.                                   | Crea `Dockerfile`, `docker-compose.yml` o scripts de Terraform para el target (aws, vercel, gcp). |
-| `rapid validate`             | **ValidaciÃ³n de Proyecto**. Revisa templates, estÃ¡ndares, config, herramientas y contexto.      | No escribe archivos. Sale con `0` si no hay errores y `1` si encuentra errores de validaciÃ³n.     |
-| `rapid doctor`               | **DiagnÃ³stico Local**. Revisa rutas resueltas, templates, Node/npx opcional y proyecto actual.  | No escribe archivos. Usa advertencias para capacidades opcionales como Node/npx.                  |
-| `rapid inspect-context`      | **InspecciÃ³n de Contexto**. Ensambla y previsualiza el contexto final antes de generar archivos. | No escribe archivos. Muestra secciones incluidas, herramientas seleccionadas y preview final.     |
+| `rapid validate`             | **Validación de Proyecto**. Revisa templates, estándares, config, herramientas y contexto.      | No escribe archivos. Sale con `0` si no hay errores y `1` si encuentra errores de validación.     |
+| `rapid doctor`               | **Diagnóstico Local**. Revisa rutas resueltas, templates, Node/npx opcional y proyecto actual.  | No escribe archivos. Usa advertencias para capacidades opcionales como Node/npx.                  |
+| `rapid inspect-context`      | **Inspección de Contexto**. Ensambla y previsualiza el contexto final antes de generar archivos. | No escribe archivos. Muestra secciones incluidas, herramientas seleccionadas y preview final.     |
 
 ---
 
-### ValidaciÃ³n y DiagnÃ³sticos
+### Validación y Diagnósticos
 
 Antes de regenerar contexto o usar Rapid OS en CI, puedes validar el estado del proyecto:
 
@@ -366,9 +374,9 @@ rapid validate --json
 rapid validate --strict
 ```
 
-`rapid validate` falla con cÃ³digo `1` cuando hay errores, como `tech-stack.md` o `topology.md` faltantes, JSON invÃ¡lido en templates MCP, herramientas desconocidas en `.rapid-os/config.json`, combinaciones stack/topologÃ­a incompatibles o contexto ensamblado vacÃ­o. Con `--strict`, las advertencias tambiÃ©n devuelven `1`.
+`rapid validate` falla con código `1` cuando hay errores, como `tech-stack.md` o `topology.md` faltantes, JSON inválido en templates MCP, herramientas desconocidas en `.rapid-os/config.json`, combinaciones stack/topología incompatibles o contexto ensamblado vacío. Con `--strict`, las advertencias también devuelven `1`.
 
-Para revisar la instalaciÃ³n local sin modificar nada:
+Para revisar la instalación local sin modificar nada:
 
 ```bash
 rapid doctor
@@ -385,7 +393,7 @@ rapid inspect-context --summary
 rapid inspect-context --json
 ```
 
-`rapid inspect-context` usa el mismo ensamblado de contexto que la generaciÃ³n normal, pero no escribe `.cursorrules`, `CLAUDE.md`, `INSTRUCTIONS.md`, `AGENTS.md` ni archivos de Antigravity.
+`rapid inspect-context` usa el mismo ensamblado de contexto que la generación normal, pero no escribe `.cursorrules`, `CLAUDE.md`, `INSTRUCTIONS.md`, `AGENTS.md` ni archivos de Antigravity.
 
 ---
 
@@ -419,7 +427,7 @@ Lo que Rapid OS **ES** y lo que **NO ES**:
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## 📚 Ejemplo Práctico: Documentación de Producto (Nuevo)
+## 📚 Ejemplo Práctico: Documentación de Producto
 
 **Escenario**: Quieres crear la documentación oficial de tu SaaS, asegurando que cada nueva página siga el mismo tono de voz, estructura y formato.
 
@@ -478,10 +486,17 @@ Matches soportados actualmente: `aws`, `vercel`, `gcp`, `azure`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## 🕹️ Future Features <a name="future-features"></a>
+## Future v2.1+ Enhancements <a name="future-features"></a>
+
+Rapid OS v2 is complete. These items are optional post-v2 improvements and are not required to use the current CLI:
 
 - [ ] **Soporte para JetBrains**: Integración con IntelliJ/PyCharm AI Assistant.
-- [ ] **Agentes Autónomos**: Integración profunda con AutoGPT o BabyAGI para ejecución de tareas.
+- [ ] **Configuración avanzada de Codex**: Soporte para `AGENTS.override.md`, configuración global o instrucciones anidadas si el flujo lo requiere.
+- [ ] **Previews por agente**: Vistas previas específicas por adaptador para inspección seca antes de escribir archivos.
+- [ ] **Scanner independiente**: Comando dedicado para inspeccionar señales del proyecto sin ejecutar `rapid init`.
+- [ ] **Scope no interactivo**: Flags o plantillas más ricas para equipos que quieran automatizar `rapid scope`.
+- [ ] **Diagnósticos enriquecidos**: Categorías machine-readable más detalladas para integraciones futuras.
+- [ ] **Renderers MCP adicionales**: Nuevos destinos además del JSON compatible con Claude Desktop.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

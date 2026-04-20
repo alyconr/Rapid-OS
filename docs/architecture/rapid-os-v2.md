@@ -1,10 +1,21 @@
-# Rapid OS v2 Architecture Migration
+# Rapid OS v2 Architecture
 
 ## Summary
 
-Issue #6 started the Rapid OS v2 migration with extraction, not a rewrite. Issue #7 added the first formal adapter boundary for generated agent context files while keeping the same CLI commands, project config, and generated file outputs. Issue #8 adds first-class Codex support as an opt-in adapter.
+Rapid OS v2 is the current completed architecture baseline. It keeps the existing CLI commands, project config, generated file outputs, and `rapid.py` compatibility entrypoint while moving reusable behavior behind package, domain, adapter, scanner, validation, MCP, and testing boundaries.
 
 `rapid.py` remains the compatibility entrypoint because the existing install scripts and user aliases execute it directly. It now delegates to the package CLI and re-exports compatibility constants/functions for existing import users.
+
+## Completed v2 Scope
+
+- Core package refactor without a big-bang rewrite.
+- Agent adapter architecture for generated context files.
+- First-class, opt-in Codex support through `AGENTS.md`.
+- Structured scope/spec generation through `SPECS.md`, `TASKS.md`, and `ACCEPTANCE.md`.
+- Validation and diagnostics commands for local project health.
+- Project scanner for safer, reviewable `rapid init` suggestions.
+- MCP abstraction layer with a Claude Desktop renderer.
+- Automated unittest and CLI smoke-check workflow in GitHub Actions.
 
 ## Package Responsibilities
 
@@ -36,7 +47,7 @@ Agent-specific project context generation now flows through `AgentAdapter` imple
 
 The default registry preserves the previous generation order for existing agents: Cursor, Claude, Antigravity, then VS Code. Codex is registered after those adapters. Unknown tool ids remain ignored during context generation, which keeps research tool config entries such as `context7` and `firecrawl` compatible with the existing project config shape.
 
-Supported adapters after issue #8:
+Supported adapters in v2:
 
 - Cursor: `.cursorrules`
 - Claude Code: `CLAUDE.md`
@@ -44,11 +55,11 @@ Supported adapters after issue #8:
 - VS Code / Copilot: `INSTRUCTIONS.md`
 - Codex: `AGENTS.md`
 
-Codex support is project-scoped and opt-in. Selecting `codex` writes `AGENTS.md` at the project root with the composed Rapid OS context. Rapid OS does not generate `AGENTS.override.md`, global Codex configuration, or nested Codex instruction files in this migration step.
+Codex support is project-scoped and opt-in. Selecting `codex` writes `AGENTS.md` at the project root with the composed Rapid OS context. Rapid OS v2 does not generate `AGENTS.override.md`, global Codex configuration, or nested Codex instruction files.
 
 ## Scope Artifact Workflow
 
-Issue #10 upgrades `rapid scope` from a minimal one-file prompt helper into a structured spec generator. The command remains interactive and keeps `SPECS.md` as the primary artifact, while also writing `TASKS.md` and `ACCEPTANCE.md`.
+`rapid scope` is a structured spec generator. The command remains interactive and keeps `SPECS.md` as the primary artifact, while also writing `TASKS.md` and `ACCEPTANCE.md`.
 
 The scope workflow collects initiative details, mode, business objective, problem statement, scope boundaries, actors, main flow, edge cases, business rules, technical constraints, affected modules, data impact, acceptance criteria, testing strategy, and implementation tasks. Supported modes are `new feature`, `refactor`, `bugfix`, and `legacy hardening`.
 
@@ -56,7 +67,7 @@ Scope rendering is deterministic and local. Rapid OS does not infer tasks or acc
 
 ## Validation and Diagnostics
 
-Issue #11 adds validation as an additive diagnostics layer. The validation service returns `Diagnostic` entries with `info`, `warning`, and `error` levels plus stable diagnostic codes. The domain module does not print, exit, or write files; the CLI owns rendering and process exit behavior.
+Validation is an additive diagnostics layer. The validation service returns `Diagnostic` entries with `info`, `warning`, and `error` levels plus stable diagnostic codes. The domain module does not print, exit, or write files; the CLI owns rendering and process exit behavior.
 
 New commands:
 
@@ -64,15 +75,15 @@ New commands:
 - `rapid doctor` reports resolved paths, template health, optional Node/npx availability, and project checks when the current directory already contains `.rapid-os/`. It supports `--json`.
 - `rapid inspect-context` composes the final context using the same context assembly path as generation, then prints included sections, selected tools, and a preview. It supports `--json` and `--summary`.
 
-Exit codes are intentionally simple: `0` means no validation errors, `1` means validation errors were found, and `--strict` makes warnings fail with `1` too. `inspect-context` does not render agent-specific previews in this migration step.
+Exit codes are intentionally simple: `0` means no validation errors, `1` means validation errors were found, and `--strict` makes warnings fail with `1` too. `inspect-context` does not render agent-specific previews in v2.
 
 ## Project Scanner
 
-Issue #12 adds a bounded project scanner for safer initialization. The scanner detects probable language, framework, package manager, Docker presence, testing framework, monorepo signals, database hints, and deployment provider hints from local project files. It does not perform network calls, install dependencies, write files, or update `.rapid-os/config.json`.
+The bounded project scanner supports safer initialization. It detects probable language, framework, package manager, Docker presence, testing framework, monorepo signals, database hints, and deployment provider hints from local project files. It does not perform network calls, install dependencies, write files, or update `.rapid-os/config.json`.
 
 `rapid init` runs the scanner by default before stack/topology selection. The CLI prints a compact summary and suggested init choices, then asks for confirmation. Suggestions are applied only after the user accepts them. If the user rejects suggestions, if evidence is mixed, or if no confident suggestion exists, `rapid init` falls back to the existing manual menus.
 
-The scanner only suggests stack and topology in this migration step. `rapid init --no-scan` preserves the manual initialization flow, and `rapid init --stack <name>` remains authoritative over scanner stack suggestions.
+The scanner suggests stack and topology in v2. `rapid init --no-scan` preserves the manual initialization flow, and `rapid init --stack <name>` remains authoritative over scanner stack suggestions.
 
 ## MCP Abstraction
 
@@ -97,12 +108,12 @@ Unresolved placeholders and missing key hints are warnings, not hard failures. T
 
 ## Intentionally Unchanged
 
-This migration does not redesign MCP UX, validation commands, install scripts, generate global Codex config, add agent-specific context previews, or add `AGENTS.override.md`.
+Rapid OS v2 does not redesign MCP UX, validation commands, install scripts, generate global Codex config, add agent-specific context previews, or add `AGENTS.override.md`.
 
-Some command workflows still live in `rapid_os.cli.main` because moving them wholesale into new abstractions would be a larger behavior-changing rewrite. The priority here is to isolate reusable logic first, then migrate command domains incrementally.
+Some command workflows still live in `rapid_os.cli.main` because moving them wholesale into new abstractions would be a larger behavior-changing rewrite. The v2 baseline intentionally keeps those flows stable while isolating reusable logic behind package and domain boundaries.
 
-## Remaining Migration Work
+## Potential v2.1 Enhancements
 
-Future Codex work can add Codex-specific skill placement, deeper Codex configuration, or nested instruction-file support. Future scope work can add non-interactive flags or richer templates. Future diagnostics work can add richer machine-readable categories, more formal stack/topology metadata, and agent-specific dry-run previews. Future scanner work can add a standalone scan command, persisted scan metadata, deeper monorepo targeting, or richer framework mappings. Those additions should remain behind the existing boundaries and be introduced in separate PRs.
+The items below are optional post-v2 improvements, not unfinished v2 requirements. Future Codex work can add Codex-specific skill placement, deeper Codex configuration, or nested instruction-file support. Future scope work can add non-interactive flags or richer templates. Future diagnostics work can add richer machine-readable categories, more formal stack/topology metadata, and agent-specific dry-run previews. Future scanner work can add a standalone scan command, persisted scan metadata, deeper monorepo targeting, or richer framework mappings. Those additions should remain behind the existing boundaries and be introduced in separate PRs.
 
-Command flows can be split further by domain once the adapter boundary is stable.
+Command flows can be split further by domain in future v2.1+ work if that can be done without changing user-facing behavior.
