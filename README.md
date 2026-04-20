@@ -169,7 +169,7 @@ No necesitas clonar este repositorio manualmente para usar la herramienta. El in
 Asegúrate de tener instalado:
 
 - **Git**: Para control de versiones.
-- **Python 3.8+**: Para ejecutar el núcleo de Rapid OS.
+- **Python 3.10+**: Para ejecutar el núcleo de Rapid OS.
 - **Node.js (Opcional)**: Requerido solo si deseas instalar Skills remotas usando `npx`.
 
 ### Install <a name="install"></a>
