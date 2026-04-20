@@ -440,13 +440,20 @@ Lo que Rapid OS **ES** y lo que **NO ES**:
 
 ## Run tests <a name="run-tests"></a>
 
-Para verificar que Rapid OS se instaló correctamente y puede acceder a los templates:
+Rapid OS usa `unittest` de la biblioteca estándar de Python. Desde la raíz del repositorio:
 
 ```bash
-rapid --help
+python -m unittest discover
 ```
 
-Deberías ver la lista de comandos disponibles (`init`, `skill`, `mcp`, `scope`, `deploy`, `vision`, `guide`).
+Para una verificación rápida de la CLI:
+
+```bash
+python rapid.py --help
+python rapid.py guide
+```
+
+GitHub Actions ejecuta la suite de `unittest` y estos smoke checks en cada `push` y `pull_request`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
