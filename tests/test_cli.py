@@ -1,12 +1,17 @@
 import argparse
+import contextlib
+import io
 import json
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
+from argparse import Namespace
 from pathlib import Path
 
-from rapid_os.cli.main import create_parser, parse_agent_selection
+from rapid_os.cli.main import create_parser, parse_agent_selection, refine_standard
+from rapid_os.core.text import read_text_best_effort
 
 
 class CliSmokeTests(unittest.TestCase):
@@ -147,6 +152,28 @@ class CliSmokeTests(unittest.TestCase):
         self.assertEqual(strict.returncode, 1, strict.stderr)
         self.assertTrue(json.loads(relaxed.stdout.decode("utf-8"))["ok"])
         self.assertFalse(json.loads(strict.stdout.decode("utf-8"))["ok"])
+
+
+class CliEncodingTests(unittest.TestCase):
+    def test_read_text_best_effort_reads_cp1252_files(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "business.md"
+            expected = "Descripción comercial"
+            path.write_bytes(expected.encode("cp1252"))
+
+            self.assertEqual(read_text_best_effort(path), expected)
+
+    def test_refine_standard_handles_cp1252_files(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "business.md"
+            content = "Descripción comercial"
+            path.write_bytes(content.encode("cp1252"))
+            output = io.StringIO()
+
+            with contextlib.redirect_stdout(output):
+                refine_standard(Namespace(file=str(path)))
+
+            self.assertIn(content, output.getvalue())
 
 
 if __name__ == "__main__":

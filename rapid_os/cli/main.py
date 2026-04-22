@@ -25,6 +25,7 @@ from rapid_os.core.paths import (
     SCRIPT_DIR,
     TEMPLATES_DIR,
 )
+from rapid_os.core.text import read_text_best_effort
 from rapid_os.domain.agents import generate_agent_contexts
 from rapid_os.domain.mcp import build_mcp_config
 from rapid_os.domain.scanner import scan_project, suggest_init_choices
@@ -445,7 +446,9 @@ def scope_feature(args):
 def deploy_assistant(args):
     target = args.target or input("Target (aws, vercel): ").strip()
     tpl = TEMPLATES_DIR / "deploy" / f"{target}.md"
-    instructions = tpl.read_text() if tpl.exists() else f"Deploy to {target}"
+    instructions = (
+        read_text_best_effort(tpl) if tpl.exists() else f"Deploy to {target}"
+    )
     (CURRENT_DIR / "DEPLOY.md").write_text(
         f"# DEPLOY {target}\n{instructions}", encoding="utf-8"
     )
@@ -471,7 +474,10 @@ def refine_standard(args):
     path = Path(args.file)
     if not path.exists():
         print_error("Archivo no existe")
-    print(f"Prompt para IA: ACT AS ARCHITECT. REFINE:\n\n{path.read_text()}")
+    print(
+        "Prompt para IA: ACT AS ARCHITECT. REFINE:\n\n"
+        f"{read_text_best_effort(path)}"
+    )
 
 
 def generate_prompt(args):
