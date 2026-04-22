@@ -18,6 +18,7 @@ from rapid_os.domain.mcp import (
     filesystem_server,
     firecrawl_server,
     load_template_servers,
+    server_from_mapping,
 )
 
 
@@ -180,6 +181,41 @@ class McpDomainTests(unittest.TestCase):
             self.assertEqual(servers, ())
             self.assertEqual(warnings[0].code, "MCP002")
 
+    def test_missing_template_file_returns_warning_without_crashing(self):
+        with workspace_tempdir() as tmp:
+            path = Path(tmp) / "templates" / "mcp" / "postgres.json"
+
+            servers, warnings = load_template_servers(path)
+
+            self.assertEqual(servers, ())
+            self.assertEqual(warnings[0].code, "MCP001")
+
+    def test_malformed_server_without_command_is_skipped_with_warning(self):
+        server, warnings = server_from_mapping("broken", {"args": ["mcp-broken"]})
+
+        self.assertIsNone(server)
+        self.assertEqual(warnings[0].code, "MCP006")
+
+    def test_invalid_args_shape_is_warned_and_safely_handled(self):
+        server, warnings = server_from_mapping(
+            "custom",
+            {"command": "npx", "args": "not-a-list"},
+        )
+
+        self.assertIsNotNone(server)
+        self.assertEqual(server.args, ())
+        self.assertTrue(any(warning.code == "MCP007" for warning in warnings))
+
+    def test_invalid_env_shape_is_warned_and_safely_handled(self):
+        server, warnings = server_from_mapping(
+            "custom",
+            {"command": "npx", "env": "not-an-object"},
+        )
+
+        self.assertIsNotNone(server)
+        self.assertIsNone(server.env)
+        self.assertTrue(any(warning.code == "MCP008" for warning in warnings))
+
     def test_placeholder_warnings_are_non_blocking(self):
         server = context7_server()
 
@@ -193,6 +229,36 @@ class McpDomainTests(unittest.TestCase):
         )
 
         self.assertTrue(any(warning.code == "MCP010" for warning in warnings))
+
+    def test_renderer_outputs_all_supported_server_ids(self):
+        with workspace_tempdir() as tmp:
+            templates_dir = create_mcp_templates(Path(tmp))
+            postgres_servers, postgres_warnings = load_template_servers(
+                templates_dir / "mcp" / "postgres.json"
+            )
+            supabase_servers, supabase_warnings = load_template_servers(
+                templates_dir / "mcp" / "supabase.json"
+            )
+            config = McpConfig(
+                (
+                    filesystem_server(Path("project")),
+                    *postgres_servers,
+                    *supabase_servers,
+                    context7_server(),
+                    firecrawl_server(),
+                ),
+                (*postgres_warnings, *supabase_warnings),
+            )
+
+            rendered = render_claude_desktop_config(config)
+
+            self.assertEqual(
+                set(rendered["mcpServers"]),
+                {"filesystem", "postgres", "supabase", "context7", "firecrawl"},
+            )
+            for server in rendered["mcpServers"].values():
+                self.assertIn("command", server)
+                self.assertIn("args", server)
 
 
 class McpCliTests(unittest.TestCase):
