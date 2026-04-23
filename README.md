@@ -29,6 +29,7 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity, VS Code y Codex) en Ingeni
         <li><a href="#setup">Setup</a></li>
         <li><a href="#prerequisites">Prerequisites</a></li>
         <li><a href="#install">Install</a></li>
+        <li><a href="#update">Update</a></li>
       </ul>
     </li>
     <li><a href="#usage">Usage</a></li>
@@ -197,6 +198,52 @@ irm https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.ps1 | iex
 ```
 
 Reinicia tu terminal después de la instalación para cargar el comando `rapid`.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+### Update <a name="update"></a>
+
+Cuando Rapid OS implemente nuevas funcionalidades, actualiza la copia instalada antes de usar los comandos nuevos.
+
+#### Windows PowerShell
+
+```powershell
+git -C $HOME\.rapid-os pull origin main
+```
+
+Si prefieres reinstalar desde el instalador remoto:
+
+```powershell
+irm https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.ps1 | iex
+```
+
+#### Linux, macOS o WSL
+
+```bash
+git -C "$HOME/.rapid-os" pull origin main
+```
+
+Si prefieres reinstalar desde el instalador remoto:
+
+```bash
+curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.sh | bash
+```
+
+#### Desde un checkout local de desarrollo
+
+Si ejecutas Rapid OS directamente desde este repositorio, solo necesitas traer la rama principal:
+
+```powershell
+git pull origin main
+```
+
+Luego valida que la herramienta quedó disponible:
+
+```powershell
+rapid doctor
+```
+
+Si el comando global `rapid` sigue apuntando a una versión antigua, actualiza la copia instalada en `$HOME\.rapid-os` con el comando de PowerShell anterior.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
