@@ -6,7 +6,12 @@ import sys
 from pathlib import Path
 
 from rapid_os.adapters.agents import DEFAULT_AGENT_REGISTRY
-from rapid_os.adapters.mcp import render_claude_desktop_config
+from rapid_os.adapters.mcp import (
+    render_mcp_install_content,
+    resolve_mcp_install_target,
+    resolve_supported_mcp_scopes,
+    write_mcp_install_target,
+)
 from rapid_os.core.config import load_project_config, save_project_config
 from rapid_os.core.context import compose_project_context
 from rapid_os.core.filesystem import check_node_installed, create_backup
@@ -589,6 +594,27 @@ def manage_skills(args):
 
 def generate_mcp_config(args):
     print_step("Configurando MCP...")
+    ide = getattr(args, "ide", None)
+    if not ide:
+        ide_options = ("codex", "claude", "cursor", "vscode", "antigravity")
+        ide_choice = prompt_menu("Selecciona IDE/editor MCP", ide_options)
+        if ide_choice is None:
+            print_warning("Configuracion MCP cancelada.")
+            return
+        ide = ide_options[ide_choice]
+
+    scope = getattr(args, "scope", None)
+    if not scope:
+        scope_options = resolve_supported_mcp_scopes(ide)
+        scope_choice = prompt_menu(
+            f"Selecciona scope MCP para {ide}",
+            scope_options,
+        )
+        if scope_choice is None:
+            print_warning("Configuracion MCP cancelada.")
+            return
+        scope = scope_options[scope_choice]
+
     topo_file = PROJECT_RAPID_DIR / "standards" / "topology.md"
     if not topo_file.exists():
         choice = prompt_menu(
@@ -615,11 +641,13 @@ def generate_mcp_config(args):
     for warning in mcp_config.warnings:
         print_warning(warning.message)
 
-    target = CURRENT_DIR / "claude_desktop_config.json"
-    create_backup(target)
-    with open(target, "w", encoding="utf-8") as f:
-        json.dump(render_claude_desktop_config(mcp_config), f, indent=2)
-    print_success(f"Configuración MCP: {target.name}")
+    try:
+        target = resolve_mcp_install_target(ide, scope, CURRENT_DIR)
+        rendered_content = render_mcp_install_content(target, mcp_config)
+        written_path = write_mcp_install_target(target, rendered_content)
+    except ValueError as exc:
+        print_error(str(exc))
+    print_success(f"Configuracion MCP: {written_path}")
 
 
 def scope_feature(args):
@@ -927,7 +955,9 @@ def create_parser():
     deploy.add_argument("target", nargs="?")
     vision = subparsers.add_parser("vision")
     vision.add_argument("path", nargs="?")
-    subparsers.add_parser("mcp")
+    mcp = subparsers.add_parser("mcp")
+    mcp.add_argument("--ide", choices=["codex", "claude", "cursor", "vscode", "antigravity"])
+    mcp.add_argument("--scope", choices=["project", "global"])
     refine = subparsers.add_parser("refine")
     refine.add_argument("file")
     subparsers.add_parser("prompt")

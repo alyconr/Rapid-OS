@@ -7,7 +7,16 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from rapid_os.adapters.mcp import render_claude_desktop_config
+from rapid_os.adapters.mcp import (
+    render_antigravity_mcp_json,
+    render_claude_desktop_config,
+    render_claude_mcp_json,
+    render_codex_config_toml,
+    render_cursor_mcp_json,
+    render_vscode_mcp_json,
+    resolve_mcp_install_target,
+    write_mcp_install_target,
+)
 from rapid_os.cli import main as cli_main
 from rapid_os.domain.mcp import (
     McpConfig,
@@ -260,9 +269,137 @@ class McpDomainTests(unittest.TestCase):
                 self.assertIn("command", server)
                 self.assertIn("args", server)
 
+    def test_render_claude_and_cursor_json_use_mcp_servers(self):
+        config = McpConfig((context7_server(),))
+
+        self.assertEqual(set(render_claude_mcp_json(config)), {"mcpServers"})
+        self.assertEqual(set(render_cursor_mcp_json(config)), {"mcpServers"})
+
+    def test_render_vscode_json_uses_servers_key(self):
+        config = McpConfig((context7_server(),))
+
+        rendered = render_vscode_mcp_json(config)
+
+        self.assertEqual(set(rendered), {"servers"})
+        self.assertIn("context7", rendered["servers"])
+
+    def test_render_antigravity_json_uses_current_json_compatible_shape(self):
+        config = McpConfig((context7_server(),))
+
+        rendered = render_antigravity_mcp_json(config)
+
+        self.assertEqual(set(rendered), {"mcpServers"})
+        self.assertIn("context7", rendered["mcpServers"])
+
+    def test_render_codex_config_toml_uses_mcp_servers_sections(self):
+        config = McpConfig((context7_server(),))
+
+        rendered = render_codex_config_toml(config)
+
+        self.assertIn("[mcp_servers.context7]", rendered)
+        self.assertIn('command = "npx"', rendered)
+        self.assertIn('env = { CONTEXT7_API_KEY = "YOUR_API_KEY_HERE" }', rendered)
+
+    def test_resolve_mcp_install_target_supports_documented_paths(self):
+        current_dir = Path("/workspace/project")
+        home_dir = Path("/users/dev")
+
+        self.assertEqual(
+            resolve_mcp_install_target("codex", "project", current_dir, home_dir).path,
+            current_dir / ".codex" / "config.toml",
+        )
+        self.assertEqual(
+            resolve_mcp_install_target("codex", "global", current_dir, home_dir).path,
+            home_dir / ".codex" / "config.toml",
+        )
+        self.assertEqual(
+            resolve_mcp_install_target("claude", "project", current_dir, home_dir).path,
+            current_dir / ".mcp.json",
+        )
+        self.assertEqual(
+            resolve_mcp_install_target("claude", "global", current_dir, home_dir).path,
+            home_dir / ".claude.json",
+        )
+        self.assertEqual(
+            resolve_mcp_install_target("cursor", "project", current_dir, home_dir).path,
+            current_dir / ".cursor" / "mcp.json",
+        )
+        self.assertEqual(
+            resolve_mcp_install_target("cursor", "global", current_dir, home_dir).path,
+            home_dir / ".cursor" / "mcp.json",
+        )
+        self.assertEqual(
+            resolve_mcp_install_target("vscode", "project", current_dir, home_dir).path,
+            current_dir / ".vscode" / "mcp.json",
+        )
+        self.assertEqual(
+            resolve_mcp_install_target("antigravity", "global", current_dir, home_dir).path,
+            home_dir / ".gemini" / "antigravity" / "mcp_config.json",
+        )
+
+    def test_resolve_mcp_install_target_rejects_unsupported_scope(self):
+        with self.assertRaises(ValueError):
+            resolve_mcp_install_target("antigravity", "project", Path("."), Path("/tmp"))
+
+    def test_write_mcp_install_target_backs_up_and_merges_global_claude_json(self):
+        with workspace_tempdir() as tmp:
+            root = Path(tmp)
+            target = resolve_mcp_install_target(
+                "claude",
+                "global",
+                root,
+                root / "home",
+            )
+            target.path.parent.mkdir(parents=True, exist_ok=True)
+            target.path.write_text(
+                json.dumps(
+                    {
+                        "theme": "dark",
+                        "mcpServers": {"old": {"command": "old", "args": []}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            write_mcp_install_target(
+                target,
+                render_claude_mcp_json(McpConfig((context7_server(),))),
+            )
+
+            payload = json.loads(target.path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["theme"], "dark")
+            self.assertIn("context7", payload["mcpServers"])
+            self.assertTrue(list(target.path.parent.glob(".claude.json.*.bak")))
+
+    def test_write_mcp_install_target_preserves_existing_codex_settings(self):
+        with workspace_tempdir() as tmp:
+            root = Path(tmp)
+            target = resolve_mcp_install_target(
+                "codex",
+                "project",
+                root / "project",
+                root / "home",
+            )
+            target.path.parent.mkdir(parents=True, exist_ok=True)
+            target.path.write_text(
+                '[core]\nmodel = "gpt-5"\n',
+                encoding="utf-8",
+            )
+
+            write_mcp_install_target(
+                target,
+                render_codex_config_toml(McpConfig((context7_server(),))),
+            )
+
+            content = target.path.read_text(encoding="utf-8")
+            self.assertIn('[core]\nmodel = "gpt-5"', content)
+            self.assertIn("[mcp_servers.context7]", content)
+            self.assertEqual(content.count("[mcp_servers.context7]"), 1)
+            self.assertTrue(list(target.path.parent.glob("config.toml.*.bak")))
+
 
 class McpCliTests(unittest.TestCase):
-    def test_generate_mcp_config_writes_compatible_claude_desktop_json(self):
+    def test_generate_mcp_config_writes_claude_project_json_when_flags_are_provided(self):
         with workspace_tempdir() as tmp:
             root = Path(tmp)
             current_dir = root / "project"
@@ -285,12 +422,12 @@ class McpCliTests(unittest.TestCase):
             ), redirect_stdout(
                 io.StringIO()
             ):
-                cli_main.generate_mcp_config(argparse.Namespace())
+                cli_main.generate_mcp_config(
+                    argparse.Namespace(ide="claude", scope="project")
+                )
 
             payload = json.loads(
-                (current_dir / "claude_desktop_config.json").read_text(
-                    encoding="utf-8"
-                )
+                (current_dir / ".mcp.json").read_text(encoding="utf-8")
             )
 
             self.assertIn("mcpServers", payload)
@@ -316,9 +453,11 @@ class McpCliTests(unittest.TestCase):
             ), redirect_stdout(
                 io.StringIO()
             ):
-                cli_main.generate_mcp_config(argparse.Namespace())
+                cli_main.generate_mcp_config(
+                    argparse.Namespace(ide="claude", scope="project")
+                )
 
-            self.assertFalse((current_dir / "claude_desktop_config.json").exists())
+            self.assertFalse((current_dir / ".mcp.json").exists())
             self.assertFalse(project_dir.exists())
 
     def test_generate_mcp_config_minimal_setup_before_init(self):
@@ -338,17 +477,51 @@ class McpCliTests(unittest.TestCase):
             ), redirect_stdout(
                 io.StringIO()
             ):
-                cli_main.generate_mcp_config(argparse.Namespace())
+                cli_main.generate_mcp_config(
+                    argparse.Namespace(ide="claude", scope="project")
+                )
 
             self.assertTrue((project_dir / "standards" / "topology.md").exists())
             self.assertTrue((project_dir / "config.json").exists())
             payload = json.loads(
-                (current_dir / "claude_desktop_config.json").read_text(
-                    encoding="utf-8"
-                )
+                (current_dir / ".mcp.json").read_text(encoding="utf-8")
             )
 
             self.assertEqual(set(payload["mcpServers"]), {"filesystem"})
+
+    def test_generate_mcp_config_supports_interactive_ide_and_scope_selection(self):
+        with workspace_tempdir() as tmp:
+            root = Path(tmp)
+            current_dir = root / "project"
+            project_dir = current_dir / ".rapid-os"
+            standards_dir = project_dir / "standards"
+            standards_dir.mkdir(parents=True)
+            templates_dir = create_mcp_templates(root)
+
+            (standards_dir / "topology.md").write_text(
+                "Database: PostgreSQL", encoding="utf-8"
+            )
+            (project_dir / "config.json").write_text(
+                json.dumps({"tools": []}), encoding="utf-8"
+            )
+
+            with patch.object(cli_main, "CURRENT_DIR", current_dir), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project_dir
+            ), patch.object(cli_main, "CONFIG_FILE", project_dir / "config.json"), patch.object(
+                cli_main, "TEMPLATES_DIR", templates_dir
+            ), patch(
+                "builtins.input", side_effect=["3", "1"]
+            ), redirect_stdout(
+                io.StringIO()
+            ):
+                cli_main.generate_mcp_config(argparse.Namespace())
+
+            payload = json.loads(
+                (current_dir / ".cursor" / "mcp.json").read_text(encoding="utf-8")
+            )
+
+            self.assertIn("mcpServers", payload)
+            self.assertIn("postgres", payload["mcpServers"])
 
 
 if __name__ == "__main__":

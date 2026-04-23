@@ -80,6 +80,15 @@ class CliSmokeTests(unittest.TestCase):
         self.assertEqual(args.command, "vision")
         self.assertIsNone(args.path)
 
+    def test_mcp_command_accepts_ide_and_scope_flags(self):
+        parser = create_parser()
+
+        args = parser.parse_args(["mcp", "--ide", "cursor", "--scope", "project"])
+
+        self.assertEqual(args.command, "mcp")
+        self.assertEqual(args.ide, "cursor")
+        self.assertEqual(args.scope, "project")
+
     def test_rapid_help_smoke(self):
         repo_root = Path(__file__).resolve().parents[1]
         env = os.environ.copy()

@@ -89,7 +89,7 @@ The scanner suggests stack and topology in v2. `rapid init --no-scan` preserves 
 
 The MCP workflow now uses a reusable model and renderer boundary. `rapid_os.domain.mcp` builds a structured `McpConfig` from topology content, selected tools, current project paths, and existing MCP templates. It supports the current server ids: `filesystem`, `postgres`, `supabase`, `context7`, and `firecrawl`.
 
-Rendering is handled outside the domain model. The current renderer in `rapid_os.adapters.mcp` produces the same `{"mcpServers": ...}` JSON shape written to `claude_desktop_config.json`. The CLI remains the facade responsible for reading project files, printing warnings, creating backups, and writing the rendered output.
+Rendering is handled outside the domain model. `rapid_os.adapters.mcp` now resolves editor-specific MCP targets and renders editor-specific config formats: Codex TOML with `mcp_servers`, Claude/Cursor JSON with `mcpServers`, VS Code JSON with `servers`, and a conservative Antigravity JSON shape. The CLI remains the facade responsible for reading project files, printing warnings, creating backups, and writing the rendered output.
 
 Unresolved placeholders and missing key hints are warnings, not hard failures. This preserves the current editable starter-config behavior while making the generation plan reusable for future MCP destinations.
 
@@ -99,11 +99,11 @@ Unresolved placeholders and missing key hints are warnings, not hard failures. T
 - Existing aliases that call `python rapid.py` continue to work.
 - Existing import users can still read common compatibility constants from `rapid.py`, including `SCRIPT_DIR`, `TEMPLATES_DIR`, `CURRENT_DIR`, `PROJECT_RAPID_DIR`, and `CONFIG_FILE`.
 - Existing import users can still call `generate_cursor_rules`, `generate_claude_config`, `generate_antigravity_config`, and `generate_vscode_instructions`; those helpers now delegate to adapters.
-- Generated files remain in their current locations: `.cursorrules`, `CLAUDE.md`, `.agent/rules/constitution.md`, `INSTRUCTIONS.md`, `AGENTS.md`, `claude_desktop_config.json`, `SPECS.md`, `TASKS.md`, `ACCEPTANCE.md`, `DEPLOY.md`, and `references/VISION_CONTEXT.md`.
+- Generated files remain in their current locations for agent instructions and docs: `.cursorrules`, `CLAUDE.md`, `.agent/rules/constitution.md`, `INSTRUCTIONS.md`, `AGENTS.md`, `SPECS.md`, `TASKS.md`, `ACCEPTANCE.md`, `DEPLOY.md`, and `references/VISION_CONTEXT.md`. MCP outputs are editor-specific.
 - Project config remains `.rapid-os/config.json`.
 - Scanner results are not stored in project config.
 - Missing project config still defaults to Cursor, Claude, Antigravity, and VS Code only; Codex must be explicitly selected or added to `tools`.
-- `rapid mcp` still writes `claude_desktop_config.json` with the existing `mcpServers` shape.
+- `rapid mcp` now writes the editor-specific MCP file selected by CLI flags or interactive choice instead of a single shared output path.
 - Template discovery still prefers a source checkout `templates/` directory and falls back to `~/.rapid-os/templates`.
 
 ## Intentionally Unchanged

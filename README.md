@@ -325,14 +325,33 @@ rapid scope
 Si tu arquitectura incluye base de datos, genera los drivers para que la IA pueda ejecutar SQL real y ver tablas:
 
 ```bash
-rapid mcp
+rapid mcp --ide claude --scope project
 ```
 
 (Soporta Postgres y Supabase automáticamente).
 
-Rapid OS modela los servidores MCP internamente y renderiza la configuración compatible con Claude Desktop en `claude_desktop_config.json`. El flujo actual conserva soporte para filesystem, Postgres, Supabase, Context7 y Firecrawl, y avisa si hay placeholders o API keys pendientes sin bloquear la generación.
+Ejemplos adicionales:
+
+```bash
+rapid mcp --ide codex --scope project
+rapid mcp --ide codex --scope global
+rapid mcp --ide claude --scope global
+rapid mcp --ide cursor --scope project
+rapid mcp --ide vscode --scope project
+rapid mcp --ide antigravity --scope global
+```
+
+Rapid OS modela los servidores MCP internamente y luego renderiza el formato específico de cada editor:
+
+- Codex -> `.codex/config.toml` con bloques `mcp_servers`
+- Claude -> `.mcp.json` o `~/.claude.json` con `mcpServers`
+- Cursor -> `.cursor/mcp.json` o `~/.cursor/mcp.json` con `mcpServers`
+- VS Code -> `.vscode/mcp.json` con `servers`
+- Antigravity -> `~/.gemini/antigravity/mcp_config.json` con una estructura JSON conservadora basada en `mcpServers`
 
 Si el proyecto aún no fue inicializado con `rapid init`, `rapid mcp` ofrece crear solo la estructura mínima necesaria para generar MCP o cancelar sin escribir archivos.
+
+Si omites `--ide` o `--scope`, Rapid OS entra en modo interactivo y te deja elegir destino y alcance antes de escribir el archivo.
 
 ### 6. Referencias Visuales (Vision)
 
@@ -408,7 +427,7 @@ Tabla completa de comandos disponibles en Rapid OS y sus resultados.
 | `rapid scope`                | **Asistente de Alcance**. Te entrevista para definir una feature, refactor, bugfix o hardening. | Genera `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` con backups antes de sobrescribir.                |
 | `rapid refine <file>`        | **Refinamiento de Reglas**. Mejora cualquier documento de reglas usando IA.                     | Genera un Mega-Prompt para que pegues en tu chat y la IA reescriba el archivo profesionalmente.   |
 | `rapid skill [action] [name]` | **Instala o lista Skills** desde menú interactivo, registro comunitario o template privado.     | Sin argumentos abre menú; con `add`/`install` conserva el flujo directo existente.                 |
-| `rapid mcp`                  | **Configura MCP Servers**. Modela filesystem, BD y research tools.                              | Crea `claude_desktop_config.json`; si falta init, ofrece setup mínimo o cancelación sin escritura. |
+| `rapid mcp [--ide ... --scope ...]` | **Configura MCP Servers**. Modela filesystem, BD y research tools.                    | Escribe el archivo MCP propio de cada editor con backup previo; si faltan flags entra en modo interactivo. |
 | `rapid vision [image_path]`  | **Inyección Visual**. Procesa una imagen para extraer contexto de diseño.                       | Con ruta conserva el flujo directo; sin ruta pide path interactivo y permite cancelar.             |
 | `rapid deploy <target>`      | **Asistente de Despliegue**. Genera IaC para la nube elegida.                                   | Crea `Dockerfile`, `docker-compose.yml` o scripts de Terraform para el target (aws, vercel, gcp). |
 | `rapid validate`             | **Validación de Proyecto**. Revisa templates, estándares, config, herramientas y contexto.      | No escribe archivos. Sale con `0` si no hay errores y `1` si encuentra errores de validación.     |
