@@ -299,6 +299,57 @@ class McpCliTests(unittest.TestCase):
             self.assertIn("context7", payload["mcpServers"])
             self.assertNotIn("postgres", payload["mcpServers"])
 
+    def test_generate_mcp_config_cancel_before_init_writes_nothing(self):
+        with workspace_tempdir() as tmp:
+            root = Path(tmp)
+            current_dir = root / "project"
+            current_dir.mkdir()
+            project_dir = current_dir / ".rapid-os"
+            templates_dir = create_mcp_templates(root)
+
+            with patch.object(cli_main, "CURRENT_DIR", current_dir), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project_dir
+            ), patch.object(cli_main, "CONFIG_FILE", project_dir / "config.json"), patch.object(
+                cli_main, "TEMPLATES_DIR", templates_dir
+            ), patch(
+                "builtins.input", return_value="2"
+            ), redirect_stdout(
+                io.StringIO()
+            ):
+                cli_main.generate_mcp_config(argparse.Namespace())
+
+            self.assertFalse((current_dir / "claude_desktop_config.json").exists())
+            self.assertFalse(project_dir.exists())
+
+    def test_generate_mcp_config_minimal_setup_before_init(self):
+        with workspace_tempdir() as tmp:
+            root = Path(tmp)
+            current_dir = root / "project"
+            current_dir.mkdir()
+            project_dir = current_dir / ".rapid-os"
+            templates_dir = create_mcp_templates(root)
+
+            with patch.object(cli_main, "CURRENT_DIR", current_dir), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project_dir
+            ), patch.object(cli_main, "CONFIG_FILE", project_dir / "config.json"), patch.object(
+                cli_main, "TEMPLATES_DIR", templates_dir
+            ), patch(
+                "builtins.input", return_value="1"
+            ), redirect_stdout(
+                io.StringIO()
+            ):
+                cli_main.generate_mcp_config(argparse.Namespace())
+
+            self.assertTrue((project_dir / "standards" / "topology.md").exists())
+            self.assertTrue((project_dir / "config.json").exists())
+            payload = json.loads(
+                (current_dir / "claude_desktop_config.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+
+            self.assertEqual(set(payload["mcpServers"]), {"filesystem"})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -9,7 +9,9 @@ import tempfile
 import unittest
 from argparse import Namespace
 from pathlib import Path
+from unittest.mock import patch
 
+from rapid_os.cli import main as cli_main
 from rapid_os.cli.main import create_parser, parse_agent_selection, refine_standard
 from rapid_os.core.text import read_text_best_effort
 
@@ -60,6 +62,23 @@ class CliSmokeTests(unittest.TestCase):
         )
 
         self.assertIn("scope", subparsers.choices)
+
+    def test_skill_command_accepts_no_action_for_interactive_fallback(self):
+        parser = create_parser()
+
+        args = parser.parse_args(["skill"])
+
+        self.assertEqual(args.command, "skill")
+        self.assertIsNone(args.action)
+        self.assertIsNone(args.name)
+
+    def test_vision_command_accepts_no_path_for_interactive_fallback(self):
+        parser = create_parser()
+
+        args = parser.parse_args(["vision"])
+
+        self.assertEqual(args.command, "vision")
+        self.assertIsNone(args.path)
 
     def test_rapid_help_smoke(self):
         repo_root = Path(__file__).resolve().parents[1]
@@ -174,6 +193,74 @@ class CliEncodingTests(unittest.TestCase):
                 refine_standard(Namespace(file=str(path)))
 
             self.assertIn(content, output.getvalue())
+
+
+class CliInteractiveUxTests(unittest.TestCase):
+    def test_skill_without_action_opens_menu_and_runs_selected_flow(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            root = Path(temp_dir)
+            templates_dir = root / "templates"
+            templates_dir.mkdir()
+            output = io.StringIO()
+
+            with patch.object(cli_main, "TEMPLATES_DIR", templates_dir), patch(
+                "builtins.input", return_value="1"
+            ), contextlib.redirect_stdout(output):
+                cli_main.manage_skills(Namespace(action=None, name=None))
+
+            self.assertIn("SKILLS", output.getvalue())
+
+    def test_visual_reference_cancel_does_not_write_references(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            root = Path(temp_dir)
+            output = io.StringIO()
+
+            with patch.object(cli_main, "CURRENT_DIR", root), patch(
+                "builtins.input", return_value="0"
+            ), contextlib.redirect_stdout(output):
+                cli_main.add_visual_reference(Namespace(path=None))
+
+            self.assertFalse((root / "references").exists())
+            self.assertIn("cancelada", output.getvalue())
+
+    def test_optional_docs_scaffold_creates_selected_docs_and_backup(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            root = Path(temp_dir)
+            docs_dir = root / "docs"
+            docs_dir.mkdir()
+            existing = docs_dir / "BUSINESS_RULES.md"
+            existing.write_text("old", encoding="utf-8")
+            answers = iter(["y", "y", "n", "n", "n"])
+
+            with patch.object(cli_main, "CURRENT_DIR", root), contextlib.redirect_stdout(
+                io.StringIO()
+            ):
+                written = cli_main.create_optional_docs_scaffold(
+                    input_fn=lambda _prompt: next(answers)
+                )
+
+            self.assertEqual([path.name for path in written], ["BUSINESS_RULES.md"])
+            self.assertIn("## Purpose", existing.read_text(encoding="utf-8"))
+            self.assertTrue(list(docs_dir.glob("BUSINESS_RULES.md.*.bak")))
+            self.assertFalse((docs_dir / "SPECS.md").exists())
+
+    def test_optional_docs_scaffold_cancel_writes_nothing(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            root = Path(temp_dir)
+
+            with patch.object(cli_main, "CURRENT_DIR", root), contextlib.redirect_stdout(
+                io.StringIO()
+            ):
+                written = cli_main.create_optional_docs_scaffold(
+                    input_fn=lambda _prompt: "cancelar"
+                )
+
+            self.assertEqual(written, [])
+            self.assertFalse((root / "docs").exists())
 
 
 if __name__ == "__main__":

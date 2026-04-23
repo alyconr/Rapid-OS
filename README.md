@@ -217,6 +217,7 @@ Reinicia tu terminal después de la instalación para cargar el comando `rapid`.
     - **Arquetipo**: "Corporate" para código estricto con tests, o "MVP" para velocidad.
     - **Reglas de Negocio**: Importa tus documentos existentes o extráelos de tu cabeza.
     - **Capacidades de Investigación**: Activa `Context7` (Docs) y `Firecrawl` (Web Scraping) para que tu IA pueda investigar librerías y sitios web por sí misma.
+    - **Documentación opcional**: Al final puedes crear scaffolding starter en `docs/` para `BUSINESS_RULES.md`, `SPECS.md`, `USER_STORIES.md` y `DATA_MODEL.md`. Cada archivo se confirma por separado y crea backup antes de sobrescribir.
 
 > **Para Refactorización**: Al ejecutar esto en un proyecto legacy, Rapid OS inyectará un archivo `.cursorrules` o `.agent` que obligará a la IA a respetar los nuevos estándares en cualquier refactorización futura, evitando que imite el código antiguo ("code drift").
 
@@ -257,6 +258,8 @@ rapid skill add vercel-labs/agent-skills
 rapid skill install mi-workflow-interno
 ```
 
+Si ejecutas `rapid skill` sin argumentos, Rapid OS abre un menú interactivo para listar, instalar un template local, agregar una skill remota o salir sin cambios.
+
 ### 4. Definir Scope y Refactorizaciones
 
 Evita darle instrucciones vagas a la IA como _"Mejora el código"_. Usa el **Asistente de Alcance**.
@@ -282,6 +285,8 @@ rapid mcp
 
 Rapid OS modela los servidores MCP internamente y renderiza la configuración compatible con Claude Desktop en `claude_desktop_config.json`. El flujo actual conserva soporte para filesystem, Postgres, Supabase, Context7 y Firecrawl, y avisa si hay placeholders o API keys pendientes sin bloquear la generación.
 
+Si el proyecto aún no fue inicializado con `rapid init`, `rapid mcp` ofrece crear solo la estructura mínima necesaria para generar MCP o cancelar sin escribir archivos.
+
 ### 6. Referencias Visuales (Vision)
 
 Para que la IA "vea" tus diseños y no alucine el frontend:
@@ -289,6 +294,8 @@ Para que la IA "vea" tus diseños y no alucine el frontend:
 ```bash
 rapid vision ruta/al/diseño.png
 ```
+
+Si ejecutas `rapid vision` sin ruta, el comando pide el path de forma interactiva y permite cancelar con `0`, `q`, `quit`, `exit`, `salir` o `cancelar`.
 
 ### 7. Documentación con Docusaurus
 
@@ -350,13 +357,12 @@ Tabla completa de comandos disponibles en Rapid OS y sus resultados.
 
 | Comando                      | Descripción                                                                                     | Resultado / Output                                                                                |
 | :--------------------------- | :---------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------ |
-| `rapid init`                 | **Inicializa Rapid OS**. Escanea señales locales y sugiere stack/topología con confirmación.   | Crea `.cursorrules`, `.agent/rules`, `.rapid-os/` y backups de config existente. Usa `--no-scan` para modo manual. |
+| `rapid init`                 | **Inicializa Rapid OS**. Escanea señales locales y sugiere stack/topología con confirmación.   | Crea `.cursorrules`, `.agent/rules`, `.rapid-os/` y puede crear docs opcionales con backups. Usa `--no-scan` para modo manual. |
 | `rapid scope`                | **Asistente de Alcance**. Te entrevista para definir una feature, refactor, bugfix o hardening. | Genera `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` con backups antes de sobrescribir.                |
 | `rapid refine <file>`        | **Refinamiento de Reglas**. Mejora cualquier documento de reglas usando IA.                     | Genera un Mega-Prompt para que pegues en tu chat y la IA reescriba el archivo profesionalmente.   |
-| `rapid skill add <name>`     | **Instala una Skill** desde el registro comunitario.                                            | Descarga la skill en `.cursor/skills/<name>` y la activa en el contexto.                          |
-| `rapid skill install <path>` | **Instala una Skill Local** desde una carpeta o template privado.                               | Copia la skill local a la carpeta de skills activas del proyecto.                                 |
-| `rapid mcp`                  | **Configura MCP Servers**. Modela filesystem, BD y research tools.                              | Crea `claude_desktop_config.json` con `mcpServers` compatible y warnings para placeholders.       |
-| `rapid vision <image_path>`  | **Inyección Visual**. Procesa una imagen para extraer contexto de diseño.                       | Genera una descripción de texto/código de la imagen para que la IA "vea" el diseño.               |
+| `rapid skill [action] [name]` | **Instala o lista Skills** desde menú interactivo, registro comunitario o template privado.     | Sin argumentos abre menú; con `add`/`install` conserva el flujo directo existente.                 |
+| `rapid mcp`                  | **Configura MCP Servers**. Modela filesystem, BD y research tools.                              | Crea `claude_desktop_config.json`; si falta init, ofrece setup mínimo o cancelación sin escritura. |
+| `rapid vision [image_path]`  | **Inyección Visual**. Procesa una imagen para extraer contexto de diseño.                       | Con ruta conserva el flujo directo; sin ruta pide path interactivo y permite cancelar.             |
 | `rapid deploy <target>`      | **Asistente de Despliegue**. Genera IaC para la nube elegida.                                   | Crea `Dockerfile`, `docker-compose.yml` o scripts de Terraform para el target (aws, vercel, gcp). |
 | `rapid validate`             | **Validación de Proyecto**. Revisa templates, estándares, config, herramientas y contexto.      | No escribe archivos. Sale con `0` si no hay errores y `1` si encuentra errores de validación.     |
 | `rapid doctor`               | **Diagnóstico Local**. Revisa rutas resueltas, templates, Node/npx opcional y proyecto actual.  | No escribe archivos. Usa advertencias para capacidades opcionales como Node/npx.                  |

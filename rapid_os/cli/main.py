@@ -51,6 +51,143 @@ from rapid_os.domain.validation import (
 )
 
 
+EXIT_TOKENS = {"0", "q", "quit", "exit", "salir", "cancelar"}
+
+OPTIONAL_DOC_TEMPLATES = {
+    "BUSINESS_RULES.md": """# Business Rules
+
+## Purpose
+Describe the business rules this project must obey.
+
+## Business goals
+- TODO: List the business outcomes this software supports.
+
+## Non-negotiable rules
+- TODO: Add rules that must not be violated.
+
+## Constraints
+- TODO: Document operational, legal, budget, timing, or platform constraints.
+
+## Assumptions
+- TODO: List assumptions that should be confirmed.
+
+## Glossary
+- TODO: Define business terms and acronyms.
+""",
+    "SPECS.md": """# Specs
+
+## Objective
+Describe the feature or project objective.
+
+## Scope
+- TODO: List what is included.
+
+## Out of scope
+- TODO: List what is explicitly excluded.
+
+## Functional flow
+- TODO: Describe the expected user or system flow.
+
+## Acceptance criteria
+- TODO: Add testable acceptance criteria.
+
+## Dependencies
+- TODO: List systems, services, data, or people required.
+
+## Risks
+- TODO: Capture implementation and product risks.
+""",
+    "USER_STORIES.md": """# User Stories
+
+## Actor
+TODO: Identify the user, role, or system actor.
+
+## User story
+As a TODO, I want TODO, so that TODO.
+
+## Expected value
+- TODO: Explain the value delivered.
+
+## Acceptance criteria
+- TODO: Add criteria that prove the story is complete.
+
+## Priority
+TODO: Set priority or sequencing notes.
+
+## Notes
+TODO: Add open details, links, or follow-up questions.
+""",
+    "DATA_MODEL.md": """# Data Model
+
+## Entities
+- TODO: List domain entities.
+
+## Attributes
+- TODO: Describe important fields for each entity.
+
+## Relationships
+- TODO: Describe relationships between entities.
+
+## Validation rules
+- TODO: Add required fields, formats, ranges, and invariants.
+
+## Enums / constants
+- TODO: List known states, types, or fixed values.
+
+## Open questions
+- TODO: Capture unresolved modeling decisions.
+""",
+}
+
+
+def is_exit_token(value):
+    return value.strip().lower() in EXIT_TOKENS
+
+
+def prompt_input(message, input_fn=None):
+    input_fn = input if input_fn is None else input_fn
+    try:
+        value = input_fn(message).strip()
+    except (EOFError, StopIteration):
+        return None
+    if is_exit_token(value):
+        return None
+    return value
+
+
+def prompt_yes_no(message, default=False, input_fn=None):
+    suffix = " [Y/n]: " if default else " [y/N]: "
+    while True:
+        value = prompt_input(message + suffix, input_fn=input_fn)
+        if value is None:
+            return None
+        if not value:
+            return default
+        normalized = value.lower()
+        if normalized in {"y", "yes", "s", "si", "sí"}:
+            return True
+        if normalized in {"n", "no"}:
+            return False
+        print_warning("Respuesta no valida. Usa y/n o 0 para cancelar.")
+
+
+def prompt_menu(title, options, input_fn=None):
+    print(f"\n{title}")
+    for index, label in enumerate(options, 1):
+        print(f" {index}) {label}")
+    print(" 0) exit")
+
+    while True:
+        value = prompt_input("Opcion: ", input_fn=input_fn)
+        if value is None:
+            return None
+        if value.isdigit():
+            index = int(value) - 1
+            if 0 <= index < len(options):
+                return index
+        print_warning("Opcion no valida. Usa un numero de la lista o 0 para salir.")
+
+
 def parse_agent_selection(agent_sel):
     selected_tools = []
     if not agent_sel or not agent_sel.strip():
@@ -116,6 +253,46 @@ def confirm_scan_suggestions(scan, suggestions, stack_override=None):
     except EOFError:
         response = "n"
     return response != "n"
+
+
+def create_optional_docs_scaffold(input_fn=None):
+    wants_docs = prompt_yes_no(
+        "Do you want to create optional documentation scaffolding in /docs?",
+        default=False,
+        input_fn=input_fn,
+    )
+    if wants_docs is None:
+        print_warning("Documentacion opcional cancelada.")
+        return []
+    if not wants_docs:
+        return []
+
+    selected = []
+    for filename in OPTIONAL_DOC_TEMPLATES:
+        should_create = prompt_yes_no(
+            f"Create docs/{filename}?",
+            default=False,
+            input_fn=input_fn,
+        )
+        if should_create is None:
+            print_warning("Documentacion opcional cancelada; no se escribieron docs.")
+            return []
+        if should_create:
+            selected.append(filename)
+
+    if not selected:
+        return []
+
+    docs_dir = CURRENT_DIR / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    written = []
+    for filename in selected:
+        target = docs_dir / filename
+        create_backup(target)
+        target.write_text(OPTIONAL_DOC_TEMPLATES[filename], encoding="utf-8")
+        print_success(f"docs/{filename} creado")
+        written.append(target)
+    return written
 
 
 def init_project(args):
@@ -307,6 +484,7 @@ def init_project(args):
     if biz_content:
         (standards_dest / "business.md").write_text(biz_content, encoding="utf-8")
 
+    create_optional_docs_scaffold()
     regenerate_context()
     print("\n🚀 ¡Rapid OS activo!")
 
@@ -315,6 +493,27 @@ def manage_skills(args):
     """Gestor Híbrido de Skills (Local + Vercel CLI)."""
     action = args.action
     skill_name = args.name
+
+    if action is None:
+        choice = prompt_menu(
+            "RAPID SKILLS",
+            ("list", "install local template", "add remote skill"),
+        )
+        if choice is None:
+            print_warning("Operacion cancelada.")
+            return
+        action = ("list", "install", "add")[choice]
+
+    if action in {"install", "add"} and not skill_name:
+        prompt = (
+            "Nombre del template local: "
+            if action == "install"
+            else "Nombre remoto (ej. vercel-labs/agent-skills): "
+        )
+        skill_name = prompt_input(prompt)
+        if skill_name is None:
+            print_warning("Operacion cancelada.")
+            return
 
     # MODO 1: LISTAR LOCALES + AYUDA REMOTA
     if action == "list":
@@ -392,7 +591,21 @@ def generate_mcp_config(args):
     print_step("Configurando MCP...")
     topo_file = PROJECT_RAPID_DIR / "standards" / "topology.md"
     if not topo_file.exists():
-        print_error("Ejecuta 'init' primero.")
+        choice = prompt_menu(
+            "No se detecto inicializacion Rapid OS para MCP.",
+            ("continue with a minimal MCP setup", "cancel"),
+        )
+        if choice != 0:
+            print_warning("Configuracion MCP cancelada.")
+            return
+        standards_dir = PROJECT_RAPID_DIR / "standards"
+        standards_dir.mkdir(parents=True, exist_ok=True)
+        topo_file.write_text(
+            "# Topology\n\nMinimal MCP setup for standalone rapid mcp usage.\n",
+            encoding="utf-8",
+        )
+        if not CONFIG_FILE.exists():
+            save_project_config({"tools": []}, PROJECT_RAPID_DIR, CONFIG_FILE)
 
     topo_content = topo_file.read_text(encoding="utf-8")
     config = load_project_config(CONFIG_FILE)
@@ -456,7 +669,14 @@ def deploy_assistant(args):
 
 
 def add_visual_reference(args):
-    src = Path(args.path)
+    path_value = args.path
+    if not path_value:
+        path_value = prompt_input("Image path (0 to cancel): ")
+        if path_value is None:
+            print_warning("Referencia visual cancelada.")
+            return
+
+    src = Path(path_value)
     if not src.exists():
         print_error("Imagen no existe")
     dest = CURRENT_DIR / "references" / src.name
@@ -699,14 +919,14 @@ def create_parser():
     init.add_argument("--no-scan", action="store_true")
 
     skill = subparsers.add_parser("skill")
-    skill.add_argument("action", choices=["list", "install", "add"])
+    skill.add_argument("action", choices=["list", "install", "add"], nargs="?")
     skill.add_argument("name", nargs="?")
 
     subparsers.add_parser("scope")
     deploy = subparsers.add_parser("deploy")
     deploy.add_argument("target", nargs="?")
     vision = subparsers.add_parser("vision")
-    vision.add_argument("path")
+    vision.add_argument("path", nargs="?")
     subparsers.add_parser("mcp")
     refine = subparsers.add_parser("refine")
     refine.add_argument("file")
