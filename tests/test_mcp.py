@@ -523,6 +523,176 @@ class McpCliTests(unittest.TestCase):
             self.assertIn("mcpServers", payload)
             self.assertIn("postgres", payload["mcpServers"])
 
+    def test_mcp_server_models_package_and_version_and_warns_when_unpinned(self):
+        unpinned_fs = filesystem_server(Path("project"))
+        self.assertEqual(
+            unpinned_fs.package, "@modelcontextprotocol/server-filesystem"
+        )
+        self.assertIsNone(unpinned_fs.version)
+        self.assertFalse(unpinned_fs.is_version_pinned)
+        unpinned_warnings = detect_server_warnings(unpinned_fs)
+        self.assertTrue(any(w.code == "MCP012" for w in unpinned_warnings))
+
+        pinned_fs = filesystem_server(Path("project"), version="0.6.2")
+        self.assertEqual(pinned_fs.version, "0.6.2")
+        self.assertEqual(
+            pinned_fs.package_spec,
+            "@modelcontextprotocol/server-filesystem@0.6.2",
+        )
+        self.assertTrue(pinned_fs.is_version_pinned)
+        self.assertIn("@modelcontextprotocol/server-filesystem@0.6.2", pinned_fs.args)
+        pinned_warnings = detect_server_warnings(pinned_fs)
+        self.assertFalse(any(w.code == "MCP012" for w in pinned_warnings))
+
+    def test_server_from_mapping_supports_explicit_version_and_docker_image_warning(self):
+        pinned_server, _ = server_from_mapping(
+            "supabase",
+            {
+                "command": "npx",
+                "package": "@modelcontextprotocol/server-postgres",
+                "version": "0.6.2",
+                "args": [
+                    "-y",
+                    "@modelcontextprotocol/server-postgres",
+                    "postgresql://localhost/db",
+                ],
+            },
+        )
+        self.assertTrue(pinned_server.is_version_pinned)
+        self.assertIn(
+            "@modelcontextprotocol/server-postgres@0.6.2",
+            pinned_server.args,
+        )
+        self.assertFalse(
+            any(w.code == "MCP012" for w in detect_server_warnings(pinned_server))
+        )
+
+        docker_server, _ = server_from_mapping(
+            "postgres",
+            {
+                "command": "docker",
+                "args": ["run", "-i", "--rm", "mcp/postgres"],
+            },
+        )
+        self.assertTrue(
+            any(w.code == "MCP013" for w in detect_server_warnings(docker_server))
+        )
+
+    def test_mcp_package_version_runtime_consistency_across_all_cases(self):
+        # 1. Unversioned args + explicit version
+        unversioned_server, warnings = server_from_mapping(
+            "custom",
+            {
+                "command": "npx",
+                "package": "foo",
+                "version": "2.0.0",
+                "args": ["-y", "foo"],
+            },
+        )
+        self.assertEqual(warnings, ())
+        self.assertEqual(unversioned_server.args, ("-y", "foo@2.0.0"))
+        self.assertEqual(unversioned_server.package_spec, "foo@2.0.0")
+        self.assertEqual(unversioned_server.runtime_package_spec, "foo@2.0.0")
+        self.assertTrue(unversioned_server.is_version_pinned)
+        self.assertFalse(
+            any(w.code == "MCP012" for w in detect_server_warnings(unversioned_server))
+        )
+
+        # 2. Same version in metadata and args
+        same_server, warnings = server_from_mapping(
+            "custom",
+            {
+                "command": "npx",
+                "package": "foo",
+                "version": "2.0.0",
+                "args": ["-y", "foo@2.0.0"],
+            },
+        )
+        self.assertEqual(warnings, ())
+        self.assertEqual(same_server.args, ("-y", "foo@2.0.0"))
+        self.assertEqual(same_server.package_spec, same_server.runtime_package_spec)
+        self.assertTrue(same_server.is_version_pinned)
+        self.assertFalse(
+            any(w.code == "MCP012" for w in detect_server_warnings(same_server))
+        )
+
+        # 3. Conflicting version in args is normalized to declared version
+        conflicting_server, warnings = server_from_mapping(
+            "custom",
+            {
+                "command": "npx",
+                "package": "foo",
+                "version": "2.0.0",
+                "args": ["-y", "foo@1.0.0"],
+            },
+        )
+        self.assertEqual(warnings, ())
+        self.assertEqual(conflicting_server.args, ("-y", "foo@2.0.0"))
+        self.assertEqual(conflicting_server.package_spec, "foo@2.0.0")
+        self.assertEqual(conflicting_server.runtime_package_spec, "foo@2.0.0")
+        self.assertTrue(conflicting_server.is_version_pinned)
+        self.assertFalse(
+            any(w.code == "MCP012" for w in detect_server_warnings(conflicting_server))
+        )
+
+        # 4. Scoped npm package with conflicting or latest version in args
+        scoped_server, warnings = server_from_mapping(
+            "scoped",
+            {
+                "command": "npx",
+                "package": "@scope/pkg",
+                "version": "1.2.3",
+                "args": ["-y", "@scope/pkg@0.9.0", "--flag"],
+            },
+        )
+        self.assertEqual(warnings, ())
+        self.assertEqual(scoped_server.args, ("-y", "@scope/pkg@1.2.3", "--flag"))
+        self.assertEqual(scoped_server.package_spec, "@scope/pkg@1.2.3")
+        self.assertEqual(scoped_server.runtime_package_spec, "@scope/pkg@1.2.3")
+        self.assertTrue(scoped_server.is_version_pinned)
+
+        # 5. Mismatched package in args vs metadata returns warning and never fakes coherence
+        mismatch_server, mapping_warnings = server_from_mapping(
+            "mismatch",
+            {
+                "command": "npx",
+                "package": "other-pkg",
+                "version": "2.0.0",
+                "args": ["-y", "foo"],
+            },
+        )
+        self.assertTrue(any(w.code == "MCP014" for w in mapping_warnings))
+        self.assertEqual(mismatch_server.args, ("-y", "foo"))
+        self.assertFalse(mismatch_server.is_version_pinned)
+        runtime_warnings = detect_server_warnings(mismatch_server)
+        self.assertTrue(any(w.code == "MCP014" for w in runtime_warnings))
+        self.assertTrue(any(w.code == "MCP012" for w in runtime_warnings))
+
+        # 6. Direct McpServer with contradictory metadata is not considered pinned
+        contradictory_direct = McpServer(
+            id="direct",
+            command="npx",
+            args=("-y", "foo@1.0.0"),
+            package="foo",
+            version="2.0.0",
+        )
+        self.assertFalse(contradictory_direct.is_version_pinned)
+        direct_warnings = detect_server_warnings(contradictory_direct)
+        self.assertTrue(any(w.code == "MCP014" for w in direct_warnings))
+        self.assertFalse(any(w.code == "MCP012" for w in direct_warnings))
+
+        unpinned_direct = McpServer(
+            id="direct-unpinned",
+            command="npx",
+            args=("-y", "foo"),
+            package="foo",
+            version="2.0.0",
+        )
+        self.assertFalse(unpinned_direct.is_version_pinned)
+        unpinned_direct_warnings = detect_server_warnings(unpinned_direct)
+        self.assertTrue(any(w.code == "MCP014" for w in unpinned_direct_warnings))
+        self.assertTrue(any(w.code == "MCP012" for w in unpinned_direct_warnings))
+
 
 if __name__ == "__main__":
     unittest.main()

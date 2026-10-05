@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from re import split
 
-from rapid_os.core.filesystem import create_backup
+from rapid_os.core.filesystem import resolve_child_path, safe_write_text
 
 
 NOT_SPECIFIED = "_Not specified._"
@@ -133,8 +133,13 @@ def render_scope_artifacts(spec):
 def write_scope_artifacts(spec, current_dir):
     written = []
     for filename, content in render_scope_artifacts(spec).items():
-        target = Path(current_dir) / filename
-        create_backup(target)
-        target.write_text(content, encoding="utf-8")
+        target = resolve_child_path(current_dir, filename, single_segment=True)
+        safe_write_text(
+            target,
+            content,
+            encoding="utf-8",
+            backup=True,
+            create_parents=True,
+        )
         written.append(target)
     return written

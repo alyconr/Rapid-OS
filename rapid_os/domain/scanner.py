@@ -1,9 +1,11 @@
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
 
+ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 CONFIDENCE_HIGH = "high"
 CONFIDENCE_MEDIUM = "medium"
 CONFIDENCE_LOW = "low"
@@ -496,6 +498,30 @@ def _detect_monorepo(files, root, package_manifests):
     return detections
 
 
+def read_env_keys(path: Path) -> tuple[str, ...]:
+    """Read only variable names before '=' from an env file, ignoring comments, invalid lines, and values."""
+    keys = []
+    seen = set()
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as env_file:
+            for raw_line in env_file:
+                stripped = raw_line.strip()
+                if not stripped or stripped.startswith("#") or "=" not in stripped:
+                    continue
+                key_part, _, _ = stripped.partition("=")
+                key_part = key_part.strip()
+                if key_part.startswith("export "):
+                    key_part = key_part[len("export ") :].strip()
+                if not ENV_KEY_PATTERN.match(key_part):
+                    continue
+                if key_part not in seen:
+                    seen.add(key_part)
+                    keys.append(key_part)
+    except OSError:
+        return ()
+    return tuple(keys)
+
+
 def _detect_databases(files, root, package_manifests, text_cache):
     detections = []
     for path in files:
@@ -509,16 +535,19 @@ def _detect_databases(files, root, package_manifests, text_cache):
                 _detection("database", "prisma", CONFIDENCE_HIGH, path, "prisma schema")
             )
         if path.name.startswith(".env"):
-            content = _read_text(path, text_cache).upper()
-            if "SUPABASE" in content:
+            env_keys = tuple(key.upper() for key in read_env_keys(path))
+            if any("SUPABASE" in key for key in env_keys):
                 detections.append(
                     _detection("database", "supabase", CONFIDENCE_LOW, path, "SUPABASE env key")
                 )
-            if "DATABASE_URL" in content or "POSTGRES_URL" in content:
+            if any(
+                key in {"DATABASE_URL", "POSTGRES_URL"} or "POSTGRES" in key
+                for key in env_keys
+            ):
                 detections.append(
                     _detection("database", "postgres", CONFIDENCE_LOW, path, "database env key")
                 )
-            if "MONGO" in content:
+            if any("MONGO" in key for key in env_keys):
                 detections.append(
                     _detection("database", "mongo", CONFIDENCE_LOW, path, "mongo env key")
                 )

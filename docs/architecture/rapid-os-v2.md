@@ -21,16 +21,18 @@ Rapid OS v2 is the current completed architecture baseline. It keeps the existin
 
 - `rapid_os.cli` owns argparse setup, command dispatch, and the current command workflows.
 - `rapid_os.core.paths` resolves runtime paths, including source-local templates before installed templates.
-- `rapid_os.core.config` loads and saves `.rapid-os/config.json` with the same defaults and fallback behavior.
-- `rapid_os.core.filesystem` contains reusable filesystem/process helpers such as timestamped backups and `npx` detection.
+- `rapid_os.core.config` loads, inspects, and saves `.rapid-os/config.json` with explicit configuration state classification (`missing`, `valid`, `invalid_json`, `invalid_schema`, `io_error`) while preserving default fallback behavior for normal missing configs.
+- `rapid_os.core.filesystem` contains reusable filesystem helpers including path containment (`ensure_path_within_root`, `resolve_child_path`, `safe_rmtree_child`), timestamped backups, atomic UTF-8 file writes (`safe_write_text`, `safe_copy_file`, `safe_append_text`), and `npx` detection.
+- `rapid_os.core.process` provides safe subprocess execution (`run_command`, `run_npx_skills_add`, `resolve_npx_executable`, `is_npx_available`) with `shell=False` enforced and explicit Windows `npx.cmd` resolution.
+- `rapid_os.core.identifiers` validates local slug identifiers (`validate_identifier`) separately from remote package references (`validate_remote_package_reference`).
 - `rapid_os.core.context` composes standards and visual context in the existing priority order.
 - `rapid_os.core.output` contains shared CLI output helpers.
 - `rapid_os.domain.agents` is now a compatibility facade for the existing generation helpers.
 - `rapid_os.domain.scope` renders and writes structured spec-driven development artifacts for `rapid scope`.
 - `rapid_os.domain.validation` returns pure diagnostics for templates, project standards, config/tool references, stack/topology consistency, and composed context inspection.
-- `rapid_os.domain.scanner` detects project characteristics and returns reviewable init suggestions without printing, prompting, writing files, or mutating project choices.
-- `rapid_os.domain.mcp` models MCP servers, generation plans, and non-blocking warnings independently from output formats.
-- `rapid_os.adapters.mcp` renders MCP models into concrete output formats, currently the existing Claude Desktop JSON shape.
+- `rapid_os.domain.scanner` detects project characteristics and returns reviewable init suggestions without printing, prompting, writing files, or mutating project choices, and inspects `.env` / `.env.*` variable names via `read_env_keys()` without reading secret values.
+- `rapid_os.domain.mcp` models MCP servers (including `package` and `version`), generation plans, and non-blocking warnings independently from output formats.
+- `rapid_os.adapters.mcp` renders MCP models into concrete output formats, currently the existing Claude Desktop JSON shape and editor-specific MCP destinations.
 - `rapid_os.adapters.agents` owns the agent adapter contract, default registry, and implementations for Cursor, Claude, Antigravity, VS Code, and Codex.
 
 The package modules avoid command execution on import. Console UTF-8 setup happens when the CLI entrypoint runs, so importing reusable helpers remains lightweight for tests and future integrations.
@@ -91,7 +93,23 @@ The MCP workflow now uses a reusable model and renderer boundary. `rapid_os.doma
 
 Rendering is handled outside the domain model. `rapid_os.adapters.mcp` now resolves editor-specific MCP targets and renders editor-specific config formats: Codex TOML with `mcp_servers`, Claude/Cursor JSON with `mcpServers`, VS Code JSON with `servers`, and a conservative Antigravity JSON shape. The CLI remains the facade responsible for reading project files, printing warnings, creating backups, and writing the rendered output.
 
-Unresolved placeholders and missing key hints are warnings, not hard failures. This preserves the current editable starter-config behavior while making the generation plan reusable for future MCP destinations.
+Unresolved placeholders, missing key hints, and unpinned package/image references (`MCP012`, `MCP013`) are warnings, not hard failures. This preserves the current editable starter-config behavior while making the generation plan reusable and auditable for future MCP destinations.
+
+## Hardening Foundation (v2)
+
+The v2 foundation includes shared security, correctness, and reproducibility primitives:
+
+- `rapid_os.core.process`: Safe subprocess execution (`run_command`, `run_npx_skills_add`, `resolve_npx_executable`, `is_npx_available`) that rejects `shell=True`, passes user arguments as literal list items, and resolves `npx.cmd` on Windows vs `npx` on POSIX.
+- `rapid_os.core.identifiers`: Dedicated validation for local slug identifiers (`validate_identifier`) versus remote package references (`validate_remote_package_reference`), preventing path traversal or option injection while preserving `owner/package`, `@scope/pkg`, and `pkg@version` inputs.
+- `rapid_os.core.filesystem`: Path containment helpers (`ensure_path_within_root`, `resolve_child_path`, `safe_rmtree_child`) and atomic UTF-8 write primitives (`safe_write_text`, `safe_copy_file`, `safe_append_text`) with optional `.bak` backups and parent creation.
+- `rapid_os.core.config`: Explicit configuration state classification (`missing`, `valid`, `invalid_json`, `invalid_schema`, `io_error`) via `inspect_project_config_file()` and `ProjectConfigError`, surfaced in `rapid validate`, `rapid doctor`, and `rapid inspect-context`.
+- `rapid_os.domain.scanner`: Secret-safe `.env` / `.env.*` inspection via `read_env_keys(path)` that extracts only variable names and never stores, matches, or exposes secret values.
+- `rapid_os.domain.mcp`: Explicit `package` and `version` metadata on `McpServer` plus non-blocking reproducibility warnings (`MCP012` for unpinned `npx` packages, `MCP013` for unpinned Docker images).
+
+## Branch Governance
+
+- `main` is the active primary branch and authoritative baseline for Rapid OS v2 and future work.
+- `develop` (`origin/develop` at `fbe2e12`) is 29 commits behind `main` (`0` ahead) and is considered obsolete historical branch state. All feature and hardening branches must branch from and target `main`.
 
 ## Compatibility Guarantees
 

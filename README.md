@@ -69,7 +69,7 @@ Future work is tracked as post-v2 enhancement work. The v2 baseline keeps the ex
 | Structured scope generation | Complete | `SPECS.md`, `TASKS.md`, and `ACCEPTANCE.md` from `rapid scope`. |
 | Validation and diagnostics | Complete | `rapid validate`, `rapid doctor`, and `rapid inspect-context`. |
 | Project scanner | Complete | Safe local scanning and reviewable init suggestions. |
-| MCP abstraction | Complete | Structured MCP model with Claude Desktop rendering. |
+| MCP abstraction | Complete | Structured MCP model with editor-specific rendering and package metadata. |
 | Testing and CI hardening | Complete | GitHub Actions plus `python -m unittest discover` and CLI smoke checks. |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -129,7 +129,7 @@ graph TD
         User == "3. Prompt Simple: 'Haz el login' o 'Implementa SPECS.md'" ==> AI
 
         %% El Resultado
-        AI ==>|"Genera Código Perfecto (Siguiendo Reglas)"| FinalCode
+        AI ==>|"Genera código guiado por contexto, reglas y criterios verificables"| FinalCode
     end
 
     %% Leyenda
@@ -160,10 +160,10 @@ Este proyecto está construido utilizando tecnologías nativas para asegurar má
 - **🧠 Contexto de Negocio Inteligente**: Importa tus reglas de negocio desde archivos Markdown (`.md`) existentes o guárdalas como Plantillas reutilizables para futuros proyectos.
 - **🏗️ Topologías Arquitectónicas**: Define si tu proyecto es Frontend Only, BaaS (Supabase), Fullstack Separado o **Sitio de Documentación** para evitar alucinaciones de código.
 - **🔌 Herramientas MCP (Model Context Protocol)**: Configura automáticamente servidores de base de datos (Postgres/Supabase) y herramientas de investigación (Context7, Firecrawl).
-- **👁️ Soporte Multimodal (Vision)**: Inyecta capturas de pantalla y referencias visuales al contexto para diseños pixel-perfect.
+- **🖼️ Contexto de Referencia Visual (Vision)**: Registra capturas de pantalla en `references/` junto con una descripción humana en `references/VISION_CONTEXT.md` y reensambla el contexto de agentes.
 - **🚀 Stacks Senior**: Templates pre-configurados para Web Moderno, Python AI, Creative Frontend, **Docusaurus Docs**, etc.
 - **🛡️ Seguridad por Defecto**: Inyección automática de protocolos OWASP y reglas Anti-PII.
-- **☁️ Asistente DevOps**: Genera archivos de IaC (Terraform, Docker) para AWS, Vercel y GCP.
+- **☁️ Guías de Despliegue (`DEPLOY.md`)**: Genera instrucciones y contexto de despliegue en `DEPLOY.md` a partir de templates locales (`templates/deploy/<target>.md`, con template incluido actualmente para `aws`; otros nombres válidos generan una guía genérica fallback `Deploy to <target>`).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -280,6 +280,13 @@ Si pasas `--stack`, ese valor manda sobre cualquier sugerencia del scanner:
 rapid init --stack web-modern
 ```
 
+También puedes fijar el arquetipo directamente por CLI (`mvp` o `corporate`) sin pregunta interactiva:
+
+```bash
+rapid init --archetype corporate
+rapid init --archetype mvp
+```
+
 ### 2. Refinamiento de Reglas (Rapid Refine)
 
 Si sientes que tu Agente (Cursor/Claude) ignora tus reglas o las malinterpreta, usa `rapid refine` para mejorar la documentación con ayuda de la IA.
@@ -353,15 +360,15 @@ Si el proyecto aún no fue inicializado con `rapid init`, `rapid mcp` ofrece cre
 
 Si omites `--ide` o `--scope`, Rapid OS entra en modo interactivo y te deja elegir destino y alcance antes de escribir el archivo.
 
-### 6. Referencias Visuales (Vision)
+### 6. Contexto de Referencia Visual (Vision)
 
-Para que la IA "vea" tus diseños y no alucine el frontend:
+Registra una referencia visual del proyecto para acompañar tus reglas con contexto de interfaz:
 
 ```bash
 rapid vision ruta/al/diseño.png
 ```
 
-Si ejecutas `rapid vision` sin ruta, el comando pide el path de forma interactiva y permite cancelar con `0`, `q`, `quit`, `exit`, `salir` o `cancelar`.
+`rapid vision` copia la imagen dentro de `references/`, solicita una descripción humana del diseño, agrega la entrada a `references/VISION_CONTEXT.md` y regenera los archivos de contexto de los agentes configurados. Si ejecutas `rapid vision` sin ruta, el comando pide el path de forma interactiva y permite cancelar con `0`, `q`, `quit`, `exit`, `salir` o `cancelar`.
 
 ### 7. Documentación con Docusaurus
 
@@ -423,13 +430,13 @@ Tabla completa de comandos disponibles en Rapid OS y sus resultados.
 
 | Comando                      | Descripción                                                                                     | Resultado / Output                                                                                |
 | :--------------------------- | :---------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------ |
-| `rapid init`                 | **Inicializa Rapid OS**. Escanea señales locales y sugiere stack/topología con confirmación.   | Crea `.cursorrules`, `.agent/rules`, `.rapid-os/` y puede crear docs opcionales con backups. Usa `--no-scan` para modo manual. |
+| `rapid init`                 | **Inicializa Rapid OS**. Escanea señales locales y sugiere stack/topología con confirmación.   | Crea `.cursorrules`, `.agent/rules`, `.rapid-os/` y puede crear docs opcionales con backups. Soporta `--no-scan`, `--stack` y `--archetype {mvp,corporate}`. |
 | `rapid scope`                | **Asistente de Alcance**. Te entrevista para definir una feature, refactor, bugfix o hardening. | Genera `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` con backups antes de sobrescribir.                |
 | `rapid refine <file>`        | **Refinamiento de Reglas**. Mejora cualquier documento de reglas usando IA.                     | Genera un Mega-Prompt para que pegues en tu chat y la IA reescriba el archivo profesionalmente.   |
 | `rapid skill [action] [name]` | **Instala o lista Skills** desde menú interactivo, registro comunitario o template privado.     | Sin argumentos abre menú; con `add`/`install` conserva el flujo directo existente.                 |
 | `rapid mcp [--ide ... --scope ...]` | **Configura MCP Servers**. Modela filesystem, BD y research tools.                    | Escribe el archivo MCP propio de cada editor con backup previo; si faltan flags entra en modo interactivo. |
-| `rapid vision [image_path]`  | **Inyección Visual**. Procesa una imagen para extraer contexto de diseño.                       | Con ruta conserva el flujo directo; sin ruta pide path interactivo y permite cancelar.             |
-| `rapid deploy <target>`      | **Asistente de Despliegue**. Genera IaC para la nube elegida.                                   | Crea `Dockerfile`, `docker-compose.yml` o scripts de Terraform para el target (aws, vercel, gcp). |
+| `rapid vision [image_path]`  | **Contexto de Referencia Visual**. Copia una imagen de referencia y documenta su descripción.   | Copia la imagen a `references/`, registra la descripción en `references/VISION_CONTEXT.md` y actualiza el contexto de agentes. |
+| `rapid deploy <target>`      | **Guía de Despliegue**. Genera instrucciones de despliegue basadas en templates locales.        | Crea `DEPLOY.md` desde `templates/deploy/<target>.md` (template incluido: `aws`, o guía genérica fallback `Deploy to <target>`) con backup previo. |
 | `rapid validate`             | **Validación de Proyecto**. Revisa templates, estándares, config, herramientas y contexto.      | No escribe archivos. Sale con `0` si no hay errores y `1` si encuentra errores de validación.     |
 | `rapid doctor`               | **Diagnóstico Local**. Revisa rutas resueltas, templates, Node/npx opcional y proyecto actual.  | No escribe archivos. Usa advertencias para capacidades opcionales como Node/npx.                  |
 | `rapid inspect-context`      | **Inspección de Contexto**. Ensambla y previsualiza el contexto final antes de generar archivos. | No escribe archivos. Muestra secciones incluidas, herramientas seleccionadas y preview final.     |
@@ -446,7 +453,7 @@ rapid validate --json
 rapid validate --strict
 ```
 
-`rapid validate` falla con código `1` cuando hay errores, como `tech-stack.md` o `topology.md` faltantes, JSON inválido en templates MCP, herramientas desconocidas en `.rapid-os/config.json`, combinaciones stack/topología incompatibles o contexto ensamblado vacío. Con `--strict`, las advertencias también devuelven `1`.
+`rapid validate` falla con código `1` cuando hay errores, como `tech-stack.md` o `topology.md` faltantes, JSON inválido en `.rapid-os/config.json` o templates MCP, herramientas desconocidas en `.rapid-os/config.json`, combinaciones stack/topología incompatibles o contexto ensamblado vacío. Con `--strict`, las advertencias también devuelven `1`.
 
 Para revisar la instalación local sin modificar nada:
 
@@ -478,7 +485,7 @@ Lo que Rapid OS **ES** y lo que **NO ES**:
 | **Inyectar Contexto Senior**: Obligar a la IA a seguir Clean Architecture y SOLID. | **Escribir código por sí solo**: Rapid OS es el _Arquitecto_, tu IA (Cursor/Claude) es el _Albañil_. |
 | **Refactorizar Legacy**: Definir reglas modernas para limpiar código antiguo.      | **Ejecutarse en la Nube**: Es una CLI 100% local. No sube tu código a ningún lado.                   |
 | **Estandarizar Equipos**: Que todos los devs (y sus IAs) escriban igual.           | **Compilar tu App**: No reemplaza a `npm run build` o compiladores.                                  |
-| **Generar Configuración**: Crea Dockerfiles, Terraform, CI/CD automáticamente.     | **Desplegar Producción**: Genera los scripts, pero TÚ ejecutas el deploy final.                      |
+| **Generar Guías y Contexto**: Crea reglas de agentes, specs, MCPs y `DEPLOY.md`.   | **Desplegar Producción**: Genera las instrucciones en `DEPLOY.md`, pero TÚ ejecutas el deploy final. |
 
 ---
 
@@ -514,7 +521,7 @@ Lo que Rapid OS **ES** y lo que **NO ES**:
 3.  **Ejecución**:
     - Abres tu editor con Cursor/Claude.
     - Prompt: _"Crea una página 'Getting Started' que explique cómo instalar la SDK, incluyendo un diagrama de flujo de autenticación."_
-4.  **Resultado**: La IA generará un archivo `.mdx` perfecto, importando componentes de Docusaurus y renderizando el diagrama Mermaid solicitado, todo respetando tu guía de estilo.
+4.  **Resultado**: La IA generará un archivo `.mdx` guiado por contexto, reglas y criterios verificables, importando componentes de Docusaurus y renderizando el diagrama Mermaid solicitado según tu guía de estilo.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -539,15 +546,14 @@ GitHub Actions ejecuta la suite de `unittest` y estos smoke checks en cada `push
 
 ## Deployment <a name="deployment"></a>
 
-Rapid OS no se despliega a sí mismo (es una CLI local), pero ayuda a desplegar tus aplicaciones.
+Rapid OS no se despliega a sí mismo (es una CLI local), pero ayuda a documentar y estandarizar el despliegue de tus aplicaciones.
 
-Usa el comando `rapid deploy [target]` para generar:
+Usa el comando `rapid deploy <target>` para generar `DEPLOY.md` con instrucciones y contexto de despliegue:
 
-- Dockerfile multi-stage optimizados.
-- Scripts de Terraform o CloudFormation.
-- Configuraciones de CI/CD (GitHub Actions).
+- Si existe `templates/deploy/<target>.md`, incluye el contenido del template bajo el encabezado `# DEPLOY <target>`.
+- Si el target indicado no cuenta con un template dedicado, `rapid deploy <target>` genera una guía genérica fallback (`Deploy to <target>`) que sirve como marcador inicial y no implica soporte específico del proveedor.
 
-Matches soportados actualmente: `aws`, `vercel`, `gcp`, `azure`.
+Target con template incluido actualmente: `aws`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -568,7 +574,7 @@ Rapid OS v2 is complete. These items are optional post-v2 improvements and are n
 - [ ] **Scanner independiente**: Comando dedicado para inspeccionar señales del proyecto sin ejecutar `rapid init`.
 - [ ] **Scope no interactivo**: Flags o plantillas más ricas para equipos que quieran automatizar `rapid scope`.
 - [ ] **Diagnósticos enriquecidos**: Categorías machine-readable más detalladas para integraciones futuras.
-- [ ] **Renderers MCP adicionales**: Nuevos destinos además del JSON compatible con Claude Desktop.
+- [ ] **Renderers MCP adicionales**: Nuevos destinos además de los editores soportados actualmente.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

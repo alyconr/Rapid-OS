@@ -272,5 +272,264 @@ class CliInteractiveUxTests(unittest.TestCase):
             self.assertFalse((root / "docs").exists())
 
 
+def _create_full_init_templates(root: Path) -> Path:
+    templates = root / "templates"
+    for dirname in ("stacks", "topologies", "archetypes", "business"):
+        (templates / dirname).mkdir(parents=True)
+
+    (templates / "stacks" / "web-modern.md").write_text(
+        "# web-modern\n", encoding="utf-8"
+    )
+    (templates / "topologies" / "front-end-only.md").write_text(
+        "# front-end-only\n", encoding="utf-8"
+    )
+    (templates / "archetypes" / "mvp").mkdir()
+    (templates / "archetypes" / "mvp" / "coding-rules.md").write_text(
+        "mvp coding rules", encoding="utf-8"
+    )
+    (templates / "archetypes" / "corporate").mkdir()
+    (templates / "archetypes" / "corporate" / "coding-rules.md").write_text(
+        "corporate coding rules", encoding="utf-8"
+    )
+    (templates / "archetypes" / "corporate" / "security.md").write_text(
+        "corporate security rules", encoding="utf-8"
+    )
+    return templates
+
+
+class CliArchetypeAndHardeningTests(unittest.TestCase):
+    def test_parser_accepts_mvp_and_corporate_archetype_and_rejects_invalid(self):
+        parser = create_parser()
+
+        mvp_args = parser.parse_args(["init", "--archetype", "mvp"])
+        corp_args = parser.parse_args(["init", "--archetype", "corporate"])
+
+        self.assertEqual(mvp_args.archetype, "mvp")
+        self.assertEqual(corp_args.archetype, "corporate")
+
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                parser.parse_args(["init", "--archetype", "enterprise"])
+
+    def test_init_honors_archetype_corporate_without_prompting(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            root = Path(temp_dir)
+            project = root / "project"
+            project.mkdir()
+            templates = _create_full_init_templates(root)
+
+            # Notice: only topology, agents, research, import(n), manual business rules, optional docs(n)
+            # No archetype prompt is consumed when --archetype corporate is passed.
+            prompts_seen = []
+            answers = iter(["1", "1", "", "n", "Regla 1", "n"])
+
+            def fake_input(prompt=""):
+                prompts_seen.append(prompt)
+                return next(answers)
+
+            args = Namespace(
+                stack="web-modern",
+                archetype="corporate",
+                no_scan=True,
+            )
+
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), patch.object(
+                cli_main, "CONFIG_FILE", project / ".rapid-os" / "config.json"
+            ), patch.object(
+                cli_main, "TEMPLATES_DIR", templates
+            ), patch(
+                "builtins.input", fake_input
+            ), contextlib.redirect_stdout(io.StringIO()):
+                cli_main.init_project(args)
+
+            standards = project / ".rapid-os" / "standards"
+            self.assertEqual(
+                (standards / "coding-rules.md").read_text(encoding="utf-8"),
+                "corporate coding rules",
+            )
+            self.assertEqual(
+                (standards / "security.md").read_text(encoding="utf-8"),
+                "corporate security rules",
+            )
+
+    def test_init_honors_archetype_mvp_without_prompting(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            root = Path(temp_dir)
+            project = root / "project"
+            project.mkdir()
+            templates = _create_full_init_templates(root)
+
+            answers = iter(["1", "1", "", "n", "Regla MVP", "n"])
+            args = Namespace(
+                stack="web-modern",
+                archetype="mvp",
+                no_scan=True,
+            )
+
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), patch.object(
+                cli_main, "CONFIG_FILE", project / ".rapid-os" / "config.json"
+            ), patch.object(
+                cli_main, "TEMPLATES_DIR", templates
+            ), patch(
+                "builtins.input", lambda prompt="": next(answers)
+            ), contextlib.redirect_stdout(io.StringIO()):
+                cli_main.init_project(args)
+
+            standards = project / ".rapid-os" / "standards"
+            self.assertEqual(
+                (standards / "coding-rules.md").read_text(encoding="utf-8"),
+                "mvp coding rules",
+            )
+            self.assertFalse((standards / "security.md").exists())
+
+    def test_init_interactive_archetype_fallback_when_flag_omitted(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            root = Path(temp_dir)
+            project = root / "project"
+            project.mkdir()
+            templates = _create_full_init_templates(root)
+
+            # "2" selects corporate interactively
+            answers = iter(["1", "2", "1", "", "n", "", "n"])
+            args = Namespace(
+                stack="web-modern",
+                archetype=None,
+                no_scan=True,
+            )
+
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), patch.object(
+                cli_main, "CONFIG_FILE", project / ".rapid-os" / "config.json"
+            ), patch.object(
+                cli_main, "TEMPLATES_DIR", templates
+            ), patch(
+                "builtins.input", lambda prompt="": next(answers)
+            ), contextlib.redirect_stdout(io.StringIO()):
+                cli_main.init_project(args)
+
+            standards = project / ".rapid-os" / "standards"
+            self.assertEqual(
+                (standards / "coding-rules.md").read_text(encoding="utf-8"),
+                "corporate coding rules",
+            )
+            self.assertTrue((standards / "security.md").exists())
+
+    def test_init_creates_backups_for_existing_standards_and_deploy_backs_up_deploy_md(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            root = Path(temp_dir)
+            project = root / "project"
+            standards = project / ".rapid-os" / "standards"
+            standards.mkdir(parents=True)
+            for fname in ("tech-stack.md", "topology.md", "coding-rules.md", "business.md"):
+                (standards / fname).write_text(f"old {fname}", encoding="utf-8")
+
+            templates = _create_full_init_templates(root)
+            (templates / "deploy").mkdir(parents=True)
+            (templates / "deploy" / "aws.md").write_text("AWS guide", encoding="utf-8")
+
+            answers = iter(["1", "1", "", "n", "New business", "n"])
+            args = Namespace(
+                stack="web-modern",
+                archetype="mvp",
+                no_scan=True,
+            )
+
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), patch.object(
+                cli_main, "CONFIG_FILE", project / ".rapid-os" / "config.json"
+            ), patch.object(
+                cli_main, "TEMPLATES_DIR", templates
+            ), patch(
+                "builtins.input", lambda prompt="": next(answers)
+            ), contextlib.redirect_stdout(io.StringIO()):
+                cli_main.init_project(args)
+
+            for fname in ("tech-stack.md", "topology.md", "coding-rules.md", "business.md"):
+                self.assertTrue(list(standards.glob(f"{fname}.*.bak")), fname)
+
+            deploy_file = project / "DEPLOY.md"
+            deploy_file.write_text("old deploy", encoding="utf-8")
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "TEMPLATES_DIR", templates
+            ), contextlib.redirect_stdout(io.StringIO()):
+                cli_main.deploy_assistant(Namespace(target="aws"))
+
+            self.assertTrue(list(project.glob("DEPLOY.md.*.bak")))
+
+    def test_init_missing_stack_template_fails_explicitly(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            root = Path(temp_dir)
+            project = root / "project"
+            project.mkdir()
+            templates = _create_full_init_templates(root)
+
+            args = Namespace(
+                stack="nonexistent-stack",
+                archetype="mvp",
+                no_scan=True,
+            )
+
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), patch.object(
+                cli_main, "CONFIG_FILE", project / ".rapid-os" / "config.json"
+            ), patch.object(
+                cli_main, "TEMPLATES_DIR", templates
+            ), contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(SystemExit) as ctx:
+                    cli_main.init_project(args)
+                self.assertEqual(ctx.exception.code, 1)
+
+    def test_parser_normalizes_archetype_case_insensitively(self):
+        parser = cli_main.create_parser()
+        parsed_mvp = parser.parse_args(["init", "--archetype", "MVP"])
+        parsed_corporate = parser.parse_args(["init", "--archetype", "Corporate"])
+        self.assertEqual(parsed_mvp.archetype, "mvp")
+        self.assertEqual(parsed_corporate.archetype, "corporate")
+
+    def test_deploy_assistant_uses_neutral_prompt_and_generic_fallback(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            root = Path(temp_dir)
+            project = root / "project"
+            project.mkdir()
+            templates = root / "templates"
+            (templates / "deploy").mkdir(parents=True)
+            (templates / "deploy" / "aws.md").write_text(
+                "AWS Guide Content",
+                encoding="utf-8",
+            )
+
+            recorded_prompts = []
+
+            def fake_input(prompt=""):
+                recorded_prompts.append(prompt)
+                return "customtarget"
+
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "TEMPLATES_DIR", templates
+            ), patch("builtins.input", fake_input), contextlib.redirect_stdout(
+                io.StringIO()
+            ):
+                cli_main.deploy_assistant(Namespace(target=None))
+
+            self.assertEqual(recorded_prompts, ["Target (e.g. aws): "])
+            self.assertEqual(
+                (project / "DEPLOY.md").read_text(encoding="utf-8"),
+                "# DEPLOY customtarget\nDeploy to customtarget",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

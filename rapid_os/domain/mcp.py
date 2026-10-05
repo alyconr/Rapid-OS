@@ -1,7 +1,7 @@
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Mapping, Sequence
 
 
 PLACEHOLDER_VALUES = (
@@ -10,6 +10,106 @@ PLACEHOLDER_VALUES = (
     "[PROJECT-ID]",
     "postgresql://user:password@localhost:5432/dbname",
 )
+
+DEFAULT_MCP_PACKAGES = {
+    "filesystem": "@modelcontextprotocol/server-filesystem",
+    "context7": "@upstash/context7-mcp",
+    "firecrawl": "firecrawl-mcp",
+    "supabase": "@modelcontextprotocol/server-postgres",
+}
+
+
+def format_package_spec(package: str, version: str | None = None) -> str:
+    """Format an npm package name and optional version into a package specifier."""
+    cleaned_package = (package or "").strip()
+    cleaned_version = (version or "").strip() if version is not None else ""
+    if cleaned_package and cleaned_version:
+        return f"{cleaned_package}@{cleaned_version}"
+    return cleaned_package
+
+
+def split_package_spec(spec: str) -> tuple[str, str | None]:
+    """Split an npm package specifier into `(package, version)`."""
+    cleaned = (spec or "").strip()
+    if not cleaned:
+        return "", None
+    if "@" in cleaned[1:]:
+        idx = cleaned.rfind("@")
+        package = cleaned[:idx]
+        version = cleaned[idx + 1 :] or None
+        return package, version
+    return cleaned, None
+
+
+def _find_npx_package_arg_index(
+    command: str,
+    args: Sequence[str],
+) -> int | None:
+    """Return the index of the package argument in an `npx` invocation, or None."""
+    if (command or "").lower() not in {"npx", "npx.cmd", "npx.exe"}:
+        return None
+
+    idx = 0
+    while idx < len(args):
+        token = str(args[idx]).strip()
+        if token in {"-y", "--yes", "-q", "--quiet"}:
+            idx += 1
+            continue
+        if token in {"-p", "--package"}:
+            return idx + 1 if idx + 1 < len(args) else None
+        if token.startswith("--package="):
+            return idx
+        if token.startswith("-"):
+            idx += 1
+            continue
+        return idx
+    return None
+
+
+def extract_npx_package_spec(
+    command: str,
+    args: tuple[str, ...],
+) -> tuple[str | None, str | None]:
+    """Extract `(package, version)` from an `npx` command argument tuple."""
+    arg_idx = _find_npx_package_arg_index(command, args)
+    if arg_idx is None:
+        return None, None
+
+    token = str(args[arg_idx]).strip()
+    if token.startswith("--package="):
+        token = token.split("=", 1)[1]
+    pkg, ver = split_package_spec(token)
+    return (pkg or None), ver
+
+
+def _normalize_npx_package_arg(
+    command: str,
+    args: Sequence[str],
+    package: str,
+    version: str | None,
+) -> list[str] | None:
+    """Rewrite the executable package argument in `args` to match `(package, version)` if it refers to `package`."""
+    arg_idx = _find_npx_package_arg_index(command, args)
+    if arg_idx is None:
+        return None
+
+    normalized = [str(item) for item in args]
+    token = normalized[arg_idx].strip()
+    target_spec = format_package_spec(package, version)
+
+    if token.startswith("--package="):
+        raw_spec = token.split("=", 1)[1]
+        parsed_pkg, _ = split_package_spec(raw_spec)
+        if parsed_pkg != package:
+            return None
+        normalized[arg_idx] = f"--package={target_spec}"
+        return normalized
+
+    parsed_pkg, _ = split_package_spec(token)
+    if parsed_pkg != package:
+        return None
+    normalized[arg_idx] = target_spec
+    return normalized
 
 
 @dataclass(frozen=True)
@@ -20,6 +120,34 @@ class McpServer:
     env: Mapping[str, str] | None = None
     extra: Mapping[str, object] | None = None
     source: str = "generated"
+    package: str | None = None
+    version: str | None = None
+
+    @property
+    def package_spec(self) -> str | None:
+        if not self.package:
+            return None
+        return format_package_spec(self.package, self.version)
+
+    @property
+    def runtime_package_spec(self) -> str | None:
+        runtime_pkg, runtime_ver = extract_npx_package_spec(self.command, self.args)
+        if not runtime_pkg:
+            return None
+        return format_package_spec(runtime_pkg, runtime_ver)
+
+    @property
+    def is_version_pinned(self) -> bool:
+        runtime_pkg, runtime_ver = extract_npx_package_spec(self.command, self.args)
+        if runtime_pkg is not None:
+            if self.package and self.package != runtime_pkg:
+                return False
+            if self.version and self.version != runtime_ver:
+                return False
+            return bool(runtime_ver and runtime_ver.strip().lower() != "latest")
+        if self.package:
+            return False
+        return bool(self.version and self.version.strip().lower() != "latest")
 
 
 @dataclass(frozen=True)
@@ -69,38 +197,55 @@ def build_mcp_config(
     if "firecrawl" in selected_tools:
         servers.append(firecrawl_server())
 
+    seen_warning_keys = {(w.code, w.server_id) for w in warnings}
     for server in servers:
-        warnings.extend(detect_server_warnings(server))
+        for warning in detect_server_warnings(server):
+            key = (warning.code, warning.server_id)
+            if key not in seen_warning_keys:
+                warnings.append(warning)
+                seen_warning_keys.add(key)
 
     return McpConfig(tuple(servers), tuple(warnings))
 
 
-def filesystem_server(current_dir: Path):
+def filesystem_server(current_dir: Path, version: str | None = None):
+    package = DEFAULT_MCP_PACKAGES["filesystem"]
+    spec = format_package_spec(package, version)
     return McpServer(
         id="filesystem",
         command="npx",
-        args=("-y", "@modelcontextprotocol/server-filesystem", str(current_dir)),
+        args=("-y", spec, str(current_dir)),
         source="generated",
+        package=package,
+        version=version,
     )
 
 
-def context7_server():
+def context7_server(version: str | None = None):
+    package = DEFAULT_MCP_PACKAGES["context7"]
+    spec = format_package_spec(package, version)
     return McpServer(
         id="context7",
         command="npx",
-        args=("-y", "@upstash/context7-mcp"),
+        args=("-y", spec),
         env={"CONTEXT7_API_KEY": "YOUR_API_KEY_HERE"},
         source="generated",
+        package=package,
+        version=version,
     )
 
 
-def firecrawl_server():
+def firecrawl_server(version: str | None = None):
+    package = DEFAULT_MCP_PACKAGES["firecrawl"]
+    spec = format_package_spec(package, version)
     return McpServer(
         id="firecrawl",
         command="npx",
-        args=("-y", "firecrawl-mcp"),
+        args=("-y", spec),
         env={"FIRECRAWL_API_KEY": "YOUR_API_KEY_HERE"},
         source="generated",
+        package=package,
+        version=version,
     )
 
 
@@ -208,20 +353,82 @@ def server_from_mapping(server_id, definition, source="mapping", path=None):
         )
         env = None
 
-    known_keys = {"command", "args", "env"}
+    normalized_args = [str(arg) for arg in args]
+    raw_package = definition.get("package")
+    raw_version = definition.get("version")
+    package = str(raw_package).strip() if isinstance(raw_package, str) and raw_package.strip() else None
+    version = str(raw_version).strip() if isinstance(raw_version, str) and raw_version.strip() else None
+
+    inferred_pkg, inferred_ver = extract_npx_package_spec(
+        str(command), tuple(normalized_args)
+    )
+    if package is None:
+        package = inferred_pkg
+
+    if package is not None:
+        if inferred_pkg == package:
+            if version is not None:
+                rewritten = _normalize_npx_package_arg(
+                    str(command),
+                    normalized_args,
+                    package,
+                    version,
+                )
+                if rewritten is not None:
+                    normalized_args = rewritten
+            else:
+                version = inferred_ver
+        else:
+            warnings.append(
+                McpWarning(
+                    "MCP014",
+                    f"MCP server '{server_id}' declared package '{package}' does not match runtime package '{inferred_pkg or 'none'}'.",
+                    server_id=str(server_id),
+                    path=path,
+                )
+            )
+    elif version is not None:
+        warnings.append(
+            McpWarning(
+                "MCP014",
+                f"MCP server '{server_id}' declared version '{version}' without a matching runtime package.",
+                server_id=str(server_id),
+                path=path,
+            )
+        )
+
+    known_keys = {"command", "args", "env", "package", "version"}
     extra = {key: value for key, value in definition.items() if key not in known_keys}
 
     return (
         McpServer(
             id=str(server_id),
             command=str(command),
-            args=tuple(str(arg) for arg in args),
+            args=tuple(normalized_args),
             env=env,
             extra=extra or None,
             source=source,
+            package=package,
+            version=version,
         ),
         tuple(warnings),
     )
+
+
+def _extract_docker_image(args: tuple[str, ...]) -> str | None:
+    if not args or args[0] != "run":
+        return None
+    idx = 1
+    while idx < len(args):
+        token = str(args[idx])
+        if token in {"-e", "--env", "-v", "--volume", "-p", "--publish", "--name", "--network"}:
+            idx += 2
+            continue
+        if token.startswith("-"):
+            idx += 1
+            continue
+        return token
+    return None
 
 
 def detect_server_warnings(server: McpServer):
@@ -262,5 +469,44 @@ def detect_server_warnings(server: McpServer):
                 server_id=server.id,
             )
         )
+
+    runtime_pkg, runtime_ver = extract_npx_package_spec(server.command, server.args)
+    if (server.package and server.package != runtime_pkg) or (
+        server.version and server.version != runtime_ver
+    ):
+        declared = server.package_spec or server.package or server.version
+        runtime_spec = (
+            format_package_spec(runtime_pkg, runtime_ver) if runtime_pkg else "none"
+        )
+        warnings.append(
+            McpWarning(
+                "MCP014",
+                f"MCP server '{server.id}' declared metadata '{declared}' does not match runtime package '{runtime_spec}'.",
+                server_id=server.id,
+            )
+        )
+
+    if runtime_pkg and (not runtime_ver or runtime_ver.strip().lower() == "latest"):
+        warnings.append(
+            McpWarning(
+                "MCP012",
+                f"MCP server '{server.id}' uses unpinned npx package '{runtime_pkg}'; pin a version for reproducible execution.",
+                server_id=server.id,
+            )
+        )
+
+    if server.command == "docker":
+        image = _extract_docker_image(server.args)
+        if image and (
+            (":" not in image and "@" not in image)
+            or image.endswith(":latest")
+        ):
+            warnings.append(
+                McpWarning(
+                    "MCP013",
+                    f"MCP server '{server.id}' uses unpinned container image '{image}'; pin a tag or digest for reproducible execution.",
+                    server_id=server.id,
+                )
+            )
 
     return tuple(warnings)

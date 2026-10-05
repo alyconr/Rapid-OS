@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
-from rapid_os.core.filesystem import create_backup
+from rapid_os.core.filesystem import resolve_child_path, safe_write_text
 from rapid_os.core.output import print_success
 
 
@@ -43,8 +43,12 @@ class AgentAdapter(ABC):
                     f"Adapter '{self.id}' did not render '{relative_path.as_posix()}'."
                 )
 
-            target = current_dir / relative_path
-            target.parent.mkdir(parents=True, exist_ok=True)
-            create_backup(target)
-            target.write_text(rendered_outputs[relative_path], encoding=output.encoding)
+            target = resolve_child_path(current_dir, relative_path)
+            safe_write_text(
+                target,
+                rendered_outputs[relative_path],
+                encoding=output.encoding,
+                backup=True,
+                create_parents=True,
+            )
             print_success(output.success_message)
