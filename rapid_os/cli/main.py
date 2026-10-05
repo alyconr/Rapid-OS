@@ -12,9 +12,22 @@ from rapid_os.adapters.mcp import (
     resolve_supported_mcp_scopes,
     write_mcp_install_target,
 )
-from rapid_os.core.config import load_project_config, save_project_config
+from rapid_os.core.config import (
+    inspect_project_config_file,
+    load_project_config,
+    save_project_config,
+)
 from rapid_os.core.context import compose_project_context
-from rapid_os.core.filesystem import check_node_installed, create_backup
+from rapid_os.core.filesystem import (
+    check_node_installed,
+    create_backup,
+    resolve_child_path,
+    safe_append_text,
+    safe_copy_file,
+    safe_rmtree_child,
+    safe_write_text,
+)
+from rapid_os.core.identifiers import validate_identifier
 from rapid_os.core.output import (
     ensure_utf8_stdio,
     print_error,
@@ -30,6 +43,7 @@ from rapid_os.core.paths import (
     SCRIPT_DIR,
     TEMPLATES_DIR,
 )
+from rapid_os.core.process import run_npx_skills_add
 from rapid_os.core.text import read_text_best_effort
 from rapid_os.domain.agents import generate_agent_contexts
 from rapid_os.domain.mcp import build_mcp_config
@@ -57,6 +71,7 @@ from rapid_os.domain.validation import (
 
 
 EXIT_TOKENS = {"0", "q", "quit", "exit", "salir", "cancelar"}
+SUPPORTED_ARCHETYPES = ("mvp", "corporate")
 
 OPTIONAL_DOC_TEMPLATES = {
     "BUSINESS_RULES.md": """# Business Rules
@@ -212,10 +227,19 @@ def parse_agent_selection(agent_sel):
     return selected_tools
 
 
+def _load_config_with_warning(config_file=CONFIG_FILE):
+    result = inspect_project_config_file(config_file)
+    if not result.is_valid:
+        print_warning(
+            f"Configuracion invalida en {config_file} ({result.status}): {result.error}"
+        )
+    return result.config
+
+
 def regenerate_context():
     """Compila estándares y genera SOLO para las herramientas seleccionadas."""
     full_context = compose_project_context(PROJECT_RAPID_DIR, CURRENT_DIR)
-    config = load_project_config(CONFIG_FILE)
+    config = _load_config_with_warning(CONFIG_FILE)
     tools = config.get("tools", [])
     generate_agent_contexts(full_context, tools, CURRENT_DIR)
 
@@ -292,9 +316,14 @@ def create_optional_docs_scaffold(input_fn=None):
     docs_dir.mkdir(parents=True, exist_ok=True)
     written = []
     for filename in selected:
-        target = docs_dir / filename
-        create_backup(target)
-        target.write_text(OPTIONAL_DOC_TEMPLATES[filename], encoding="utf-8")
+        target = resolve_child_path(docs_dir, filename, single_segment=True)
+        safe_write_text(
+            target,
+            OPTIONAL_DOC_TEMPLATES[filename],
+            encoding="utf-8",
+            backup=True,
+            create_parents=True,
+        )
         print_success(f"docs/{filename} creado")
         written.append(target)
     return written
@@ -327,8 +356,12 @@ def init_project(args):
         stacks_path = TEMPLATES_DIR / "stacks"
         if not stacks_path.exists():
             print_error(f"Templates no encontrados en {stacks_path}")
+            return
         print(f"DEBUG: Buscando templates en {stacks_path}")
         stacks = sorted([f.stem for f in stacks_path.glob("*.md")])
+        if not stacks:
+            print_error(f"No se encontraron templates de stack en {stacks_path}")
+            return
         print(f"DEBUG: Encontrados: {stacks}")
         print("\n🛠  SELECCIONA TECH STACK:")
         for i, s in enumerate(stacks, 1):
@@ -336,8 +369,21 @@ def init_project(args):
         try:
             idx = int(input("Opción: ").strip()) - 1
             stack_name = stacks[idx] if 0 <= idx < len(stacks) else stacks[0]
-        except Exception:
+        except (ValueError, IndexError, EOFError):
             stack_name = stacks[0]
+
+    try:
+        stack_name = validate_identifier(stack_name, "stack")
+        stack_src = resolve_child_path(
+            TEMPLATES_DIR / "stacks", f"{stack_name}.md", single_segment=True
+        )
+    except ValueError as exc:
+        print_error(str(exc))
+        return
+
+    if not stack_src.exists():
+        print_error(f"Template de stack no encontrado: {stack_name} ({stack_src})")
+        return
 
     # 2. Topología
     topologies_path = TEMPLATES_DIR / "topologies"
@@ -357,31 +403,61 @@ def init_project(args):
         try:
             idx = int(input("Opción: ").strip()) - 1
             topo_name = topos[idx] if 0 <= idx < len(topos) else topos[0]
-        except Exception:
+        except (ValueError, IndexError, EOFError):
             topo_name = topos[0]
     if topo_name:
-        shutil.copy(topologies_path / f"{topo_name}.md", standards_dest / "topology.md")
+        try:
+            topo_name = validate_identifier(topo_name, "topology")
+            topo_src = resolve_child_path(
+                topologies_path, f"{topo_name}.md", single_segment=True
+            )
+            safe_copy_file(topo_src, standards_dest / "topology.md", backup=True)
+        except (ValueError, OSError) as exc:
+            print_error(f"No se pudo copiar la topologia '{topo_name}': {exc}")
+            return
 
     # 3. Arquetipo
-    print("\n📊 SELECCIONA ARQUETIPO:")
-    print(" 1) mvp        (Velocidad)")
-    print(" 2) corporate  (Seguridad)")
-    sel = input("Opción [1]: ").strip()
-    archetype = "corporate" if sel == "2" else "mvp"
+    explicit_archetype = getattr(args, "archetype", None)
+    if explicit_archetype:
+        try:
+            archetype = validate_identifier(explicit_archetype, "archetype")
+        except ValueError as exc:
+            print_error(str(exc))
+            return
+        if archetype not in SUPPORTED_ARCHETYPES:
+            print_error(
+                f"Arquetipo no soportado: '{archetype}'. Usa 'mvp' o 'corporate'."
+            )
+            return
+    else:
+        print("\n📊 SELECCIONA ARQUETIPO:")
+        print(" 1) mvp        (Velocidad)")
+        print(" 2) corporate  (Seguridad)")
+        sel = input("Opción [1]: ").strip()
+        archetype = "corporate" if sel == "2" else "mvp"
 
     try:
-        shutil.copy(
-            TEMPLATES_DIR / "stacks" / f"{stack_name}.md",
-            standards_dest / "tech-stack.md",
+        archetype_dir = resolve_child_path(
+            TEMPLATES_DIR / "archetypes", archetype, single_segment=True
         )
-        rules_src = TEMPLATES_DIR / "archetypes" / archetype / "coding-rules.md"
+        safe_copy_file(
+            stack_src,
+            standards_dest / "tech-stack.md",
+            backup=True,
+        )
+        rules_src = resolve_child_path(
+            archetype_dir, "coding-rules.md", single_segment=True
+        )
         if rules_src.exists():
-            shutil.copy(rules_src, standards_dest / "coding-rules.md")
-        sec_src = TEMPLATES_DIR / "archetypes" / archetype / "security.md"
+            safe_copy_file(rules_src, standards_dest / "coding-rules.md", backup=True)
+        sec_src = resolve_child_path(
+            archetype_dir, "security.md", single_segment=True
+        )
         if sec_src.exists():
-            shutil.copy(sec_src, standards_dest / "security.md")
-    except Exception:
-        pass
+            safe_copy_file(sec_src, standards_dest / "security.md", backup=True)
+    except (ValueError, OSError) as exc:
+        print_error(f"No se pudieron inicializar los estandares del proyecto: {exc}")
+        return
 
     # 4. Agentes
     print("\n🤖 SELECCIONA TUS AGENTES (Separados por coma):")
@@ -434,12 +510,24 @@ def init_project(args):
 
                     if input("¿Guardar como plantilla? [y/N]: ").lower() == "y":
                         tpl_name = input("Nombre plantilla: ").strip()
-                        # Siempre guardamos como .md internamente para mantener formato
-                        (biz_templates_path / f"{tpl_name}.md").write_text(
-                            biz_content, encoding="utf-8"
+                        safe_tpl_name = validate_identifier(
+                            tpl_name, "business template"
                         )
-                except Exception as e:
-                    print_error(f"No se pudo leer el archivo: {e}")
+                        tpl_target = resolve_child_path(
+                            biz_templates_path,
+                            f"{safe_tpl_name}.md",
+                            single_segment=True,
+                        )
+                        # Siempre guardamos como .md internamente para mantener formato
+                        safe_write_text(
+                            tpl_target,
+                            biz_content,
+                            encoding="utf-8",
+                            backup=True,
+                        )
+                except (OSError, UnicodeDecodeError, ValueError) as e:
+                    print_error(f"No se pudo procesar la plantilla de negocio: {e}")
+                    return
             else:
                 rules = input("Archivo no existe. Escribe reglas manuales: ")
                 if rules:
@@ -467,15 +555,26 @@ def init_project(args):
                 try:
                     biz_content = local_path.read_text(encoding="utf-8")
                     print_success(f"Leído correctamente: {local_path.name}")
-                except Exception as e:
+                except (OSError, UnicodeDecodeError) as e:
                     print_error(f"Error leyendo archivo: {e}")
+                    return
 
         elif opcion.isdigit() and int(opcion) > 2:
             idx = int(opcion) - 3
             if 0 <= idx < len(biz_files):
-                biz_content = (biz_templates_path / f"{biz_files[idx]}.md").read_text(
-                    encoding="utf-8"
-                )
+                try:
+                    selected_biz = validate_identifier(
+                        biz_files[idx], "business template"
+                    )
+                    biz_path = resolve_child_path(
+                        biz_templates_path,
+                        f"{selected_biz}.md",
+                        single_segment=True,
+                    )
+                    biz_content = biz_path.read_text(encoding="utf-8")
+                except (OSError, UnicodeDecodeError, ValueError) as e:
+                    print_error(f"Error leyendo plantilla de negocio: {e}")
+                    return
 
         if (
             not biz_content
@@ -487,7 +586,12 @@ def init_project(args):
                 biz_content = f"# BUSINESS RULES\n{rules}"
 
     if biz_content:
-        (standards_dest / "business.md").write_text(biz_content, encoding="utf-8")
+        safe_write_text(
+            standards_dest / "business.md",
+            biz_content,
+            encoding="utf-8",
+            backup=True,
+        )
 
     create_optional_docs_scaffold()
     regenerate_context()
@@ -539,34 +643,46 @@ def manage_skills(args):
 
     # MODO 2: INSTALAR REMOTO (VERCEL CLI)
     if action == "add":
-        if not skill_name:
+        if not skill_name or not str(skill_name).strip():
             print_error("Especifica el nombre (ej. vercel-labs/agent-skills).")
+            return
 
         if not check_node_installed():
             print_error("Necesitas Node.js (npx) para instalar skills remotas.")
+            return
 
         print_step(f"Invocando Vercel Skills para instalar '{skill_name}'...")
         try:
-            # Usamos shell=True para compatibilidad con npx en Windows
-            cmd = f"npx skills add {skill_name}"
-            subprocess.run(cmd, shell=True, check=True)
+            run_npx_skills_add(skill_name, runner=subprocess.run)
             print_success(f"Skill '{skill_name}' instalada.")
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, OSError, ValueError):
             print_error("Falló la instalación remota.")
         return
 
     # MODO 3: INSTALAR LOCAL (RAPID TEMPLATES)
     if action == "install":
-        if not skill_name:
+        if not skill_name or not str(skill_name).strip():
             print_error("Especifica el nombre del template local.")
+            return
 
-        src_skill = TEMPLATES_DIR / "skills" / skill_name
-        if not src_skill.exists():
-            print_error(
-                f"Template '{skill_name}' no existe. Usa 'add' para buscar en remoto."
+        try:
+            safe_skill_name = validate_identifier(skill_name, "local skill")
+            src_skill = resolve_child_path(
+                TEMPLATES_DIR / "skills",
+                safe_skill_name,
+                single_segment=True,
             )
+        except ValueError as exc:
+            print_error(f"Nombre de skill local inseguro o invalido: {exc}")
+            return
 
-        config = load_project_config(CONFIG_FILE)
+        if not src_skill.exists() or not src_skill.is_dir():
+            print_error(
+                f"Template '{safe_skill_name}' no existe. Usa 'add' para buscar en remoto."
+            )
+            return
+
+        config = _load_config_with_warning(CONFIG_FILE)
         tools = config.get("tools", ["cursor", "claude", "antigravity"])
 
         targets = []
@@ -577,16 +693,31 @@ def manage_skills(args):
         if "antigravity" in tools:
             targets.append(CURRENT_DIR / ".agent" / "skills")
 
-        print_step(f"Instalando template local '{skill_name}'...")
-        for target_root in targets:
-            target_path = target_root / skill_name
-            if target_path.exists():
-                shutil.rmtree(target_path)
+        resolved_targets = []
+        try:
+            for target_root in targets:
+                target_path = resolve_child_path(
+                    target_root,
+                    safe_skill_name,
+                    single_segment=True,
+                )
+                resolved_targets.append((target_root, target_path))
+        except ValueError as exc:
+            print_error(f"Ruta de destino insegura para skill local: {exc}")
+            return
+
+        print_step(f"Instalando template local '{safe_skill_name}'...")
+        for target_root, target_path in resolved_targets:
             try:
                 target_root.mkdir(parents=True, exist_ok=True)
+                if target_path.exists() or target_path.is_symlink():
+                    safe_rmtree_child(target_root, target_path)
                 shutil.copytree(src_skill, target_path)
-                print(f"  -> {target_root.name}/{skill_name}")
-            except Exception as e:
+                print(f"  -> {target_root.name}/{safe_skill_name}")
+            except ValueError as exc:
+                print_error(f"Containment error al instalar skill local: {exc}")
+                return
+            except OSError as e:
                 print_warning(f"Error: {e}")
 
         print_success("Skill local activada.")
@@ -624,17 +755,18 @@ def generate_mcp_config(args):
         if choice != 0:
             print_warning("Configuracion MCP cancelada.")
             return
-        standards_dir = PROJECT_RAPID_DIR / "standards"
-        standards_dir.mkdir(parents=True, exist_ok=True)
-        topo_file.write_text(
+        safe_write_text(
+            topo_file,
             "# Topology\n\nMinimal MCP setup for standalone rapid mcp usage.\n",
             encoding="utf-8",
+            backup=True,
+            create_parents=True,
         )
         if not CONFIG_FILE.exists():
             save_project_config({"tools": []}, PROJECT_RAPID_DIR, CONFIG_FILE)
 
     topo_content = topo_file.read_text(encoding="utf-8")
-    config = load_project_config(CONFIG_FILE)
+    config = _load_config_with_warning(CONFIG_FILE)
     tools = config.get("tools", [])
     mcp_config = build_mcp_config(topo_content, tools, CURRENT_DIR, TEMPLATES_DIR)
 
@@ -647,6 +779,7 @@ def generate_mcp_config(args):
         written_path = write_mcp_install_target(target, rendered_content)
     except ValueError as exc:
         print_error(str(exc))
+        return
     print_success(f"Configuracion MCP: {written_path}")
 
 
@@ -685,13 +818,25 @@ def scope_feature(args):
 
 
 def deploy_assistant(args):
-    target = args.target or input("Target (aws, vercel): ").strip()
-    tpl = TEMPLATES_DIR / "deploy" / f"{target}.md"
+    raw_target = args.target or input("Target (aws, vercel): ").strip()
+    try:
+        target = validate_identifier(raw_target, "deploy target")
+        tpl = resolve_child_path(
+            TEMPLATES_DIR / "deploy", f"{target}.md", single_segment=True
+        )
+    except ValueError as exc:
+        print_error(str(exc))
+        return
+
     instructions = (
         read_text_best_effort(tpl) if tpl.exists() else f"Deploy to {target}"
     )
-    (CURRENT_DIR / "DEPLOY.md").write_text(
-        f"# DEPLOY {target}\n{instructions}", encoding="utf-8"
+    safe_write_text(
+        CURRENT_DIR / "DEPLOY.md",
+        f"# DEPLOY {target}\n{instructions}",
+        encoding="utf-8",
+        backup=True,
+        create_parents=True,
     )
     print_success("DEPLOY.md creado")
 
@@ -705,15 +850,27 @@ def add_visual_reference(args):
             return
 
     src = Path(path_value)
-    if not src.exists():
+    if not src.exists() or not src.is_file():
         print_error("Imagen no existe")
-    dest = CURRENT_DIR / "references" / src.name
-    dest.parent.mkdir(exist_ok=True)
-    shutil.copy(src, dest)
+        return
+
+    try:
+        dest = resolve_child_path(
+            CURRENT_DIR / "references", src.name, single_segment=True
+        )
+    except ValueError as exc:
+        print_error(str(exc))
+        return
+
+    safe_copy_file(src, dest, backup=False, create_parents=True)
     desc = input("Descripción imagen: ")
     meta = dest.parent / "VISION_CONTEXT.md"
-    with open(meta, "a", encoding="utf-8") as f:
-        f.write(f"\n- **{src.name}**: {desc}")
+    safe_append_text(
+        meta,
+        f"\n- **{src.name}**: {desc}",
+        encoding="utf-8",
+        create_parents=True,
+    )
     print_success("Referencia agregada")
     regenerate_context()
 
@@ -722,6 +879,7 @@ def refine_standard(args):
     path = Path(args.file)
     if not path.exists():
         print_error("Archivo no existe")
+        return
     print(
         "Prompt para IA: ACT AS ARCHITECT. REFINE:\n\n"
         f"{read_text_best_effort(path)}"
@@ -732,6 +890,7 @@ def generate_prompt(args):
     """Genera un prompt optimizado basado en el contexto del proyecto."""
     if not PROJECT_RAPID_DIR.exists():
         print_error("No se detectó un proyecto Rapid OS. Ejecuta 'rapid init' primero.")
+        return
 
     print("\n🔮 GENERADOR DE PROMPTS")
     print(" 1) Nuevo Proyecto (Start)")
@@ -943,7 +1102,7 @@ def create_parser():
 
     init = subparsers.add_parser("init")
     init.add_argument("--stack")
-    init.add_argument("--archetype")
+    init.add_argument("--archetype", choices=list(SUPPORTED_ARCHETYPES))
     init.add_argument("--no-scan", action="store_true")
 
     skill = subparsers.add_parser("skill")
