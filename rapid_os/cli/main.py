@@ -27,7 +27,10 @@ from rapid_os.core.filesystem import (
     safe_rmtree_child,
     safe_write_text,
 )
-from rapid_os.core.identifiers import validate_identifier
+from rapid_os.core.identifiers import (
+    validate_identifier,
+    validate_remote_package_reference,
+)
 from rapid_os.core.output import (
     ensure_utf8_stdio,
     print_error,
@@ -647,14 +650,23 @@ def manage_skills(args):
             print_error("Especifica el nombre (ej. vercel-labs/agent-skills).")
             return
 
+        try:
+            validated_skill = validate_remote_package_reference(
+                skill_name,
+                label="remote skill",
+            )
+        except ValueError as exc:
+            print_error(f"Referencia de skill remota invalida: {exc}")
+            return
+
         if not check_node_installed():
             print_error("Necesitas Node.js (npx) para instalar skills remotas.")
             return
 
-        print_step(f"Invocando Vercel Skills para instalar '{skill_name}'...")
+        print_step(f"Invocando Vercel Skills para instalar '{validated_skill}'...")
         try:
-            run_npx_skills_add(skill_name, runner=subprocess.run)
-            print_success(f"Skill '{skill_name}' instalada.")
+            run_npx_skills_add(validated_skill, runner=subprocess.run)
+            print_success(f"Skill '{validated_skill}' instalada.")
         except (subprocess.CalledProcessError, OSError, ValueError):
             print_error("Falló la instalación remota.")
         return
@@ -818,7 +830,7 @@ def scope_feature(args):
 
 
 def deploy_assistant(args):
-    raw_target = args.target or input("Target (aws, vercel): ").strip()
+    raw_target = args.target or input("Target (e.g. aws): ").strip()
     try:
         target = validate_identifier(raw_target, "deploy target")
         tpl = resolve_child_path(
@@ -1102,7 +1114,11 @@ def create_parser():
 
     init = subparsers.add_parser("init")
     init.add_argument("--stack")
-    init.add_argument("--archetype", choices=list(SUPPORTED_ARCHETYPES))
+    init.add_argument(
+        "--archetype",
+        type=str.lower,
+        choices=list(SUPPORTED_ARCHETYPES),
+    )
     init.add_argument("--no-scan", action="store_true")
 
     skill = subparsers.add_parser("skill")

@@ -3,6 +3,8 @@ import shutil
 import subprocess
 from typing import Sequence
 
+from rapid_os.core.identifiers import validate_remote_package_reference
+
 
 NPX_WINDOWS_CANDIDATES = ("npx.cmd", "npx.exe", "npx")
 NPX_POSIX_CANDIDATES = ("npx",)
@@ -62,13 +64,13 @@ def run_command(
 
 
 def build_npx_skills_add_command(skill_name: str, npx_executable: str = "npx") -> list[str]:
-    """Build the argument vector for `npx skills add <skill_name>`."""
-    if not isinstance(skill_name, str) or not skill_name.strip():
-        raise ValueError("Remote skill name cannot be empty.")
-    if "\x00" in skill_name:
-        raise ValueError("Remote skill name cannot contain null bytes.")
+    """Validate `skill_name` and build the argument vector for `npx skills add <skill_name>`."""
+    validated_skill = validate_remote_package_reference(
+        skill_name,
+        label="remote skill",
+    )
     executable = (npx_executable or "").strip() or "npx"
-    return [executable, "skills", "add", skill_name.strip()]
+    return [executable, "skills", "add", validated_skill]
 
 
 def run_npx_skills_add(
@@ -78,7 +80,7 @@ def run_npx_skills_add(
     os_name=None,
     runner=subprocess.run,
 ):
-    """Run `npx skills add <skill_name>` without invoking a shell."""
+    """Validate `skill_name` and run `npx skills add <skill_name>` without invoking a shell."""
     npx_executable = resolve_npx_executable(which_fn=which_fn, os_name=os_name) or "npx"
     argv = build_npx_skills_add_command(skill_name, npx_executable=npx_executable)
     return run_command(argv, check=True, runner=runner)

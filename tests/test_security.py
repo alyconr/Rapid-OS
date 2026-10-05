@@ -33,23 +33,32 @@ def workspace_tempdir():
 
 
 class SubprocessSecurityTests(unittest.TestCase):
-    def test_command_injection_payloads_are_passed_as_single_literal_argument(self):
-        payloads = (
-            "foo && whoami",
-            "foo; rm -rf .",
-            "foo | echo injected",
-            "$(whoami)",
+    def test_valid_remote_skills_build_literal_argv_with_shell_false(self):
+        valid_skills = (
+            "vercel-labs/agent-skills",
+            "@scope/pkg",
+            "pkg",
+            "pkg@1.2.3",
         )
-        for payload in payloads:
-            with self.subTest(payload=payload):
+        for skill_ref in valid_skills:
+            with self.subTest(skill_ref=skill_ref):
                 recorded_calls = []
 
                 def fake_runner(argv, **kwargs):
                     recorded_calls.append((argv, kwargs))
                     return MagicMock(returncode=0)
 
+                argv_built = build_npx_skills_add_command(
+                    skill_ref,
+                    npx_executable="/usr/bin/npx",
+                )
+                self.assertEqual(
+                    argv_built,
+                    ["/usr/bin/npx", "skills", "add", skill_ref],
+                )
+
                 run_npx_skills_add(
-                    payload,
+                    skill_ref,
                     which_fn=lambda name: "/usr/bin/npx" if name == "npx" else None,
                     os_name="posix",
                     runner=fake_runner,
@@ -57,12 +66,72 @@ class SubprocessSecurityTests(unittest.TestCase):
 
                 self.assertEqual(len(recorded_calls), 1)
                 argv, kwargs = recorded_calls[0]
-                self.assertEqual(argv, ["/usr/bin/npx", "skills", "add", payload])
+                self.assertEqual(argv, ["/usr/bin/npx", "skills", "add", skill_ref])
                 self.assertEqual(len(argv), 4)
                 self.assertIs(kwargs.get("shell"), False)
                 self.assertIs(kwargs.get("check"), True)
 
-    def test_manage_skills_add_never_uses_shell_true_for_injection_payloads(self):
+    def test_invalid_or_injection_remote_references_are_rejected_before_subprocess(self):
+        rejected_inputs = (
+            "--help",
+            "-y",
+            "../secret",
+            "owner/../secret",
+            "foo && whoami",
+            "foo;whoami",
+            "foo; rm -rf .",
+            "$(whoami)",
+            "foo | echo x",
+            "foo | echo injected",
+        )
+        for payload in rejected_inputs:
+            with self.subTest(payload=payload):
+                with self.assertRaises(ValueError):
+                    build_npx_skills_add_command(payload)
+
+                recorded_calls = []
+
+                def fake_runner(argv, **kwargs):
+                    recorded_calls.append((argv, kwargs))
+                    return MagicMock(returncode=0)
+
+                with self.assertRaises(ValueError):
+                    run_npx_skills_add(
+                        payload,
+                        which_fn=lambda name: "/usr/bin/npx",
+                        os_name="posix",
+                        runner=fake_runner,
+                    )
+                self.assertEqual(recorded_calls, [])
+
+    def test_manage_skills_add_rejects_invalid_and_injection_payloads_before_subprocess(self):
+        rejected_inputs = (
+            "--help",
+            "-y",
+            "../secret",
+            "owner/../secret",
+            "foo && whoami",
+            "foo;whoami",
+            "foo; rm -rf .",
+            "$(whoami)",
+            "foo | echo x",
+            "foo | echo injected",
+        )
+        for payload in rejected_inputs:
+            with self.subTest(payload=payload):
+                with patch.object(
+                    cli_main, "check_node_installed", return_value=True
+                ), patch.object(
+                    cli_main.subprocess, "run"
+                ) as mock_run, contextlib.redirect_stdout(io.StringIO()):
+                    with self.assertRaises(SystemExit) as ctx:
+                        cli_main.manage_skills(
+                            argparse.Namespace(action="add", name=payload)
+                        )
+                    self.assertEqual(ctx.exception.code, 1)
+                    self.assertEqual(mock_run.call_count, 0)
+
+    def test_run_command_passes_arguments_literally_with_shell_false(self):
         payloads = (
             "foo && whoami",
             "foo; rm -rf .",
@@ -71,22 +140,16 @@ class SubprocessSecurityTests(unittest.TestCase):
         )
         for payload in payloads:
             with self.subTest(payload=payload):
-                with patch.object(
-                    cli_main, "check_node_installed", return_value=True
-                ), patch.object(
-                    cli_main.subprocess, "run"
-                ) as mock_run, contextlib.redirect_stdout(io.StringIO()):
-                    cli_main.manage_skills(
-                        argparse.Namespace(action="add", name=payload)
-                    )
+                recorded = []
 
-                self.assertEqual(mock_run.call_count, 1)
-                called_args, called_kwargs = mock_run.call_args
-                argv = called_args[0]
-                self.assertIsInstance(argv, list)
-                self.assertEqual(argv[1:], ["skills", "add", payload])
-                self.assertIs(called_kwargs.get("shell"), False)
-                self.assertIs(called_kwargs.get("check"), True)
+                def fake_runner(argv, **kwargs):
+                    recorded.append((argv, kwargs))
+                    return MagicMock(returncode=0)
+
+                run_command(["/usr/bin/echo", payload], runner=fake_runner)
+                self.assertEqual(len(recorded), 1)
+                self.assertEqual(recorded[0][0], ["/usr/bin/echo", payload])
+                self.assertIs(recorded[0][1]["shell"], False)
 
     def test_windows_npx_resolution_prefers_npx_cmd(self):
         resolved = resolve_npx_executable(
@@ -331,6 +394,9 @@ class IdentifierValidationTests(unittest.TestCase):
     def test_validate_remote_package_reference_supports_owner_and_scoped_packages(self):
         valid_refs = (
             "vercel-labs/agent-skills",
+            "@scope/pkg",
+            "pkg",
+            "pkg@1.2.3",
             "@upstash/context7-mcp",
             "@modelcontextprotocol/server-filesystem@0.6.2",
             "firecrawl-mcp",
@@ -344,15 +410,18 @@ class IdentifierValidationTests(unittest.TestCase):
         invalid_refs = (
             "",
             "   ",
-            "-y",
             "--help",
+            "-y",
             "../secret",
             "owner/../secret",
+            "foo && whoami",
+            "foo;whoami",
+            "$(whoami)",
+            "foo | echo x",
             "owner/pkg/extra",
             "/etc/passwd",
             "C:\\Windows",
             "pkg with spaces",
-            "pkg;whoami",
         )
         for ref in invalid_refs:
             with self.subTest(ref=ref):

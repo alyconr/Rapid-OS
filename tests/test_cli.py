@@ -491,6 +491,45 @@ class CliArchetypeAndHardeningTests(unittest.TestCase):
                     cli_main.init_project(args)
                 self.assertEqual(ctx.exception.code, 1)
 
+    def test_parser_normalizes_archetype_case_insensitively(self):
+        parser = cli_main.create_parser()
+        parsed_mvp = parser.parse_args(["init", "--archetype", "MVP"])
+        parsed_corporate = parser.parse_args(["init", "--archetype", "Corporate"])
+        self.assertEqual(parsed_mvp.archetype, "mvp")
+        self.assertEqual(parsed_corporate.archetype, "corporate")
+
+    def test_deploy_assistant_uses_neutral_prompt_and_generic_fallback(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            root = Path(temp_dir)
+            project = root / "project"
+            project.mkdir()
+            templates = root / "templates"
+            (templates / "deploy").mkdir(parents=True)
+            (templates / "deploy" / "aws.md").write_text(
+                "AWS Guide Content",
+                encoding="utf-8",
+            )
+
+            recorded_prompts = []
+
+            def fake_input(prompt=""):
+                recorded_prompts.append(prompt)
+                return "customtarget"
+
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "TEMPLATES_DIR", templates
+            ), patch("builtins.input", fake_input), contextlib.redirect_stdout(
+                io.StringIO()
+            ):
+                cli_main.deploy_assistant(Namespace(target=None))
+
+            self.assertEqual(recorded_prompts, ["Target (e.g. aws): "])
+            self.assertEqual(
+                (project / "DEPLOY.md").read_text(encoding="utf-8"),
+                "# DEPLOY customtarget\nDeploy to customtarget",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

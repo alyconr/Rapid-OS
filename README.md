@@ -163,7 +163,7 @@ Este proyecto está construido utilizando tecnologías nativas para asegurar má
 - **🖼️ Contexto de Referencia Visual (Vision)**: Registra capturas de pantalla en `references/` junto con una descripción humana en `references/VISION_CONTEXT.md` y reensambla el contexto de agentes.
 - **🚀 Stacks Senior**: Templates pre-configurados para Web Moderno, Python AI, Creative Frontend, **Docusaurus Docs**, etc.
 - **🛡️ Seguridad por Defecto**: Inyección automática de protocolos OWASP y reglas Anti-PII.
-- **☁️ Guías de Despliegue (`DEPLOY.md`)**: Genera instrucciones y contexto de despliegue en `DEPLOY.md` a partir de templates locales (`templates/deploy/<target>.md`, p. ej. `vercel`, `vps`).
+- **☁️ Guías de Despliegue (`DEPLOY.md`)**: Genera instrucciones y contexto de despliegue en `DEPLOY.md` a partir de templates locales (`templates/deploy/<target>.md`, con template incluido actualmente para `aws`; otros nombres válidos generan una guía genérica fallback `Deploy to <target>`).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -436,7 +436,7 @@ Tabla completa de comandos disponibles en Rapid OS y sus resultados.
 | `rapid skill [action] [name]` | **Instala o lista Skills** desde menú interactivo, registro comunitario o template privado.     | Sin argumentos abre menú; con `add`/`install` conserva el flujo directo existente.                 |
 | `rapid mcp [--ide ... --scope ...]` | **Configura MCP Servers**. Modela filesystem, BD y research tools.                    | Escribe el archivo MCP propio de cada editor con backup previo; si faltan flags entra en modo interactivo. |
 | `rapid vision [image_path]`  | **Contexto de Referencia Visual**. Copia una imagen de referencia y documenta su descripción.   | Copia la imagen a `references/`, registra la descripción en `references/VISION_CONTEXT.md` y actualiza el contexto de agentes. |
-| `rapid deploy <target>`      | **Guía de Despliegue**. Genera instrucciones de despliegue basadas en templates locales.        | Crea `DEPLOY.md` a partir de `templates/deploy/<target>.md` (p. ej. `vercel`, `vps`) con backup previo. |
+| `rapid deploy <target>`      | **Guía de Despliegue**. Genera instrucciones de despliegue basadas en templates locales.        | Crea `DEPLOY.md` desde `templates/deploy/<target>.md` (template incluido: `aws`, o guía genérica fallback `Deploy to <target>`) con backup previo. |
 | `rapid validate`             | **Validación de Proyecto**. Revisa templates, estándares, config, herramientas y contexto.      | No escribe archivos. Sale con `0` si no hay errores y `1` si encuentra errores de validación.     |
 | `rapid doctor`               | **Diagnóstico Local**. Revisa rutas resueltas, templates, Node/npx opcional y proyecto actual.  | No escribe archivos. Usa advertencias para capacidades opcionales como Node/npx.                  |
 | `rapid inspect-context`      | **Inspección de Contexto**. Ensambla y previsualiza el contexto final antes de generar archivos. | No escribe archivos. Muestra secciones incluidas, herramientas seleccionadas y preview final.     |
@@ -548,12 +548,12 @@ GitHub Actions ejecuta la suite de `unittest` y estos smoke checks en cada `push
 
 Rapid OS no se despliega a sí mismo (es una CLI local), pero ayuda a documentar y estandarizar el despliegue de tus aplicaciones.
 
-Usa el comando `rapid deploy <target>` para generar `DEPLOY.md` con instrucciones y contexto de despliegue a partir de los templates incluidos en `templates/deploy/`:
+Usa el comando `rapid deploy <target>` para generar `DEPLOY.md` con instrucciones y contexto de despliegue:
 
-- Configuración y checklist de despliegue para el proveedor seleccionado.
-- Contexto operativo listo para que tu agente IA o tu equipo sigan el procedimiento.
+- Si existe `templates/deploy/<target>.md`, incluye el contenido del template bajo el encabezado `# DEPLOY <target>`.
+- Si el target indicado no cuenta con un template dedicado, `rapid deploy <target>` genera una guía genérica fallback (`Deploy to <target>`) que sirve como marcador inicial y no implica soporte específico del proveedor.
 
-Targets incluidos actualmente en `templates/deploy/`: `vercel`, `vps`.
+Target con template incluido actualmente: `aws`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

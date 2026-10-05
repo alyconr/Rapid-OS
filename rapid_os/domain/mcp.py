@@ -1,7 +1,7 @@
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Mapping, Sequence
 
 
 PLACEHOLDER_VALUES = (
@@ -41,13 +41,13 @@ def split_package_spec(spec: str) -> tuple[str, str | None]:
     return cleaned, None
 
 
-def extract_npx_package_spec(
+def _find_npx_package_arg_index(
     command: str,
-    args: tuple[str, ...],
-) -> tuple[str | None, str | None]:
-    """Extract `(package, version)` from an `npx` command argument tuple."""
+    args: Sequence[str],
+) -> int | None:
+    """Return the index of the package argument in an `npx` invocation, or None."""
     if (command or "").lower() not in {"npx", "npx.cmd", "npx.exe"}:
-        return None, None
+        return None
 
     idx = 0
     while idx < len(args):
@@ -56,16 +56,60 @@ def extract_npx_package_spec(
             idx += 1
             continue
         if token in {"-p", "--package"}:
-            if idx + 1 < len(args):
-                return split_package_spec(str(args[idx + 1]))
-            return None, None
+            return idx + 1 if idx + 1 < len(args) else None
         if token.startswith("--package="):
-            return split_package_spec(token.split("=", 1)[1])
+            return idx
         if token.startswith("-"):
             idx += 1
             continue
-        return split_package_spec(token)
-    return None, None
+        return idx
+    return None
+
+
+def extract_npx_package_spec(
+    command: str,
+    args: tuple[str, ...],
+) -> tuple[str | None, str | None]:
+    """Extract `(package, version)` from an `npx` command argument tuple."""
+    arg_idx = _find_npx_package_arg_index(command, args)
+    if arg_idx is None:
+        return None, None
+
+    token = str(args[arg_idx]).strip()
+    if token.startswith("--package="):
+        token = token.split("=", 1)[1]
+    pkg, ver = split_package_spec(token)
+    return (pkg or None), ver
+
+
+def _normalize_npx_package_arg(
+    command: str,
+    args: Sequence[str],
+    package: str,
+    version: str | None,
+) -> list[str] | None:
+    """Rewrite the executable package argument in `args` to match `(package, version)` if it refers to `package`."""
+    arg_idx = _find_npx_package_arg_index(command, args)
+    if arg_idx is None:
+        return None
+
+    normalized = [str(item) for item in args]
+    token = normalized[arg_idx].strip()
+    target_spec = format_package_spec(package, version)
+
+    if token.startswith("--package="):
+        raw_spec = token.split("=", 1)[1]
+        parsed_pkg, _ = split_package_spec(raw_spec)
+        if parsed_pkg != package:
+            return None
+        normalized[arg_idx] = f"--package={target_spec}"
+        return normalized
+
+    parsed_pkg, _ = split_package_spec(token)
+    if parsed_pkg != package:
+        return None
+    normalized[arg_idx] = target_spec
+    return normalized
 
 
 @dataclass(frozen=True)
@@ -86,11 +130,24 @@ class McpServer:
         return format_package_spec(self.package, self.version)
 
     @property
+    def runtime_package_spec(self) -> str | None:
+        runtime_pkg, runtime_ver = extract_npx_package_spec(self.command, self.args)
+        if not runtime_pkg:
+            return None
+        return format_package_spec(runtime_pkg, runtime_ver)
+
+    @property
     def is_version_pinned(self) -> bool:
-        if self.version and self.version.strip().lower() != "latest":
-            return True
-        _, parsed_version = extract_npx_package_spec(self.command, self.args)
-        return bool(parsed_version and parsed_version.strip().lower() != "latest")
+        runtime_pkg, runtime_ver = extract_npx_package_spec(self.command, self.args)
+        if runtime_pkg is not None:
+            if self.package and self.package != runtime_pkg:
+                return False
+            if self.version and self.version != runtime_ver:
+                return False
+            return bool(runtime_ver and runtime_ver.strip().lower() != "latest")
+        if self.package:
+            return False
+        return bool(self.version and self.version.strip().lower() != "latest")
 
 
 @dataclass(frozen=True)
@@ -140,8 +197,13 @@ def build_mcp_config(
     if "firecrawl" in selected_tools:
         servers.append(firecrawl_server())
 
+    seen_warning_keys = {(w.code, w.server_id) for w in warnings}
     for server in servers:
-        warnings.extend(detect_server_warnings(server))
+        for warning in detect_server_warnings(server):
+            key = (warning.code, warning.server_id)
+            if key not in seen_warning_keys:
+                warnings.append(warning)
+                seen_warning_keys.add(key)
 
     return McpConfig(tuple(servers), tuple(warnings))
 
@@ -302,14 +364,38 @@ def server_from_mapping(server_id, definition, source="mapping", path=None):
     )
     if package is None:
         package = inferred_pkg
-    if version is None:
-        version = inferred_ver
 
-    if package and version:
-        pinned_spec = format_package_spec(package, version)
-        normalized_args = [
-            pinned_spec if item == package else item for item in normalized_args
-        ]
+    if package is not None:
+        if inferred_pkg == package:
+            if version is not None:
+                rewritten = _normalize_npx_package_arg(
+                    str(command),
+                    normalized_args,
+                    package,
+                    version,
+                )
+                if rewritten is not None:
+                    normalized_args = rewritten
+            else:
+                version = inferred_ver
+        else:
+            warnings.append(
+                McpWarning(
+                    "MCP014",
+                    f"MCP server '{server_id}' declared package '{package}' does not match runtime package '{inferred_pkg or 'none'}'.",
+                    server_id=str(server_id),
+                    path=path,
+                )
+            )
+    elif version is not None:
+        warnings.append(
+            McpWarning(
+                "MCP014",
+                f"MCP server '{server_id}' declared version '{version}' without a matching runtime package.",
+                server_id=str(server_id),
+                path=path,
+            )
+        )
 
     known_keys = {"command", "args", "env", "package", "version"}
     extra = {key: value for key, value in definition.items() if key not in known_keys}
@@ -384,15 +470,27 @@ def detect_server_warnings(server: McpServer):
             )
         )
 
-    pkg, ver = server.package, server.version
-    if not pkg:
-        pkg, ver = extract_npx_package_spec(server.command, server.args)
+    runtime_pkg, runtime_ver = extract_npx_package_spec(server.command, server.args)
+    if (server.package and server.package != runtime_pkg) or (
+        server.version and server.version != runtime_ver
+    ):
+        declared = server.package_spec or server.package or server.version
+        runtime_spec = (
+            format_package_spec(runtime_pkg, runtime_ver) if runtime_pkg else "none"
+        )
+        warnings.append(
+            McpWarning(
+                "MCP014",
+                f"MCP server '{server.id}' declared metadata '{declared}' does not match runtime package '{runtime_spec}'.",
+                server_id=server.id,
+            )
+        )
 
-    if pkg and (not ver or ver.strip().lower() == "latest"):
+    if runtime_pkg and (not runtime_ver or runtime_ver.strip().lower() == "latest"):
         warnings.append(
             McpWarning(
                 "MCP012",
-                f"MCP server '{server.id}' uses unpinned npx package '{pkg}'; pin a version for reproducible execution.",
+                f"MCP server '{server.id}' uses unpinned npx package '{runtime_pkg}'; pin a version for reproducible execution.",
                 server_id=server.id,
             )
         )
