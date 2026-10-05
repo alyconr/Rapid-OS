@@ -14,6 +14,7 @@ from rapid_os.core.config import (
     inspect_project_config_file,
 )
 from rapid_os.core.context import STANDARDS_PRIORITY, compose_project_context
+from rapid_os.domain.project import PROJECT_MODEL_SCHEMA_VERSION, ProjectModel
 
 
 INFO = "info"
@@ -205,11 +206,106 @@ def validate_project(
     config_report = validate_project_config(config_file, registry)
     compatibility_report = validate_stack_topology(project_rapid_dir)
     context_report = validate_composed_context(project_rapid_dir, current_dir)
+    intelligence_report = validate_project_intelligence(project_rapid_dir, current_dir)
     return template_report.merge(
         standards_report,
         config_report,
         compatibility_report,
         context_report,
+        intelligence_report,
+    )
+
+
+def validate_project_intelligence(
+    project_rapid_dir: Path,
+    current_dir: Path | None = None,
+) -> ValidationReport:
+    """Validate optional `.rapid-os/project.json` snapshot when present using RAPID6xx codes."""
+    snapshot_file = Path(project_rapid_dir) / "project.json"
+    if not snapshot_file.exists():
+        return ValidationReport(())
+
+    try:
+        raw_content = snapshot_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID602",
+                    f"Project intelligence snapshot could not be read: {exc}",
+                    snapshot_file,
+                ),
+            )
+        )
+
+    try:
+        payload = json.loads(raw_content)
+    except json.JSONDecodeError as exc:
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID601",
+                    f"Project intelligence snapshot is invalid JSON: {exc.msg}",
+                    snapshot_file,
+                ),
+            )
+        )
+
+    if not isinstance(payload, dict):
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID604",
+                    "Project intelligence snapshot must be a JSON object.",
+                    snapshot_file,
+                ),
+            )
+        )
+
+    schema_version = payload.get("schema_version")
+    if (
+        isinstance(schema_version, bool)
+        or not isinstance(schema_version, int)
+        or schema_version != PROJECT_MODEL_SCHEMA_VERSION
+    ):
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID603",
+                    f"Unsupported project intelligence schema_version '{schema_version}': expected {PROJECT_MODEL_SCHEMA_VERSION}.",
+                    snapshot_file,
+                ),
+            )
+        )
+
+    try:
+        root = Path(current_dir) if current_dir is not None else Path(project_rapid_dir).parent
+        model = ProjectModel.from_dict(payload, root=root)
+    except ValueError as exc:
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID604",
+                    f"Project intelligence snapshot schema is invalid: {exc}",
+                    snapshot_file,
+                ),
+            )
+        )
+
+    return ValidationReport(
+        (
+            Diagnostic(
+                INFO,
+                "RAPID600",
+                f"Project intelligence snapshot valid ({len(model.facts)} fact(s)).",
+                snapshot_file,
+            ),
+        )
     )
 
 
