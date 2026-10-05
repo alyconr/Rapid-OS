@@ -1,0 +1,11 @@
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+
+# Rapid OS local backups
+*.bak

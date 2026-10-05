@@ -29,6 +29,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Verify bytecode compilation
+        run: python -m compileall -q rapid.py rapid_os tests
+
       - name: Run unit tests
         run: python -m unittest discover
 
@@ -36,3 +39,4 @@ jobs:
         run: |
           python rapid.py --help
           python rapid.py guide
+          python rapid.py doctor
