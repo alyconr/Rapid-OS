@@ -7,8 +7,16 @@ from pathlib import Path
 
 from rapid_os.adapters.agents import AgentRegistry
 from rapid_os.adapters.agents.base import AgentAdapter, AgentOutput
+from rapid_os.adapters.context_sources import ContextSourceLoadError
 from rapid_os.adapters.project_snapshot import write_project_snapshot
 from rapid_os.cli.main import render_validation_report
+from rapid_os.domain.context import (
+    ContextPolicy,
+    ContextPriority,
+    ContextRequest,
+    ContextSource,
+    ContextSourceKind,
+)
 from rapid_os.domain.scanner import build_project_model
 from rapid_os.domain.validation import (
     Diagnostic,
@@ -19,6 +27,7 @@ from rapid_os.domain.validation import (
     detect_placeholders,
     inspect_project_context,
     validate_composed_context,
+    validate_context_compilation,
     validate_project_config,
     validate_project_intelligence,
     validate_stack_topology,
@@ -332,6 +341,90 @@ class ValidationTests(unittest.TestCase):
                 [d.code for d in report.diagnostics],
                 ["RAPID604"],
             )
+
+    def test_context_compilation_diagnostics_cover_rapid700_through_rapid705(self):
+        # RAPID700: Clean compilation
+        security_src = ContextSource(
+            id="standard.security",
+            kind=ContextSourceKind.SECURITY,
+            content="No shell=True.",
+            priority=ContextPriority.CRITICAL,
+            required=True,
+        )
+        ok_report = validate_context_compilation(
+            request=ContextRequest(mode="general"),
+            sources=(security_src,),
+        )
+        self.assertFalse(ok_report.has_errors)
+        self.assertEqual([d.code for d in ok_report.diagnostics], ["RAPID700"])
+
+        # RAPID701: Required context source missing
+        strict_policy = ContextPolicy(required_kinds=(ContextSourceKind.SECURITY,))
+        missing_report = validate_context_compilation(
+            request=ContextRequest(mode="hardening"),
+            sources=(),
+            policy=strict_policy,
+        )
+        self.assertTrue(missing_report.has_errors)
+        self.assertIn("RAPID701", [d.code for d in missing_report.diagnostics])
+
+        # RAPID702: Context budget exceeded by required sources
+        big_req_src = ContextSource(
+            id="standard.security",
+            kind=ContextSourceKind.SECURITY,
+            content="X" * 500,
+            priority=ContextPriority.CRITICAL,
+            required=True,
+        )
+        budget_report = validate_context_compilation(
+            request=ContextRequest(mode="general", max_chars=200),
+            sources=(big_req_src,),
+        )
+        self.assertTrue(budget_report.has_errors)
+        self.assertEqual([d.code for d in budget_report.diagnostics], ["RAPID702"])
+
+        # RAPID703: Context conflict detected
+        biz_src = ContextSource(
+            id="standard.business",
+            kind=ContextSourceKind.BUSINESS,
+            content="Database: MySQL",
+            priority=ContextPriority.HIGH,
+        )
+        stack_src = ContextSource(
+            id="standard.tech-stack",
+            kind=ContextSourceKind.TECH_STACK,
+            content="Database: PostgreSQL",
+            priority=ContextPriority.HIGH,
+            required=True,
+        )
+        conflict_report = validate_context_compilation(
+            request=ContextRequest(mode="feature"),
+            sources=(biz_src, stack_src),
+        )
+        self.assertTrue(conflict_report.has_warnings)
+        self.assertIn("RAPID703", [d.code for d in conflict_report.diagnostics])
+
+        # RAPID704: Context source unreadable
+        load_err = ContextSourceLoadError(
+            source_id="standard.security",
+            path=".rapid-os/standards/security.md",
+            message="Permission denied",
+        )
+        unreadable_report = validate_context_compilation(
+            request=ContextRequest(mode="general"),
+            sources=(),
+            load_errors=(load_err,),
+        )
+        self.assertTrue(unreadable_report.has_errors)
+        self.assertIn("RAPID704", [d.code for d in unreadable_report.diagnostics])
+
+        # RAPID705: Invalid ContextRequest
+        invalid_req_report = validate_context_compilation(
+            request={"mode": "nonexistent_mode", "max_chars": -1},
+            sources=(),
+        )
+        self.assertTrue(invalid_req_report.has_errors)
+        self.assertEqual([d.code for d in invalid_req_report.diagnostics], ["RAPID705"])
 
 
 if __name__ == "__main__":

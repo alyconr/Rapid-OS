@@ -37,6 +37,7 @@ class CliSmokeTests(unittest.TestCase):
                 "refine",
                 "prompt",
                 "scan",
+                "context",
                 "validate",
                 "doctor",
                 "inspect-context",
@@ -638,6 +639,80 @@ class CliProjectIntelligenceScanTests(unittest.TestCase):
 
             self.assertEqual(stdout_text, file_text)
             self.assertEqual(json.loads(stdout_text)["schema_version"], 1)
+
+    def test_context_command_default_json_manifest_mode_and_harness(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            project = Path(temp_dir) / "project"
+            standards = project / ".rapid-os" / "standards"
+            standards.mkdir(parents=True)
+            (project / "pyproject.toml").write_text(
+                'dependencies = ["fastapi", "pytest"]', encoding="utf-8"
+            )
+            (standards / "security.md").write_text(
+                "# Security\nValidate all inputs.", encoding="utf-8"
+            )
+            (standards / "tech-stack.md").write_text(
+                "# Tech Stack\nPython 3.12 + FastAPI", encoding="utf-8"
+            )
+            (project / "SPECS.md").write_text(
+                "# Specs\nImplement order endpoint.", encoding="utf-8"
+            )
+
+            files_before = sorted(p.relative_to(project).as_posix() for p in project.rglob("*"))
+
+            # 1. Default output (`rapid context`)
+            out_default = io.StringIO()
+            args_default = create_parser().parse_args(["context"])
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), contextlib.redirect_stdout(out_default):
+                code_default = cli_main.context_command(args_default)
+
+            self.assertEqual(code_default, 0)
+            self.assertIn("# Rapid OS Compiled Context", out_default.getvalue())
+            self.assertIn("Validate all inputs.", out_default.getvalue())
+
+            # 2. JSON output (`rapid context --json`)
+            out_json = io.StringIO()
+            args_json = create_parser().parse_args(
+                ["context", "--mode", "bugfix", "--harness", "codex", "--json"]
+            )
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), contextlib.redirect_stdout(out_json):
+                code_json = cli_main.context_command(args_json)
+
+            self.assertEqual(code_json, 0)
+            payload = json.loads(out_json.getvalue())
+            self.assertEqual(payload["schema_version"], 1)
+            self.assertEqual(payload["manifest"]["mode"], "bugfix")
+            self.assertEqual(payload["manifest"]["harness"], "codex")
+            self.assertIn("# Rapid OS Compiled Context", payload["content"])
+
+            # 3. Manifest output (`rapid context --manifest`)
+            out_manifest = io.StringIO()
+            args_manifest = create_parser().parse_args(
+                ["context", "compile", "--mode", "feature", "--harness", "codex", "--manifest"]
+            )
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), contextlib.redirect_stdout(out_manifest):
+                code_manifest = cli_main.context_command(args_manifest)
+
+            self.assertEqual(code_manifest, 0)
+            manifest_text = out_manifest.getvalue()
+            self.assertIn("Rapid OS Context Manifest", manifest_text)
+            self.assertIn("Mode: feature", manifest_text)
+            self.assertIn("Harness: codex", manifest_text)
+            self.assertIn("SELECTED", manifest_text)
+            self.assertIn("standard.security", manifest_text)
+            self.assertIn("SKIPPED", manifest_text)
+            self.assertIn("CONFLICTS", manifest_text)
+
+            # Read-only guarantee: no files created or modified
+            files_after = sorted(p.relative_to(project).as_posix() for p in project.rglob("*"))
+            self.assertEqual(files_before, files_after)
 
 
 if __name__ == "__main__":
