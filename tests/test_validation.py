@@ -7,7 +7,9 @@ from pathlib import Path
 
 from rapid_os.adapters.agents import AgentRegistry
 from rapid_os.adapters.agents.base import AgentAdapter, AgentOutput
+from rapid_os.adapters.project_snapshot import write_project_snapshot
 from rapid_os.cli.main import render_validation_report
+from rapid_os.domain.scanner import build_project_model
 from rapid_os.domain.validation import (
     Diagnostic,
     ERROR,
@@ -18,6 +20,7 @@ from rapid_os.domain.validation import (
     inspect_project_context,
     validate_composed_context,
     validate_project_config,
+    validate_project_intelligence,
     validate_stack_topology,
     validate_templates,
 )
@@ -247,6 +250,90 @@ class ValidationTests(unittest.TestCase):
                 [diagnostic.code for diagnostic in report.diagnostics],
             )
 
+    def test_valid_project_intelligence_snapshot_produces_rapid600(self):
+        with workspace_tempdir() as tmp:
+            project = Path(tmp) / "project"
+            project.mkdir()
+            (project / "pyproject.toml").write_text(
+                'dependencies = ["fastapi"]', encoding="utf-8"
+            )
+            model = build_project_model(project)
+            write_project_snapshot(model, project / ".rapid-os")
+
+            report = validate_project_intelligence(project / ".rapid-os", project)
+
+            self.assertFalse(report.has_errors)
+            self.assertEqual(
+                [d.code for d in report.diagnostics],
+                ["RAPID600"],
+            )
+
+    def test_corrupt_project_intelligence_snapshot_produces_rapid601(self):
+        with workspace_tempdir() as tmp:
+            project = Path(tmp) / "project"
+            snapshot = project / ".rapid-os" / "project.json"
+            snapshot.parent.mkdir(parents=True)
+            snapshot.write_text("{corrupt", encoding="utf-8")
+
+            report = validate_project_intelligence(project / ".rapid-os", project)
+
+            self.assertTrue(report.has_errors)
+            self.assertEqual(
+                [d.code for d in report.diagnostics],
+                ["RAPID601"],
+            )
+
+    def test_unsupported_schema_version_in_project_snapshot_produces_rapid603(self):
+        with workspace_tempdir() as tmp:
+            project = Path(tmp) / "project"
+            snapshot = project / ".rapid-os" / "project.json"
+            snapshot.parent.mkdir(parents=True)
+            snapshot.write_text(
+                json.dumps({"schema_version": 999, "root": ".", "facts": []}),
+                encoding="utf-8",
+            )
+
+            report = validate_project_intelligence(project / ".rapid-os", project)
+
+            self.assertTrue(report.has_errors)
+            self.assertEqual(
+                [d.code for d in report.diagnostics],
+                ["RAPID603"],
+            )
+
+    def test_invalid_fact_in_project_snapshot_produces_rapid604(self):
+        with workspace_tempdir() as tmp:
+            project = Path(tmp) / "project"
+            snapshot = project / ".rapid-os" / "project.json"
+            snapshot.parent.mkdir(parents=True)
+            snapshot.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "root": ".",
+                        "facts": [
+                            {
+                                "category": "framework",
+                                "value": "fastapi",
+                                "confidence": "high",
+                                "detector": "framework.fastapi",
+                                "evidence": [],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            report = validate_project_intelligence(project / ".rapid-os", project)
+
+            self.assertTrue(report.has_errors)
+            self.assertEqual(
+                [d.code for d in report.diagnostics],
+                ["RAPID604"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
+

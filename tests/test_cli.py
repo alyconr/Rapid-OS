@@ -36,6 +36,7 @@ class CliSmokeTests(unittest.TestCase):
                 "mcp",
                 "refine",
                 "prompt",
+                "scan",
                 "validate",
                 "doctor",
                 "inspect-context",
@@ -531,5 +532,114 @@ class CliArchetypeAndHardeningTests(unittest.TestCase):
             )
 
 
+class CliProjectIntelligenceScanTests(unittest.TestCase):
+    def test_scan_default_renders_human_summary_and_is_read_only(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            project = Path(temp_dir) / "project"
+            project.mkdir()
+            (project / "pyproject.toml").write_text(
+                'dependencies = ["fastapi"]', encoding="utf-8"
+            )
+            (project / "pytest.ini").write_text("[pytest]", encoding="utf-8")
+
+            output = io.StringIO()
+            args = Namespace(json=False, write=False, verbose=False)
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), contextlib.redirect_stdout(output):
+                exit_code = cli_main.scan_command(args)
+
+            self.assertEqual(exit_code, 0)
+            rendered = output.getvalue()
+            self.assertIn("Rapid OS Project Intelligence", rendered)
+            self.assertIn("python", rendered)
+            self.assertIn("fastapi", rendered)
+            self.assertIn("pytest", rendered)
+            self.assertFalse((project / ".rapid-os" / "project.json").exists())
+
+    def test_scan_json_emits_pure_valid_json_without_writing_file(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            project = Path(temp_dir) / "project"
+            project.mkdir()
+            (project / "pyproject.toml").write_text(
+                'dependencies = ["fastapi"]', encoding="utf-8"
+            )
+
+            output = io.StringIO()
+            args = Namespace(json=True, write=False, verbose=False)
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), contextlib.redirect_stdout(output):
+                exit_code = cli_main.scan_command(args)
+
+            self.assertEqual(exit_code, 0)
+            raw_stdout = output.getvalue()
+            payload = json.loads(raw_stdout)
+            self.assertEqual(payload["schema_version"], 1)
+            self.assertNotIn("root", payload)
+            self.assertTrue(
+                any(
+                    fact["category"] == "framework" and fact["value"] == "fastapi"
+                    for fact in payload["facts"]
+                )
+            )
+            self.assertFalse((project / ".rapid-os" / "project.json").exists())
+
+    def test_scan_write_persists_snapshot_and_creates_backup_on_overwrite(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            project = Path(temp_dir) / "project"
+            project.mkdir()
+            (project / "pyproject.toml").write_text(
+                'dependencies = ["fastapi"]', encoding="utf-8"
+            )
+
+            args = Namespace(json=False, write=True, verbose=False)
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), contextlib.redirect_stdout(io.StringIO()):
+                first_code = cli_main.scan_command(args)
+
+            snapshot_file = project / ".rapid-os" / "project.json"
+            self.assertEqual(first_code, 0)
+            self.assertTrue(snapshot_file.exists())
+            saved = json.loads(snapshot_file.read_text(encoding="utf-8"))
+            self.assertEqual(saved["schema_version"], 1)
+
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), contextlib.redirect_stdout(io.StringIO()):
+                second_code = cli_main.scan_command(args)
+
+            self.assertEqual(second_code, 0)
+            self.assertTrue(list((project / ".rapid-os").glob("project.json.*.bak")))
+
+    def test_scan_json_and_write_outputs_pure_json_and_writes_identical_snapshot(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            project = Path(temp_dir) / "project"
+            project.mkdir()
+            (project / "Dockerfile").write_text("FROM python:3.12", encoding="utf-8")
+
+            output = io.StringIO()
+            args = Namespace(json=True, write=True, verbose=False)
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), contextlib.redirect_stdout(output):
+                exit_code = cli_main.scan_command(args)
+
+            self.assertEqual(exit_code, 0)
+            stdout_text = output.getvalue()
+            snapshot_file = project / ".rapid-os" / "project.json"
+            self.assertTrue(snapshot_file.exists())
+            file_text = snapshot_file.read_text(encoding="utf-8")
+
+            self.assertEqual(stdout_text, file_text)
+            self.assertEqual(json.loads(stdout_text)["schema_version"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
+
