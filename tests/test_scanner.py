@@ -8,7 +8,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 from rapid_os.cli import main as cli_main
-from rapid_os.domain.scanner import read_env_keys, scan_project, suggest_init_choices
+from rapid_os.domain.project import Confidence
+from rapid_os.domain.scanner import (
+    build_project_model,
+    read_env_keys,
+    scan_project,
+    suggest_init_choices,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -252,6 +258,102 @@ class ScannerTests(unittest.TestCase):
             self.assertNotIn(secret_postgres, combined_dump)
             self.assertNotIn(secret_supabase, combined_dump)
             self.assertNotIn(secret_decoy, combined_dump)
+
+    def test_consecutive_scans_produce_identical_project_model_and_json(self):
+        with workspace_tempdir() as tmp:
+            project = Path(tmp) / "project"
+            project.mkdir()
+            (project / "Dockerfile").write_text("FROM python:3.12", encoding="utf-8")
+            (project / "pytest.ini").write_text("[pytest]", encoding="utf-8")
+            write_json(
+                project / "package.json",
+                {"dependencies": {"next": "^14.0.0", "pg": "^8.0.0"}},
+            )
+            (project / "requirements.txt").write_text(
+                "fastapi>=0.110.0\npsycopg[binary]\n", encoding="utf-8"
+            )
+
+            first = build_project_model(project)
+            second = build_project_model(project)
+
+            self.assertEqual(first, second)
+            self.assertEqual(first.to_dict(), second.to_dict())
+            self.assertEqual(first.to_json(), second.to_json())
+
+    def test_consolidates_same_fact_across_package_json_env_and_requirements(self):
+        with workspace_tempdir() as tmp:
+            project = Path(tmp) / "project"
+            project.mkdir()
+            write_json(
+                project / "package.json",
+                {"dependencies": {"pg": "^8.11.0"}},
+            )
+            (project / "requirements.txt").write_text(
+                "psycopg2-binary==2.9.9\n", encoding="utf-8"
+            )
+            (project / ".env").write_text(
+                "DATABASE_URL=postgresql://localhost:5432/app\n", encoding="utf-8"
+            )
+
+            model = build_project_model(project)
+            db_facts = model.facts_for("database")
+
+            self.assertEqual(len(db_facts), 1)
+            postgres_fact = db_facts[0]
+            self.assertEqual(postgres_fact.value, "postgres")
+            self.assertEqual(postgres_fact.confidence, Confidence.MEDIUM)
+            self.assertEqual(postgres_fact.detector, "database.postgres")
+            self.assertEqual(
+                [ev.portable_path() for ev in postgres_fact.evidence],
+                [".env", "package.json", "requirements.txt"],
+            )
+            self.assertEqual(
+                [ev.detector for ev in postgres_fact.evidence],
+                ["database.postgres", "database.postgres", "database.postgres"],
+            )
+
+    def test_secret_decoy_value_never_appears_in_serialized_project_model(self):
+        with workspace_tempdir() as tmp:
+            project = Path(tmp) / "project"
+            project.mkdir()
+            (project / ".env").write_text(
+                "DATABASE_URL=postgresql://admin:SUPER_SECRET_VALUE_12345@localhost/db\n",
+                encoding="utf-8",
+            )
+
+            model = build_project_model(project)
+
+            self.assertTrue(model.has("database"))
+            self.assertTrue(model.has("database", "postgres"))
+            self.assertNotIn("SUPER_SECRET_VALUE_12345", json.dumps(model.to_dict()))
+            self.assertNotIn("SUPER_SECRET_VALUE_12345", model.to_json())
+
+    def test_project_scan_facade_wraps_project_model_without_duplicate_state(self):
+        with workspace_tempdir() as tmp:
+            project = Path(tmp) / "project"
+            project.mkdir()
+            (project / "pyproject.toml").write_text(
+                'dependencies = ["fastapi"]', encoding="utf-8"
+            )
+
+            scan = scan_project(project)
+            model = scan.to_model()
+
+            self.assertIs(model, scan.model)
+            self.assertEqual(scan.facts, model.facts)
+            self.assertEqual(scan.detections, model.facts)
+            self.assertEqual(scan.values("framework"), model.values("framework"))
+            self.assertTrue(scan.has("framework"))
+            self.assertTrue(scan.has("framework", "fastapi"))
+            self.assertFalse(scan.has("framework", "nextjs"))
+            self.assertFalse(scan.has("database"))
+            for fact in model.facts:
+                for ev in fact.evidence:
+                    self.assertEqual(ev.detector, fact.detector)
+            self.assertEqual(
+                suggest_init_choices(scan).to_dict(),
+                suggest_init_choices(model).to_dict(),
+            )
 
 
 class ScannerInitIntegrationTests(unittest.TestCase):

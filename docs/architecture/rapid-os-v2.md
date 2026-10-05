@@ -30,7 +30,9 @@ Rapid OS v2 is the current completed architecture baseline. It keeps the existin
 - `rapid_os.domain.agents` is now a compatibility facade for the existing generation helpers.
 - `rapid_os.domain.scope` renders and writes structured spec-driven development artifacts for `rapid scope`.
 - `rapid_os.domain.validation` returns pure diagnostics for templates, project standards, config/tool references, stack/topology consistency, and composed context inspection.
-- `rapid_os.domain.scanner` detects project characteristics and returns reviewable init suggestions without printing, prompting, writing files, or mutating project choices, and inspects `.env` / `.env.*` variable names via `read_env_keys()` without reading secret values.
+- `rapid_os.domain.project` defines the canonical v3 Phase 1 Project Intelligence Model (`Confidence`, `SourceType`, `Evidence`, `ProjectFact`, `ProjectModel`, and `normalize_facts`). See [rapid-os-v3.md](rapid-os-v3.md) for the v3 architecture.
+- `rapid_os.domain.scanner` detects project characteristics (`build_project_model`, `scan_project`), keeps `ProjectScan` as a zero-duplicate-state compatibility facade over `ProjectModel`, returns reviewable init suggestions without printing, prompting, writing files, or mutating project choices, and inspects `.env` / `.env.*` variable names via `read_env_keys()` without reading secret values.
+- `rapid_os.adapters.project_snapshot` persists and reads optional `.rapid-os/project.json` snapshots via `safe_write_text(..., backup=True)` when explicitly requested (`rapid scan --write`).
 - `rapid_os.domain.mcp` models MCP servers (including `package` and `version`), generation plans, and non-blocking warnings independently from output formats.
 - `rapid_os.adapters.mcp` renders MCP models into concrete output formats, currently the existing Claude Desktop JSON shape and editor-specific MCP destinations.
 - `rapid_os.adapters.agents` owns the agent adapter contract, default registry, and implementations for Cursor, Claude, Antigravity, VS Code, and Codex.

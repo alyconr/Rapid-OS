@@ -61,14 +61,14 @@ Rapid OS v2 is complete. The repository now has the v2 architecture, CLI compati
 
 Future work is tracked as post-v2 enhancement work. The v2 baseline keeps the existing command behavior and generated file locations stable.
 
-| Workstream | Status | Included in v2 |
+| Workstream | Status | Included in v2 / v3 Phase 1 |
 | :-- | :-- | :-- |
 | Core package refactor | Complete | `rapid_os.cli`, `rapid_os.core`, and domain modules with `rapid.py` compatibility. |
 | Agent adapter architecture | Complete | Cursor, Claude, Antigravity, VS Code, and Codex adapters behind a registry. |
 | First-class Codex support | Complete | Opt-in `AGENTS.md` generation through the adapter system. |
 | Structured scope generation | Complete | `SPECS.md`, `TASKS.md`, and `ACCEPTANCE.md` from `rapid scope`. |
-| Validation and diagnostics | Complete | `rapid validate`, `rapid doctor`, and `rapid inspect-context`. |
-| Project scanner | Complete | Safe local scanning and reviewable init suggestions. |
+| Validation and diagnostics | Complete | `rapid validate`, `rapid doctor`, and `rapid inspect-context` (including `RAPID6xx` snapshot checks). |
+| Project Intelligence (v3 Phase 1) | Complete | Deterministic `ProjectModel`, `ProjectFact`, `Evidence` provenance, `rapid scan` (`--json`, `--write`, `--verbose`), and optional `.rapid-os/project.json` snapshot. |
 | MCP abstraction | Complete | Structured MCP model with editor-specific rendering and package metadata. |
 | Testing and CI hardening | Complete | GitHub Actions plus `python -m unittest discover` and CLI smoke checks. |
 
@@ -431,6 +431,7 @@ Tabla completa de comandos disponibles en Rapid OS y sus resultados.
 | Comando                      | Descripción                                                                                     | Resultado / Output                                                                                |
 | :--------------------------- | :---------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------ |
 | `rapid init`                 | **Inicializa Rapid OS**. Escanea señales locales y sugiere stack/topología con confirmación.   | Crea `.cursorrules`, `.agent/rules`, `.rapid-os/` y puede crear docs opcionales con backups. Soporta `--no-scan`, `--stack` y `--archetype {mvp,corporate}`. |
+| `rapid scan`                 | **Project Intelligence**. Escanea el repositorio y construye el `ProjectModel` determinista con evidencia trazable. | Read-only por defecto. Soporta `--verbose` (muestra evidencia), `--json` (JSON puro en stdout) y `--write` (persiste `.rapid-os/project.json` con backup). |
 | `rapid scope`                | **Asistente de Alcance**. Te entrevista para definir una feature, refactor, bugfix o hardening. | Genera `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` con backups antes de sobrescribir.                |
 | `rapid refine <file>`        | **Refinamiento de Reglas**. Mejora cualquier documento de reglas usando IA.                     | Genera un Mega-Prompt para que pegues en tu chat y la IA reescriba el archivo profesionalmente.   |
 | `rapid skill [action] [name]` | **Instala o lista Skills** desde menú interactivo, registro comunitario o template privado.     | Sin argumentos abre menú; con `add`/`install` conserva el flujo directo existente.                 |
@@ -443,6 +444,23 @@ Tabla completa de comandos disponibles en Rapid OS y sus resultados.
 
 ---
 
+### Project Intelligence (`rapid scan`)
+
+Puedes inspeccionar qué hechos detecta Rapid OS sobre tu repositorio (lenguajes, frameworks, gestores de paquetes, Docker, testing, monorepo, bases de datos y proveedores de deploy) sin modificar ningún archivo:
+
+```bash
+rapid scan
+rapid scan --verbose
+rapid scan --json
+```
+
+Si deseas persistir un snapshot determinista y trazable del `ProjectModel` (`schema_version: 1`) en `.rapid-os/project.json`:
+
+```bash
+rapid scan --write
+rapid scan --json --write
+```
+
 ### Validación y Diagnósticos
 
 Antes de regenerar contexto o usar Rapid OS en CI, puedes validar el estado del proyecto:
@@ -453,7 +471,7 @@ rapid validate --json
 rapid validate --strict
 ```
 
-`rapid validate` falla con código `1` cuando hay errores, como `tech-stack.md` o `topology.md` faltantes, JSON inválido en `.rapid-os/config.json` o templates MCP, herramientas desconocidas en `.rapid-os/config.json`, combinaciones stack/topología incompatibles o contexto ensamblado vacío. Con `--strict`, las advertencias también devuelven `1`.
+`rapid validate` falla con código `1` cuando hay errores, como `tech-stack.md` o `topology.md` faltantes, JSON inválido en `.rapid-os/config.json`, `.rapid-os/project.json` o templates MCP, herramientas desconocidas en `.rapid-os/config.json`, combinaciones stack/topología incompatibles o contexto ensamblado vacío. Con `--strict`, las advertencias también devuelven `1`.
 
 Para revisar la instalación local sin modificar nada:
 
@@ -462,7 +480,7 @@ rapid doctor
 rapid doctor --json
 ```
 
-`rapid doctor` reporta rutas resueltas, directorio de templates activo, estado del proyecto actual y disponibilidad opcional de Node/npx.
+`rapid doctor` reporta rutas resueltas, directorio de templates activo, estado del proyecto actual (incluyendo `.rapid-os/project.json` si existe) y disponibilidad opcional de Node/npx.
 
 Para ver el contexto final antes de escribir archivos de agente:
 
@@ -571,7 +589,7 @@ Rapid OS v2 is complete. These items are optional post-v2 improvements and are n
 - [ ] **Soporte para JetBrains**: Integración con IntelliJ/PyCharm AI Assistant.
 - [ ] **Configuración avanzada de Codex**: Soporte para `AGENTS.override.md`, configuración global o instrucciones anidadas si el flujo lo requiere.
 - [ ] **Previews por agente**: Vistas previas específicas por adaptador para inspección seca antes de escribir archivos.
-- [ ] **Scanner independiente**: Comando dedicado para inspeccionar señales del proyecto sin ejecutar `rapid init`.
+- [x] **Scanner independiente**: Comando dedicado (`rapid scan`) para inspeccionar hechos e inteligencia del proyecto sin ejecutar `rapid init`.
 - [ ] **Scope no interactivo**: Flags o plantillas más ricas para equipos que quieran automatizar `rapid scope`.
 - [ ] **Diagnósticos enriquecidos**: Categorías machine-readable más detalladas para integraciones futuras.
 - [ ] **Renderers MCP adicionales**: Nuevos destinos además de los editores soportados actualmente.
