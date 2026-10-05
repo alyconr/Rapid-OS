@@ -6,32 +6,44 @@
 
 ### Context Injection for AI Engineering
 
-Convierte a tus Agentes (Cursor, Claude, Antigravity) en Ingenieros Senior instantáneamente.
+Convierte a tus Agentes (Cursor, Claude, Antigravity, VS Code y Codex) en Ingenieros Senior instantáneamente.
 
 </div>
 
-## Table of Contents
-
-- [📖 About the Project](#about-the-project)
-- [🧩 How it Works](#how-it-works)
-- [⚒️ Build With](#build-with)
-  - [Tech Stack](#tech-stack)
-  - [Key Features](#key-features)
-- [🚀 Live Demo](#live-demo)
-- [💻 Getting Started](#getting-started)
-  - [Setup](#setup)
-  - [Prerequisites](#prerequisites)
-  - [Install](#install)
-- [Usage](#usage)
-- [Run tests](#run-tests)
-- [Deployment](#deployment)
-- [👥 Authors](#authors)
-- [🕹️ Future Features](#future-features)
-- [🤝 Contributing](#contributing)
-- [⭐ Show your Support](#show-your-support)
-- [👏 Acknowledgements](#acknowledgements)
-- [❓ FAQ](#faq)
-- [📃 License](#license)
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li><a href="#about-the-project">📖 About the Project</a></li>
+    <li><a href="#rapid-os-v2-status">Rapid OS v2 Status</a></li>
+    <li><a href="#how-it-works">🧩 How it Works</a></li>
+    <li>
+      <a href="#build-with">⚒️ Build With</a>
+      <ul>
+        <li><a href="#tech-stack">Tech Stack</a></li>
+        <li><a href="#key-features">Key Features</a></li>
+      </ul>
+    </li>
+    <li>
+      <a href="#getting-started">💻 Getting Started</a>
+      <ul>
+        <li><a href="#setup">Setup</a></li>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#install">Install</a></li>
+        <li><a href="#update">Update</a></li>
+      </ul>
+    </li>
+    <li><a href="#usage">Usage</a></li>
+    <li><a href="#run-tests">Run tests</a></li>
+    <li><a href="#deployment">Deployment</a></li>
+    <li><a href="#authors">👥 Authors</a></li>
+    <li><a href="#future-features">Future v2.1+ Enhancements</a></li>
+    <li><a href="#contributing">🤝 Contributing</a></li>
+    <li><a href="#show-your-support">⭐ Show your Support</a></li>
+    <li><a href="#acknowledgements">👏 Acknowledgements</a></li>
+    <li><a href="#faq">❓ FAQ</a></li>
+    <li><a href="#license">📃 License</a></li>
+  </ol>
+</details>
 
 ---
 
@@ -40,6 +52,25 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity) en Ingenieros Senior insta
 **Rapid OS** es un framework de "Inyección de Contexto" diseñado para resolver el problema de la **"Amnesia de Contexto"** en los LLMs.
 
 Cuando trabajas con asistentes de IA como Cursor, Claude o Copilot, a menudo olvidan tus reglas de negocio, tu stack tecnológico o tus protocolos de seguridad. Rapid OS soluciona esto inyectando una **"Constitución de Proyecto"** estandarizada que la IA debe obedecer antes de escribir una sola línea de código.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Rapid OS v2 Status <a name="rapid-os-v2-status"></a>
+
+Rapid OS v2 is complete. The repository now has the v2 architecture, CLI compatibility layer, agent adapter boundary, Codex support, structured scope artifacts, validation and diagnostics, project scanner, MCP abstraction, and automated test workflow in place.
+
+Future work is tracked as post-v2 enhancement work. The v2 baseline keeps the existing command behavior and generated file locations stable.
+
+| Workstream | Status | Included in v2 / v3 Phase 1 |
+| :-- | :-- | :-- |
+| Core package refactor | Complete | `rapid_os.cli`, `rapid_os.core`, and domain modules with `rapid.py` compatibility. |
+| Agent adapter architecture | Complete | Cursor, Claude, Antigravity, VS Code, and Codex adapters behind a registry. |
+| First-class Codex support | Complete | Opt-in `AGENTS.md` generation through the adapter system. |
+| Structured scope generation | Complete | `SPECS.md`, `TASKS.md`, and `ACCEPTANCE.md` from `rapid scope`. |
+| Validation and diagnostics | Complete | `rapid validate`, `rapid doctor`, and `rapid inspect-context` (including `RAPID6xx` snapshot checks). |
+| Project Intelligence (v3 Phase 1) | Complete | Deterministic `ProjectModel`, `ProjectFact`, `Evidence` provenance, `rapid scan` (`--json`, `--write`, `--verbose`), and optional `.rapid-os/project.json` snapshot. |
+| MCP abstraction | Complete | Structured MCP model with editor-specific rendering and package metadata. |
+| Testing and CI hardening | Complete | GitHub Actions plus `python -m unittest discover` and CLI smoke checks. |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -64,9 +95,9 @@ graph TD
     %% Subgrafo: Rapid OS (El Director Técnico)
     subgraph "🛠️ FASE 1: Preparación del Contexto (Rapid OS CLI)"
         RapidCLI(🖥️ Rapid OS CLI):::rapid
-        
+
         User -->|1. Ejecuta 'rapid init'| RapidCLI
-        
+
         ContextFiles[📄 Archivos de Contexto <br> .cursorrules, CLAUDE.md, etc.]:::context
         RapidCLI -->|"Genera Reglas (Stack, Seguridad)"| ContextFiles
     end
@@ -75,15 +106,16 @@ graph TD
     subgraph "🎯 FASE 2: Definición de Tareas (Opcional)"
         ScopeCmd(Comando 'rapid scope'):::rapid
         DeployCmd(Comando 'rapid deploy'):::rapid
-        
+        SkillCmd(Comando 'rapid skill'):::rapid
+
         User -->|2a. Define funcionalidad| ScopeCmd
-        User -->|2b. Pide infraestructura| DeployCmd
-        
-        SpecsFile[📄 SPECS.md <br> Instrucciones Funcionales]:::context
-        DeployFile[📄 DEPLOY.md <br> Plan de DevOps]:::context
-        
+        User -->|2b. Instala Skills| SkillCmd
+
+        SpecsFile[📄 SPECS.md / TASKS.md / ACCEPTANCE.md <br> Plan de Implementación]:::context
+        SkillsFolder[📂 Skills Activas <br> .cursor/skills]:::context
+
         ScopeCmd --> SpecsFile
-        DeployCmd --> DeployFile
+        SkillCmd --> SkillsFolder
     end
 
     %% Subgrafo: La Generación Real (El Constructor)
@@ -91,13 +123,13 @@ graph TD
         %% La Inyección Mágica
         ContextFiles -.->|"⚡ INYECCIÓN AUTOMÁTICA DE CONTEXTO ⚡"| AI
         SpecsFile -.->|"Lee instrucciones precisas"| AI
-        DeployFile -.->|"Lee plan de despliegue"| AI
-        
+        SkillsFolder -.->|"Usa Herramientas (Ej. Deploy, DB)"| AI
+
         %% La Acción del Usuario - CORREGIDA
         User == "3. Prompt Simple: 'Haz el login' o 'Implementa SPECS.md'" ==> AI
-        
+
         %% El Resultado
-        AI ==>|"Genera Código Perfecto (Siguiendo Reglas)"| FinalCode
+        AI ==>|"Genera código guiado por contexto, reglas y criterios verificables"| FinalCode
     end
 
     %% Leyenda
@@ -114,34 +146,24 @@ graph TD
 
 Este proyecto está construido utilizando tecnologías nativas para asegurar máxima compatibilidad y cero dependencias pesadas:
 
-- ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54) **Core Logic**
-- ![Bash Script](https://img.shields.io/badge/bash_script-%23121011.svg?style=for-the-badge&logo=gnu-bash&logoColor=white) **Installer (Linux/Mac)**
-- ![PowerShell](https://img.shields.io/badge/PowerShell-%235391FE.svg?style=for-the-badge&logo=powershell&logoColor=white) **Installer (Windows)**
-- ![Markdown](https://img.shields.io/badge/markdown-%23000000.svg?style=for-the-badge&logo=markdown&logoColor=white) **Templates & Context**
+- **Core Logic**
+- **Installer (Linux/Mac)**
+- **Installer (Windows)**
+- **Templates & Context**
 
 ### Key Features <a name="key-features"></a>
 
-- 🤖 **Multi-Agente Nativo:** Genera configuraciones automáticas para:
-  - **Cursor IDE** (`.cursorrules`)
-  - **Claude Code** (`CLAUDE.md`)
-  - **Google Antigravity** (`.agent/rules/constitution.md`)
-  - **GitHub Copilot** (`INSTRUCTIONS.md`)
-- 🏗️ **Topologías Inteligentes:** Define la arquitectura (Frontend Only, BaaS, Fullstack) para que la IA entienda los límites de conexión y estructura de datos.
-- 🔌 **Herramientas MCP (Model Context Protocol):** Genera configuraciones para servidores MCP (Postgres, Supabase, Filesystem), permitiendo que la IA ejecute acciones reales en tu base de datos y sistema de archivos.
-- 👁️ **Soporte Multimodal (Vision):** Inyecta capturas de pantalla y referencias visuales al contexto para que la IA replique diseños UI con precisión pixel-perfect.
-- 🚀 **Stacks Pre-configurados:** Incluye templates "Senior-level" para Web Moderno, Python AI, Creative Frontend, Node.js AI, entre otros.
-- 🛡️ **Seguridad por Defecto:** Inyección automática de protocolos OWASP y reglas de no-logs para PII.
-- ☁️ **Asistente DevOps:** Genera archivos de IaC (Terraform, Docker) para AWS, Vercel y GCP.
-- 🔭 **Scope Wizard:** Herramienta interactiva para crear PRDs (Product Requirement Documents) que la IA puede entender.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## 🚀 Live Demo <a name="live-demo"></a>
-
-Puedes ver a Rapid OS en acción transformando un proyecto vacío en un entorno configurado en segundos.
-
-> [!NOTE]
-> _Insertar enlace a Video Demo o GIF aquí_
+- **🧰 Gestor de Skills Híbrido**: Instala capacidades activas para tu IA desde dos fuentes:
+  - _Remoto_: Acceso directo al ecosistema de la comunidad (`npx skills`) para instalar miles de herramientas.
+  - _Local_: Usa tus propios templates privados (`templates/skills`) para estandarizar flujos de tu equipo.
+- **🤖 Multi-Agente Modular**: No más ruido. Elige exactamente qué archivos de configuración generar: Cursor (`.cursorrules`), Claude Code (`CLAUDE.md`), Google Antigravity (`.agent/rules`), VS Code (`INSTRUCTIONS.md`) o Codex (`AGENTS.md`). La generación usa adaptadores internos para mantener cada agente aislado y listo para crecer sin cambiar tus comandos.
+- **🧠 Contexto de Negocio Inteligente**: Importa tus reglas de negocio desde archivos Markdown (`.md`) existentes o guárdalas como Plantillas reutilizables para futuros proyectos.
+- **🏗️ Topologías Arquitectónicas**: Define si tu proyecto es Frontend Only, BaaS (Supabase), Fullstack Separado o **Sitio de Documentación** para evitar alucinaciones de código.
+- **🔌 Herramientas MCP (Model Context Protocol)**: Configura automáticamente servidores de base de datos (Postgres/Supabase) y herramientas de investigación (Context7, Firecrawl).
+- **🖼️ Contexto de Referencia Visual (Vision)**: Registra capturas de pantalla en `references/` junto con una descripción humana en `references/VISION_CONTEXT.md` y reensambla el contexto de agentes.
+- **🚀 Stacks Senior**: Templates pre-configurados para Web Moderno, Python AI, Creative Frontend, **Docusaurus Docs**, etc.
+- **🛡️ Seguridad por Defecto**: Inyección automática de protocolos OWASP y reglas Anti-PII.
+- **☁️ Guías de Despliegue (`DEPLOY.md`)**: Genera instrucciones y contexto de despliegue en `DEPLOY.md` a partir de templates locales (`templates/deploy/<target>.md`, con template incluido actualmente para `aws`; otros nombres válidos generan una guía genérica fallback `Deploy to <target>`).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -158,17 +180,18 @@ No necesitas clonar este repositorio manualmente para usar la herramienta. El in
 Asegúrate de tener instalado:
 
 - **Git**: Para control de versiones.
-- **Python 3.8+**: Para ejecutar el núcleo de Rapid OS.
+- **Python 3.10+**: Para ejecutar el núcleo de Rapid OS.
+- **Node.js (Opcional)**: Requerido solo si deseas instalar Skills remotas usando `npx`.
 
 ### Install <a name="install"></a>
 
-**Opción A: Linux, macOS o WSL**
+#### Opción A: Linux, macOS o WSL
 
 ```bash
 curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.sh | bash
 ```
 
-**Opción B: Windows (PowerShell Nativo)**
+#### Opción B: Windows (PowerShell Nativo)
 
 ```powershell
 irm https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.ps1 | iex
@@ -178,100 +201,398 @@ Reinicia tu terminal después de la instalación para cargar el comando `rapid`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Usage <a name="usage"></a>
+### Update <a name="update"></a>
 
-**1. Inicializar proyecto**
+Cuando Rapid OS implemente nuevas funcionalidades, actualiza la copia instalada antes de usar los comandos nuevos.
 
-Ve a la carpeta donde quieres inicializar el proyecto y ejecuta:
+#### Windows PowerShell
 
-```bash
-rapid init
+```powershell
+git -C $HOME\.rapid-os pull origin main
 ```
 
-Sigue las instrucciones del asistente para seleccionar el stack que deseas para tu proyecto. (ejemplo: Web Moderno, Python AI, Creative Frontend, Node.js AI, entre otros.)
+Si prefieres reinstalar desde el instalador remoto:
 
-**2. Definir una funcionalidad Compleja (Scope Wizard)**
+```powershell
+irm https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.ps1 | iex
+```
 
-Si necesitas que la IA construya algo grande, genera una especificación clara:
+#### Linux, macOS o WSL
+
+```bash
+git -C "$HOME/.rapid-os" pull origin main
+```
+
+Si prefieres reinstalar desde el instalador remoto:
+
+```bash
+curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.sh | bash
+```
+
+#### Desde un checkout local de desarrollo
+
+Si ejecutas Rapid OS directamente desde este repositorio, solo necesitas traer la rama principal:
+
+```powershell
+git pull origin main
+```
+
+Luego valida que la herramienta quedó disponible:
+
+```powershell
+rapid doctor
+```
+
+Si el comando global `rapid` sigue apuntando a una versión antigua, actualiza la copia instalada en `$HOME\.rapid-os` con el comando de PowerShell anterior.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Usage <a name="usage"></a>
+
+### 1. Inicializar Proyecto (Nuevo o Legacy)
+
+`rapid init` es el comando universal. Úsalo tanto para proyectos desde cero como para "curar" proyectos existentes con **Amnesia de Contexto**.
+
+1.  Abre tu terminal en la **raíz de tu proyecto**.
+2.  Ejecuta:
+    ```bash
+    rapid init
+    ```
+3.  Sigue el asistente interactivo:
+    - **Scanner seguro**: Rapid OS revisa señales locales como `package.json`, `tsconfig.json`, Docker, tests, monorepo, base de datos y provider de deploy para sugerir stack/topología. Nada se aplica sin confirmación.
+    - **Tech Stack**: Define las tecnologías permitidas (ej. "Solo React Functional Components").
+    - **Arquetipo**: "Corporate" para código estricto con tests, o "MVP" para velocidad.
+    - **Reglas de Negocio**: Importa tus documentos existentes o extráelos de tu cabeza.
+    - **Capacidades de Investigación**: Activa `Context7` (Docs) y `Firecrawl` (Web Scraping) para que tu IA pueda investigar librerías y sitios web por sí misma.
+    - **Documentación opcional**: Al final puedes crear scaffolding starter en `docs/` para `BUSINESS_RULES.md`, `SPECS.md`, `USER_STORIES.md` y `DATA_MODEL.md`. Cada archivo se confirma por separado y crea backup antes de sobrescribir.
+
+> **Para Refactorización**: Al ejecutar esto en un proyecto legacy, Rapid OS inyectará un archivo `.cursorrules` o `.agent` que obligará a la IA a respetar los nuevos estándares en cualquier refactorización futura, evitando que imite el código antiguo ("code drift").
+
+Para conservar el flujo manual anterior, usa:
+
+```bash
+rapid init --no-scan
+```
+
+Si pasas `--stack`, ese valor manda sobre cualquier sugerencia del scanner:
+
+```bash
+rapid init --stack web-modern
+```
+
+También puedes fijar el arquetipo directamente por CLI (`mvp` o `corporate`) sin pregunta interactiva:
+
+```bash
+rapid init --archetype corporate
+rapid init --archetype mvp
+```
+
+### 2. Refinamiento de Reglas (Rapid Refine)
+
+Si sientes que tu Agente (Cursor/Claude) ignora tus reglas o las malinterpreta, usa `rapid refine` para mejorar la documentación con ayuda de la IA.
+
+1.  Identifica el archivo de reglas problemático (ej. `standards/business.md`).
+2.  Ejecuta:
+    ```bash
+    rapid refine .rapid-os/standards/business.md
+    ```
+3.  **Copia el Mega-Prompt** que aparecerá en tu terminal.
+4.  **Pégalo en tu Chat** con la IA.
+5.  La IA te devolverá una versión profesional y sin ambigüedades de tus reglas. Reemplaza el contenido del archivo con esta nueva versión.
+
+### 3. Instalar Skills (Capacidades Activas)
+
+Dota a tu agente de herramientas para ejecutar tareas complejas (ej. consultar bases de datos, navegar web).
+
+```bash
+# Opción A: Desde el Marketplace (Vercel)
+rapid skill add vercel-labs/agent-skills
+
+# Opción B: Templates Privados de tu equipo
+rapid skill install mi-workflow-interno
+```
+
+Si ejecutas `rapid skill` sin argumentos, Rapid OS abre un menú interactivo para listar, instalar un template local, agregar una skill remota o salir sin cambios.
+
+### 4. Definir Scope y Refactorizaciones
+
+Evita darle instrucciones vagas a la IA como _"Mejora el código"_. Usa el **Asistente de Alcance**.
 
 ```bash
 rapid scope
 ```
 
-Responde las preguntas y obtendrás un archivo `SPECS.md` optimizado para LLMs.
+- Selecciona el modo: **new feature**, **refactor**, **bugfix** o **legacy hardening**.
+- Responde preguntas de negocio, alcance, actores, flujo, casos borde, reglas, restricciones, impacto en datos, criterios de aceptación, pruebas y tareas.
+- Rapid OS generará `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` optimizados para implementación guiada por specs.
+- **Tu Prompt Final**: _"Implementa el plan detallado en SPECS.md paso a paso y valida contra ACCEPTANCE.md."_
 
-**3. Asistencia de Despliegue**
+### 5. Configurar Herramientas de Base de Datos (MCP)
 
-Genera archivos de configuración para la nube:
+Si tu arquitectura incluye base de datos, genera los drivers para que la IA pueda ejecutar SQL real y ver tablas:
 
 ```bash
-rapid deploy aws
+rapid mcp --ide claude --scope project
 ```
-**4. Referencias Visuales (Vision)**
 
-Para que la IA "vea" tus diseños y no alucine el frontend, importa capturas de pantalla o mockups:
+(Soporta Postgres y Supabase automáticamente).
+
+Ejemplos adicionales:
+
+```bash
+rapid mcp --ide codex --scope project
+rapid mcp --ide codex --scope global
+rapid mcp --ide claude --scope global
+rapid mcp --ide cursor --scope project
+rapid mcp --ide vscode --scope project
+rapid mcp --ide antigravity --scope global
+```
+
+Rapid OS modela los servidores MCP internamente y luego renderiza el formato específico de cada editor:
+
+- Codex -> `.codex/config.toml` con bloques `mcp_servers`
+- Claude -> `.mcp.json` o `~/.claude.json` con `mcpServers`
+- Cursor -> `.cursor/mcp.json` o `~/.cursor/mcp.json` con `mcpServers`
+- VS Code -> `.vscode/mcp.json` con `servers`
+- Antigravity -> `~/.gemini/antigravity/mcp_config.json` con una estructura JSON conservadora basada en `mcpServers`
+
+Si el proyecto aún no fue inicializado con `rapid init`, `rapid mcp` ofrece crear solo la estructura mínima necesaria para generar MCP o cancelar sin escribir archivos.
+
+Si omites `--ide` o `--scope`, Rapid OS entra en modo interactivo y te deja elegir destino y alcance antes de escribir el archivo.
+
+### 6. Contexto de Referencia Visual (Vision)
+
+Registra una referencia visual del proyecto para acompañar tus reglas con contexto de interfaz:
 
 ```bash
 rapid vision ruta/al/diseño.png
 ```
 
-**5 Configurar Herramientas Activas (MCP)**
+`rapid vision` copia la imagen dentro de `references/`, solicita una descripción humana del diseño, agrega la entrada a `references/VISION_CONTEXT.md` y regenera los archivos de contexto de los agentes configurados. Si ejecutas `rapid vision` sin ruta, el comando pide el path de forma interactiva y permite cancelar con `0`, `q`, `quit`, `exit`, `salir` o `cancelar`.
 
-Habilita a tu agente para que pueda conectarse a tu base de datos y ejecutar scripts (ideal para poblar datos o auditoría):
+### 7. Documentación con Docusaurus
 
-```bash
-rapid mcp
-```
-
-**6. Refinar Estándares**
-
-Usa la IA para mejorar tus propios documentos de reglas:
+Rapid OS incluye un stack especializado para crear sitios de documentación modernos:
 
 ```bash
-rapid refine mi-borrador.md
+rapid init
+# Selecciona:
+# Stack: docs-modern
+# Topology: doc-site
 ```
+
+**Incluye:**
+
+- **Framework**: Docusaurus 3+ (Static Site Generator).
+- **Lenguaje**: TypeScript y MDX (Markdown con componentes React).
+- **Diagramas**: Soporte nativo para Mermaid.js (Diagramas de flujo, secuencia, GANTT).
+- **Búsqueda**: Configuración lista para Algolia DocSearch o búsqueda local.
+- **Versionado**: Estructura de carpetas optimizada para versionado semántico de documentación.
+- **Topología**: `doc-site` organiza tu proyecto con carpetas específicas para `docs`, `blog`, `src/components` y `static` assets.
+
+### 🧩 Estándares Universales (business.md)
+
+Rapid OS incluye por defecto un **Meta-Framework de Negocio** (`.rapid-os/standards/business.md`) que actúa como la "Constitución" de tu proyecto.
+
+Este archivo ya no es solo para Rapid OS; es una guía universal que define:
+
+- **Axiomas de Valor**: Qué problema resuelves y por qué te deben comprar.
+- **Funnel Universal**: Cómo adquieres, activas y retienes clientes.
+- **Modelo de Negocio**: Definición clara de cómo generas ingresos (SaaS, E-com, etc.).
+
+> **Tip**: Puedes editar este archivo para adaptarlo a tu nicho, pero mantén la estructura para que la IA entienda tus prioridades.
+
+### 🔄 Cómo Actualizar tus Reglas de Negocio
+
+Si necesitas modificar tus reglas existentes, tienes dos caminos desde la CLI:
+
+1.  **Opción A: `rapid refine` (Recomendada para Mejorar)**
+    Si ya tienes reglas pero quieres que la IA las profesionalice y elimine ambigüedades:
+
+    ```bash
+    rapid refine .rapid-os/standards/business.md
+    ```
+
+    _Genera un prompt para que tu IA reescriba las reglas con nivel Senior._
+
+2.  **Opción B: `rapid init` (Para Re-importar o Cambiar)**
+    Si quieres importar un archivo nuevo o reescribirlas desde cero:
+    ```bash
+    rapid init
+    ```
+    _Al llegar a la sección de Negocio, selecciona importar un nuevo `.txt`/`.md` o escribir nuevas reglas manuales. Esto sobrescribirá el archivo actual._
+
+---
+
+## ⚡ CLI Command Reference <a name="cli-reference"></a>
+
+Tabla completa de comandos disponibles en Rapid OS y sus resultados.
+
+| Comando                      | Descripción                                                                                     | Resultado / Output                                                                                |
+| :--------------------------- | :---------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------ |
+| `rapid init`                 | **Inicializa Rapid OS**. Escanea señales locales y sugiere stack/topología con confirmación.   | Crea `.cursorrules`, `.agent/rules`, `.rapid-os/` y puede crear docs opcionales con backups. Soporta `--no-scan`, `--stack` y `--archetype {mvp,corporate}`. |
+| `rapid scan`                 | **Project Intelligence**. Escanea el repositorio y construye el `ProjectModel` determinista con evidencia trazable. | Read-only por defecto. Soporta `--verbose` (muestra evidencia), `--json` (JSON puro en stdout) y `--write` (persiste `.rapid-os/project.json` con backup). |
+| `rapid scope`                | **Asistente de Alcance**. Te entrevista para definir una feature, refactor, bugfix o hardening. | Genera `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` con backups antes de sobrescribir.                |
+| `rapid refine <file>`        | **Refinamiento de Reglas**. Mejora cualquier documento de reglas usando IA.                     | Genera un Mega-Prompt para que pegues en tu chat y la IA reescriba el archivo profesionalmente.   |
+| `rapid skill [action] [name]` | **Instala o lista Skills** desde menú interactivo, registro comunitario o template privado.     | Sin argumentos abre menú; con `add`/`install` conserva el flujo directo existente.                 |
+| `rapid mcp [--ide ... --scope ...]` | **Configura MCP Servers**. Modela filesystem, BD y research tools.                    | Escribe el archivo MCP propio de cada editor con backup previo; si faltan flags entra en modo interactivo. |
+| `rapid vision [image_path]`  | **Contexto de Referencia Visual**. Copia una imagen de referencia y documenta su descripción.   | Copia la imagen a `references/`, registra la descripción en `references/VISION_CONTEXT.md` y actualiza el contexto de agentes. |
+| `rapid deploy <target>`      | **Guía de Despliegue**. Genera instrucciones de despliegue basadas en templates locales.        | Crea `DEPLOY.md` desde `templates/deploy/<target>.md` (template incluido: `aws`, o guía genérica fallback `Deploy to <target>`) con backup previo. |
+| `rapid validate`             | **Validación de Proyecto**. Revisa templates, estándares, config, herramientas y contexto.      | No escribe archivos. Sale con `0` si no hay errores y `1` si encuentra errores de validación.     |
+| `rapid doctor`               | **Diagnóstico Local**. Revisa rutas resueltas, templates, Node/npx opcional y proyecto actual.  | No escribe archivos. Usa advertencias para capacidades opcionales como Node/npx.                  |
+| `rapid inspect-context`      | **Inspección de Contexto**. Ensambla y previsualiza el contexto final antes de generar archivos. | No escribe archivos. Muestra secciones incluidas, herramientas seleccionadas y preview final.     |
+
+---
+
+### Project Intelligence (`rapid scan`)
+
+Puedes inspeccionar qué hechos detecta Rapid OS sobre tu repositorio (lenguajes, frameworks, gestores de paquetes, Docker, testing, monorepo, bases de datos y proveedores de deploy) sin modificar ningún archivo:
+
+```bash
+rapid scan
+rapid scan --verbose
+rapid scan --json
+```
+
+Si deseas persistir un snapshot determinista y trazable del `ProjectModel` (`schema_version: 1`) en `.rapid-os/project.json`:
+
+```bash
+rapid scan --write
+rapid scan --json --write
+```
+
+### Validación y Diagnósticos
+
+Antes de regenerar contexto o usar Rapid OS en CI, puedes validar el estado del proyecto:
+
+```bash
+rapid validate
+rapid validate --json
+rapid validate --strict
+```
+
+`rapid validate` falla con código `1` cuando hay errores, como `tech-stack.md` o `topology.md` faltantes, JSON inválido en `.rapid-os/config.json`, `.rapid-os/project.json` o templates MCP, herramientas desconocidas en `.rapid-os/config.json`, combinaciones stack/topología incompatibles o contexto ensamblado vacío. Con `--strict`, las advertencias también devuelven `1`.
+
+Para revisar la instalación local sin modificar nada:
+
+```bash
+rapid doctor
+rapid doctor --json
+```
+
+`rapid doctor` reporta rutas resueltas, directorio de templates activo, estado del proyecto actual (incluyendo `.rapid-os/project.json` si existe) y disponibilidad opcional de Node/npx.
+
+Para ver el contexto final antes de escribir archivos de agente:
+
+```bash
+rapid inspect-context
+rapid inspect-context --summary
+rapid inspect-context --json
+```
+
+`rapid inspect-context` usa el mismo ensamblado de contexto que la generación normal, pero no escribe `.cursorrules`, `CLAUDE.md`, `INSTRUCTIONS.md`, `AGENTS.md` ni archivos de Antigravity.
+
+---
+
+## ✅ Capacidades y Limitaciones
+
+Lo que Rapid OS **ES** y lo que **NO ES**:
+
+| LO QUE PUEDES HACER (Do's)                                                         | LO QUE NO HACE (Don'ts)                                                                              |
+| :--------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------- |
+| **Inyectar Contexto Senior**: Obligar a la IA a seguir Clean Architecture y SOLID. | **Escribir código por sí solo**: Rapid OS es el _Arquitecto_, tu IA (Cursor/Claude) es el _Albañil_. |
+| **Refactorizar Legacy**: Definir reglas modernas para limpiar código antiguo.      | **Ejecutarse en la Nube**: Es una CLI 100% local. No sube tu código a ningún lado.                   |
+| **Estandarizar Equipos**: Que todos los devs (y sus IAs) escriban igual.           | **Compilar tu App**: No reemplaza a `npm run build` o compiladores.                                  |
+| **Generar Guías y Contexto**: Crea reglas de agentes, specs, MCPs y `DEPLOY.md`.   | **Desplegar Producción**: Genera las instrucciones en `DEPLOY.md`, pero TÚ ejecutas el deploy final. |
+
+---
+
+## 🧩 Ejemplo Práctico: Refactorización Legacy
+
+**Escenario**: Tienes un proyecto React viejo con Redux y clases que quieres migrar a Hooks y Context API.
+
+1.  **Inyección**: Entras a la carpeta y ejecutas `rapid init`. Seleccionas "Web Moderno" (Force Functional Components).
+2.  **Scope**: Ejecutas `rapid scope`.
+    - _Nombre_: "Migración Auth a Context"
+    - _Modo_: "refactor"
+    - _Objetivo_: "Eliminar Redux de /auth y usar React Context."
+    - _Tareas_: "Crear AuthContext, Migrar Login.js, Eliminar reducers."
+3.  **Ejecución**:
+    - Abres Cursor/Claude.
+    - Escribes: _"@SPECS.md @.cursorrules Sigue el plan de refactorización. Empieza por el paso 1."_
+4.  **Resultado**: La IA escribirá el nuevo código siguiendo TUS estándares modernos, ignorando el estilo viejo del resto del proyecto.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## 📚 Ejemplo Práctico: Documentación de Producto
+
+**Escenario**: Quieres crear la documentación oficial de tu SaaS, asegurando que cada nueva página siga el mismo tono de voz, estructura y formato.
+
+1.  **Inicialización**:
+    ```bash
+    mkdir my-docs && cd my-docs
+    rapid init
+    # Selecciona Stack: "docs-modern"
+    ```
+2.  **Definición de Reglas**:
+    - Editas `.rapid-os/standards/business.md` con: _"El tono de voz debe ser amigable pero técnico. Usar diagramas Mermaid para flujos complejos."_
+3.  **Ejecución**:
+    - Abres tu editor con Cursor/Claude.
+    - Prompt: _"Crea una página 'Getting Started' que explique cómo instalar la SDK, incluyendo un diagrama de flujo de autenticación."_
+4.  **Resultado**: La IA generará un archivo `.mdx` guiado por contexto, reglas y criterios verificables, importando componentes de Docusaurus y renderizando el diagrama Mermaid solicitado según tu guía de estilo.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Run tests <a name="run-tests"></a>
 
-Para verificar que Rapid OS se instaló correctamente y puede acceder a los templates:
+Rapid OS usa `unittest` de la biblioteca estándar de Python. Desde la raíz del repositorio:
 
 ```bash
-rapid --help
+python -m unittest discover
 ```
 
-Deberías ver la lista de comandos disponibles (init, scope, deploy, refine, guide).
+Para una verificación rápida de la CLI:
+
+```bash
+python rapid.py --help
+python rapid.py guide
+```
+
+GitHub Actions ejecuta la suite de `unittest` y estos smoke checks en cada `push` y `pull_request`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Deployment <a name="deployment"></a>
 
-Rapid OS no se despliega a sí mismo (es una CLI local), pero ayuda a desplegar tus aplicaciones.
+Rapid OS no se despliega a sí mismo (es una CLI local), pero ayuda a documentar y estandarizar el despliegue de tus aplicaciones.
 
-Usa el comando `rapid deploy [target]` para generar:
+Usa el comando `rapid deploy <target>` para generar `DEPLOY.md` con instrucciones y contexto de despliegue:
 
-- Dockerfile multi-stage optimizados.
-- Scripts de Terraform o CloudFormation.
-- Configuraciones de CI/CD (GitHub Actions).
+- Si existe `templates/deploy/<target>.md`, incluye el contenido del template bajo el encabezado `# DEPLOY <target>`.
+- Si el target indicado no cuenta con un template dedicado, `rapid deploy <target>` genera una guía genérica fallback (`Deploy to <target>`) que sirve como marcador inicial y no implica soporte específico del proveedor.
 
-Targets soportados actualmente: `aws`, `vercel`, `gcp`, `azure`.
+Target con template incluido actualmente: `aws`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## 👥 Authors <a name="authors"></a>
 
-👤 **Alyconr**
-
-- GitHub: [@alyconr](https://github.com/alyconr)
+- **Alyconr** - [GitHub](https://github.com/alyconr)
+- **Aly Contreras** - [LinkedIn](https://www.linkedin.com/in/jeysson-aly-contreras/)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## 🕹️ Future Features <a name="future-features"></a>
+## Future v2.1+ Enhancements <a name="future-features"></a>
 
-- [ ] **Marketplace de Stacks**: Permitir a la comunidad subir sus propios stacks (`rapid install-stack <url>`).
+Rapid OS v2 is complete. These items are optional post-v2 improvements and are not required to use the current CLI:
+
 - [ ] **Soporte para JetBrains**: Integración con IntelliJ/PyCharm AI Assistant.
-- [ ] **Agentes Autónomos**: Integración profunda con AutoGPT o BabyAGI para ejecución de tareas.
+- [ ] **Configuración avanzada de Codex**: Soporte para `AGENTS.override.md`, configuración global o instrucciones anidadas si el flujo lo requiere.
+- [ ] **Previews por agente**: Vistas previas específicas por adaptador para inspección seca antes de escribir archivos.
+- [x] **Scanner independiente**: Comando dedicado (`rapid scan`) para inspeccionar hechos e inteligencia del proyecto sin ejecutar `rapid init`.
+- [ ] **Scope no interactivo**: Flags o plantillas más ricas para equipos que quieran automatizar `rapid scope`.
+- [ ] **Diagnósticos enriquecidos**: Categorías machine-readable más detalladas para integraciones futuras.
+- [ ] **Renderers MCP adicionales**: Nuevos destinos además de los editores soportados actualmente.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -279,11 +600,11 @@ Targets soportados actualmente: `aws`, `vercel`, `gcp`, `azure`.
 
 ¡Las contribuciones son bienvenidas!
 
-1. Haz un Fork del proyecto.
-2. Crea tu rama de funcionalidad (`git checkout -b feature/AmazingFeature`).
-3. Haz Commit de tus cambios (`git commit -m 'Add some AmazingFeature'`).
-4. Haz Push a la rama (`git push origin feature/AmazingFeature`).
-5. Abre un Pull Request.
+1.  Haz un Fork del proyecto.
+2.  Crea tu rama de funcionalidad (`git checkout -b feature/AmazingFeature`).
+3.  Haz Commit de tus cambios (`git commit -m 'Add some AmazingFeature'`).
+4.  Haz Push a la rama (`git push origin feature/AmazingFeature`).
+5.  Abre un Pull Request.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -302,14 +623,14 @@ Si Rapid OS te ha ahorrado tiempo o dolores de cabeza con la IA, ¡dale una estr
 
 ## ❓ FAQ <a name="faq"></a>
 
-- **¿Rapid OS sube mi código a la nube?**
-  No. Rapid OS funciona 100% localmente. Solo genera archivos de texto (.md) en tu carpeta.
+**¿Rapid OS sube mi código a la nube?**
+No. Rapid OS funciona 100% localmente. Solo genera archivos de texto (`.md`) en tu carpeta.
 
-- **¿Funciona con proyectos existentes?**
-  Sí. Puedes ejecutar `rapid init` en un proyecto legacy (clonado de GitHub) para inyectar reglas de refactorización modernas.
+**¿Funciona con proyectos existentes?**
+Sí. Puedes ejecutar `rapid init` en un proyecto legacy (clonado de GitHub) para inyectar reglas de refactorización modernas.
 
-- **¿Qué pasa si vuelvo a ejecutar `rapid init`?**
-  Rapid OS detecta si ya existen archivos de configuración y crea copias de seguridad automáticas (`.bak`) antes de sobrescribir nada.
+**¿Qué pasa si vuelvo a ejecutar `rapid init`?**
+Rapid OS detecta si ya existen archivos de configuración y crea copias de seguridad automáticas (`.bak`) antes de sobrescribir nada.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

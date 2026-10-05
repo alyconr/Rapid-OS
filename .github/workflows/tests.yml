@@ -1,0 +1,45 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unittest:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.10"
+          - "3.12"
+
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUTF8: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Verify bytecode compilation
+        run: python -m compileall -q rapid.py rapid_os tests
+
+      - name: Run unit tests
+        run: python -m unittest discover
+
+      - name: Run CLI smoke checks
+        run: |
+          python rapid.py --help
+          python rapid.py guide
+          python rapid.py doctor
+          python rapid.py scan
+          python rapid.py scan --json > /tmp/rapid-project-model.json
+          python -m json.tool /tmp/rapid-project-model.json > /dev/null
