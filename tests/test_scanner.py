@@ -307,6 +307,10 @@ class ScannerTests(unittest.TestCase):
                 [ev.portable_path() for ev in postgres_fact.evidence],
                 [".env", "package.json", "requirements.txt"],
             )
+            self.assertEqual(
+                [ev.detector for ev in postgres_fact.evidence],
+                ["database.postgres", "database.postgres", "database.postgres"],
+            )
 
     def test_secret_decoy_value_never_appears_in_serialized_project_model(self):
         with workspace_tempdir() as tmp:
@@ -319,6 +323,7 @@ class ScannerTests(unittest.TestCase):
 
             model = build_project_model(project)
 
+            self.assertTrue(model.has("database"))
             self.assertTrue(model.has("database", "postgres"))
             self.assertNotIn("SUPER_SECRET_VALUE_12345", json.dumps(model.to_dict()))
             self.assertNotIn("SUPER_SECRET_VALUE_12345", model.to_json())
@@ -338,6 +343,13 @@ class ScannerTests(unittest.TestCase):
             self.assertEqual(scan.facts, model.facts)
             self.assertEqual(scan.detections, model.facts)
             self.assertEqual(scan.values("framework"), model.values("framework"))
+            self.assertTrue(scan.has("framework"))
+            self.assertTrue(scan.has("framework", "fastapi"))
+            self.assertFalse(scan.has("framework", "nextjs"))
+            self.assertFalse(scan.has("database"))
+            for fact in model.facts:
+                for ev in fact.evidence:
+                    self.assertEqual(ev.detector, fact.detector)
             self.assertEqual(
                 suggest_init_choices(scan).to_dict(),
                 suggest_init_choices(model).to_dict(),

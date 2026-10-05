@@ -295,6 +295,116 @@ class ProjectModelTests(unittest.TestCase):
             "deploy.github-actions",
         )
 
+    def test_evidence_deduplication_preserves_distinct_detectors_and_collapses_identical_detector(self):
+        ev_detector_b = Evidence(
+            path="package.json",
+            reason="Found next",
+            source_type=SourceType.DEPENDENCY,
+            detector="framework.nextjs.manifest",
+        )
+        ev_detector_a = Evidence(
+            path="package.json",
+            reason="Found next",
+            source_type=SourceType.DEPENDENCY,
+            detector="framework.nextjs.config",
+        )
+        ev_detector_a_dup = Evidence(
+            path="package.json",
+            reason="Found next",
+            source_type=SourceType.DEPENDENCY,
+            detector="framework.nextjs.config",
+        )
+
+        fact = ProjectFact(
+            category="framework",
+            value="nextjs",
+            confidence=Confidence.HIGH,
+            evidence=(ev_detector_b, ev_detector_a, ev_detector_a_dup),
+            detector="framework.nextjs",
+        ).normalize()
+
+        self.assertEqual(len(fact.evidence), 2)
+        self.assertEqual(
+            [item.detector for item in fact.evidence],
+            ["framework.nextjs.config", "framework.nextjs.manifest"],
+        )
+
+    def test_normalize_facts_is_order_independent_and_uses_canonical_fact_detector(self):
+        fact_a = ProjectFact(
+            category="database",
+            value="postgres",
+            confidence=Confidence.MEDIUM,
+            evidence=(
+                Evidence(
+                    path="package.json",
+                    reason="Found pg dependency",
+                    source_type=SourceType.DEPENDENCY,
+                    detector="database.postgres.npm",
+                ),
+            ),
+            detector="database.postgres.npm",
+        )
+        fact_b = ProjectFact(
+            category="database",
+            value="postgres",
+            confidence=Confidence.MEDIUM,
+            evidence=(
+                Evidence(
+                    path="package.json",
+                    reason="Found pg dependency",
+                    source_type=SourceType.DEPENDENCY,
+                    detector="database.postgres.lock",
+                ),
+            ),
+            detector="database.postgres.lock",
+        )
+
+        forward = [fact_a, fact_b]
+        reverse = [fact_b, fact_a]
+
+        normalized_forward = normalize_facts(forward)
+        normalized_reverse = normalize_facts(reverse)
+
+        self.assertEqual(normalized_forward, normalized_reverse)
+        self.assertEqual(len(normalized_forward), 1)
+        merged = normalized_forward[0]
+        self.assertEqual(merged.detector, "database.postgres")
+        self.assertEqual(
+            [item.detector for item in merged.evidence],
+            ["database.postgres.lock", "database.postgres.npm"],
+        )
+        self.assertEqual(
+            ProjectModel(facts=tuple(forward)).to_json(),
+            ProjectModel(facts=tuple(reverse)).to_json(),
+        )
+
+    def test_project_model_has_supports_category_only_and_category_with_value(self):
+        model = ProjectModel(
+            facts=(
+                ProjectFact(
+                    category="database",
+                    value="postgres",
+                    confidence=Confidence.MEDIUM,
+                    evidence=(
+                        Evidence(
+                            path="package.json",
+                            reason="pg",
+                            source_type=SourceType.DEPENDENCY,
+                            detector="database.postgres",
+                        ),
+                    ),
+                    detector="database.postgres",
+                ),
+            )
+        )
+
+        self.assertTrue(model.has("database"))
+        self.assertTrue(model.has("database", "postgres"))
+        self.assertFalse(model.has("database", "mysql"))
+        self.assertFalse(model.has("framework"))
+        self.assertFalse(model.has("framework", "fastapi"))
+
 
 if __name__ == "__main__":
     unittest.main()
+

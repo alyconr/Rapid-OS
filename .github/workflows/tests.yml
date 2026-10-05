@@ -40,3 +40,6 @@ jobs:
           python rapid.py --help
           python rapid.py guide
           python rapid.py doctor
+          python rapid.py scan
+          python rapid.py scan --json > /tmp/rapid-project-model.json
+          python -m json.tool /tmp/rapid-project-model.json > /dev/null

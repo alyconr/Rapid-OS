@@ -356,13 +356,14 @@ def _dedupe_and_sort_evidence(
     evidence_items: Iterable[Evidence],
     root: Path | None = None,
 ) -> tuple[Evidence, ...]:
-    by_key: dict[tuple[str, str, str], Evidence] = {}
+    by_key: dict[tuple[str, str, str, str], Evidence] = {}
     for item in evidence_items:
         normalized_item = item.normalize(root)
         key = (
             normalized_item.portable_path(None),
             normalized_item.reason,
             normalized_item.source_type.value,
+            normalized_item.detector or "",
         )
         if key not in by_key:
             by_key[key] = normalized_item
@@ -382,17 +383,23 @@ def normalize_facts(
             raise ValueError("Expected ProjectFact instance during normalization.")
         fact = raw_fact.normalize(root)
         key = (fact.category, fact.value)
+        canonical_detector = canonical_detector_id(fact.category, fact.value)
         if key not in grouped:
-            grouped[key] = fact
+            grouped[key] = ProjectFact(
+                category=fact.category,
+                value=fact.value,
+                confidence=fact.confidence,
+                evidence=fact.evidence,
+                detector=canonical_detector,
+            )
             continue
 
         existing = grouped[key]
-        if fact.confidence.rank > existing.confidence.rank:
-            strongest_confidence = fact.confidence
-            preferred_detector = fact.detector
-        else:
-            strongest_confidence = existing.confidence
-            preferred_detector = existing.detector
+        strongest_confidence = (
+            fact.confidence
+            if fact.confidence.rank > existing.confidence.rank
+            else existing.confidence
+        )
 
         merged_evidence = _dedupe_and_sort_evidence(
             existing.evidence + fact.evidence,
@@ -403,7 +410,7 @@ def normalize_facts(
             value=existing.value,
             confidence=strongest_confidence,
             evidence=merged_evidence,
-            detector=preferred_detector,
+            detector=canonical_detector,
         )
 
     sorted_keys = sorted(
@@ -451,7 +458,13 @@ class ProjectModel:
     def values(self, category: str) -> tuple[str, ...]:
         return tuple(fact.value for fact in self.facts_for(category))
 
-    def has(self, category: str, value: str) -> bool:
+    def has(
+        self,
+        category: str,
+        value: str | None = None,
+    ) -> bool:
+        if value is None:
+            return any(fact.category == category for fact in self.facts)
         return any(
             fact.category == category and fact.value == value for fact in self.facts
         )

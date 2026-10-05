@@ -98,7 +98,11 @@ class ProjectScan:
     def values(self, category: str) -> tuple[str, ...]:
         return self.model.values(category)
 
-    def has(self, category: str, value: str) -> bool:
+    def has(
+        self,
+        category: str,
+        value: str | None = None,
+    ) -> bool:
         return self.model.has(category, value)
 
     def to_dict(self) -> dict[str, object]:
@@ -943,7 +947,14 @@ def _fact(
         category=category,
         value=value,
         confidence=Confidence.coerce(confidence),
-        evidence=(Evidence(path=path, reason=reason, source_type=source_type),),
+        evidence=(
+            Evidence(
+                path=path,
+                reason=reason,
+                source_type=source_type,
+                detector=resolved_detector,
+            ),
+        ),
         detector=resolved_detector,
     )
 

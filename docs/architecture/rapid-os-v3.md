@@ -73,7 +73,9 @@ Immutable fact (`category`, `value`, `confidence`, `evidence`, `detector`):
 #### `normalize_facts`
 Deterministic consolidation pass over emitted facts:
 - Facts sharing `(category, value)` are merged into a single `ProjectFact`.
-- `Evidence` entries are deduplicated and sorted by `(path, reason, source_type, detector)`.
+- `ProjectFact.detector` is resolved to the canonical detector identifier `canonical_detector_id(category, value)` independent of input order.
+- `Evidence.detector` preserves the concrete detector/producer provenance for each observation.
+- `Evidence` entries are deduplicated and sorted by `(path, reason, source_type, detector or "")`.
 - The highest `Confidence` across merged detections is preserved.
 - Distinct values within the same category (such as `nextjs` and `fastapi` in `framework` for a monorepo) are preserved as separate facts.
 - Output facts are sorted deterministically by `(category, value)`.
@@ -107,8 +109,8 @@ When `.rapid-os/project.json` is present, `rapid validate` and `rapid doctor` ve
 
 ### CLI Surface (`rapid scan`)
 
-- `rapid scan`: Runs local detectors and prints a human-readable summary of detected categories, values, confidence levels, and init suggestions without writing any files.
-- `rapid scan --verbose`: Includes per-fact detector IDs and evidence paths/reasons in the human-readable output.
+- `rapid scan`: Runs local detectors and prints a human-readable summary of detected facts grouped by category (`value`, `confidence`, and `detector`) without writing any files or running `suggest_init_choices()`.
+- `rapid scan --verbose`: Includes per-fact `Evidence` entries (`path`, `reason`, and `source_type`) in the human-readable output.
 - `rapid scan --json`: Emits only the serialized `ProjectModel` JSON to `stdout` (no banners or decorative text) for machine consumption.
 - `rapid scan --write`: Persists the canonical `ProjectModel` snapshot to `.rapid-os/project.json` with atomic write and `.bak` backup protection.
 - `rapid scan --json --write`: Writes `.rapid-os/project.json` and emits the exact same JSON document to `stdout`.
