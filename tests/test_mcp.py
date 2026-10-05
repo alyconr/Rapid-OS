@@ -523,6 +523,61 @@ class McpCliTests(unittest.TestCase):
             self.assertIn("mcpServers", payload)
             self.assertIn("postgres", payload["mcpServers"])
 
+    def test_mcp_server_models_package_and_version_and_warns_when_unpinned(self):
+        unpinned_fs = filesystem_server(Path("project"))
+        self.assertEqual(
+            unpinned_fs.package, "@modelcontextprotocol/server-filesystem"
+        )
+        self.assertIsNone(unpinned_fs.version)
+        self.assertFalse(unpinned_fs.is_version_pinned)
+        unpinned_warnings = detect_server_warnings(unpinned_fs)
+        self.assertTrue(any(w.code == "MCP012" for w in unpinned_warnings))
+
+        pinned_fs = filesystem_server(Path("project"), version="0.6.2")
+        self.assertEqual(pinned_fs.version, "0.6.2")
+        self.assertEqual(
+            pinned_fs.package_spec,
+            "@modelcontextprotocol/server-filesystem@0.6.2",
+        )
+        self.assertTrue(pinned_fs.is_version_pinned)
+        self.assertIn("@modelcontextprotocol/server-filesystem@0.6.2", pinned_fs.args)
+        pinned_warnings = detect_server_warnings(pinned_fs)
+        self.assertFalse(any(w.code == "MCP012" for w in pinned_warnings))
+
+    def test_server_from_mapping_supports_explicit_version_and_docker_image_warning(self):
+        pinned_server, _ = server_from_mapping(
+            "supabase",
+            {
+                "command": "npx",
+                "package": "@modelcontextprotocol/server-postgres",
+                "version": "0.6.2",
+                "args": [
+                    "-y",
+                    "@modelcontextprotocol/server-postgres",
+                    "postgresql://localhost/db",
+                ],
+            },
+        )
+        self.assertTrue(pinned_server.is_version_pinned)
+        self.assertIn(
+            "@modelcontextprotocol/server-postgres@0.6.2",
+            pinned_server.args,
+        )
+        self.assertFalse(
+            any(w.code == "MCP012" for w in detect_server_warnings(pinned_server))
+        )
+
+        docker_server, _ = server_from_mapping(
+            "postgres",
+            {
+                "command": "docker",
+                "args": ["run", "-i", "--rm", "mcp/postgres"],
+            },
+        )
+        self.assertTrue(
+            any(w.code == "MCP013" for w in detect_server_warnings(docker_server))
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

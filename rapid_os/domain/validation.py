@@ -5,7 +5,14 @@ from pathlib import Path
 from typing import Iterable
 
 from rapid_os.adapters.agents import DEFAULT_AGENT_REGISTRY
-from rapid_os.core.config import DEFAULT_PROJECT_CONFIG
+from rapid_os.core.config import (
+    CONFIG_STATUS_INVALID_JSON,
+    CONFIG_STATUS_INVALID_SCHEMA,
+    CONFIG_STATUS_IO_ERROR,
+    CONFIG_STATUS_MISSING,
+    DEFAULT_PROJECT_CONFIG,
+    inspect_project_config_file,
+)
 from rapid_os.core.context import STANDARDS_PRIORITY, compose_project_context
 
 
@@ -267,8 +274,9 @@ def validate_project_standards(project_rapid_dir: Path):
 
 def validate_project_config(config_file: Path, registry=DEFAULT_AGENT_REGISTRY):
     diagnostics = []
+    config_result = inspect_project_config_file(config_file)
 
-    if not config_file.exists():
+    if config_result.status == CONFIG_STATUS_MISSING:
         diagnostics.append(
             Diagnostic(
                 WARNING,
@@ -277,45 +285,55 @@ def validate_project_config(config_file: Path, registry=DEFAULT_AGENT_REGISTRY):
                 config_file,
             )
         )
-        config = DEFAULT_PROJECT_CONFIG.copy()
-    else:
-        try:
-            config = json.loads(config_file.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
+        config = config_result.config
+    elif config_result.status == CONFIG_STATUS_INVALID_JSON:
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID301",
+                    f"Project config is invalid JSON: {config_result.error}",
+                    config_file,
+                ),
+            )
+        )
+    elif config_result.status == CONFIG_STATUS_IO_ERROR:
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID302",
+                    f"Project config could not be read: {config_result.error}",
+                    config_file,
+                ),
+            )
+        )
+    elif config_result.status == CONFIG_STATUS_INVALID_SCHEMA:
+        if config_result.error and "Tool ids" in config_result.error:
             return ValidationReport(
                 (
                     Diagnostic(
                         ERROR,
-                        "RAPID301",
-                        f"Project config is invalid JSON: {exc.msg}",
+                        "RAPID305",
+                        config_result.error,
                         config_file,
                     ),
                 )
             )
-        except OSError as exc:
-            return ValidationReport(
-                (
-                    Diagnostic(
-                        ERROR,
-                        "RAPID302",
-                        f"Project config could not be read: {exc}",
-                        config_file,
-                    ),
-                )
-            )
-
-    tools = config.get("tools", [])
-    if not isinstance(tools, list):
         return ValidationReport(
             (
                 Diagnostic(
                     ERROR,
                     "RAPID303",
-                    "Project config field 'tools' must be a list.",
+                    config_result.error or "Project config field 'tools' must be a list.",
                     config_file,
                 ),
             )
         )
+    else:
+        config = config_result.config
+
+    tools = config.get("tools", [])
 
     if not tools:
         diagnostics.append(
@@ -488,6 +506,10 @@ def inspect_project_context(
 ):
     context = compose_project_context(project_rapid_dir, current_dir)
     diagnostics = list(validate_project_standards(project_rapid_dir).diagnostics)
+    config_report = validate_project_config(config_file)
+    diagnostics.extend(
+        diagnostic for diagnostic in config_report.diagnostics if diagnostic.level == ERROR
+    )
     diagnostics.extend(validate_composed_context(project_rapid_dir, current_dir).diagnostics)
     selected_tools = _read_selected_tools(config_file)
 
@@ -688,15 +710,10 @@ def _validate_adapter_render_contract(tool: str, registry, path: Path):
 
 
 def _read_selected_tools(config_file: Path):
-    if not config_file.exists():
-        return DEFAULT_PROJECT_CONFIG["tools"]
-    try:
-        config = json.loads(config_file.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    result = inspect_project_config_file(config_file)
+    if not result.is_valid:
         return ()
-    tools = config.get("tools", [])
-    if not isinstance(tools, list):
-        return ()
+    tools = result.config.get("tools", [])
     return tuple(tool for tool in tools if isinstance(tool, str))
 
 

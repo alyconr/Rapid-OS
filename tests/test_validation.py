@@ -193,6 +193,60 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(payload["summary"], {"info": 1, "warning": 0, "error": 0})
         self.assertEqual(payload["diagnostics"][0]["code"], "RAPID000")
 
+    def test_corrupt_config_json_and_schema_produce_explicit_diagnostics(self):
+        with workspace_tempdir() as tmp:
+            project_dir = Path(tmp) / ".rapid-os"
+            standards_dir = project_dir / "standards"
+            standards_dir.mkdir(parents=True)
+            (standards_dir / "tech-stack.md").write_text("stack", encoding="utf-8")
+            (standards_dir / "topology.md").write_text("topology", encoding="utf-8")
+            config_file = project_dir / "config.json"
+
+            config_file.write_text("{corrupt-json", encoding="utf-8")
+            json_report = validate_project_config(config_file)
+            self.assertTrue(json_report.has_errors)
+            self.assertIn(
+                "RAPID301",
+                [diagnostic.code for diagnostic in json_report.diagnostics],
+            )
+
+            inspection = inspect_project_context(
+                project_dir, Path(tmp), config_file
+            )
+            self.assertTrue(inspection.report.has_errors)
+            self.assertIn(
+                "RAPID301",
+                [diagnostic.code for diagnostic in inspection.report.diagnostics],
+            )
+
+            config_file.write_text('{"tools": "not-a-list"}', encoding="utf-8")
+            schema_report = validate_project_config(config_file)
+            self.assertTrue(schema_report.has_errors)
+            self.assertIn(
+                "RAPID303",
+                [diagnostic.code for diagnostic in schema_report.diagnostics],
+            )
+
+            config_file.write_text('{"tools": [123]}', encoding="utf-8")
+            item_report = validate_project_config(config_file)
+            self.assertTrue(item_report.has_errors)
+            self.assertIn(
+                "RAPID305",
+                [diagnostic.code for diagnostic in item_report.diagnostics],
+            )
+
+    def test_unreadable_config_produces_rapid302_error(self):
+        with workspace_tempdir() as tmp:
+            config_dir = Path(tmp) / ".rapid-os" / "config.json"
+            config_dir.mkdir(parents=True)
+
+            report = validate_project_config(config_dir)
+            self.assertTrue(report.has_errors)
+            self.assertIn(
+                "RAPID302",
+                [diagnostic.code for diagnostic in report.diagnostics],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
