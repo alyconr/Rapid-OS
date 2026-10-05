@@ -46,11 +46,16 @@ from rapid_os.core.paths import (
     SCRIPT_DIR,
     TEMPLATES_DIR,
 )
+from rapid_os.adapters.project_snapshot import write_project_snapshot
 from rapid_os.core.process import run_npx_skills_add
 from rapid_os.core.text import read_text_best_effort
 from rapid_os.domain.agents import generate_agent_contexts
 from rapid_os.domain.mcp import build_mcp_config
-from rapid_os.domain.scanner import scan_project, suggest_init_choices
+from rapid_os.domain.scanner import (
+    build_project_model,
+    scan_project,
+    suggest_init_choices,
+)
 from rapid_os.domain.scope import (
     ScopeSpec,
     normalize_mode,
@@ -67,6 +72,7 @@ from rapid_os.domain.validation import (
     validate_composed_context,
     validate_project,
     validate_project_config,
+    validate_project_intelligence,
     validate_project_standards,
     validate_stack_topology,
     validate_templates,
@@ -1041,6 +1047,7 @@ def doctor_command(args):
             validate_project_config(CONFIG_FILE, DEFAULT_AGENT_REGISTRY),
             validate_stack_topology(PROJECT_RAPID_DIR),
             validate_composed_context(PROJECT_RAPID_DIR, CURRENT_DIR),
+            validate_project_intelligence(PROJECT_RAPID_DIR, CURRENT_DIR),
         )
     else:
         report = report.extend(
@@ -1095,9 +1102,91 @@ def inspect_context_command(args):
     sys.exit(inspection.report.exit_code())
 
 
+SCAN_CATEGORY_LABELS = (
+    ("language", "Languages"),
+    ("framework", "Frameworks"),
+    ("package_manager", "Package Managers"),
+    ("docker", "Docker"),
+    ("testing", "Testing"),
+    ("monorepo", "Monorepo"),
+    ("database", "Databases"),
+    ("deploy_provider", "Deployment"),
+)
+
+
+def render_project_intelligence_summary(model, verbose=False) -> str:
+    lines = ["Rapid OS Project Intelligence"]
+    if not model.facts:
+        lines.append("")
+        lines.append("No project facts detected.")
+        return "\n".join(lines)
+
+    rendered_categories = set()
+    for category, heading in SCAN_CATEGORY_LABELS:
+        facts = model.facts_for(category)
+        if not facts:
+            continue
+        rendered_categories.add(category)
+        lines.append("")
+        lines.append(heading)
+        for fact in facts:
+            lines.append(
+                f"  {fact.value:<22} {fact.confidence.value:<8} ({fact.detector})"
+            )
+            if verbose:
+                for item in fact.evidence:
+                    lines.append(
+                        f"    - {item.portable_path()}: {item.reason} [{item.source_type.value}]"
+                    )
+
+    for category in model.categories():
+        if category in rendered_categories:
+            continue
+        facts = model.facts_for(category)
+        lines.append("")
+        lines.append(category.replace("_", " ").title())
+        for fact in facts:
+            lines.append(
+                f"  {fact.value:<22} {fact.confidence.value:<8} ({fact.detector})"
+            )
+            if verbose:
+                for item in fact.evidence:
+                    lines.append(
+                        f"    - {item.portable_path()}: {item.reason} [{item.source_type.value}]"
+                    )
+
+    return "\n".join(lines)
+
+
+def scan_command(args):
+    model = build_project_model(CURRENT_DIR)
+    snapshot_path = None
+    if getattr(args, "write", False):
+        snapshot_path = write_project_snapshot(
+            model,
+            PROJECT_RAPID_DIR,
+            backup=True,
+        )
+
+    if getattr(args, "json", False):
+        print(model.to_json(indent=2))
+        return 0
+
+    print(
+        render_project_intelligence_summary(
+            model,
+            verbose=getattr(args, "verbose", False),
+        )
+    )
+    if snapshot_path is not None:
+        print_success(f"Snapshot escrito en: {snapshot_path}")
+    return 0
+
+
 def show_guide():
     print("📘 RAPID OS - COMANDOS")
     print(" init    -> Configurar proyecto")
+    print(" scan    -> Inspeccionar inteligencia del proyecto")
     print(" skill   -> Instalar capacidades (Local/Vercel)")
     print(" mcp     -> Configurar herramientas BD")
     print(" vision  -> Agregar referencias visuales")
@@ -1120,6 +1209,11 @@ def create_parser():
         choices=list(SUPPORTED_ARCHETYPES),
     )
     init.add_argument("--no-scan", action="store_true")
+
+    scan = subparsers.add_parser("scan")
+    scan.add_argument("--json", action="store_true")
+    scan.add_argument("--write", action="store_true")
+    scan.add_argument("--verbose", action="store_true")
 
     skill = subparsers.add_parser("skill")
     skill.add_argument("action", choices=["list", "install", "add"], nargs="?")
@@ -1156,6 +1250,8 @@ def main(argv=None):
 
     if args.command == "init":
         init_project(args)
+    elif args.command == "scan":
+        scan_command(args)
     elif args.command == "skill":
         manage_skills(args)
     elif args.command == "mcp":
