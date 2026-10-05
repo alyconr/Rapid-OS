@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from rapid_os.cli import main as cli_main
-from rapid_os.domain.scanner import scan_project, suggest_init_choices
+from rapid_os.domain.scanner import read_env_keys, scan_project, suggest_init_choices
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -187,6 +187,71 @@ class ScannerTests(unittest.TestCase):
             scan_project(project)
 
             self.assertFalse((project / ".rapid-os" / "config.json").exists())
+
+    def test_read_env_keys_extracts_only_names_and_ignores_comments_and_invalid_lines(self):
+        with workspace_tempdir() as tmp:
+            env_file = Path(tmp) / ".env.local"
+            env_file.write_text(
+                "# SUPABASE_URL=https://commented.supabase.co\n"
+                "INVALID LINE WITHOUT EQUALS\n"
+                "123_INVALID_KEY=secret\n"
+                "DATABASE_URL=postgresql://admin:UltraSecretPass123!@db.internal:5432/prod\n"
+                "export SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.SUPER_SECRET_TOKEN\n"
+                "MONGO_URI=mongodb+srv://user:TopSecretMongo99@cluster.mongodb.net/app\n",
+                encoding="utf-8",
+            )
+
+            keys = read_env_keys(env_file)
+
+            self.assertEqual(
+                keys,
+                ("DATABASE_URL", "SUPABASE_ANON_KEY", "MONGO_URI"),
+            )
+            serialized = " ".join(keys)
+            self.assertNotIn("UltraSecretPass123!", serialized)
+            self.assertNotIn("SUPER_SECRET_TOKEN", serialized)
+            self.assertNotIn("TopSecretMongo99", serialized)
+
+    def test_scanner_env_detection_never_exposes_or_matches_secret_values(self):
+        with workspace_tempdir() as tmp:
+            project = Path(tmp) / "project"
+            project.mkdir()
+            secret_postgres = "UltraSecretPostgresPassword_987654"
+            secret_supabase = "eyJhbGciOi_SuperSecretSupabaseJwt_123456"
+            secret_decoy = "value_mentioning_MONGO_and_SUPABASE_and_DATABASE_URL_in_secret"
+            (project / ".env").write_text(
+                f"# Comment with MONGO and SUPABASE\n"
+                f"DATABASE_URL=postgresql://admin:{secret_postgres}@localhost:5432/db\n"
+                f"NEXT_PUBLIC_SUPABASE_URL=https://{secret_supabase}.supabase.co\n"
+                f"APP_SECRET_TOKEN={secret_decoy}\n",
+                encoding="utf-8",
+            )
+
+            scan = scan_project(project)
+            suggestions = suggest_init_choices(scan)
+            output_buffer = io.StringIO()
+            with redirect_stdout(output_buffer):
+                cli_main.print_scan_summary(scan, suggestions)
+
+            self.assertIn("postgres", scan.values("database"))
+            self.assertIn("supabase", scan.values("database"))
+            self.assertNotIn("mongo", scan.values("database"))
+
+            combined_dump = json.dumps(
+                {
+                    "scan": scan.to_dict(),
+                    "suggestions": suggestions.to_dict(),
+                    "reasons": [
+                        evidence.reason
+                        for detection in scan.detections
+                        for evidence in detection.evidence
+                    ],
+                    "stdout": output_buffer.getvalue(),
+                }
+            )
+            self.assertNotIn(secret_postgres, combined_dump)
+            self.assertNotIn(secret_supabase, combined_dump)
+            self.assertNotIn(secret_decoy, combined_dump)
 
 
 class ScannerInitIntegrationTests(unittest.TestCase):
