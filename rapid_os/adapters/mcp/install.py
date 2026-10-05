@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from rapid_os.adapters.mcp.claude_desktop import render_claude_desktop_config
-from rapid_os.core.filesystem import create_backup
+from rapid_os.core.filesystem import create_backup, safe_write_text
 from rapid_os.core.paths import RAPID_HOME
 
 
@@ -210,10 +210,15 @@ def write_mcp_install_target(target: McpInstallTarget, rendered_content):
     if target.format == "toml":
         existing_text = ""
         if target.path.exists():
-            create_backup(target.path)
             existing_text = target.path.read_text(encoding="utf-8")
         updated_text = _replace_managed_toml_block(existing_text, rendered_content)
-        target.path.write_text(updated_text, encoding="utf-8")
+        safe_write_text(
+            target.path,
+            updated_text,
+            encoding="utf-8",
+            backup=True,
+            create_parents=True,
+        )
         return target.path
 
     if target.format != "json":
@@ -221,7 +226,6 @@ def write_mcp_install_target(target: McpInstallTarget, rendered_content):
 
     payload = rendered_content
     if target.path.exists():
-        create_backup(target.path)
         if target.preserve_other_keys:
             try:
                 existing_payload = json.loads(target.path.read_text(encoding="utf-8"))
@@ -236,5 +240,11 @@ def write_mcp_install_target(target: McpInstallTarget, rendered_content):
             existing_payload[target.json_key] = payload[target.json_key]
             payload = existing_payload
 
-    target.path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    safe_write_text(
+        target.path,
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+        backup=True,
+        create_parents=True,
+    )
     return target.path

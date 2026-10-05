@@ -7,7 +7,7 @@ def ensure_utf8_stdio():
         if hasattr(stream, "reconfigure"):
             try:
                 stream.reconfigure(encoding="utf-8")
-            except Exception:
+            except (OSError, ValueError, AttributeError):
                 pass
 
 
