@@ -31,6 +31,7 @@ class CliSmokeTests(unittest.TestCase):
                 "init",
                 "skill",
                 "scope",
+                "spec",
                 "deploy",
                 "vision",
                 "mcp",
@@ -772,6 +773,180 @@ class CliProjectIntelligenceScanTests(unittest.TestCase):
             self.assertIn("RAPID704", err_corrupt.getvalue())
 
 
+class CliSpecRegistryTests(unittest.TestCase):
+    def test_spec_cli_list_show_status_revision_and_export_legacy(self):
+        from rapid_os.adapters.spec_registry import SpecRegistry
+
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            project = Path(temp_dir) / "project"
+            project.mkdir()
+            rapid_dir = project / ".rapid-os"
+            registry = SpecRegistry(project, rapid_dir)
+
+            registry.create(
+                spec_id="context-compiler-budget",
+                title="Context Compiler Budget",
+                mode="feature",
+                business_objective="Keep context under limit",
+            )
+            registry.create(
+                spec_id="booking-idempotency",
+                title="Booking Idempotency",
+                mode="bugfix",
+                business_objective="No duplicate bookings v1",
+                scope=("Check key",),
+                affected_paths=("rapid_os/domain/specs.py",),
+            )
+            registry.revise(
+                "booking-idempotency",
+                business_objective="No duplicate bookings v2",
+            )
+            registry.set_status("booking-idempotency", "ready")
+
+            # 1. rapid spec list (sorted ASC by spec id)
+            out_list = io.StringIO()
+            args_list = create_parser().parse_args(["spec", "list"])
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", rapid_dir
+            ), contextlib.redirect_stdout(out_list):
+                code = cli_main.spec_command(args_list)
+            self.assertEqual(code, 0)
+            lines = [
+                line.strip()
+                for line in out_list.getvalue().strip().splitlines()
+                if line.strip()
+            ]
+            self.assertEqual(len(lines), 2)
+            self.assertTrue(lines[0].startswith("booking-idempotency"))
+            self.assertIn("ready", lines[0])
+            self.assertIn("r2", lines[0])
+            self.assertTrue(lines[1].startswith("context-compiler-budget"))
+            self.assertIn("draft", lines[1])
+            self.assertIn("r1", lines[1])
+
+            # 2. rapid spec list --json (pure JSON, no banners)
+            out_list_json = io.StringIO()
+            args_list_json = create_parser().parse_args(["spec", "list", "--json"])
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", rapid_dir
+            ), contextlib.redirect_stdout(out_list_json):
+                code = cli_main.spec_command(args_list_json)
+            self.assertEqual(code, 0)
+            list_payload = json.loads(out_list_json.getvalue())
+            self.assertEqual(
+                list_payload,
+                {
+                    "schema_version": 1,
+                    "specs": [
+                        {
+                            "schema_version": 1,
+                            "id": "booking-idempotency",
+                            "status": "ready",
+                            "current_revision": 2,
+                        },
+                        {
+                            "schema_version": 1,
+                            "id": "context-compiler-budget",
+                            "status": "draft",
+                            "current_revision": 1,
+                        },
+                    ],
+                },
+            )
+
+            # 3. rapid spec show <id>
+            out_show = io.StringIO()
+            args_show = create_parser().parse_args(
+                ["spec", "show", "booking-idempotency"]
+            )
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", rapid_dir
+            ), contextlib.redirect_stdout(out_show):
+                code = cli_main.spec_command(args_show)
+            self.assertEqual(code, 0)
+            show_text = out_show.getvalue()
+            self.assertIn("booking-idempotency", show_text)
+            self.assertIn("ready", show_text)
+            self.assertIn("r2", show_text)
+            self.assertIn("Booking Idempotency", show_text)
+            self.assertIn("bugfix", show_text)
+            self.assertIn("rapid_os/domain/specs.py", show_text)
+
+            # 4. rapid spec show <id> --json (no absolute paths)
+            out_show_json = io.StringIO()
+            args_show_json = create_parser().parse_args(
+                ["spec", "show", "booking-idempotency", "--json"]
+            )
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", rapid_dir
+            ), contextlib.redirect_stdout(out_show_json):
+                code = cli_main.spec_command(args_show_json)
+            self.assertEqual(code, 0)
+            raw_show_json = out_show_json.getvalue()
+            show_payload = json.loads(raw_show_json)
+            self.assertEqual(show_payload["spec"]["id"], "booking-idempotency")
+            self.assertEqual(show_payload["revision"]["revision"], 2)
+            self.assertEqual(
+                show_payload["revision"]["business_objective"],
+                "No duplicate bookings v2",
+            )
+            self.assertNotIn(str(project), raw_show_json)
+
+            # 5. rapid spec show <id> --revision 1 (does not mutate state)
+            out_show_r1 = io.StringIO()
+            args_show_r1 = create_parser().parse_args(
+                [
+                    "spec",
+                    "show",
+                    "booking-idempotency",
+                    "--revision",
+                    "1",
+                    "--json",
+                ]
+            )
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", rapid_dir
+            ), contextlib.redirect_stdout(out_show_r1):
+                code = cli_main.spec_command(args_show_r1)
+            self.assertEqual(code, 0)
+            r1_payload = json.loads(out_show_r1.getvalue())
+            self.assertEqual(r1_payload["revision"]["revision"], 1)
+            self.assertEqual(
+                r1_payload["revision"]["business_objective"],
+                "No duplicate bookings v1",
+            )
+            self.assertEqual(registry.get("booking-idempotency").current_revision, 2)
+
+            # 6. rapid spec status <id> ready & invalid transition from archived
+            args_status = create_parser().parse_args(
+                ["spec", "status", "context-compiler-budget", "ready"]
+            )
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", rapid_dir
+            ), contextlib.redirect_stdout(io.StringIO()):
+                code = cli_main.spec_command(args_status)
+            self.assertEqual(code, 0)
+            self.assertEqual(
+                registry.get("context-compiler-budget").status.value,
+                "ready",
+            )
+
+            # 7. rapid spec export-legacy <id>
+            args_export = create_parser().parse_args(
+                ["spec", "export-legacy", "booking-idempotency"]
+            )
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", rapid_dir
+            ), contextlib.redirect_stdout(io.StringIO()):
+                code = cli_main.spec_command(args_export)
+            self.assertEqual(code, 0)
+            self.assertTrue((project / "SPECS.md").is_file())
+            self.assertTrue((project / "TASKS.md").is_file())
+            self.assertTrue((project / "ACCEPTANCE.md").is_file())
+
+
 if __name__ == "__main__":
     unittest.main()
+
 

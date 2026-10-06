@@ -468,6 +468,8 @@ class ContextRequest:
     tags: tuple[str, ...] = ()
     max_chars: int | None = None
     constraints: tuple[str, ...] = ()
+    spec_id: str | None = None
+    spec_revision: int | None = None
 
     def __post_init__(self):
         if self.objective is None:
@@ -531,6 +533,29 @@ class ContextRequest:
                 )
             )
         object.__setattr__(self, "constraints", cleaned_constraints)
+
+        if self.spec_id is not None:
+            from rapid_os.domain.specs import validate_spec_id
+
+            object.__setattr__(
+                self,
+                "spec_id",
+                validate_spec_id(self.spec_id, "ContextRequest.spec_id"),
+            )
+
+        if self.spec_revision is not None:
+            if (
+                isinstance(self.spec_revision, bool)
+                or not isinstance(self.spec_revision, int)
+                or self.spec_revision <= 0
+            ):
+                raise ValueError(
+                    "ContextRequest spec_revision must be a positive integer."
+                )
+            if self.spec_id is None:
+                raise ValueError(
+                    "ContextRequest spec_revision requires spec_id to be specified."
+                )
 
 
 @dataclass(frozen=True)
@@ -1353,6 +1378,10 @@ def _evaluate_fragment_relevance(
         score += rank_bonus
         if not is_required:
             reasons.append(f"relevant to {mode.value} mode")
+
+    if request.spec_id and fragment.source_id.startswith(f"spec.{request.spec_id}."):
+        score += 90
+        reasons.append(f"selected spec '{request.spec_id}'")
 
     matched_tags = sorted(req_tags & frag_tags)
     if matched_tags:

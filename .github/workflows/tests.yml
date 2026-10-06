@@ -46,3 +46,6 @@ jobs:
           python rapid.py context --mode general
           python rapid.py context --mode general --json > /tmp/context.json
           python -m json.tool /tmp/context.json > /dev/null
+          python rapid.py spec list
+          python rapid.py spec list --json > /tmp/specs.json
+          python -m json.tool /tmp/specs.json > /dev/null

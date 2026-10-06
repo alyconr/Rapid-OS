@@ -426,7 +426,34 @@ class ValidationTests(unittest.TestCase):
         self.assertTrue(invalid_req_report.has_errors)
         self.assertEqual([d.code for d in invalid_req_report.diagnostics], ["RAPID705"])
 
+    def test_spec_registry_validation_absent_is_not_error_and_valid_produces_rapid800(self):
+        from rapid_os.adapters.spec_registry import SpecRegistry
+        from rapid_os.domain.validation import validate_spec_registry
+
+        with workspace_tempdir() as tmp:
+            project = Path(tmp) / "project"
+            rapid_dir = project / ".rapid-os"
+            rapid_dir.mkdir(parents=True)
+
+            # Registry directory does not exist -> empty report (no error)
+            empty_report = validate_spec_registry(rapid_dir, project)
+            self.assertEqual(empty_report.diagnostics, ())
+
+            registry = SpecRegistry(project, rapid_dir)
+            registry.create(
+                spec_id="booking-idempotency",
+                title="Booking Idempotency",
+                mode="bugfix",
+            )
+            valid_report = validate_spec_registry(rapid_dir, project)
+            self.assertFalse(valid_report.has_errors)
+            self.assertEqual(
+                [d.code for d in valid_report.diagnostics],
+                ["RAPID800"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

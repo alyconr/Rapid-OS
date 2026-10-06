@@ -5,6 +5,7 @@ from rapid_os.adapters.project_snapshot import (
     read_project_snapshot,
     resolve_project_snapshot_path,
 )
+from rapid_os.adapters.spec_registry import SpecRegistry
 from rapid_os.core.filesystem import ensure_path_within_root
 from rapid_os.domain.context import (
     ContextPriority,
@@ -15,6 +16,16 @@ from rapid_os.domain.context import (
 )
 from rapid_os.domain.project import ProjectModel, normalize_evidence_path
 from rapid_os.domain.scanner import build_project_model
+from rapid_os.domain.specs import SpecRegistryError, SpecStatus
+
+
+LEGACY_SINGLETON_SPEC_IDS = frozenset(
+    {
+        "spec.scope",
+        "spec.tasks",
+        "spec.acceptance",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -124,6 +135,7 @@ class ContextSourceLoadError:
     source_id: str
     path: Path | str
     message: str
+    code: str = "RAPID704"
 
     @property
     def error(self) -> str:
@@ -139,6 +151,108 @@ class ContextDiscoveryResult:
 
 class ContextSourceLoader:
     """Discover and safely load known project context sources without resolving relevance."""
+
+    def _load_selected_registry_spec_sources(
+        self,
+        root: Path,
+        rapid_dir: Path,
+        spec_id: str,
+        spec_revision: int | None,
+    ) -> tuple[tuple[ContextSource, ...], tuple[ContextSourceLoadError, ...]]:
+        try:
+            registry = SpecRegistry(root, rapid_dir)
+            record = registry.get(spec_id)
+            if record.status != SpecStatus.READY:
+                return (
+                    (),
+                    (
+                        ContextSourceLoadError(
+                            source_id=f"spec.{spec_id}",
+                            path=f".rapid-os/specs/{spec_id}/spec.json",
+                            message=(
+                                f"Spec '{spec_id}' has status '{record.status.value}'; "
+                                "only 'ready' specs can be compiled into operational context."
+                            ),
+                            code="RAPID805",
+                        ),
+                    ),
+                )
+            rev = registry.get_revision(spec_id, revision=spec_revision)
+            artifacts = registry.get_artifact_contents(
+                spec_id,
+                revision=rev.revision,
+            )
+        except SpecRegistryError as exc:
+            err_path = (
+                str(exc.path)
+                if exc.path is not None
+                else f".rapid-os/specs/{spec_id}"
+            )
+            return (
+                (),
+                (
+                    ContextSourceLoadError(
+                        source_id=f"spec.{spec_id}",
+                        path=err_path,
+                        message=str(exc),
+                        code=exc.code,
+                    ),
+                ),
+            )
+        except (OSError, UnicodeDecodeError, ValueError) as exc:
+            return (
+                (),
+                (
+                    ContextSourceLoadError(
+                        source_id=f"spec.{spec_id}",
+                        path=f".rapid-os/specs/{spec_id}",
+                        message=str(exc),
+                        code="RAPID808",
+                    ),
+                ),
+            )
+
+        spec_sources: list[ContextSource] = []
+        mapping = (
+            (
+                "requirements.md",
+                f"spec.{record.id}.requirements",
+                ContextSourceKind.SPEC,
+                ContextPriority.HIGH,
+                ("spec", "feature", "scope", *rev.tags),
+            ),
+            (
+                "tasks.md",
+                f"spec.{record.id}.tasks",
+                ContextSourceKind.TASKS,
+                ContextPriority.MEDIUM,
+                ("tasks", "feature", "scope", *rev.tags),
+            ),
+            (
+                "acceptance.md",
+                f"spec.{record.id}.acceptance",
+                ContextSourceKind.ACCEPTANCE,
+                ContextPriority.MEDIUM,
+                ("acceptance", "testing", "verification", *rev.tags),
+            ),
+        )
+        for filename, source_id, kind, priority, tags in mapping:
+            portable_path, raw_text = artifacts[filename]
+            if not raw_text.strip():
+                continue
+            spec_sources.append(
+                ContextSource(
+                    id=source_id,
+                    kind=kind,
+                    content=raw_text.strip(),
+                    path=portable_path,
+                    priority=priority,
+                    required=False,
+                    tags=tags,
+                    provenance=portable_path,
+                )
+            )
+        return tuple(spec_sources), ()
 
     def load(
         self,
@@ -159,7 +273,12 @@ class ContextSourceLoader:
         loaded_sources: list[ContextSource] = []
         load_errors: list[ContextSourceLoadError] = []
 
+        use_registry_spec = bool(request is not None and request.spec_id is not None)
+
         for spec in KNOWN_CONTEXT_SOURCE_SPECS:
+            if use_registry_spec and spec.id in LEGACY_SINGLETON_SPEC_IDS:
+                continue
+
             base_dir = rapid_dir if spec.under_rapid_dir else root
             candidate = base_dir / spec.relative_path
             if not candidate.exists():
@@ -215,6 +334,16 @@ class ContextSourceLoader:
                     provenance=portable_path,
                 )
             )
+
+        if use_registry_spec and request is not None and request.spec_id is not None:
+            reg_sources, reg_errors = self._load_selected_registry_spec_sources(
+                root=root,
+                rapid_dir=rapid_dir,
+                spec_id=request.spec_id,
+                spec_revision=request.spec_revision,
+            )
+            loaded_sources.extend(reg_sources)
+            load_errors.extend(reg_errors)
 
         resolved_model = project_model
         pi_provenance = "scan:live"

@@ -24,7 +24,15 @@ from rapid_os.domain.context import (
     ContextRequiredSourceMissingError,
     ContextSource,
 )
+from rapid_os.adapters.spec_registry import REVISION_DIR_RE, SpecRegistry
+from rapid_os.core.filesystem import ensure_path_within_root
 from rapid_os.domain.project import PROJECT_MODEL_SCHEMA_VERSION, ProjectModel
+from rapid_os.domain.specs import (
+    DuplicateSpecIdentityError,
+    SpecRecord,
+    SpecRegistryError,
+    validate_spec_id,
+)
 
 
 INFO = "info"
@@ -217,13 +225,371 @@ def validate_project(
     compatibility_report = validate_stack_topology(project_rapid_dir)
     context_report = validate_composed_context(project_rapid_dir, current_dir)
     intelligence_report = validate_project_intelligence(project_rapid_dir, current_dir)
+    spec_registry_report = validate_spec_registry(project_rapid_dir, current_dir)
     return template_report.merge(
         standards_report,
         config_report,
         compatibility_report,
         context_report,
         intelligence_report,
+        spec_registry_report,
     )
+
+
+def validate_spec_registry(
+    project_rapid_dir: Path,
+    current_dir: Path | None = None,
+) -> ValidationReport:
+    """Validate optional `.rapid-os/specs/` registry when present using RAPID800-RAPID809 codes."""
+    raw_dir = Path(project_rapid_dir)
+    if (
+        current_dir is None
+        and raw_dir.name != ".rapid-os"
+        and (raw_dir / ".rapid-os").exists()
+    ):
+        root = raw_dir
+        rapid_dir = raw_dir / ".rapid-os"
+    else:
+        rapid_dir = raw_dir
+        root = Path(current_dir) if current_dir is not None else rapid_dir.parent
+
+    specs_dir = rapid_dir / "specs"
+    if not specs_dir.exists() and not specs_dir.is_symlink():
+        return ValidationReport(())
+
+    if specs_dir.is_symlink():
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID808",
+                    "Spec registry root cannot be a symlink.",
+                    specs_dir,
+                ),
+            )
+        )
+
+    try:
+        ensure_path_within_root(root, specs_dir)
+    except ValueError as exc:
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID808",
+                    f"Spec registry root escapes project root: {exc}",
+                    specs_dir,
+                ),
+            )
+        )
+
+    if not specs_dir.is_dir():
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID808",
+                    "Spec registry path is not a directory.",
+                    specs_dir,
+                ),
+            )
+        )
+
+    try:
+        entries = sorted(specs_dir.iterdir(), key=lambda p: p.name)
+    except OSError as exc:
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID808",
+                    f"Spec registry directory could not be read: {exc}",
+                    specs_dir,
+                ),
+            )
+        )
+
+    diagnostics: list[Diagnostic] = []
+    valid_specs = 0
+    registry_helper = SpecRegistry(root, rapid_dir)
+
+    for spec_entry in entries:
+        if spec_entry.is_symlink():
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID808",
+                    f"Spec entry '{spec_entry.name}' cannot be a symlink.",
+                    spec_entry,
+                )
+            )
+            continue
+
+        try:
+            ensure_path_within_root(root, spec_entry)
+        except ValueError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID808",
+                    str(exc),
+                    spec_entry,
+                )
+            )
+            continue
+
+        if not spec_entry.is_dir():
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID801",
+                    f"Unexpected non-directory entry '{spec_entry.name}' in spec registry.",
+                    spec_entry,
+                )
+            )
+            continue
+
+        try:
+            validate_spec_id(spec_entry.name, "spec directory")
+        except DuplicateSpecIdentityError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID806",
+                    str(exc),
+                    spec_entry,
+                )
+            )
+            continue
+
+        record_file = spec_entry / "spec.json"
+        if record_file.is_symlink():
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID808",
+                    f"Spec record '{record_file}' cannot be a symlink.",
+                    record_file,
+                )
+            )
+            continue
+        if not record_file.exists():
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID801",
+                    f"Spec record 'spec.json' missing for '{spec_entry.name}'.",
+                    record_file,
+                )
+            )
+            continue
+        if not record_file.is_file():
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID808",
+                    f"Spec record '{record_file}' is not a regular file.",
+                    record_file,
+                )
+            )
+            continue
+
+        try:
+            raw_record = record_file.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID808",
+                    f"Spec record '{record_file}' could not be read: {exc}",
+                    record_file,
+                )
+            )
+            continue
+
+        try:
+            record_payload = json.loads(raw_record)
+        except json.JSONDecodeError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID801",
+                    f"Spec record is invalid JSON: {exc.msg}",
+                    record_file,
+                )
+            )
+            continue
+
+        if not isinstance(record_payload, dict):
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID801",
+                    "Spec record must be a JSON object.",
+                    record_file,
+                )
+            )
+            continue
+
+        if "id" in record_payload and isinstance(record_payload["id"], str):
+            try:
+                validate_spec_id(record_payload["id"], "SpecRecord.id")
+            except DuplicateSpecIdentityError as exc:
+                diagnostics.append(
+                    Diagnostic(
+                        ERROR,
+                        "RAPID806",
+                        str(exc),
+                        record_file,
+                    )
+                )
+                continue
+            if record_payload["id"] != spec_entry.name:
+                diagnostics.append(
+                    Diagnostic(
+                        ERROR,
+                        "RAPID806",
+                        f"Spec record id '{record_payload['id']}' does not match directory '{spec_entry.name}'.",
+                        record_file,
+                    )
+                )
+                continue
+
+        try:
+            record = SpecRecord.from_dict(record_payload)
+        except SpecRegistryError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    exc.code,
+                    str(exc),
+                    record_file,
+                )
+            )
+            continue
+
+        revisions_dir = spec_entry / "revisions"
+        if revisions_dir.is_symlink():
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID808",
+                    f"Revisions path '{revisions_dir}' cannot be a symlink.",
+                    revisions_dir,
+                )
+            )
+            continue
+
+        if not revisions_dir.exists() or not revisions_dir.is_dir():
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID802",
+                    f"Revisions directory missing for spec '{record.id}' (current_revision={record.current_revision}).",
+                    revisions_dir,
+                )
+            )
+            continue
+
+        current_rev_dir = revisions_dir / f"{record.current_revision:04d}"
+        if not current_rev_dir.exists() or not current_rev_dir.is_dir():
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID802",
+                    f"Current revision r{record.current_revision} directory missing for spec '{record.id}'.",
+                    current_rev_dir,
+                )
+            )
+
+        spec_has_error = not current_rev_dir.exists() or not current_rev_dir.is_dir()
+
+        try:
+            rev_entries = sorted(revisions_dir.iterdir(), key=lambda p: p.name)
+        except OSError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID808",
+                    f"Revisions directory '{revisions_dir}' could not be read: {exc}",
+                    revisions_dir,
+                )
+            )
+            continue
+
+        for rev_entry in rev_entries:
+            if rev_entry.is_symlink():
+                diagnostics.append(
+                    Diagnostic(
+                        ERROR,
+                        "RAPID808",
+                        f"Revision entry '{rev_entry.name}' cannot be a symlink.",
+                        rev_entry,
+                    )
+                )
+                spec_has_error = True
+                continue
+
+            if (
+                not rev_entry.is_dir()
+                or not REVISION_DIR_RE.match(rev_entry.name)
+                or int(rev_entry.name) < 1
+            ):
+                diagnostics.append(
+                    Diagnostic(
+                        WARNING,
+                        "RAPID809",
+                        f"Orphan or non-canonical revision entry '{rev_entry.name}' in spec '{record.id}'.",
+                        rev_entry,
+                    )
+                )
+                continue
+
+            rev_num = int(rev_entry.name)
+            if rev_num > record.current_revision:
+                diagnostics.append(
+                    Diagnostic(
+                        WARNING,
+                        "RAPID809",
+                        f"Orphan or unreferenced revision directory '{rev_entry.name}' exceeds current_revision ({record.current_revision}) for spec '{record.id}'.",
+                        rev_entry,
+                    )
+                )
+                continue
+
+            try:
+                registry_helper._read_and_verify_revision_dir(
+                    record.id,
+                    rev_num,
+                    rev_entry,
+                )
+            except SpecRegistryError as exc:
+                diag_path = Path(exc.path) if exc.path is not None else rev_entry
+                diagnostics.append(
+                    Diagnostic(
+                        ERROR,
+                        exc.code,
+                        str(exc),
+                        diag_path,
+                    )
+                )
+                spec_has_error = True
+
+        if not spec_has_error:
+            valid_specs += 1
+
+    if not any(d.level == ERROR for d in diagnostics):
+        diagnostics.insert(
+            0,
+            Diagnostic(
+                INFO,
+                "RAPID800",
+                f"Spec registry valid ({valid_specs} spec(s)).",
+                specs_dir,
+            ),
+        )
+
+    return ValidationReport(tuple(diagnostics))
 
 
 def validate_project_intelligence(
