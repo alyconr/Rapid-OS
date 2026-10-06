@@ -24,8 +24,20 @@ from rapid_os.domain.context import (
     ContextRequiredSourceMissingError,
     ContextSource,
 )
+from rapid_os.adapters.execution_policy import load_execution_policy
+from rapid_os.adapters.run_registry import RunRegistry
 from rapid_os.adapters.spec_registry import SpecRegistry
 from rapid_os.core.filesystem import ensure_path_within_root
+from rapid_os.domain.execution import (
+    DuplicateRunIdentityError,
+    ExecutionError,
+    RunRecord,
+    RunStatus,
+    enforce_run_transition_preconditions,
+    format_state_file_name,
+    is_canonical_state_file_name,
+    validate_run_id,
+)
 from rapid_os.domain.project import PROJECT_MODEL_SCHEMA_VERSION, ProjectModel
 from rapid_os.domain.specs import (
     DuplicateSpecIdentityError,
@@ -228,6 +240,8 @@ def validate_project(
     context_report = validate_composed_context(project_rapid_dir, current_dir)
     intelligence_report = validate_project_intelligence(project_rapid_dir, current_dir)
     spec_registry_report = validate_spec_registry(project_rapid_dir, current_dir)
+    execution_policy_report = validate_execution_policy(project_rapid_dir, current_dir)
+    run_registry_report = validate_run_registry(project_rapid_dir, current_dir)
     return template_report.merge(
         standards_report,
         config_report,
@@ -235,7 +249,409 @@ def validate_project(
         context_report,
         intelligence_report,
         spec_registry_report,
+        execution_policy_report,
+        run_registry_report,
     )
+
+
+def _resolve_root_and_rapid_dir(
+    project_rapid_dir: Path,
+    current_dir: Path | None = None,
+) -> tuple[Path, Path]:
+    raw_dir = Path(project_rapid_dir)
+    if (
+        current_dir is None
+        and raw_dir.name != ".rapid-os"
+        and (raw_dir / ".rapid-os").exists()
+    ):
+        root = raw_dir
+        rapid_dir = raw_dir / ".rapid-os"
+    else:
+        rapid_dir = raw_dir
+        root = Path(current_dir) if current_dir is not None else rapid_dir.parent
+    return root, rapid_dir
+
+
+def validate_execution_policy(
+    project_rapid_dir: Path,
+    current_dir: Path | None = None,
+) -> ValidationReport:
+    """Validate optional `.rapid-os/policy.json` when present using RAPID1000-RAPID1008 codes."""
+    root, rapid_dir = _resolve_root_and_rapid_dir(project_rapid_dir, current_dir)
+    policy_file = rapid_dir / "policy.json"
+    if not policy_file.exists() and not policy_file.is_symlink():
+        return ValidationReport(())
+
+    try:
+        load_execution_policy(root, rapid_dir)
+    except ExecutionError as exc:
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    exc.code,
+                    str(exc),
+                    exc.path or policy_file,
+                ),
+            )
+        )
+
+    return ValidationReport(
+        (
+            Diagnostic(
+                INFO,
+                "RAPID1000",
+                "Execution policy configuration is valid.",
+                policy_file,
+            ),
+        )
+    )
+
+
+def validate_run_registry(
+    project_rapid_dir: Path,
+    current_dir: Path | None = None,
+) -> ValidationReport:
+    """Validate optional `.rapid-os/runs/` registry when present using RAPID1000-RAPID1014 codes."""
+    root, rapid_dir = _resolve_root_and_rapid_dir(project_rapid_dir, current_dir)
+    runs_dir = rapid_dir / "runs"
+    if not runs_dir.exists() and not runs_dir.is_symlink():
+        return ValidationReport(())
+
+    if runs_dir.is_symlink():
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID1008",
+                    "Run registry root cannot be a symlink.",
+                    runs_dir,
+                ),
+            )
+        )
+
+    try:
+        ensure_path_within_root(root, runs_dir)
+    except ValueError as exc:
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID1008",
+                    f"Run registry root escapes project root: {exc}",
+                    runs_dir,
+                ),
+            )
+        )
+
+    if not runs_dir.is_dir():
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID1008",
+                    "Run registry path is not a directory.",
+                    runs_dir,
+                ),
+            )
+        )
+
+    try:
+        entries = sorted(runs_dir.iterdir(), key=lambda p: p.name)
+    except OSError as exc:
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID1008",
+                    f"Run registry directory could not be read: {exc}",
+                    runs_dir,
+                ),
+            )
+        )
+
+    diagnostics: list[Diagnostic] = []
+    valid_runs = 0
+    registry_helper = RunRegistry(root, rapid_dir)
+    spec_registry = SpecRegistry(root, rapid_dir)
+
+    for run_entry in entries:
+        if run_entry.is_symlink():
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID1008",
+                    f"Run entry '{run_entry.name}' cannot be a symlink.",
+                    run_entry,
+                )
+            )
+            continue
+
+        try:
+            ensure_path_within_root(root, run_entry)
+        except ValueError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID1008",
+                    f"Run entry '{run_entry.name}' escapes project root: {exc}",
+                    run_entry,
+                )
+            )
+            continue
+
+        if not run_entry.is_dir():
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID1003",
+                    f"Unexpected non-directory entry '{run_entry.name}' inside .rapid-os/runs.",
+                    run_entry,
+                )
+            )
+            continue
+
+        try:
+            validate_run_id(run_entry.name)
+        except ExecutionError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    exc.code,
+                    str(exc),
+                    run_entry,
+                )
+            )
+            continue
+
+        try:
+            record = registry_helper._read_run_record_from_dir(run_entry, run_entry.name)
+        except ExecutionError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    exc.code,
+                    str(exc),
+                    exc.path or (run_entry / "run.json"),
+                )
+            )
+            continue
+
+        run_has_error = False
+
+        # Validate contract + context snapshots
+        contract = None
+        try:
+            contract = registry_helper._read_and_verify_contract_from_dir(run_entry, record)
+        except ExecutionError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    exc.code,
+                    str(exc),
+                    exc.path or (run_entry / "contract.json"),
+                )
+            )
+            run_has_error = True
+
+        # Validate spec binding against SpecRegistry if present
+        if (rapid_dir / "specs").exists():
+            try:
+                pinned_rev = spec_registry.get_revision(
+                    record.spec_id,
+                    revision=record.spec_revision,
+                )
+                if (
+                    contract is not None
+                    and pinned_rev.content_digest != contract.spec_content_digest
+                ):
+                    diagnostics.append(
+                        Diagnostic(
+                            ERROR,
+                            "RAPID1003",
+                            f"Run '{record.id}' contract spec_content_digest does not match pinned spec '{record.spec_id}@r{record.spec_revision}'.",
+                            run_entry / "contract.json",
+                        )
+                    )
+                    run_has_error = True
+            except SpecRegistryError as exc:
+                diagnostics.append(
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1003",
+                        f"Run '{record.id}' is bound to invalid or missing spec '{record.spec_id}@r{record.spec_revision}': {exc}",
+                        exc.path or (run_entry / "run.json"),
+                    )
+                )
+                run_has_error = True
+
+        # Validate states directory & full 1..current_state_revision sequence
+        states_dir = run_entry / "states"
+        if states_dir.is_symlink():
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID1008",
+                    f"States path for run '{record.id}' cannot be a symlink.",
+                    states_dir,
+                )
+            )
+            continue
+
+        if not states_dir.exists() or not states_dir.is_dir():
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID1011",
+                    f"Missing 'states' directory for run '{record.id}'.",
+                    states_dir,
+                )
+            )
+            continue
+
+        try:
+            state_entries = sorted(states_dir.iterdir(), key=lambda p: p.name)
+        except OSError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID1008",
+                    f"States directory for run '{record.id}' could not be read: {exc}",
+                    states_dir,
+                )
+            )
+            continue
+
+        canonical_state_files: dict[int, Path] = {}
+        for state_entry in state_entries:
+            if state_entry.is_symlink():
+                diagnostics.append(
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1008",
+                        f"State entry '{state_entry.name}' in run '{record.id}' cannot be a symlink.",
+                        state_entry,
+                    )
+                )
+                run_has_error = True
+                continue
+
+            if not state_entry.is_file() or not is_canonical_state_file_name(state_entry.name):
+                diagnostics.append(
+                    Diagnostic(
+                        WARNING,
+                        "RAPID1011",
+                        f"Orphan or non-canonical state entry '{state_entry.name}' in run '{record.id}'.",
+                        state_entry,
+                    )
+                )
+                continue
+
+            rev_num = int(state_entry.stem)
+            canonical_state_files[rev_num] = state_entry
+
+        verified_states: dict[int, object] = {}
+        for expected_rev in range(1, record.current_state_revision + 1):
+            expected_file = states_dir / format_state_file_name(expected_rev)
+            if expected_rev not in canonical_state_files:
+                diagnostics.append(
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1011",
+                        f"Missing required historical state snapshot '{expected_file.name}' (expected 1..{record.current_state_revision}) for run '{record.id}'.",
+                        expected_file,
+                    )
+                )
+                run_has_error = True
+                continue
+
+            try:
+                state_obj = registry_helper._read_and_verify_state_file(
+                    record.id,
+                    expected_rev,
+                    expected_file,
+                    contract=contract,
+                )
+                verified_states[expected_rev] = state_obj
+            except ExecutionError as exc:
+                diagnostics.append(
+                    Diagnostic(
+                        ERROR,
+                        exc.code,
+                        str(exc),
+                        exc.path or expected_file,
+                    )
+                )
+                run_has_error = True
+
+        # Check current state preconditions (e.g., active requires pre_execution gates satisfied; finished requires tasks + post_execution gates satisfied)
+        current_state = verified_states.get(record.current_state_revision)
+        if current_state is not None:
+            try:
+                if current_state.status in (RunStatus.ACTIVE, RunStatus.FINISHED):
+                    enforce_run_transition_preconditions(
+                        current_state,
+                        current_state.status,
+                    )
+            except ExecutionError as exc:
+                diagnostics.append(
+                    Diagnostic(
+                        ERROR,
+                        exc.code,
+                        str(exc),
+                        states_dir / format_state_file_name(record.current_state_revision),
+                    )
+                )
+                run_has_error = True
+
+        # Check for future/unreferenced canonical state files > current_state_revision
+        for rev_num, state_file in sorted(canonical_state_files.items()):
+            if rev_num <= record.current_state_revision:
+                continue
+            try:
+                registry_helper._read_and_verify_state_file(
+                    record.id,
+                    rev_num,
+                    state_file,
+                    contract=contract,
+                )
+            except ExecutionError as exc:
+                diagnostics.append(
+                    Diagnostic(
+                        ERROR,
+                        exc.code,
+                        str(exc),
+                        exc.path or state_file,
+                    )
+                )
+                run_has_error = True
+                continue
+
+            diagnostics.append(
+                Diagnostic(
+                    WARNING,
+                    "RAPID1011",
+                    f"Future or unreferenced state snapshot '{state_file.name}' exceeds current_state_revision ({record.current_state_revision}) for run '{record.id}'.",
+                    state_file,
+                )
+            )
+
+        if not run_has_error:
+            valid_runs += 1
+
+    if not any(d.level == ERROR for d in diagnostics):
+        diagnostics.insert(
+            0,
+            Diagnostic(
+                INFO,
+                "RAPID1000",
+                f"Run registry valid ({valid_runs} run(s)).",
+                runs_dir,
+            ),
+        )
+
+    return ValidationReport(tuple(diagnostics))
+
 
 
 def validate_spec_registry(
