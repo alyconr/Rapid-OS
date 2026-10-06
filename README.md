@@ -61,15 +61,16 @@ Rapid OS v2 is complete. The repository now has the v2 architecture, CLI compati
 
 Future work is tracked as post-v2 enhancement work. The v2 baseline keeps the existing command behavior and generated file locations stable.
 
-| Workstream | Status | Included in v2 / v3 Phase 1 |
+| Workstream | Status | Included in v2 / v3 |
 | :-- | :-- | :-- |
 | Core package refactor | Complete | `rapid_os.cli`, `rapid_os.core`, and domain modules with `rapid.py` compatibility. |
 | Agent adapter architecture | Complete | Cursor, Claude, Antigravity, VS Code, and Codex adapters behind a registry. |
 | First-class Codex support | Complete | Opt-in `AGENTS.md` generation through the adapter system. |
 | Structured scope generation | Complete | `SPECS.md`, `TASKS.md`, and `ACCEPTANCE.md` from `rapid scope`. |
-| Validation and diagnostics | Complete | `rapid validate`, `rapid doctor`, and `rapid inspect-context` (including `RAPID6xx` snapshot checks). |
+| Validation and diagnostics | Complete | `rapid validate`, `rapid doctor`, and `rapid inspect-context` (including `RAPID6xx` snapshot and `RAPID8xx` spec registry checks). |
 | Project Intelligence (v3 Phase 1) | Complete | Deterministic `ProjectModel`, `ProjectFact`, `Evidence` provenance, `rapid scan` (`--json`, `--write`, `--verbose`), and optional `.rapid-os/project.json` snapshot. |
-| Context Compiler (v3 Phase 2) | Complete | Task-aware `ContextCompiler`, `ContextResolver`, `ContextManifest`, budget enforcement, conflict detection, `RAPID7xx` diagnostics, and read-only `rapid context` (`--mode`, `--harness`, `--objective`, `--max-chars`, `--manifest`, `--json`). |
+| Context Compiler (v3 Phase 2) | Complete | Task-aware `ContextCompiler`, `ContextResolver`, `ContextManifest`, budget enforcement, conflict detection, `RAPID7xx` diagnostics, and read-only `rapid context` (`--mode`, `--harness`, `--objective`, `--spec`, `--spec-revision`, `--max-chars`, `--manifest`, `--json`). |
+| Spec Registry (v3 Phase 3) | Complete | Canonical `SpecRecord` & `SpecRevision`, immutable revisions under `.rapid-os/specs/<id>/`, `rapid spec` (`create`, `list`, `show`, `revise`, `status`, `export-legacy`), `RAPID8xx` validation, and `rapid context --spec` integration. |
 | MCP abstraction | Complete | Structured MCP model with editor-specific rendering and package metadata. |
 | Testing and CI hardening | Complete | GitHub Actions plus `python -m unittest discover` and CLI smoke checks. |
 
@@ -433,14 +434,15 @@ Tabla completa de comandos disponibles en Rapid OS y sus resultados.
 | :--------------------------- | :---------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------ |
 | `rapid init`                 | **Inicializa Rapid OS**. Escanea señales locales y sugiere stack/topología con confirmación.   | Crea `.cursorrules`, `.agent/rules`, `.rapid-os/` y puede crear docs opcionales con backups. Soporta `--no-scan`, `--stack` y `--archetype {mvp,corporate}`. |
 | `rapid scan`                 | **Project Intelligence**. Escanea el repositorio y construye el `ProjectModel` determinista con evidencia trazable. | Read-only por defecto. Soporta `--verbose` (muestra evidencia), `--json` (JSON puro en stdout) y `--write` (persiste `.rapid-os/project.json` con backup). |
-| `rapid context`              | **Context Compiler**. Compila contexto selectivo y trazable por tarea, modo, harness y presupuesto. | Read-only. Soporta `--mode`, `--harness`, `--objective`, `--max-chars`, `--manifest` y `--json`. |
-| `rapid scope`                | **Asistente de Alcance**. Te entrevista para definir una feature, refactor, bugfix o hardening. | Genera `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` con backups antes de sobrescribir.                |
+| `rapid context`              | **Context Compiler**. Compila contexto selectivo y trazable por tarea, modo, spec, harness y presupuesto. | Read-only. Soporta `--mode`, `--harness`, `--objective`, `--spec`, `--spec-revision`, `--max-chars`, `--manifest` y `--json`. |
+| `rapid spec`                 | **Spec Registry (v3)**. Gestiona especificaciones con identidad estable, revisiones inmutables y estado (`draft`, `ready`, `archived`). | Subcomandos: `create`, `list`, `show`, `revise`, `status` y `export-legacy`. Persiste bajo `.rapid-os/specs/<spec-id>/`. |
+| `rapid scope`                | **Asistente de Alcance (Legacy Compatible)**. Te entrevista para definir una feature, refactor, bugfix o hardening. | Genera `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` con backups. Con `--register` también registra la spec en `.rapid-os/specs/`. |
 | `rapid refine <file>`        | **Refinamiento de Reglas**. Mejora cualquier documento de reglas usando IA.                     | Genera un Mega-Prompt para que pegues en tu chat y la IA reescriba el archivo profesionalmente.   |
 | `rapid skill [action] [name]` | **Instala o lista Skills** desde menú interactivo, registro comunitario o template privado.     | Sin argumentos abre menú; con `add`/`install` conserva el flujo directo existente.                 |
 | `rapid mcp [--ide ... --scope ...]` | **Configura MCP Servers**. Modela filesystem, BD y research tools.                    | Escribe el archivo MCP propio de cada editor con backup previo; si faltan flags entra en modo interactivo. |
 | `rapid vision [image_path]`  | **Contexto de Referencia Visual**. Copia una imagen de referencia y documenta su descripción.   | Copia la imagen a `references/`, registra la descripción en `references/VISION_CONTEXT.md` y actualiza el contexto de agentes. |
 | `rapid deploy <target>`      | **Guía de Despliegue**. Genera instrucciones de despliegue basadas en templates locales.        | Crea `DEPLOY.md` desde `templates/deploy/<target>.md` (template incluido: `aws`, o guía genérica fallback `Deploy to <target>`) con backup previo. |
-| `rapid validate`             | **Validación de Proyecto**. Revisa templates, estándares, config, herramientas y contexto.      | No escribe archivos. Sale con `0` si no hay errores y `1` si encuentra errores de validación.     |
+| `rapid validate`             | **Validación de Proyecto**. Revisa templates, estándares, config, snapshots, specs, herramientas y contexto. | No escribe archivos. Sale con `0` si no hay errores y `1` si encuentra errores de validación.     |
 | `rapid doctor`               | **Diagnóstico Local**. Revisa rutas resueltas, templates, Node/npx opcional y proyecto actual.  | No escribe archivos. Usa advertencias para capacidades opcionales como Node/npx.                  |
 | `rapid inspect-context`      | **Inspección de Contexto**. Ensambla y previsualiza el contexto final antes de generar archivos. | No escribe archivos. Muestra secciones incluidas, herramientas seleccionadas y preview final.     |
 
@@ -463,19 +465,48 @@ rapid scan --write
 rapid scan --json --write
 ```
 
+### Spec Registry (`rapid spec`)
+
+El **Spec Registry** de Rapid OS v3 reemplaza los archivos singleton sobrescribibles por un registro estructurado en `.rapid-os/specs/<spec-id>/` con identidad estable (`spec.json`), ciclo de vida (`draft`, `ready`, `archived`) y revisiones inmutables (`revisions/0001/`, `0002/`, ... con `revision.json`, `requirements.md`, `tasks.md` y `acceptance.md`):
+
+```bash
+# Crear una spec (interactivo o por flags)
+rapid spec create --title "Booking Idempotency" --mode feature --objective "Prevent duplicate charges" --problem "Retries duplicate bookings" --scope "POST /bookings" --acceptance "Duplicate key returns 200" --task "Add idempotency key store"
+
+# Listar y consultar specs (read-only)
+rapid spec list
+rapid spec list --json
+rapid spec show booking-idempotency
+rapid spec show booking-idempotency --revision 1 --json
+
+# Crear una nueva revisión inmutable (hereda campos no especificados)
+rapid spec revise booking-idempotency --acceptance "Duplicate key returns 200" --acceptance "Timeout retries are safe"
+
+# Marcar como lista para consumo del Context Compiler
+rapid spec status booking-idempotency ready
+
+# Exportar explícitamente a SPECS.md / TASKS.md / ACCEPTANCE.md (compatibilidad v2)
+rapid spec export-legacy booking-idempotency
+```
+
+> **Compatibilidad con `rapid scope`**: `rapid scope` conserva su comportamiento clásico escribiendo `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` en la raíz, y soporta `rapid scope --register [--spec-id <id>] [--status {draft,ready}]` para registrar simultáneamente la spec en `.rapid-os/specs/`.
+
 ### Context Compiler (`rapid context`)
 
-El **Context Compiler** de Rapid OS v3 selecciona y compila únicamente el contexto relevante para una tarea concreta combinando `ProjectModel`, estándares del proyecto, precedencia determinista, detección de conflictos y presupuesto de caracteres (`max_chars`):
+El **Context Compiler** de Rapid OS v3 selecciona y compila únicamente el contexto relevante para una tarea concreta combinando `ProjectModel`, estándares del proyecto, specs `ready` del Spec Registry, precedencia determinista, detección de conflictos y presupuesto de caracteres (`max_chars`):
 
 ```bash
 rapid context
 rapid context --mode bugfix --harness codex
+rapid context --mode feature --spec booking-idempotency
+rapid context --mode feature --spec booking-idempotency --spec-revision 1
 rapid context --mode feature --objective "Implement order API" --max-chars 16000
 rapid context --manifest
 rapid context --json
 ```
 
 - **Read-only**: `rapid context` nunca escribe ni modifica archivos en el repositorio.
+- **`--spec <spec-id>`**: Carga `requirements.md`, `tasks.md` y `acceptance.md` de una spec en estado `ready` desde `.rapid-os/specs/<spec-id>/` (y excluye los singletons raíz `SPECS.md`/`TASKS.md`/`ACCEPTANCE.md` para evitar ambigüedad).
 - **`--manifest`**: Muestra qué fuentes se seleccionaron (`SELECTED`), cuáles se omitieron (`SKIPPED` y por qué) y cualquier conflicto detectado (`CONFLICTS`).
 - **`--json`**: Emite el documento `CompiledContext` (`schema_version: 1`, `manifest` y `content`) listo para consumo automatizado.
 
@@ -489,7 +520,7 @@ rapid validate --json
 rapid validate --strict
 ```
 
-`rapid validate` falla con código `1` cuando hay errores, como `tech-stack.md` o `topology.md` faltantes, JSON inválido en `.rapid-os/config.json`, `.rapid-os/project.json` o templates MCP, herramientas desconocidas en `.rapid-os/config.json`, combinaciones stack/topología incompatibles o contexto ensamblado vacío. Con `--strict`, las advertencias también devuelven `1`.
+`rapid validate` falla con código `1` cuando hay errores, como `tech-stack.md` o `topology.md` faltantes, JSON inválido en `.rapid-os/config.json`, `.rapid-os/project.json`, `.rapid-os/specs/` (`RAPID801–RAPID809`) o templates MCP, herramientas desconocidas en `.rapid-os/config.json`, combinaciones stack/topología incompatibles o contexto ensamblado vacío. Con `--strict`, las advertencias también devuelven `1`.
 
 Para revisar la instalación local sin modificar nada:
 
@@ -498,7 +529,7 @@ rapid doctor
 rapid doctor --json
 ```
 
-`rapid doctor` reporta rutas resueltas, directorio de templates activo, estado del proyecto actual (incluyendo `.rapid-os/project.json` si existe) y disponibilidad opcional de Node/npx.
+`rapid doctor` reporta rutas resueltas, directorio de templates activo, estado del proyecto actual (incluyendo `.rapid-os/project.json` y `.rapid-os/specs/` si existen) y disponibilidad opcional de Node/npx.
 
 Para ver el contexto final antes de escribir archivos de agente:
 

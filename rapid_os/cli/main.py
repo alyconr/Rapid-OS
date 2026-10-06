@@ -48,6 +48,7 @@ from rapid_os.core.paths import (
 )
 from rapid_os.adapters.context_sources import ContextSourceLoader
 from rapid_os.adapters.project_snapshot import write_project_snapshot
+from rapid_os.adapters.spec_registry import SpecRegistry
 from rapid_os.core.process import run_npx_skills_add
 from rapid_os.core.text import read_text_best_effort
 from rapid_os.domain.agents import generate_agent_contexts
@@ -70,6 +71,15 @@ from rapid_os.domain.scope import (
     parse_list,
     write_scope_artifacts,
 )
+from rapid_os.domain.specs import (
+    SPEC_SCHEMA_VERSION,
+    InvalidRevisionManifestError,
+    SpecMode,
+    SpecRegistryError,
+    SpecRevision,
+    SpecStatus,
+    spec_revision_from_scope,
+)
 from rapid_os.domain.validation import (
     ERROR,
     INFO,
@@ -82,6 +92,7 @@ from rapid_os.domain.validation import (
     validate_project_config,
     validate_project_intelligence,
     validate_project_standards,
+    validate_spec_registry,
     validate_stack_topology,
     validate_templates,
 )
@@ -842,6 +853,33 @@ def scope_feature(args):
     for target in write_scope_artifacts(spec, CURRENT_DIR):
         print_success(f"{target.name} creado")
 
+    if getattr(args, "register", False):
+        try:
+            registry = SpecRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+            explicit_spec_id = getattr(args, "spec_id", None)
+            rev_input = spec_revision_from_scope(
+                spec,
+                spec_id=explicit_spec_id,
+                revision=1,
+            )
+            created_record = registry.create(rev_input)
+            requested_status = getattr(args, "status", None)
+            if requested_status == "ready":
+                created_record = registry.set_status(
+                    created_record.id,
+                    SpecStatus.READY,
+                )
+            print_success(
+                f"Spec '{created_record.id}' registrada (r{created_record.current_revision}, status={created_record.status.value})"
+            )
+        except SpecRegistryError as exc:
+            print(f"{exc.code} {exc}", file=sys.stderr)
+            sys.exit(1)
+        except ValueError as exc:
+            print(f"RAPID801 {exc}", file=sys.stderr)
+            sys.exit(1)
+    return 0
+
 
 def deploy_assistant(args):
     raw_target = args.target or input("Target (e.g. aws): ").strip()
@@ -1056,6 +1094,7 @@ def doctor_command(args):
             validate_stack_topology(PROJECT_RAPID_DIR),
             validate_composed_context(PROJECT_RAPID_DIR, CURRENT_DIR),
             validate_project_intelligence(PROJECT_RAPID_DIR, CURRENT_DIR),
+            validate_spec_registry(PROJECT_RAPID_DIR, CURRENT_DIR),
         )
     else:
         report = report.extend(
@@ -1244,12 +1283,18 @@ def context_command(args):
             "affected_paths": tuple(getattr(args, "path", None) or ()),
             "constraints": tuple(getattr(args, "constraint", None) or ()),
             "max_chars": getattr(args, "max_chars", None),
+            "spec_id": getattr(args, "spec", None),
+            "spec_revision": getattr(args, "spec_revision", None),
         }
         if getattr(args, "harness", None):
             request_kwargs["harness"] = args.harness
         request = ContextRequest(**request_kwargs)
     except ValueError as exc:
-        print(f"RAPID705 Solicitud de contexto invalida: {exc}", file=sys.stderr)
+        code = getattr(exc, "code", None) or "RAPID705"
+        print(
+            f"{code} Solicitud de contexto invalida: {exc}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     discovery = ContextSourceLoader().load(
@@ -1257,8 +1302,9 @@ def context_command(args):
     )
     if discovery.load_errors:
         for err in discovery.load_errors:
+            err_code = getattr(err, "code", None) or "RAPID704"
             print(
-                f"RAPID704 No se pudo leer la fuente de contexto {err.source_id} ({err.path}): {err.message}",
+                f"{err_code} No se pudo leer la fuente de contexto {err.source_id} ({err.path}): {err.message}",
                 file=sys.stderr,
             )
         sys.exit(1)
@@ -1306,19 +1352,502 @@ def context_command(args):
     return 0
 
 
+def _prompt_with_default(prompt_label: str, default_value: str = "") -> str:
+    try:
+        raw = input(prompt_label).strip()
+    except (EOFError, StopIteration):
+        raw = ""
+    return raw if raw else default_value
+
+
+def _prompt_list_with_default(
+    prompt_label: str,
+    default_items: tuple[str, ...] = (),
+) -> tuple[str, ...]:
+    try:
+        raw = input(prompt_label).strip()
+    except (EOFError, StopIteration):
+        raw = ""
+    if not raw:
+        return tuple(default_items)
+    return tuple(parse_list(raw))
+
+
+SPEC_AUTHORING_SCALAR_FIELDS = (
+    "title",
+    "mode",
+    "business_objective",
+    "problem_statement",
+    "data_impact",
+)
+
+SPEC_AUTHORING_LIST_FIELDS = (
+    "scope",
+    "out_of_scope",
+    "actors_users",
+    "main_flow",
+    "edge_cases",
+    "business_rules",
+    "technical_constraints",
+    "affected_paths",
+    "acceptance_criteria",
+    "testing_strategy",
+    "implementation_tasks",
+    "tags",
+)
+
+
+def _extract_non_interactive_spec_fields(args) -> dict[str, object]:
+    """Extract explicitly supplied CLI authoring flags without prompting."""
+    fields: dict[str, object] = {}
+    for scalar_name in SPEC_AUTHORING_SCALAR_FIELDS:
+        val = getattr(args, scalar_name, None)
+        if val is not None:
+            fields[scalar_name] = val
+    for list_name in SPEC_AUTHORING_LIST_FIELDS:
+        val = getattr(args, list_name, None)
+        if val is not None:
+            fields[list_name] = tuple(val)
+    return fields
+
+
+def _has_non_interactive_spec_flags(args, *, is_create: bool = False) -> bool:
+    for name in SPEC_AUTHORING_SCALAR_FIELDS + SPEC_AUTHORING_LIST_FIELDS:
+        if getattr(args, name, None) is not None:
+            return True
+    if is_create:
+        if getattr(args, "status", None) is not None:
+            return True
+        if getattr(args, "export_legacy", False):
+            return True
+    if getattr(args, "json", False):
+        return True
+    return False
+
+
+def _collect_spec_wizard_fields(
+    *,
+    explicit_id: str | None = None,
+    base_revision: SpecRevision | None = None,
+) -> dict[str, object]:
+    is_revise = base_revision is not None
+    header = "✏️  SPEC REVISE WIZARD" if is_revise else "📐 SPEC WIZARD (v3 Registry)"
+    print(f"\n{header}")
+    print("Modo:")
+    print(" 1) feature")
+    print(" 2) refactor")
+    print(" 3) bugfix")
+    print(" 4) hardening")
+    print(" 5) research")
+    print("Tip: usa comas o punto y coma para respuestas tipo lista.")
+
+    resolved_id = explicit_id
+    if not is_revise and not resolved_id:
+        raw_id = _prompt_with_default("Spec ID (Enter para derivar del nombre): ", "")
+        if raw_id:
+            resolved_id = raw_id
+
+    default_title = base_revision.title if base_revision else ""
+    default_mode = base_revision.mode.value if base_revision else SpecMode.FEATURE.value
+    title = _prompt_with_default("Nombre iniciativa: ", default_title)
+    mode_input = _prompt_with_default("Modo [1]: ", default_mode)
+    mode = SpecMode.coerce(mode_input) if mode_input else SpecMode.FEATURE
+
+    business_objective = _prompt_with_default(
+        "Objetivo de negocio: ",
+        base_revision.business_objective if base_revision else "",
+    )
+    problem_statement = _prompt_with_default(
+        "Problema a resolver: ",
+        base_revision.problem_statement if base_revision else "",
+    )
+    scope = _prompt_list_with_default(
+        "Alcance: ",
+        base_revision.scope if base_revision else (),
+    )
+    out_of_scope = _prompt_list_with_default(
+        "Fuera de alcance: ",
+        base_revision.out_of_scope if base_revision else (),
+    )
+    actors_users = _prompt_list_with_default(
+        "Actores/usuarios: ",
+        base_revision.actors_users if base_revision else (),
+    )
+    main_flow = _prompt_list_with_default(
+        "Flujo principal: ",
+        base_revision.main_flow if base_revision else (),
+    )
+    edge_cases = _prompt_list_with_default(
+        "Casos borde: ",
+        base_revision.edge_cases if base_revision else (),
+    )
+    business_rules = _prompt_list_with_default(
+        "Reglas de negocio: ",
+        base_revision.business_rules if base_revision else (),
+    )
+    technical_constraints = _prompt_list_with_default(
+        "Restricciones técnicas: ",
+        base_revision.technical_constraints if base_revision else (),
+    )
+    affected_paths = _prompt_list_with_default(
+        "Archivos/módulos afectados si se conocen: ",
+        base_revision.affected_paths if base_revision else (),
+    )
+    data_impact = _prompt_with_default(
+        "Impacto en datos: ",
+        base_revision.data_impact if base_revision else "",
+    )
+    acceptance_criteria = _prompt_list_with_default(
+        "Criterios de aceptación: ",
+        base_revision.acceptance_criteria if base_revision else (),
+    )
+    testing_strategy = _prompt_list_with_default(
+        "Estrategia de pruebas: ",
+        base_revision.testing_strategy if base_revision else (),
+    )
+    implementation_tasks = _prompt_list_with_default(
+        "Tareas de implementación: ",
+        base_revision.implementation_tasks if base_revision else (),
+    )
+    tags = _prompt_list_with_default(
+        "Tags: ",
+        base_revision.tags if base_revision else (),
+    )
+
+    payload: dict[str, object] = {
+        "title": title,
+        "mode": mode,
+        "business_objective": business_objective,
+        "problem_statement": problem_statement,
+        "scope": scope,
+        "out_of_scope": out_of_scope,
+        "actors_users": actors_users,
+        "main_flow": main_flow,
+        "edge_cases": edge_cases,
+        "business_rules": business_rules,
+        "technical_constraints": technical_constraints,
+        "affected_paths": affected_paths,
+        "data_impact": data_impact,
+        "acceptance_criteria": acceptance_criteria,
+        "testing_strategy": testing_strategy,
+        "implementation_tasks": implementation_tasks,
+        "tags": tags,
+    }
+    if resolved_id is not None:
+        payload["spec_id"] = resolved_id
+    return payload
+
+
+def render_spec_show_text(
+    record,
+    revision: SpecRevision,
+    artifact_paths: dict[str, str],
+) -> str:
+    scope_summary = ", ".join(revision.scope) if revision.scope else "none"
+    paths_summary = (
+        ", ".join(revision.affected_paths) if revision.affected_paths else "none"
+    )
+    tags_summary = ", ".join(revision.tags) if revision.tags else "none"
+    lines = [
+        f"ID:               {record.id}",
+        f"Status:           {record.status.value}",
+        f"Current Revision: r{record.current_revision}",
+        f"Revision:         r{revision.revision}",
+        f"Title:            {revision.title}",
+        f"Mode:             {revision.mode.value}",
+        f"Business Obj:     {revision.business_objective or 'none'}",
+        f"Problem:          {revision.problem_statement or 'none'}",
+        f"Scope:            {scope_summary}",
+        f"Affected Paths:   {paths_summary}",
+        f"Tags:             {tags_summary}",
+        "Artifacts:",
+    ]
+    for name in ("requirements.md", "tasks.md", "acceptance.md"):
+        if name in artifact_paths:
+            lines.append(f"  - {artifact_paths[name]}")
+    return "\n".join(lines)
+
+
+def spec_command(args):
+    """Execute `rapid spec` subcommands (`create`, `list`, `show`, `revise`, `status`, `export-legacy`)."""
+    action = getattr(args, "spec_action", None) or getattr(args, "action", None)
+    try:
+        registry = SpecRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+
+        if action == "list":
+            records = registry.list_specs()
+            status_filter = getattr(args, "status", None)
+            if status_filter is not None:
+                coerced_filter = SpecStatus.coerce(status_filter)
+                records = tuple(
+                    rec for rec in records if rec.status == coerced_filter
+                )
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": SPEC_SCHEMA_VERSION,
+                    "specs": [rec.to_dict() for rec in records],
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            if not records:
+                print("No specs registered.")
+                return 0
+            for rec in records:
+                print(
+                    f"{rec.id:<25} {rec.status.value:<10} r{rec.current_revision}"
+                )
+            return 0
+
+        if action == "show":
+            spec_id = getattr(args, "spec_id", None) or getattr(args, "id", None)
+            rev_arg = getattr(args, "revision", None)
+            record = registry.get(spec_id)
+            revision = registry.get_revision(spec_id, revision=rev_arg)
+            artifact_paths = registry.get_artifact_paths(
+                spec_id,
+                revision=revision.revision,
+            )
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": SPEC_SCHEMA_VERSION,
+                    "id": record.id,
+                    "status": record.status.value,
+                    "current_revision": record.current_revision,
+                    "spec": record.to_dict(),
+                    "record": record.to_dict(),
+                    "revision": revision.to_dict(),
+                    "artifacts": artifact_paths,
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print(render_spec_show_text(record, revision, artifact_paths))
+            return 0
+
+        if action == "create":
+            explicit_id = getattr(args, "spec_id", None) or getattr(
+                args, "id", None
+            )
+            if _has_non_interactive_spec_flags(args, is_create=True):
+                fields = _extract_non_interactive_spec_fields(args)
+                raw_title = str(fields.get("title") or "").strip()
+                if not raw_title:
+                    raise InvalidRevisionManifestError(
+                        "Spec 'title' (--title) is required in non-interactive mode."
+                    )
+                if explicit_id is not None:
+                    fields["spec_id"] = explicit_id
+            else:
+                fields = _collect_spec_wizard_fields(explicit_id=explicit_id)
+
+            created_record = registry.create(**fields)
+            requested_status = getattr(args, "status", None)
+            if requested_status == "ready":
+                created_record = registry.set_status(
+                    created_record.id,
+                    SpecStatus.READY,
+                )
+            elif requested_status is not None and requested_status != "draft":
+                raise InvalidRevisionManifestError(
+                    f"Invalid initial spec status '{requested_status}': only 'draft' or 'ready' are allowed on create."
+                )
+
+            written_legacy = ()
+            if getattr(args, "export_legacy", False):
+                written_legacy = registry.export_legacy(
+                    created_record.id,
+                    CURRENT_DIR,
+                    revision=created_record.current_revision,
+                )
+
+            if getattr(args, "json", False):
+                created_rev = registry.get_revision(
+                    created_record.id,
+                    revision=created_record.current_revision,
+                )
+                payload = {
+                    **created_record.to_dict(),
+                    "spec": created_record.to_dict(),
+                    "revision": created_rev.to_dict(),
+                }
+                if written_legacy:
+                    payload["legacy_exports"] = [
+                        target.name for target in written_legacy
+                    ]
+                print(json.dumps(payload, indent=2))
+                return 0
+
+            print_success(
+                f"Spec '{created_record.id}' creada (r{created_record.current_revision}, status={created_record.status.value})"
+            )
+            for target in written_legacy:
+                print_success(f"{target.name} exportado")
+            return 0
+
+        if action == "revise":
+            spec_id = getattr(args, "spec_id", None) or getattr(args, "id", None)
+            record = registry.get(spec_id)
+            current_rev = registry.get_revision(spec_id, record.current_revision)
+            if _has_non_interactive_spec_flags(args, is_create=False):
+                fields = _extract_non_interactive_spec_fields(args)
+            else:
+                fields = _collect_spec_wizard_fields(
+                    explicit_id=record.id,
+                    base_revision=current_rev,
+                )
+                fields.pop("spec_id", None)
+
+            updated_record = registry.revise(spec_id, **fields)
+            if getattr(args, "json", False):
+                updated_rev = registry.get_revision(
+                    updated_record.id,
+                    revision=updated_record.current_revision,
+                )
+                payload = {
+                    **updated_record.to_dict(),
+                    "spec": updated_record.to_dict(),
+                    "revision": updated_rev.to_dict(),
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+
+            print_success(
+                f"Spec '{updated_record.id}' actualizada a r{updated_record.current_revision} (status={updated_record.status.value})"
+            )
+            return 0
+
+        if action == "status":
+            spec_id = getattr(args, "spec_id", None) or getattr(args, "id", None)
+            target_status = getattr(args, "status", None)
+            updated_record = registry.set_status(spec_id, target_status)
+            if getattr(args, "json", False):
+                print(updated_record.to_json(indent=2))
+                return 0
+            print_success(
+                f"Spec '{updated_record.id}' status -> {updated_record.status.value} (r{updated_record.current_revision})"
+            )
+            return 0
+
+        if action == "export-legacy":
+            spec_id = getattr(args, "spec_id", None) or getattr(args, "id", None)
+            rev_arg = getattr(args, "revision", None)
+            written = registry.export_legacy(
+                spec_id,
+                CURRENT_DIR,
+                revision=rev_arg,
+            )
+            for target in written:
+                print_success(f"{target.name} exportado")
+            return 0
+
+        print("RAPID801 Subcomando 'rapid spec' requerido.", file=sys.stderr)
+        sys.exit(1)
+    except SpecRegistryError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        print(f"RAPID801 {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
 def show_guide():
     print("📘 RAPID OS - COMANDOS")
     print(" init    -> Configurar proyecto")
     print(" scan    -> Inspeccionar inteligencia del proyecto")
     print(" context -> Compilar contexto selectivo por tarea")
+    print(" spec    -> Gestionar Spec Registry v3 (create, list, show, revise, status, export-legacy)")
     print(" skill   -> Instalar capacidades (Local/Vercel)")
     print(" mcp     -> Configurar herramientas BD")
     print(" vision  -> Agregar referencias visuales")
-    print(" scope   -> Crear specs")
+    print(" scope   -> Crear specs (legacy singleton workflow)")
     print(" prompt  -> Generar prompt para IA")
     print(" validate -> Validar proyecto Rapid OS")
     print(" doctor  -> Diagnosticar instalacion local")
     print(" inspect-context -> Previsualizar contexto ensamblado")
+
+
+def _add_spec_authoring_arguments(subparser, *, is_create: bool = False):
+    if is_create:
+        subparser.add_argument("--id", dest="spec_id")
+    subparser.add_argument("--title")
+    subparser.add_argument("--mode")
+    subparser.add_argument(
+        "--objective",
+        "--business-objective",
+        dest="business_objective",
+    )
+    subparser.add_argument(
+        "--problem",
+        "--problem-statement",
+        dest="problem_statement",
+    )
+    subparser.add_argument("--scope", action="append")
+    subparser.add_argument(
+        "--out-of-scope",
+        dest="out_of_scope",
+        action="append",
+    )
+    subparser.add_argument(
+        "--actor",
+        "--actors-users",
+        dest="actors_users",
+        action="append",
+    )
+    subparser.add_argument(
+        "--main-flow",
+        "--flow",
+        dest="main_flow",
+        action="append",
+    )
+    subparser.add_argument(
+        "--edge-case",
+        dest="edge_cases",
+        action="append",
+    )
+    subparser.add_argument(
+        "--business-rule",
+        "--rule",
+        dest="business_rules",
+        action="append",
+    )
+    subparser.add_argument(
+        "--technical-constraint",
+        "--constraint",
+        dest="technical_constraints",
+        action="append",
+    )
+    subparser.add_argument(
+        "--affected-path",
+        dest="affected_paths",
+        action="append",
+    )
+    subparser.add_argument("--data-impact", dest="data_impact")
+    subparser.add_argument(
+        "--acceptance",
+        "--acceptance-criteria",
+        dest="acceptance_criteria",
+        action="append",
+    )
+    subparser.add_argument(
+        "--testing",
+        "--testing-strategy",
+        dest="testing_strategy",
+        action="append",
+    )
+    subparser.add_argument(
+        "--task",
+        "--implementation-task",
+        dest="implementation_tasks",
+        action="append",
+    )
+    subparser.add_argument("--tag", dest="tags", action="append")
+    if is_create:
+        subparser.add_argument("--status", choices=["draft", "ready"])
+        subparser.add_argument(
+            "--export-legacy",
+            dest="export_legacy",
+            action="store_true",
+        )
+    subparser.add_argument("--json", action="store_true")
 
 
 def create_parser():
@@ -1351,14 +1880,51 @@ def create_parser():
     context.add_argument("--constraint", action="append")
     context.add_argument("--tag", action="append")
     context.add_argument("--path", action="append")
+    context.add_argument("--spec")
+    context.add_argument("--spec-revision", type=int)
     context.add_argument("--json", action="store_true")
     context.add_argument("--manifest", action="store_true")
+
+    spec = subparsers.add_parser("spec")
+    spec_subparsers = spec.add_subparsers(dest="spec_action")
+
+    spec_create = spec_subparsers.add_parser("create")
+    _add_spec_authoring_arguments(spec_create, is_create=True)
+
+    spec_list = spec_subparsers.add_parser("list")
+    spec_list.add_argument(
+        "--status",
+        choices=["draft", "ready", "archived"],
+    )
+    spec_list.add_argument("--json", action="store_true")
+
+    spec_show = spec_subparsers.add_parser("show")
+    spec_show.add_argument("spec_id")
+    spec_show.add_argument("--revision", type=int)
+    spec_show.add_argument("--json", action="store_true")
+
+    spec_revise = spec_subparsers.add_parser("revise")
+    spec_revise.add_argument("spec_id")
+    _add_spec_authoring_arguments(spec_revise, is_create=False)
+
+    spec_status = spec_subparsers.add_parser("status")
+    spec_status.add_argument("spec_id")
+    spec_status.add_argument("status")
+    spec_status.add_argument("--json", action="store_true")
+
+    spec_export = spec_subparsers.add_parser("export-legacy")
+    spec_export.add_argument("spec_id")
+    spec_export.add_argument("--revision", type=int)
 
     skill = subparsers.add_parser("skill")
     skill.add_argument("action", choices=["list", "install", "add"], nargs="?")
     skill.add_argument("name", nargs="?")
 
-    subparsers.add_parser("scope")
+    scope = subparsers.add_parser("scope")
+    scope.add_argument("--register", action="store_true")
+    scope.add_argument("--spec-id", dest="spec_id")
+    scope.add_argument("--status", choices=["draft", "ready"])
+
     deploy = subparsers.add_parser("deploy")
     deploy.add_argument("target", nargs="?")
     vision = subparsers.add_parser("vision")
@@ -1393,6 +1959,8 @@ def main(argv=None):
         scan_command(args)
     elif args.command == "context":
         context_command(args)
+    elif args.command == "spec":
+        spec_command(args)
     elif args.command == "skill":
         manage_skills(args)
     elif args.command == "mcp":

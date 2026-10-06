@@ -7,14 +7,14 @@ Rapid OS v3 evolves Rapid OS from a static context template generator into a det
 ```text
 Phase 0  Hardening Foundation (COMPLETE)
 Phase 1  Project Intelligence (COMPLETE)
-Phase 2  Context Compiler (CURRENT)
-Phase 3  Spec Registry v3 (PLANNED)
+Phase 2  Context Compiler (COMPLETE)
+Phase 3  Spec Registry v3 (CURRENT)
 Phase 4  Execution Policy Engine (PLANNED)
 Phase 5  Harness Capability Registry (PLANNED)
 Phase 6  Evidence Engine & Evals (PLANNED)
 ```
 
-> Only Phase 0, Phase 1, and Phase 2 are implemented in the repository today. Phases 3–6 are documented strictly as planned architecture targets.
+> Only Phase 0, Phase 1, Phase 2, and Phase 3 are implemented in the repository today. Phases 4–6 are documented strictly as planned architecture targets.
 
 ---
 
@@ -128,7 +128,7 @@ Instead of dumping all standards and raw scan facts indiscriminately, the Contex
 ### Pipeline
 
 ```text
-ProjectModel + Project Standards + Task Intent (ContextRequest) + ContextPolicy
+ProjectModel + Project Standards + Spec Registry / Task Intent (ContextRequest) + ContextPolicy
     ↓
 ContextSourceLoader (rapid_os.adapters.context_sources)
     ↓
@@ -166,13 +166,13 @@ Ordered integer enum (`LOW = 10`, `MEDIUM = 50`, `HIGH = 80`, `CRITICAL = 100`).
 Task execution modes (`feature`, `bugfix`, `refactor`, `hardening`, `research`, `general`), each defining mode-preferred source kinds and task-relevant `ProjectModel` fact filtering.
 
 #### `ContextSource` & `ContextFragment`
-Immutable, validated units of context with stable public identifiers (`task.constraints`, `standard.security`, `standard.business`, `standard.tech-stack`, `spec.scope`, `project.intelligence`), portable POSIX paths, tags, selection reasons, and end-to-end portable `provenance` preserved through `ContextSource` → `ContextFragment` → `ManifestEntry` → `ContextManifest`.
+Immutable, validated units of context with stable public identifiers (`task.constraints`, `standard.security`, `standard.business`, `standard.tech-stack`, `spec.<id>.requirements`, `spec.scope`, `project.intelligence`), portable POSIX paths, tags, selection reasons, and end-to-end portable `provenance` preserved through `ContextSource` → `ContextFragment` → `ManifestEntry` → `ContextManifest`.
 - File-backed standards/specs record their relative POSIX path (e.g., `.rapid-os/standards/security.md`).
 - Explicit task constraints (`ContextRequest.constraints`) are promoted to a first-class canonical source (`id="task.constraints"`, `kind=ContextSourceKind.TASK_CONSTRAINTS`, `priority=ContextPriority.CRITICAL`, `required=True`, `provenance="ContextRequest.constraints"`).
 - Project Intelligence distinguishes snapshot provenance (`snapshot:.rapid-os/project.json`) from live scan provenance (`scan:live`), and fails explicitly with `RAPID704` if `.rapid-os/project.json` exists on disk but is corrupt or invalid (never silently falling back to a live scan).
 
 #### `ContextRequest` & `ContextPolicy`
-`ContextRequest` captures task intent (`mode`, `harness`, `objective`, `affected_paths`, `tags`, `max_chars`, `constraints`). `ContextPolicy` (`DEFAULT_CONTEXT_POLICY`, `max_chars = 24000`) governs required kinds, mode preferences, priorities, and precedence order.
+`ContextRequest` captures task intent (`mode`, `harness`, `objective`, `affected_paths`, `tags`, `max_chars`, `constraints`, `spec_id`, `spec_revision`). `ContextPolicy` (`DEFAULT_CONTEXT_POLICY`, `max_chars = 24000`) governs required kinds, mode preferences, priorities, and precedence order.
 
 #### Budget Enforcement, Required Sources & Non-Truncation Guarantee
 - Budget (`max_chars`) is enforced against the final compiled Markdown output (`len(compiled.content) <= max_chars`).
@@ -201,7 +201,103 @@ Detects structural contradictions across **effectively selected** fragments and 
 - `rapid context --mode <mode>`: Selects task mode (`feature`, `bugfix`, `refactor`, `hardening`, `research`, `general`).
 - `rapid context --harness <harness>`: Selects target harness (`cursor`, `claude`, `codex`, `vscode`, `antigravity`).
 - `rapid context --objective "..."`: Provides task objective for relevance scoring and task header rendering.
+- `rapid context --spec <spec-id> [--spec-revision <n>]`: Injects a `ready` spec (current or pinned revision) from `.rapid-os/specs/<spec-id>/` into the Context Compiler and suppresses root singleton `SPECS.md` / `TASKS.md` / `ACCEPTANCE.md` files to prevent ambiguity.
 - `rapid context --max-chars <n>`: Sets explicit character budget.
 - `rapid context --manifest`: Prints human-readable manifest (`SELECTED`, `SKIPPED`, and `CONFLICTS`).
 - `rapid context --json`: Emits pure `CompiledContext` JSON (`schema_version = 1`, `manifest`, `content`) to `stdout`.
 - `rapid inspect-context` and `compose_project_context()` remain intact for v2 compatibility.
+
+---
+
+## Phase 3: Spec Registry v3
+
+### Architectural Principle
+
+Whereas legacy `rapid scope` overwrote three singleton root files (`SPECS.md`, `TASKS.md`, `ACCEPTANCE.md`) with no stable identity, concurrent spec support, revision history, or authoring lifecycle, the **Spec Registry** makes Spec-Driven Development (SDD) canonical, addressable, and immutable.
+
+A **Spec** answers: *"What must be built and how will we know it is properly defined?"*.
+It strictly separates **authoring state** (`draft`, `ready`, `archived`) from **execution state** (which belongs to Phase 4+).
+
+### Pipeline & Filesystem Layout
+
+```text
+Scope / Spec Input
+    ↓
+Canonical Spec Model (SpecRecord + SpecRevision in rapid_os.domain.specs)
+    ↓
+SpecRegistry (.rapid-os/specs/<spec-id>/)
+    ├── spec.json (schema_version = 1, id, status, current_revision)
+    └── revisions/
+        ├── 0001/
+        │   ├── revision.json (schema_version = 1, structured fields + digests)
+        │   ├── requirements.md
+        │   ├── tasks.md
+        │   └── acceptance.md
+        └── 0002/
+            └── ...
+    ↓
+Context Compiler (rapid context --spec <spec-id> [--spec-revision <n>])
+```
+
+- **No Duplicate Index**: Specs are discovered deterministically by scanning `.rapid-os/specs/*/spec.json` in lexical order.
+- **Immutable Revisions, Historical Continuity & Atomic Commit Point**: Existing `revisions/<rev>/` directories (`format_revision_dir_name`: `0001`..`9999`, `10000`, ...) are never modified in place, and every historical revision `1..current_revision` must remain present and valid. Creating or revising a spec validates the model, writes `requirements.md`, `tasks.md`, `acceptance.md`, and `revision.json`, verifies revision completeness and SHA-256 digests, and updates `spec.json` (`current_revision`) **last**.
+
+### Canonical Domain Entities (`rapid_os.domain.specs`)
+
+#### `SPEC_SCHEMA_VERSION = 1` & `SPEC_REVISION_SCHEMA_VERSION = 1`
+Independent schema versions governing `spec.json` and `revision.json`.
+
+#### `SpecStatus`
+Authoring lifecycle enum (`DRAFT = "draft"`, `READY = "ready"`, `ARCHIVED = "archived"`):
+- Allowed transitions: `draft → ready`, `draft → archived`, `ready → draft`, `ready → archived`.
+- `archived` is terminal in Phase 3.
+
+#### `SpecMode`
+Canonical authoring mode (`FEATURE = "feature"`, `BUGFIX = "bugfix"`, `REFACTOR = "refactor"`, `HARDENING = "hardening"`, `RESEARCH = "research"`), with compatibility mapping from legacy `rapid scope` modes (`new feature → feature`, `legacy hardening → hardening`).
+
+#### `SpecRecord`
+Immutable record (`schema_version`, `id`, `status`, `current_revision`) persisted in `.rapid-os/specs/<spec-id>/spec.json`. Contains no timestamps, no UUIDs, no host paths, and no execution state.
+
+#### `SpecRevision`
+Immutable structured revision (`schema_version`, `spec_id`, `revision`, `title`, `mode`, `business_objective`, `problem_statement`, `scope`, `out_of_scope`, `actors_users`, `main_flow`, `edge_cases`, `business_rules`, `technical_constraints`, `affected_paths`, `data_impact`, `acceptance_criteria`, `testing_strategy`, `implementation_tasks`, `tags`):
+- Preserves exact user-authored ordering across all semantic tuple fields (`main_flow`, `implementation_tasks`, `acceptance_criteria`, etc.); only `tags` are normalized, deduplicated, and sorted lowercase.
+- Strictly validates persisted `revision.json` keys against `CANONICAL_SPEC_REVISION_KEYS` (`RAPID803`), rejecting unknown or execution-state fields (`execution_status`, `run_id`, `agent`).
+- Deterministically renders `requirements.md`, `tasks.md`, and `acceptance.md`, and computes `artifact_digests` (`requirements.md`, `tasks.md`, `acceptance.md`) plus `content_digest` (`<sha256-hex>`).
+- Provides explicit compatibility converters `spec_revision_from_scope()` and `scope_spec_from_revision()` so legacy `ScopeSpec` acts strictly as an authoring DTO.
+
+### Context Compiler Integration
+
+When `ContextRequest.spec_id` is provided (`rapid context --spec <id>`):
+- The target spec must have `status == SpecStatus.READY` (loading a `draft` or `archived` spec fails with `RAPID805`).
+- `ContextSourceLoader` emits three canonical sources with portable repository-relative POSIX path provenance (`.rapid-os/specs/<id>/revisions/<rev>/<artifact>`):
+  - `spec.<id>.requirements` (`ContextSourceKind.SPEC`, `HIGH` priority, `provenance=".rapid-os/specs/<id>/revisions/<rev>/requirements.md"`)
+  - `spec.<id>.tasks` (`ContextSourceKind.TASKS`, `MEDIUM` priority, `provenance=".rapid-os/specs/<id>/revisions/<rev>/tasks.md"`)
+  - `spec.<id>.acceptance` (`ContextSourceKind.ACCEPTANCE`, `MEDIUM` priority, `provenance=".rapid-os/specs/<id>/revisions/<rev>/acceptance.md"`)
+- Root legacy singletons (`SPECS.md`, `TASKS.md`, `ACCEPTANCE.md`) are automatically excluded when `--spec` is active.
+- Without `--spec`, `rapid context` preserves backward compatibility by reading root singletons if present and ignoring `.rapid-os/specs/` to avoid multi-spec ambiguity.
+
+### Spec Registry Validation (`RAPID8xx` in `rapid_os.domain.validation`)
+
+`validate_spec_registry(root)` is integrated into `rapid validate` and `rapid doctor`:
+- `RAPID800` (`INFO`): Spec registry valid.
+- `RAPID801` (`ERROR`): Invalid persisted `spec.json` record/schema (`InvalidSpecRecordError`: invalid JSON, unsupported `schema_version`, unknown fields, or invalid persisted record/status value).
+- `RAPID802` (`ERROR`): Missing `revisions/` directory or missing required historical/current revision directory (`1..current_revision`, `CurrentRevisionMissingError`).
+- `RAPID803` (`ERROR`): Invalid persisted `revision.json` manifest/schema (`InvalidRevisionManifestError`: invalid JSON, unsupported `schema_version`, unknown fields, or invalid revision fields).
+- `RAPID804` (`ERROR`): Missing `requirements.md`, `tasks.md`, or `acceptance.md` artifact, or SHA-256 digest drift (`SpecArtifactDriftError`).
+- `RAPID805` (`ERROR`): Invalid lifecycle transition or spec lifecycle prevents requested operation (`SpecLifecycleError`, e.g. `draft`/`archived` spec requested by operational context compilation).
+- `RAPID806` (`ERROR`): Invalid `spec_id`, duplicate spec identity, or directory/record ID mismatch (`DuplicateSpecIdentityError`).
+- `RAPID807` (`ERROR`): Referenced spec or revision not found (`SpecNotFoundError`).
+- `RAPID808` (`ERROR`): Unsafe spec path, symlink escape, or unreadable spec entry (`UnsafeSpecPathError`).
+- `RAPID809` (`WARNING`): Orphan or unreferenced revision entry inside `revisions/` (`revision > current_revision` or non-canonical entry).
+
+### CLI Surface (`rapid spec`)
+
+- `rapid spec create`: Creates a new spec (`--title`, `--id`, `--mode`, `--objective`, `--problem`, `--scope`, `--out-of-scope`, `--actor`, `--main-flow` / `--flow`, `--edge-case`, `--business-rule` / `--rule`, `--technical-constraint` / `--constraint`, `--affected-path`, `--data-impact`, `--acceptance`, `--testing`, `--task`, `--tag`, `--status {draft,ready}`, `--export-legacy`, `--json`). Interactive wizard when flags are omitted.
+- `rapid spec list [--status {draft,ready,archived}] [--json]`: Lists specs in deterministic ID order without writing files.
+- `rapid spec show <spec-id> [--revision <n>] [--json]`: Displays a spec and its current or pinned revision in read-only mode.
+- `rapid spec revise <spec-id> [--json] [...]`: Creates immutable revision `current_revision + 1`, inheriting unspecified fields from `current_revision` and resetting status to `draft`.
+- `rapid spec status <spec-id> <status> [--json]`: Transitions authoring status (`draft`, `ready`, `archived`).
+- `rapid spec export-legacy <spec-id> [--revision <n>]`: Explicitly exports a spec revision to root `SPECS.md`, `TASKS.md`, and `ACCEPTANCE.md` with `.bak` backup protection.
+- `rapid scope [--register] [--spec-id <id>] [--status {draft,ready}]`: Preserves legacy root file generation while optionally registering the spec in `.rapid-os/specs/`.
+
+
