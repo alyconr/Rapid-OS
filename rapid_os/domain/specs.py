@@ -28,6 +28,52 @@ SPEC_ARTIFACT_FILENAMES = (
     "acceptance.md",
 )
 
+CANONICAL_SPEC_REVISION_KEYS = frozenset(
+    {
+        "schema_version",
+        "spec_id",
+        "revision",
+        "title",
+        "mode",
+        "business_objective",
+        "problem_statement",
+        "scope",
+        "out_of_scope",
+        "actors_users",
+        "main_flow",
+        "edge_cases",
+        "business_rules",
+        "technical_constraints",
+        "affected_paths",
+        "data_impact",
+        "acceptance_criteria",
+        "testing_strategy",
+        "implementation_tasks",
+        "tags",
+        "artifact_digests",
+        "content_digest",
+    }
+)
+
+
+def is_canonical_revision_dir_name(name: str) -> bool:
+    """Return True if `name` is the canonical directory name for a positive integer revision (`0001`..`9999`, `10000`, ...)."""
+    if not isinstance(name, str) or not name.isdigit() or not name.isascii():
+        return False
+    revision = int(name)
+    if revision < 1:
+        return False
+    return name == f"{revision:04d}"
+
+
+def format_revision_dir_name(revision: int) -> str:
+    """Return the canonical directory name (`0001`..`9999`, `10000`, ...) for a positive integer revision."""
+    if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
+        raise InvalidRevisionManifestError(
+            f"Invalid revision number '{revision}': must be a positive integer."
+        )
+    return f"{revision:04d}"
+
 
 class SpecRegistryError(ValueError):
     """Base domain error for Spec Registry operations with an associated RAPID8xx diagnostic code."""
@@ -521,7 +567,7 @@ class SpecRevision:
 
     @property
     def revision_dir_name(self) -> str:
-        return f"{self.revision:04d}"
+        return format_revision_dir_name(self.revision)
 
     def render_requirements(self) -> str:
         return render_requirements_artifact(self)
@@ -599,6 +645,11 @@ class SpecRevision:
             raise InvalidRevisionManifestError(
                 "SpecRevision payload must be a JSON object."
             )
+        unknown_keys = set(payload.keys()) - CANONICAL_SPEC_REVISION_KEYS
+        if unknown_keys:
+            raise InvalidRevisionManifestError(
+                f"SpecRevision contains unexpected fields: {sorted(unknown_keys)}."
+            )
         required_keys = (
             "schema_version",
             "spec_id",
@@ -612,9 +663,21 @@ class SpecRevision:
                     f"SpecRevision missing required field '{req_key}'."
                 )
 
-        raw_actors = payload.get("actors_users")
-        if raw_actors is None and "actors" in payload:
-            raw_actors = payload.get("actors")
+        if verify_digests:
+            if "artifact_digests" not in payload or not isinstance(
+                payload.get("artifact_digests"), Mapping
+            ):
+                raise InvalidRevisionManifestError(
+                    "SpecRevision missing required 'artifact_digests' object."
+                )
+            if (
+                "content_digest" not in payload
+                or not isinstance(payload.get("content_digest"), str)
+                or not str(payload.get("content_digest")).strip()
+            ):
+                raise InvalidRevisionManifestError(
+                    "SpecRevision missing required 'content_digest' string."
+                )
 
         instance = cls(
             schema_version=payload["schema_version"],  # type: ignore[arg-type]
@@ -626,7 +689,7 @@ class SpecRevision:
             problem_statement=payload.get("problem_statement", ""),  # type: ignore[arg-type]
             scope=payload.get("scope", ()),  # type: ignore[arg-type]
             out_of_scope=payload.get("out_of_scope", ()),  # type: ignore[arg-type]
-            actors_users=raw_actors if raw_actors is not None else (),  # type: ignore[arg-type]
+            actors_users=payload.get("actors_users", ()),  # type: ignore[arg-type]
             main_flow=payload.get("main_flow", ()),  # type: ignore[arg-type]
             edge_cases=payload.get("edge_cases", ()),  # type: ignore[arg-type]
             business_rules=payload.get("business_rules", ()),  # type: ignore[arg-type]
@@ -640,27 +703,21 @@ class SpecRevision:
         )
 
         if verify_digests:
-            if "artifact_digests" in payload:
-                raw_digests = payload["artifact_digests"]
-                if not isinstance(raw_digests, Mapping):
-                    raise InvalidRevisionManifestError(
-                        "SpecRevision 'artifact_digests' must be a JSON object."
-                    )
-                expected_digests = instance.artifact_digests
-                if dict(raw_digests) != expected_digests:
-                    raise SpecArtifactDriftError(
-                        f"SpecRevision artifact_digests in revision.json do not match canonical derived artifacts for '{instance.spec_id}' r{instance.revision}."
-                    )
-            if "content_digest" in payload:
-                raw_content_digest = payload["content_digest"]
-                if not isinstance(raw_content_digest, str) or not raw_content_digest.strip():
-                    raise InvalidRevisionManifestError(
-                        "SpecRevision 'content_digest' must be a non-empty string."
-                    )
-                if raw_content_digest != instance.content_digest:
-                    raise SpecArtifactDriftError(
-                        f"SpecRevision content_digest mismatch for '{instance.spec_id}' r{instance.revision}."
-                    )
+            raw_digests = dict(payload["artifact_digests"])  # type: ignore[arg-type]
+            if set(raw_digests.keys()) != set(SPEC_ARTIFACT_FILENAMES):
+                raise InvalidRevisionManifestError(
+                    f"SpecRevision 'artifact_digests' must contain exactly {list(SPEC_ARTIFACT_FILENAMES)}."
+                )
+            expected_digests = instance.artifact_digests
+            if raw_digests != expected_digests:
+                raise SpecArtifactDriftError(
+                    f"SpecRevision artifact_digests in revision.json do not match canonical derived artifacts for '{instance.spec_id}' r{instance.revision}."
+                )
+            raw_content_digest = str(payload["content_digest"])
+            if raw_content_digest != instance.content_digest:
+                raise SpecArtifactDriftError(
+                    f"SpecRevision content_digest mismatch for '{instance.spec_id}' r{instance.revision}."
+                )
 
         return instance
 

@@ -1,5 +1,4 @@
 import json
-import re
 from pathlib import Path
 from typing import Iterable, Mapping
 
@@ -23,10 +22,13 @@ from rapid_os.domain.specs import (
     SpecMode,
     SpecNotFoundError,
     SpecRecord,
+    SpecRegistryError,
     SpecRevision,
     SpecStatus,
     UnsafeSpecPathError,
     derive_spec_id,
+    format_revision_dir_name,
+    is_canonical_revision_dir_name,
     scope_spec_from_revision,
     sha256_text,
     spec_revision_from_scope,
@@ -39,7 +41,6 @@ SPECS_DIRNAME = "specs"
 SPEC_RECORD_FILENAME = "spec.json"
 REVISIONS_DIRNAME = "revisions"
 REVISION_MANIFEST_FILENAME = "revision.json"
-REVISION_DIR_RE = re.compile(r"^\d{4}$")
 
 
 def resolve_specs_root_dir(
@@ -111,11 +112,7 @@ class SpecRegistry:
         return spec_dir
 
     def _resolve_revision_dir(self, spec_dir: Path, revision: int) -> Path:
-        if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
-            raise InvalidRevisionManifestError(
-                f"Invalid revision number '{revision}': must be a positive integer."
-            )
-        rev_name = f"{revision:04d}"
+        rev_name = format_revision_dir_name(revision)
         try:
             revisions_dir = resolve_child_path(
                 spec_dir,
@@ -253,7 +250,11 @@ class SpecRegistry:
                 path=manifest_file,
             )
 
-        spec_rev = SpecRevision.from_dict(payload, verify_digests=False)
+        try:
+            spec_rev = SpecRevision.from_dict(payload, verify_digests=False)
+        except SpecRegistryError as exc:
+            raise type(exc)(str(exc), code=exc.code, path=manifest_file) from exc
+
         if spec_rev.spec_id != spec_id:
             raise InvalidRevisionManifestError(
                 f"Revision manifest spec_id '{spec_rev.spec_id}' does not match '{spec_id}'.",
@@ -261,7 +262,7 @@ class SpecRegistry:
             )
         if spec_rev.revision != revision:
             raise InvalidRevisionManifestError(
-                f"Revision manifest number '{spec_rev.revision}' does not match directory '{revision:04d}'.",
+                f"Revision manifest number '{spec_rev.revision}' does not match directory '{format_revision_dir_name(revision)}'.",
                 path=manifest_file,
             )
 
@@ -406,9 +407,9 @@ class SpecRegistry:
         spec_dir = self._resolve_spec_dir(spec_id)
         rev_dir = self._resolve_revision_dir(spec_dir, target_rev)
         if not rev_dir.exists() or not rev_dir.is_dir():
-            if target_rev == record.current_revision:
+            if target_rev <= record.current_revision:
                 raise CurrentRevisionMissingError(
-                    f"Current revision r{target_rev} is missing for spec '{spec_id}'.",
+                    f"Required revision r{target_rev} is missing for spec '{spec_id}' (current_revision={record.current_revision}).",
                     path=rev_dir,
                 )
             raise SpecNotFoundError(

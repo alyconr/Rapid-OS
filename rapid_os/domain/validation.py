@@ -24,13 +24,15 @@ from rapid_os.domain.context import (
     ContextRequiredSourceMissingError,
     ContextSource,
 )
-from rapid_os.adapters.spec_registry import REVISION_DIR_RE, SpecRegistry
+from rapid_os.adapters.spec_registry import SpecRegistry
 from rapid_os.core.filesystem import ensure_path_within_root
 from rapid_os.domain.project import PROJECT_MODEL_SCHEMA_VERSION, ProjectModel
 from rapid_os.domain.specs import (
     DuplicateSpecIdentityError,
     SpecRecord,
     SpecRegistryError,
+    format_revision_dir_name,
+    is_canonical_revision_dir_name,
     validate_spec_id,
 )
 
@@ -491,70 +493,47 @@ def validate_spec_registry(
             )
             continue
 
-        current_rev_dir = revisions_dir / f"{record.current_revision:04d}"
-        if not current_rev_dir.exists() or not current_rev_dir.is_dir():
-            diagnostics.append(
-                Diagnostic(
-                    ERROR,
-                    "RAPID802",
-                    f"Current revision r{record.current_revision} directory missing for spec '{record.id}'.",
-                    current_rev_dir,
-                )
-            )
+        spec_has_error = False
+        expected_revisions = range(1, record.current_revision + 1)
+        expected_rev_names: set[str] = set()
 
-        spec_has_error = not current_rev_dir.exists() or not current_rev_dir.is_dir()
+        for rev_num in expected_revisions:
+            rev_name = format_revision_dir_name(rev_num)
+            expected_rev_names.add(rev_name)
+            rev_entry = revisions_dir / rev_name
 
-        try:
-            rev_entries = sorted(revisions_dir.iterdir(), key=lambda p: p.name)
-        except OSError as exc:
-            diagnostics.append(
-                Diagnostic(
-                    ERROR,
-                    "RAPID808",
-                    f"Revisions directory '{revisions_dir}' could not be read: {exc}",
-                    revisions_dir,
-                )
-            )
-            continue
-
-        for rev_entry in rev_entries:
             if rev_entry.is_symlink():
                 diagnostics.append(
                     Diagnostic(
                         ERROR,
                         "RAPID808",
-                        f"Revision entry '{rev_entry.name}' cannot be a symlink.",
+                        f"Revision entry '{rev_name}' cannot be a symlink.",
                         rev_entry,
                     )
                 )
                 spec_has_error = True
                 continue
 
-            if (
-                not rev_entry.is_dir()
-                or not REVISION_DIR_RE.match(rev_entry.name)
-                or int(rev_entry.name) < 1
-            ):
+            if not rev_entry.exists() or not rev_entry.is_dir():
+                if rev_num == record.current_revision:
+                    msg = (
+                        f"Current revision r{rev_num} ({rev_name}) directory missing "
+                        f"for spec '{record.id}'."
+                    )
+                else:
+                    msg = (
+                        f"Required historical revision r{rev_num} ({rev_name}) directory missing "
+                        f"for spec '{record.id}' (current_revision={record.current_revision})."
+                    )
                 diagnostics.append(
                     Diagnostic(
-                        WARNING,
-                        "RAPID809",
-                        f"Orphan or non-canonical revision entry '{rev_entry.name}' in spec '{record.id}'.",
+                        ERROR,
+                        "RAPID802",
+                        msg,
                         rev_entry,
                     )
                 )
-                continue
-
-            rev_num = int(rev_entry.name)
-            if rev_num > record.current_revision:
-                diagnostics.append(
-                    Diagnostic(
-                        WARNING,
-                        "RAPID809",
-                        f"Orphan or unreferenced revision directory '{rev_entry.name}' exceeds current_revision ({record.current_revision}) for spec '{record.id}'.",
-                        rev_entry,
-                    )
-                )
+                spec_has_error = True
                 continue
 
             try:
@@ -574,6 +553,57 @@ def validate_spec_registry(
                     )
                 )
                 spec_has_error = True
+
+        try:
+            rev_entries = sorted(revisions_dir.iterdir(), key=lambda p: p.name)
+        except OSError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID808",
+                    f"Revisions directory '{revisions_dir}' could not be read: {exc}",
+                    revisions_dir,
+                )
+            )
+            continue
+
+        for rev_entry in rev_entries:
+            if rev_entry.name in expected_rev_names:
+                continue
+
+            if rev_entry.is_symlink():
+                diagnostics.append(
+                    Diagnostic(
+                        ERROR,
+                        "RAPID808",
+                        f"Revision entry '{rev_entry.name}' cannot be a symlink.",
+                        rev_entry,
+                    )
+                )
+                spec_has_error = True
+                continue
+
+            if not rev_entry.is_dir() or not is_canonical_revision_dir_name(
+                rev_entry.name
+            ):
+                diagnostics.append(
+                    Diagnostic(
+                        WARNING,
+                        "RAPID809",
+                        f"Orphan or non-canonical revision entry '{rev_entry.name}' in spec '{record.id}'.",
+                        rev_entry,
+                    )
+                )
+                continue
+
+            diagnostics.append(
+                Diagnostic(
+                    WARNING,
+                    "RAPID809",
+                    f"Orphan or unreferenced revision directory '{rev_entry.name}' exceeds current_revision ({record.current_revision}) for spec '{record.id}'.",
+                    rev_entry,
+                )
+            )
 
         if not spec_has_error:
             valid_specs += 1
@@ -1005,10 +1035,11 @@ def validate_compiled_context(
         path_obj = Path(err_path) if err_path else None
         source_id = getattr(load_error, "source_id", "unknown")
         err_msg = getattr(load_error, "message", str(load_error))
+        err_code = getattr(load_error, "code", None) or "RAPID704"
         diagnostics.append(
             Diagnostic(
                 ERROR,
-                "RAPID704",
+                err_code,
                 f"Context source '{source_id}' could not be read: {err_msg}",
                 path_obj,
             )
@@ -1068,10 +1099,11 @@ def validate_context_compilation(
         path_obj = Path(err_path) if err_path else None
         source_id = getattr(load_error, "source_id", "unknown")
         err_msg = getattr(load_error, "message", str(load_error))
+        err_code = getattr(load_error, "code", None) or "RAPID704"
         diagnostics.append(
             Diagnostic(
                 ERROR,
-                "RAPID704",
+                err_code,
                 f"Context source '{source_id}' could not be read: {err_msg}",
                 path_obj,
             )

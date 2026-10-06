@@ -1,6 +1,7 @@
 import contextlib
 import io
 import json
+import shutil
 import tempfile
 import unittest
 from argparse import Namespace
@@ -36,6 +37,8 @@ from rapid_os.domain.specs import (
     SpecStatus,
     UnsafeSpecPathError,
     derive_spec_id,
+    format_revision_dir_name,
+    is_canonical_revision_dir_name,
     scope_spec_from_revision,
     sha256_text,
     spec_revision_from_scope,
@@ -254,6 +257,51 @@ class SpecDomainModelTests(unittest.TestCase):
         self.assertEqual(projected.mode, "legacy hardening")
         self.assertEqual(projected.affected_files_modules, ["rapid_os/domain/specs.py"])
 
+    def test_canonical_revision_directory_name_supports_all_positive_integers(self):
+        self.assertEqual(format_revision_dir_name(1), "0001")
+        self.assertEqual(format_revision_dir_name(9999), "9999")
+        self.assertEqual(format_revision_dir_name(10000), "10000")
+
+        for valid_name in ("0001", "0042", "9999", "10000", "100000"):
+            with self.subTest(valid_name=valid_name):
+                self.assertTrue(is_canonical_revision_dir_name(valid_name))
+
+        for invalid_name in ("001", "00001", "0000", "foo", "-001", "", "1"):
+            with self.subTest(invalid_name=invalid_name):
+                self.assertFalse(is_canonical_revision_dir_name(invalid_name))
+
+        rev_10000 = SpecRevision(**_sample_spec_kwargs(revision=10000))
+        self.assertEqual(rev_10000.revision_dir_name, "10000")
+
+    def test_strict_revision_manifest_rejects_unknown_execution_keys_and_missing_digests(self):
+        rev = SpecRevision(**_sample_spec_kwargs())
+        base_dict = rev.to_dict()
+
+        for forbidden_key, forbidden_val in (
+            ("execution_status", "running"),
+            ("run_id", "run-001"),
+            ("agent", "codex"),
+            ("completed", True),
+        ):
+            with self.subTest(forbidden_key=forbidden_key):
+                polluted = dict(base_dict)
+                polluted[forbidden_key] = forbidden_val
+                with self.assertRaises(InvalidRevisionManifestError) as ctx:
+                    SpecRevision.from_dict(polluted)
+                self.assertEqual(ctx.exception.code, "RAPID803")
+
+        missing_artifact_digests = dict(base_dict)
+        missing_artifact_digests.pop("artifact_digests")
+        with self.assertRaises(InvalidRevisionManifestError) as ctx_ad:
+            SpecRevision.from_dict(missing_artifact_digests, verify_digests=True)
+        self.assertEqual(ctx_ad.exception.code, "RAPID803")
+
+        missing_content_digest = dict(base_dict)
+        missing_content_digest.pop("content_digest")
+        with self.assertRaises(InvalidRevisionManifestError) as ctx_cd:
+            SpecRevision.from_dict(missing_content_digest, verify_digests=True)
+        self.assertEqual(ctx_cd.exception.code, "RAPID803")
+
 
 class SpecRegistryFilesystemTests(unittest.TestCase):
     def setUp(self):
@@ -439,21 +487,91 @@ class SpecRegistryFilesystemTests(unittest.TestCase):
         self.assertTrue(report.has_errors)
         self.assertIn("RAPID802", [d.code for d in report.diagnostics])
 
+    def test_historical_gap_single_and_multiple_missing_revisions_emit_rapid802_error(self):
+        # 1. Create r1, revise -> r2, delete revisions/0001
+        self.registry.create(**_sample_spec_kwargs(business_objective="Objective v1"))
+        self.registry.revise(
+            "booking-idempotency",
+            business_objective="Objective v2",
+        )
+        r1_dir = (
+            self.rapid_dir
+            / "specs"
+            / "booking-idempotency"
+            / "revisions"
+            / "0001"
+        )
+        shutil.rmtree(r1_dir)
+
+        with self.assertRaises(CurrentRevisionMissingError) as ctx_r1:
+            self.registry.get_revision("booking-idempotency", 1)
+        self.assertEqual(ctx_r1.exception.code, "RAPID802")
+
+        report_gap1 = validate_spec_registry(self.rapid_dir, self.project_root)
+        self.assertTrue(report_gap1.has_errors)
+        codes_gap1 = [d.code for d in report_gap1.diagnostics]
+        self.assertIn("RAPID802", codes_gap1)
+        self.assertNotIn("RAPID809", codes_gap1)
+        self.assertNotIn("RAPID800", codes_gap1)
+
+        # 2. Multiple revisions (current_revision = 4 with 0001, 0002, 0004; 0003 missing)
+        self.registry.create(
+            **_sample_spec_kwargs(
+                spec_id="multi-gap-spec",
+                title="Multi Gap Spec",
+                business_objective="v1",
+            )
+        )
+        self.registry.revise("multi-gap-spec", business_objective="v2")
+        self.registry.revise("multi-gap-spec", business_objective="v3")
+        self.registry.revise("multi-gap-spec", business_objective="v4")
+
+        r3_dir = (
+            self.rapid_dir
+            / "specs"
+            / "multi-gap-spec"
+            / "revisions"
+            / "0003"
+        )
+        shutil.rmtree(r3_dir)
+
+        report_multi = validate_spec_registry(self.rapid_dir, self.project_root)
+        self.assertTrue(report_multi.has_errors)
+        r3_errors = [
+            d
+            for d in report_multi.diagnostics
+            if d.code == "RAPID802" and "multi-gap-spec" in d.message and "r3" in d.message
+        ]
+        self.assertEqual(len(r3_errors), 1)
+        self.assertNotIn("RAPID800", [d.code for d in report_multi.diagnostics])
+
     def test_corrupt_current_revision_never_falls_back_to_previous_revision(self):
         self.registry.create(**_sample_spec_kwargs(business_objective="Objective v1"))
         self.registry.revise(
             "booking-idempotency",
             business_objective="Objective v2",
         )
-        r2_manifest = (
+        self.registry.revise(
+            "booking-idempotency",
+            business_objective="Objective v3",
+        )
+        # Remove r2 AND corrupt current r3 -> neither falls back to r1/r2
+        shutil.rmtree(
             self.rapid_dir
             / "specs"
             / "booking-idempotency"
             / "revisions"
             / "0002"
+        )
+        r3_manifest = (
+            self.rapid_dir
+            / "specs"
+            / "booking-idempotency"
+            / "revisions"
+            / "0003"
             / "revision.json"
         )
-        r2_manifest.write_text("{corrupt-json", encoding="utf-8")
+        r3_manifest.write_text("{corrupt-json", encoding="utf-8")
 
         with self.assertRaises(InvalidRevisionManifestError) as ctx:
             self.registry.get_revision("booking-idempotency")
@@ -461,7 +579,43 @@ class SpecRegistryFilesystemTests(unittest.TestCase):
 
         report = validate_spec_registry(self.rapid_dir, self.project_root)
         self.assertTrue(report.has_errors)
-        self.assertIn("RAPID803", [d.code for d in report.diagnostics])
+        codes = [d.code for d in report.diagnostics]
+        self.assertIn("RAPID802", codes)
+        self.assertIn("RAPID803", codes)
+        self.assertNotIn("RAPID800", codes)
+
+    def test_persisted_revision_manifest_with_execution_fields_emits_rapid803(self):
+        self.registry.create(**_sample_spec_kwargs())
+        r1_manifest = (
+            self.rapid_dir
+            / "specs"
+            / "booking-idempotency"
+            / "revisions"
+            / "0001"
+            / "revision.json"
+        )
+        original_payload = json.loads(r1_manifest.read_text(encoding="utf-8"))
+
+        for bad_field, bad_val in (
+            ("execution_status", "running"),
+            ("run_id", "run-123"),
+            ("agent", "codex"),
+        ):
+            with self.subTest(bad_field=bad_field):
+                polluted = dict(original_payload)
+                polluted[bad_field] = bad_val
+                r1_manifest.write_text(
+                    json.dumps(polluted, indent=2),
+                    encoding="utf-8",
+                )
+                with self.assertRaises(InvalidRevisionManifestError) as ctx:
+                    self.registry.get_revision("booking-idempotency")
+                self.assertEqual(ctx.exception.code, "RAPID803")
+
+                report = validate_spec_registry(self.rapid_dir, self.project_root)
+                self.assertTrue(report.has_errors)
+                self.assertIn("RAPID803", [d.code for d in report.diagnostics])
+                self.assertNotIn("RAPID800", [d.code for d in report.diagnostics])
 
     def test_orphan_revision_keeps_current_revision_valid_and_emits_rapid809_warning(self):
         self.registry.create(**_sample_spec_kwargs(business_objective="Objective v1"))
@@ -677,7 +831,306 @@ class SpecRegistryContextAndE2ETests(unittest.TestCase):
                         cli_main.context_command(cli_args)
                 self.assertEqual(cm.exception.code, 1)
                 self.assertEqual(out_buf.getvalue(), "")
-                self.assertIn("RAPID805", err_buf.getvalue())
+                err_output = err_buf.getvalue()
+                self.assertIn("RAPID805", err_output)
+                self.assertNotIn("RAPID704", err_output)
+
+    def test_context_spec_single_diagnostic_identity_codes(self):
+        # 1. Draft spec -> RAPID805 only
+        self.registry.create(**_sample_spec_kwargs(spec_id="draft-only"))
+        # 2. Missing spec -> RAPID807 only
+        for spec_arg, expected_code in (
+            ("draft-only", "RAPID805"),
+            ("missing-spec", "RAPID807"),
+        ):
+            with self.subTest(spec_arg=spec_arg, expected_code=expected_code):
+                out_buf = io.StringIO()
+                err_buf = io.StringIO()
+                cli_args = cli_main.create_parser().parse_args(
+                    ["context", "--spec", spec_arg]
+                )
+                with patch.object(cli_main, "CURRENT_DIR", self.project_root), patch.object(
+                    cli_main, "PROJECT_RAPID_DIR", self.rapid_dir
+                ), contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(
+                    err_buf
+                ):
+                    with self.assertRaises(SystemExit) as cm:
+                        cli_main.context_command(cli_args)
+                self.assertEqual(cm.exception.code, 1)
+                self.assertEqual(out_buf.getvalue(), "")
+                err_text = err_buf.getvalue()
+                self.assertIn(expected_code, err_text)
+                self.assertNotIn("RAPID704", err_text)
+                self.assertNotIn(f"RAPID704 {expected_code}", err_text)
+
+        # 3. Unsafe spec path -> RAPID808 only (e.g., rapid_dir outside project_root)
+        outside_rapid = Path(self.temp_dir.name) / "outside-rapid-os"
+        out_buf = io.StringIO()
+        err_buf = io.StringIO()
+        cli_args = cli_main.create_parser().parse_args(
+            ["context", "--spec", "draft-only"]
+        )
+        with patch.object(cli_main, "CURRENT_DIR", self.project_root), patch.object(
+            cli_main, "PROJECT_RAPID_DIR", outside_rapid
+        ), contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(err_buf):
+            with self.assertRaises(SystemExit) as cm:
+                cli_main.context_command(cli_args)
+        self.assertEqual(cm.exception.code, 1)
+        self.assertEqual(out_buf.getvalue(), "")
+        err_text_808 = err_buf.getvalue()
+        self.assertIn("RAPID808", err_text_808)
+        self.assertNotIn("RAPID704", err_text_808)
+        self.assertNotIn("RAPID704 RAPID808", err_text_808)
+
+        # 4. Generic unreadable context source -> RAPID704 only
+        (self.standards_dir / "security.md").write_bytes(b"\xff\xfe\x00\x80invalid-utf8")
+        out_buf = io.StringIO()
+        err_buf = io.StringIO()
+        cli_args = cli_main.create_parser().parse_args(["context", "--mode", "general"])
+        with patch.object(cli_main, "CURRENT_DIR", self.project_root), patch.object(
+            cli_main, "PROJECT_RAPID_DIR", self.rapid_dir
+        ), contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(err_buf):
+            with self.assertRaises(SystemExit) as cm:
+                cli_main.context_command(cli_args)
+        self.assertEqual(cm.exception.code, 1)
+        self.assertIn("RAPID704", err_buf.getvalue())
+
+    def test_spec_list_status_filter_text_and_json(self):
+        self.registry.create(**_sample_spec_kwargs(spec_id="zeta-draft", title="Zeta Draft"))
+        self.registry.create(**_sample_spec_kwargs(spec_id="beta-ready", title="Beta Ready"))
+        self.registry.set_status("beta-ready", "ready")
+        self.registry.create(**_sample_spec_kwargs(spec_id="alpha-ready", title="Alpha Ready"))
+        self.registry.set_status("alpha-ready", "ready")
+        self.registry.create(**_sample_spec_kwargs(spec_id="gamma-arch", title="Gamma Arch"))
+        self.registry.set_status("gamma-arch", "archived")
+
+        def run_spec(argv):
+            out = io.StringIO()
+            err = io.StringIO()
+            args = cli_main.create_parser().parse_args(argv)
+            with patch.object(cli_main, "CURRENT_DIR", self.project_root), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", self.rapid_dir
+            ), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = cli_main.spec_command(args)
+            return code, out.getvalue(), err.getvalue()
+
+        code, out_ready_json, err_ready_json = run_spec(
+            ["spec", "list", "--status", "ready", "--json"]
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(err_ready_json, "")
+        ready_payload = json.loads(out_ready_json)
+        self.assertEqual(
+            [item["id"] for item in ready_payload["specs"]],
+            ["alpha-ready", "beta-ready"],
+        )
+
+        code, out_draft_txt, _ = run_spec(["spec", "list", "--status", "draft"])
+        self.assertEqual(code, 0)
+        self.assertIn("zeta-draft", out_draft_txt)
+        self.assertNotIn("alpha-ready", out_draft_txt)
+        self.assertNotIn("gamma-arch", out_draft_txt)
+
+        code, out_arch_json, _ = run_spec(
+            ["spec", "list", "--status", "archived", "--json"]
+        )
+        self.assertEqual(code, 0)
+        arch_payload = json.loads(out_arch_json)
+        self.assertEqual(
+            [item["id"] for item in arch_payload["specs"]],
+            ["gamma-arch"],
+        )
+
+    def test_non_interactive_spec_create_and_revise_cli_contract(self):
+        def run_spec(argv):
+            out = io.StringIO()
+            err = io.StringIO()
+            args = cli_main.create_parser().parse_args(argv)
+            with patch.object(cli_main, "CURRENT_DIR", self.project_root), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", self.rapid_dir
+            ), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = cli_main.spec_command(args)
+            return code, out.getvalue(), err.getvalue()
+
+        def forbid_input(prompt=""):
+            raise AssertionError("input() must not be called in non-interactive mode")
+
+        # 1. Exact README non-interactive create command with --status ready --export-legacy --json
+        with patch("builtins.input", forbid_input):
+            code, out_create, err_create = run_spec(
+                [
+                    "spec",
+                    "create",
+                    "--id",
+                    "booking-idempotency",
+                    "--title",
+                    "Booking Idempotency",
+                    "--mode",
+                    "bugfix",
+                    "--objective",
+                    "Prevent duplicate bookings",
+                    "--business-rule",
+                    "Idempotency keys are unique",
+                    "--acceptance",
+                    "Duplicate request returns original booking",
+                    "--task",
+                    "Persist idempotency keys",
+                    "--tag",
+                    "booking",
+                    "--tag",
+                    "database",
+                    "--status",
+                    "ready",
+                    "--export-legacy",
+                    "--json",
+                ]
+            )
+        self.assertEqual(code, 0)
+        self.assertEqual(err_create, "")
+        created_payload = json.loads(out_create)
+        self.assertEqual(created_payload["id"], "booking-idempotency")
+        self.assertEqual(created_payload["status"], "ready")
+        self.assertEqual(created_payload["current_revision"], 1)
+        self.assertEqual(
+            created_payload["revision"]["business_rules"],
+            ["Idempotency keys are unique"],
+        )
+        self.assertEqual(
+            created_payload["revision"]["tags"],
+            ["booking", "database"],
+        )
+        self.assertEqual(
+            created_payload["legacy_exports"],
+            ["SPECS.md", "TASKS.md", "ACCEPTANCE.md"],
+        )
+        self.assertTrue((self.project_root / "SPECS.md").is_file())
+
+        # 2. Non-interactive create missing --title fails without calling input()
+        with patch("builtins.input", forbid_input):
+            out_err_case = io.StringIO()
+            err_err_case = io.StringIO()
+            args_missing_title = cli_main.create_parser().parse_args(
+                [
+                    "spec",
+                    "create",
+                    "--id",
+                    "missing-title-spec",
+                    "--objective",
+                    "Some objective",
+                ]
+            )
+            with patch.object(cli_main, "CURRENT_DIR", self.project_root), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", self.rapid_dir
+            ), contextlib.redirect_stdout(out_err_case), contextlib.redirect_stderr(
+                err_err_case
+            ):
+                with self.assertRaises(SystemExit) as cm:
+                    cli_main.spec_command(args_missing_title)
+            self.assertEqual(cm.exception.code, 1)
+            self.assertIn("--title", err_err_case.getvalue())
+
+        # 3. Non-interactive revise inherits unspecified fields, resets status to draft, outputs pure JSON
+        with patch("builtins.input", forbid_input):
+            code, out_revise, err_revise = run_spec(
+                [
+                    "spec",
+                    "revise",
+                    "booking-idempotency",
+                    "--business-rule",
+                    "Idempotency keys expire after 24h",
+                    "--acceptance",
+                    "Expired key creates a new booking",
+                    "--json",
+                ]
+            )
+        self.assertEqual(code, 0)
+        self.assertEqual(err_revise, "")
+        revised_payload = json.loads(out_revise)
+        self.assertEqual(revised_payload["id"], "booking-idempotency")
+        self.assertEqual(revised_payload["status"], "draft")
+        self.assertEqual(revised_payload["current_revision"], 2)
+        self.assertEqual(
+            revised_payload["revision"]["business_objective"],
+            "Prevent duplicate bookings",
+        )
+        self.assertEqual(
+            revised_payload["revision"]["business_rules"],
+            ["Idempotency keys expire after 24h"],
+        )
+        self.assertEqual(
+            revised_payload["revision"]["acceptance_criteria"],
+            ["Expired key creates a new booking"],
+        )
+        self.assertEqual(
+            revised_payload["revision"]["implementation_tasks"],
+            ["Persist idempotency keys"],
+        )
+
+    def test_scope_register_and_collision_contract(self):
+        def make_scope_answers(title="Whatsapp Confirmation"):
+            return iter(
+                [
+                    title,
+                    "feature",
+                    "Send WhatsApp confirmation",
+                    "Users miss emails",
+                    "WhatsApp webhook",
+                    "SMS fallback",
+                    "Customer",
+                    "Book -> Send WhatsApp",
+                    "Invalid phone number",
+                    "Must opt-in",
+                    "Twilio API",
+                    "rapid_os/cli/main.py",
+                    "Add phone column",
+                    "Message delivered within 5s",
+                    "Unit test",
+                    "Implement webhook",
+                    "WhatsApp, Notifications",
+                ]
+            )
+
+        out = io.StringIO()
+        err = io.StringIO()
+        args = cli_main.create_parser().parse_args(
+            [
+                "scope",
+                "--register",
+                "--spec-id",
+                "whatsapp-confirmation",
+                "--status",
+                "ready",
+            ]
+        )
+        with patch.object(cli_main, "CURRENT_DIR", self.project_root), patch.object(
+            cli_main, "PROJECT_RAPID_DIR", self.rapid_dir
+        ), patch("builtins.input", lambda prompt="": next(answers)), contextlib.redirect_stdout(
+            out
+        ), contextlib.redirect_stderr(err):
+            answers = make_scope_answers()
+            cli_main.scope_feature(args)
+
+        self.assertTrue((self.project_root / "SPECS.md").is_file())
+        self.assertTrue((self.project_root / "TASKS.md").is_file())
+        self.assertTrue((self.project_root / "ACCEPTANCE.md").is_file())
+
+        record = self.registry.get("whatsapp-confirmation")
+        self.assertEqual(record.status, SpecStatus.READY)
+        self.assertEqual(record.current_revision, 1)
+
+        # Collision on existing spec ID must fail with RAPID806 and exit code 1
+        out_coll = io.StringIO()
+        err_coll = io.StringIO()
+        with patch.object(cli_main, "CURRENT_DIR", self.project_root), patch.object(
+            cli_main, "PROJECT_RAPID_DIR", self.rapid_dir
+        ), patch(
+            "builtins.input", lambda prompt="": next(answers_coll)
+        ), contextlib.redirect_stdout(out_coll), contextlib.redirect_stderr(err_coll):
+            answers_coll = make_scope_answers()
+            with self.assertRaises(SystemExit) as cm:
+                cli_main.scope_feature(args)
+        self.assertEqual(cm.exception.code, 1)
+        self.assertIn("RAPID806", err_coll.getvalue())
 
     def test_full_e2e_lifecycle_create_show_ready_compile_revise_ready_compile_export_legacy(self):
         def run_cli(argv):
@@ -834,3 +1287,4 @@ class SpecRegistryContextAndE2ETests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

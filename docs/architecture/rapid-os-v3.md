@@ -240,7 +240,7 @@ Context Compiler (rapid context --spec <spec-id> [--spec-revision <n>])
 ```
 
 - **No Duplicate Index**: Specs are discovered deterministically by scanning `.rapid-os/specs/*/spec.json` in lexical order.
-- **Immutable Revisions & Atomic Commit Point**: Existing `revisions/<rev:04d>/` directories are never modified in place. Creating or revising a spec validates the model, writes `requirements.md`, `tasks.md`, `acceptance.md`, and `revision.json`, verifies revision completeness and SHA-256 digests, and updates `spec.json` (`current_revision`) **last**.
+- **Immutable Revisions, Historical Continuity & Atomic Commit Point**: Existing `revisions/<rev>/` directories (`format_revision_dir_name`: `0001`..`9999`, `10000`, ...) are never modified in place, and every historical revision `1..current_revision` must remain present and valid. Creating or revising a spec validates the model, writes `requirements.md`, `tasks.md`, `acceptance.md`, and `revision.json`, verifies revision completeness and SHA-256 digests, and updates `spec.json` (`current_revision`) **last**.
 
 ### Canonical Domain Entities (`rapid_os.domain.specs`)
 
@@ -261,17 +261,18 @@ Immutable record (`schema_version`, `id`, `status`, `current_revision`) persiste
 #### `SpecRevision`
 Immutable structured revision (`schema_version`, `spec_id`, `revision`, `title`, `mode`, `business_objective`, `problem_statement`, `scope`, `out_of_scope`, `actors_users`, `main_flow`, `edge_cases`, `business_rules`, `technical_constraints`, `affected_paths`, `data_impact`, `acceptance_criteria`, `testing_strategy`, `implementation_tasks`, `tags`):
 - Preserves exact user-authored ordering across all semantic tuple fields (`main_flow`, `implementation_tasks`, `acceptance_criteria`, etc.); only `tags` are normalized, deduplicated, and sorted lowercase.
-- Deterministically renders `requirements.md`, `tasks.md`, and `acceptance.md`, and computes `artifact_digests` (`requirements.md`, `tasks.md`, `acceptance.md`) plus `content_digest` (`sha256:<hex>`).
+- Strictly validates persisted `revision.json` keys against `CANONICAL_SPEC_REVISION_KEYS` (`RAPID803`), rejecting unknown or execution-state fields (`execution_status`, `run_id`, `agent`).
+- Deterministically renders `requirements.md`, `tasks.md`, and `acceptance.md`, and computes `artifact_digests` (`requirements.md`, `tasks.md`, `acceptance.md`) plus `content_digest` (`<sha256-hex>`).
 - Provides explicit compatibility converters `spec_revision_from_scope()` and `scope_spec_from_revision()` so legacy `ScopeSpec` acts strictly as an authoring DTO.
 
 ### Context Compiler Integration
 
 When `ContextRequest.spec_id` is provided (`rapid context --spec <id>`):
-- The target spec must have `status == SpecStatus.READY` (loading a `draft` or `archived` spec raises `ContextSourceLoadError` / `RAPID704`).
-- `ContextSourceLoader` emits three canonical sources with portable POSIX paths and `spec:<id>@<rev:04d>#<artifact>` provenance:
-  - `spec.<id>.requirements` (`ContextSourceKind.SPEC`, `HIGH` priority)
-  - `spec.<id>.tasks` (`ContextSourceKind.TASKS`, `HIGH` priority)
-  - `spec.<id>.acceptance` (`ContextSourceKind.ACCEPTANCE`, `HIGH` priority)
+- The target spec must have `status == SpecStatus.READY` (loading a `draft` or `archived` spec fails with `RAPID805`).
+- `ContextSourceLoader` emits three canonical sources with portable repository-relative POSIX path provenance (`.rapid-os/specs/<id>/revisions/<rev>/<artifact>`):
+  - `spec.<id>.requirements` (`ContextSourceKind.SPEC`, `HIGH` priority, `provenance=".rapid-os/specs/<id>/revisions/<rev>/requirements.md"`)
+  - `spec.<id>.tasks` (`ContextSourceKind.TASKS`, `MEDIUM` priority, `provenance=".rapid-os/specs/<id>/revisions/<rev>/tasks.md"`)
+  - `spec.<id>.acceptance` (`ContextSourceKind.ACCEPTANCE`, `MEDIUM` priority, `provenance=".rapid-os/specs/<id>/revisions/<rev>/acceptance.md"`)
 - Root legacy singletons (`SPECS.md`, `TASKS.md`, `ACCEPTANCE.md`) are automatically excluded when `--spec` is active.
 - Without `--spec`, `rapid context` preserves backward compatibility by reading root singletons if present and ignoring `.rapid-os/specs/` to avoid multi-spec ambiguity.
 
@@ -279,23 +280,24 @@ When `ContextRequest.spec_id` is provided (`rapid context --spec <id>`):
 
 `validate_spec_registry(root)` is integrated into `rapid validate` and `rapid doctor`:
 - `RAPID800` (`INFO`): Spec registry valid.
-- `RAPID801` (`ERROR`): Invalid `spec.json` (`InvalidSpecRecordError`: invalid JSON, unsupported `schema_version`, or invalid record fields).
-- `RAPID802` (`ERROR`): Missing `revisions/` or `current_revision` directory (`CurrentRevisionMissingError`).
-- `RAPID803` (`ERROR`): Invalid `revision.json` (`InvalidRevisionManifestError`: invalid JSON, unsupported `schema_version`, or invalid revision fields).
+- `RAPID801` (`ERROR`): Invalid persisted `spec.json` record/schema (`InvalidSpecRecordError`: invalid JSON, unsupported `schema_version`, unknown fields, or invalid persisted record/status value).
+- `RAPID802` (`ERROR`): Missing `revisions/` directory or missing required historical/current revision directory (`1..current_revision`, `CurrentRevisionMissingError`).
+- `RAPID803` (`ERROR`): Invalid persisted `revision.json` manifest/schema (`InvalidRevisionManifestError`: invalid JSON, unsupported `schema_version`, unknown fields, or invalid revision fields).
 - `RAPID804` (`ERROR`): Missing `requirements.md`, `tasks.md`, or `acceptance.md` artifact, or SHA-256 digest drift (`SpecArtifactDriftError`).
-- `RAPID805` (`ERROR`): Invalid spec lifecycle status or transition (`SpecLifecycleError`).
+- `RAPID805` (`ERROR`): Invalid lifecycle transition or spec lifecycle prevents requested operation (`SpecLifecycleError`, e.g. `draft`/`archived` spec requested by operational context compilation).
 - `RAPID806` (`ERROR`): Invalid `spec_id`, duplicate spec identity, or directory/record ID mismatch (`DuplicateSpecIdentityError`).
 - `RAPID807` (`ERROR`): Referenced spec or revision not found (`SpecNotFoundError`).
 - `RAPID808` (`ERROR`): Unsafe spec path, symlink escape, or unreadable spec entry (`UnsafeSpecPathError`).
-- `RAPID809` (`WARNING`): Orphan or unreferenced revision entry inside `revisions/` exceeding `current_revision`.
+- `RAPID809` (`WARNING`): Orphan or unreferenced revision entry inside `revisions/` (`revision > current_revision` or non-canonical entry).
 
 ### CLI Surface (`rapid spec`)
 
-- `rapid spec create`: Creates a new spec (`--title`, `--id`, `--mode`, `--objective`, `--problem`, `--scope`, `--out-of-scope`, `--actor`, `--flow`, `--edge-case`, `--rule`, `--constraint`, `--affected-path`, `--data-impact`, `--acceptance`, `--testing`, `--task`, `--tag`, `--status {draft,ready}`, `--export-legacy`, `--json`). Interactive wizard when flags are omitted.
-- `rapid spec list [--status <status>] [--json]`: Lists specs in deterministic ID order without writing files.
+- `rapid spec create`: Creates a new spec (`--title`, `--id`, `--mode`, `--objective`, `--problem`, `--scope`, `--out-of-scope`, `--actor`, `--main-flow` / `--flow`, `--edge-case`, `--business-rule` / `--rule`, `--technical-constraint` / `--constraint`, `--affected-path`, `--data-impact`, `--acceptance`, `--testing`, `--task`, `--tag`, `--status {draft,ready}`, `--export-legacy`, `--json`). Interactive wizard when flags are omitted.
+- `rapid spec list [--status {draft,ready,archived}] [--json]`: Lists specs in deterministic ID order without writing files.
 - `rapid spec show <spec-id> [--revision <n>] [--json]`: Displays a spec and its current or pinned revision in read-only mode.
-- `rapid spec revise <spec-id>`: Creates immutable revision `current_revision + 1`, inheriting unspecified fields from `current_revision`.
+- `rapid spec revise <spec-id> [--json] [...]`: Creates immutable revision `current_revision + 1`, inheriting unspecified fields from `current_revision` and resetting status to `draft`.
 - `rapid spec status <spec-id> <status> [--json]`: Transitions authoring status (`draft`, `ready`, `archived`).
 - `rapid spec export-legacy <spec-id> [--revision <n>]`: Explicitly exports a spec revision to root `SPECS.md`, `TASKS.md`, and `ACCEPTANCE.md` with `.bak` backup protection.
-- `rapid scope [--register] [--spec-id <id>] [--status {draft,ready}]`: Preserves legacy root file generation while optionally registering or revising the spec in `.rapid-os/specs/`.
+- `rapid scope [--register] [--spec-id <id>] [--status {draft,ready}]`: Preserves legacy root file generation while optionally registering the spec in `.rapid-os/specs/`.
+
 
