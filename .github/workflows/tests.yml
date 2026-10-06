@@ -49,3 +49,10 @@ jobs:
           python rapid.py spec list
           python rapid.py spec list --json > /tmp/specs.json
           python -m json.tool /tmp/specs.json > /dev/null
+          python rapid.py policy show
+          python rapid.py policy show --json > /tmp/policy.json
+          python -m json.tool /tmp/policy.json > /dev/null
+          python rapid.py run list
+          python rapid.py run list --json > /tmp/runs.json
+          python -m json.tool /tmp/runs.json > /dev/null
+
