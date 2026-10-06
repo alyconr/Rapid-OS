@@ -8,13 +8,13 @@ Rapid OS v3 evolves Rapid OS from a static context template generator into a det
 Phase 0  Hardening Foundation (COMPLETE)
 Phase 1  Project Intelligence (COMPLETE)
 Phase 2  Context Compiler (COMPLETE)
-Phase 3  Spec Registry v3 (CURRENT)
-Phase 4  Execution Policy Engine (PLANNED)
+Phase 3  Spec Registry v3 (COMPLETE)
+Phase 4  Execution Policy Engine & Run Contract (CURRENT)
 Phase 5  Harness Capability Registry (PLANNED)
 Phase 6  Evidence Engine & Evals (PLANNED)
 ```
 
-> Only Phase 0, Phase 1, Phase 2, and Phase 3 are implemented in the repository today. Phases 4–6 are documented strictly as planned architecture targets.
+> Phases 0 through 4 are implemented in the repository today. Phases 5–6 are documented strictly as planned architecture targets.
 
 ---
 
@@ -299,5 +299,124 @@ When `ContextRequest.spec_id` is provided (`rapid context --spec <id>`):
 - `rapid spec status <spec-id> <status> [--json]`: Transitions authoring status (`draft`, `ready`, `archived`).
 - `rapid spec export-legacy <spec-id> [--revision <n>]`: Explicitly exports a spec revision to root `SPECS.md`, `TASKS.md`, and `ACCEPTANCE.md` with `.bak` backup protection.
 - `rapid scope [--register] [--spec-id <id>] [--status {draft,ready}]`: Preserves legacy root file generation while optionally registering the spec in `.rapid-os/specs/`.
+
+---
+
+## Phase 4: Execution Policy Engine & Run Contract
+
+### Architectural Principle
+
+Phase 4 answers: *"Given an exact Spec revision and its compiled context, under what execution contract, risk classification, workspace requirement, and gates is work allowed to happen?"*
+
+Rapid OS v3 strictly separates:
+- **Spec**: *WHAT* must be built (authoring lifecycle in `.rapid-os/specs/`).
+- **Context**: *WHAT* the agent needs to know (`CompiledContext`).
+- **Policy**: *UNDER WHAT RULES* work may happen (`ExecutionPolicy` → `PolicyDecision`).
+- **Run**: *ONE* concrete execution attempt pinned to an immutable `ExecutionContract` and append-only `RunState` snapshots in `.rapid-os/runs/<run-id>/`.
+- **Evidence** (Phase 6, planned): *PROOF* of what actually happened.
+
+Rapid OS does **not** act as an autonomous agent runtime: it never invokes external LLM CLIs, never runs shell commands, never creates git worktrees automatically, and never mutates application source code.
+
+### Pipeline & Filesystem Layout
+
+```text
+ProjectModel + SpecRevision (status == ready) + CompiledContext + ExecutionPolicy
+    ↓
+ExecutionPolicyEvaluator (rapid_os.domain.policy)
+    ↓
+PolicyDecision (ExecutionClass, RiskLevel, RiskSignals, WorkspaceRequirement, GateRequirements, reasons)
+    ↓
+ExecutionContract (contract.json: immutable contract + SHA-256 digests)
+    ↓
+RunRegistry (.rapid-os/runs/<run-id>/)
+    ├── run.json (schema_version = 1, id, spec_id, spec_revision, contract_digest, current_state_revision)
+    ├── contract.json (schema_version = 1, immutable ExecutionContract)
+    ├── context.md (immutable compiled context snapshot)
+    ├── context-manifest.json (immutable ContextManifest snapshot)
+    └── states/
+        ├── 0001.json (initial RunState: status=prepared, tasks=pending, gates=pending)
+        ├── 0002.json (append-only state transition)
+        └── ...
+```
+
+- **No Duplicate Index**: Runs are discovered deterministically by scanning `.rapid-os/runs/*/run.json` in lexical order.
+- **Deterministic Run IDs**: Default run IDs follow `<spec-id>-r<spec-revision>-run-<NNN>` (`001`..`999`, `1000`, ...) with no timestamps, random UUIDs, or host paths.
+- **Immutable Contract & Append-Only State History**: `contract.json`, `context.md`, `context-manifest.json`, and existing `states/<NNNN>.json` files are never modified in place. Every transition writes `states/<next>.json` first, verifies its schema and invariants, and updates `run.json` (`current_state_revision`) **last**.
+
+### Canonical Domain Entities (`rapid_os.domain.policy` & `rapid_os.domain.execution`)
+
+#### `ExecutionClass`
+Classification of execution scope (`SPIKE = "spike"`, `BOUNDED = "bounded"`, `ARCHITECTURAL = "architectural"`):
+- `spike`: `SpecMode.RESEARCH` without architectural signals.
+- `bounded`: `FEATURE`, `BUGFIX`, or `REFACTOR` without architectural signals.
+- `architectural`: `SpecMode.HARDENING`, architectural tags/paths (`migration`, `schema`, `infra`, `deployment`, `security`, `auth`, `ci`, `architecture`), or non-empty `data_impact`.
+
+#### `RiskLevel` & `RiskSignal`
+Ordered risk enum (`LOW = 10`, `MEDIUM = 50`, `HIGH = 80`, `CRITICAL = 100`) paired with structured `RiskSignal` records (`id`, `level`, `reason`, `source`).
+- Neither project policy nor CLI overrides (`--classification`, `--risk`) may downgrade the calculated `ExecutionClass` or `RiskLevel`; any downgrade attempt fails with `RAPID1006`.
+
+#### `WorkspaceRequirement`
+Declarative workspace rule (`CURRENT_ALLOWED = "current_allowed"`, `ISOLATED_REQUIRED = "isolated_required"`):
+- `LOW` / `MEDIUM` default to `current_allowed`.
+- `HIGH` / `CRITICAL` require `isolated_required`.
+
+#### `GateKind`, `GatePhase`, & `GateRequirement`
+Canonical execution gates evaluated across `PRE_EXECUTION` (`gate.workspace-isolation`, `gate.baseline`, `gate.manual-approval`) and `POST_EXECUTION` (`gate.tests`, `gate.review`, `gate.security-review`, `gate.migration-review`, `gate.final-verification`):
+- Ordered deterministically by `CANONICAL_GATE_ORDER` without duplicates.
+- At `CRITICAL` risk, no gate is waivable. Below `CRITICAL`, only gates listed in `policy.waivable_gate_ids` (`gate.review`, `gate.tests` by default) may be waived, and waiving always requires a non-empty `reason`.
+
+#### `ExecutionPolicy` (`.rapid-os/policy.json`)
+Optional project-level policy configuration (`EXECUTION_POLICY_SCHEMA_VERSION = 1`) defining `minimum_classification`, `minimum_risk`, `architectural_tags`, `architectural_path_prefixes`, `high_risk_tags`, `critical_risk_tags`, `workspace_by_risk`, `waivable_gate_ids`, and `extra_required_gate_ids`.
+- If `.rapid-os/policy.json` does not exist, `DEFAULT_EXECUTION_POLICY` is used (`source="default"`).
+- If `.rapid-os/policy.json` exists, it is validated strictly (`source=".rapid-os/policy.json"`); corrupt or invalid policy files fail explicitly with `RAPID1005` or `RAPID1006` without falling back to defaults.
+- Programmatically injected custom policies require an explicit truthful `policy_source` (`"injected"`) and cannot claim `"default"` (`RAPID1005`).
+
+#### `TaskContract` & `ExecutionContract`
+`ExecutionContract` (`EXECUTION_CONTRACT_SCHEMA_VERSION = 1`) pins `schema_version`, `run_id`, `spec_id`, `spec_revision`, `spec_content_digest`, `harness`, `context_digest`, `context_manifest_digest`, `project_model_digest`, `policy_source`, `policy_digest`, `decision`, `classification`, `risk`, `risk_signals`, `workspace`, `gates`, `tasks` (`T001`, `T002`, ... derived deterministically from `SpecRevision.implementation_tasks`), and `contract_digest`.
+- `contract_digest` is computed over the semantic contract payload (excluding `run_id` and `contract_digest`), so identical inputs produce identical `contract_digest` values across runs.
+
+#### `RunStatus`, `TaskStatus`, `GateDisposition`, & `RunState`
+`RunState` (`RUN_STATE_SCHEMA_VERSION = 1`) records the state revision (`1..current_state_revision`):
+- Initial snapshot (`states/0001.json`) invariant: `revision = 1`, `status = prepared`, all tasks `pending` (empty reason), all gates `pending` (empty reason), and `change_kind = "run.prepared"` (`RAPID1012`).
+- Sequential history verification (`s1 → s2 → ... → current`): every consecutive snapshot must advance `revision` by 1, mutate exactly one category (`run status`, `1 task`, or `1 gate`), match `change_kind`, and satisfy all phase boundary preconditions (`RAPID1012`).
+- `RunStatus` transitions: `prepared → active | cancelled`, `active → blocked | finished | failed | cancelled`, `blocked → active | failed | cancelled`. `finished`, `failed`, and `cancelled` are terminal (`RAPID1009`).
+- Phase boundaries (`RAPID1014`):
+  - `PRE_EXECUTION` gates can only change while `status = prepared`.
+  - Precondition for `prepared → active`: all required `PRE_EXECUTION` gates must be `acknowledged` or `waived`.
+  - Tasks can only change while `status = active`.
+  - `POST_EXECUTION` gates can only change while `status = active` and after all tasks are terminal (`done` or `skipped`).
+  - Precondition for `active → finished`: all tasks must be `done` or `skipped` and all required `POST_EXECUTION` gates must be `acknowledged` or `waived`.
+- `TaskStatus` transitions: `pending → in_progress | skipped`, `in_progress → done | blocked | skipped`, `blocked → in_progress | skipped`. `done` and `skipped` are terminal (`RAPID1010`).
+
+### Execution Policy & Run Registry Validation (`RAPID1000–RAPID1019` in `rapid_os.domain.validation`)
+
+`validate_execution_policy(rapid_dir, root)` and `validate_run_registry(rapid_dir, root)` are integrated into `rapid validate` and `rapid doctor`:
+- `RAPID1000` (`INFO`): Execution policy and run registry valid.
+- `RAPID1001` (`ERROR`): Invalid `run.json` record or schema (`InvalidRunRecordError`).
+- `RAPID1002` (`ERROR`): Invalid `contract.json` or contract digest mismatch (`InvalidExecutionContractError`).
+- `RAPID1003` (`ERROR`): Invalid spec binding (`InvalidSpecBindingError` — missing spec/revision, spec not `ready`, or `spec_content_digest` mismatch).
+- `RAPID1004` (`ERROR`): Context snapshot or digest mismatch (`ContextSnapshotMismatchError`).
+- `RAPID1005` (`ERROR`): Invalid execution policy schema (`InvalidExecutionPolicyError`).
+- `RAPID1006` (`ERROR`): Policy violation or forbidden risk/classification downgrade (`PolicyViolationError`).
+- `RAPID1007` (`ERROR`): Run identity error or referenced run not found (`DuplicateRunIdentityError`, `RunNotFoundError`).
+- `RAPID1008` (`ERROR`): Unsafe run/policy path or symlink escape (`UnsafeRunPathError`).
+- `RAPID1009` (`ERROR`): Invalid run status transition (`InvalidRunTransitionError`).
+- `RAPID1010` (`ERROR`): Invalid task status transition (`InvalidTaskTransitionError`).
+- `RAPID1011` (`ERROR` / `WARNING`): Run state history gap or missing `states/` directory (`ERROR`, `RunStateHistoryGapError`); unreferenced future state `revision > current_state_revision` or non-canonical entry in `states/` (`WARNING`).
+- `RAPID1012` (`ERROR`): Invalid `RunState` schema, digest, contract alignment, initial state invariant, or semantic state transition history (`InvalidRunStateError`).
+- `RAPID1013` (`ERROR`): Invalid gate disposition transition or invalid waiver (`InvalidGateTransitionError`).
+- `RAPID1014` (`ERROR`): Run lifecycle or phase boundary precondition not satisfied (`ExecutionPreconditionError`).
+- `RAPID1015–RAPID1019`: Reserved for future execution policy diagnostics.
+
+### CLI Surface (`rapid policy` & `rapid run`)
+
+- `rapid policy show [--json]`: Displays active execution policy (`default` or `.rapid-os/policy.json`) in read-only mode.
+- `rapid policy init [--json]`: Writes default `.rapid-os/policy.json` (fails with `RAPID1005` if `.rapid-os/policy.json` already exists).
+- `rapid run create --spec <spec-id> [--spec-revision <n>] [--id <run-id>] [--harness <harness>] [--classification <class>] [--risk <risk>] [--json]`: Evaluates policy, compiles context, and creates an immutable run contract and initial state `0001.json`.
+- `rapid run list [--status <status>] [--json]`: Lists runs in deterministic ID order without mutating files.
+- `rapid run show <run-id> [--state-revision <n>] [--json]`: Displays run record, contract, risk signals, tasks, gates, and current or historical state in read-only mode.
+- `rapid run status <run-id> <status> [--reason "..."] [--json]`: Appends a new state revision transitioning run status after verifying gate/task preconditions.
+- `rapid run task <run-id> <task-id> <status> [--reason "..."] [--json]`: Appends a new state revision transitioning a task (`T001`, ...).
+- `rapid run gate <run-id> <gate-id> <disposition> [--reason "..."] [--json]`: Appends a new state revision acknowledging or waiving a gate.
 
 

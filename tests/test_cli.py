@@ -32,6 +32,8 @@ class CliSmokeTests(unittest.TestCase):
                 "skill",
                 "scope",
                 "spec",
+                "policy",
+                "run",
                 "deploy",
                 "vision",
                 "mcp",

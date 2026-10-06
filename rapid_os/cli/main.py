@@ -47,7 +47,12 @@ from rapid_os.core.paths import (
     TEMPLATES_DIR,
 )
 from rapid_os.adapters.context_sources import ContextSourceLoader
+from rapid_os.adapters.execution_policy import (
+    load_execution_policy,
+    write_default_execution_policy,
+)
 from rapid_os.adapters.project_snapshot import write_project_snapshot
+from rapid_os.adapters.run_registry import RunRegistry
 from rapid_os.adapters.spec_registry import SpecRegistry
 from rapid_os.core.process import run_npx_skills_add
 from rapid_os.core.text import read_text_best_effort
@@ -58,6 +63,18 @@ from rapid_os.domain.context import (
     ContextManifest,
     ContextRequest,
     ContextRequiredSourceMissingError,
+)
+from rapid_os.domain.execution import (
+    EXECUTION_POLICY_SCHEMA_VERSION,
+    RUN_SCHEMA_VERSION,
+    ExecutionError,
+    InvalidExecutionPolicyError,
+    InvalidGateTransitionError,
+    InvalidRunRecordError,
+    InvalidSpecBindingError,
+    InvalidTaskTransitionError,
+    RunStatus,
+    TaskStatus,
 )
 from rapid_os.domain.mcp import build_mcp_config
 from rapid_os.domain.scanner import (
@@ -88,10 +105,12 @@ from rapid_os.domain.validation import (
     ValidationReport,
     inspect_project_context,
     validate_composed_context,
+    validate_execution_policy,
     validate_project,
     validate_project_config,
     validate_project_intelligence,
     validate_project_standards,
+    validate_run_registry,
     validate_spec_registry,
     validate_stack_topology,
     validate_templates,
@@ -1095,6 +1114,8 @@ def doctor_command(args):
             validate_composed_context(PROJECT_RAPID_DIR, CURRENT_DIR),
             validate_project_intelligence(PROJECT_RAPID_DIR, CURRENT_DIR),
             validate_spec_registry(PROJECT_RAPID_DIR, CURRENT_DIR),
+            validate_execution_policy(PROJECT_RAPID_DIR, CURRENT_DIR),
+            validate_run_registry(PROJECT_RAPID_DIR, CURRENT_DIR),
         )
     else:
         report = report.extend(
@@ -1749,12 +1770,385 @@ def spec_command(args):
         sys.exit(1)
 
 
+def render_policy_show_text(policy, source: str) -> str:
+    waivable_str = (
+        ", ".join(policy.waivable_gate_ids)
+        if policy.waivable_gate_ids
+        else "none"
+    )
+    extra_gates_str = (
+        ", ".join(policy.extra_required_gate_ids)
+        if policy.extra_required_gate_ids
+        else "none"
+    )
+    workspace_str = ", ".join(
+        f"{k}={v}" for k, v in policy.workspace_by_risk.items()
+    )
+    return "\n".join(
+        [
+            "Rapid OS Execution Policy",
+            f"Source:                 {source}",
+            f"Schema Version:         {policy.schema_version}",
+            f"Minimum Classification: {policy.minimum_classification.value}",
+            f"Minimum Risk:           {policy.minimum_risk.label}",
+            f"Workspace by Risk:      {workspace_str}",
+            f"Waivable Gate IDs:      {waivable_str}",
+            f"Extra Required Gates:   {extra_gates_str}",
+            f"Policy Digest:          {policy.digest}",
+        ]
+    )
+
+
+def policy_command(args):
+    """Execute `rapid policy` subcommands (`show`, `init`)."""
+    action = getattr(args, "policy_action", None) or getattr(
+        args, "action", None
+    )
+    try:
+        if action == "show":
+            policy, source = load_execution_policy(
+                CURRENT_DIR,
+                PROJECT_RAPID_DIR,
+            )
+            if getattr(args, "json", False):
+                payload = {
+                    **policy.to_dict(),
+                    "source": source,
+                    "policy_digest": policy.content_digest(),
+                    "policy": policy.to_dict(),
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print(render_policy_show_text(policy, source))
+            return 0
+
+        if action == "init":
+            written_path = write_default_execution_policy(
+                CURRENT_DIR,
+                PROJECT_RAPID_DIR,
+            )
+            policy, source = load_execution_policy(
+                CURRENT_DIR,
+                PROJECT_RAPID_DIR,
+            )
+            if getattr(args, "json", False):
+                payload = {
+                    **policy.to_dict(),
+                    "source": source,
+                    "path": written_path.relative_to(CURRENT_DIR).as_posix(),
+                    "policy_digest": policy.content_digest(),
+                    "policy": policy.to_dict(),
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print_success(f"Execution policy inicializada en: {written_path}")
+            return 0
+
+        print("RAPID1005 Subcomando 'rapid policy' requerido.", file=sys.stderr)
+        sys.exit(1)
+    except ExecutionError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        print(f"RAPID1005 {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def render_run_show_text(
+    record,
+    contract,
+    state,
+    artifact_paths: dict[str, str],
+) -> str:
+    done_or_skipped = sum(1 for t in state.tasks if t.status.is_terminal)
+    total_tasks = len(state.tasks)
+    lines = [
+        f"ID:                    {record.id}",
+        f"Status:                {state.status.value} (s{state.revision})",
+        f"Spec:                  {record.spec_id} (r{record.spec_revision})",
+        f"Spec Content Digest:   {contract.spec_content_digest}",
+        f"Harness:               {contract.harness}",
+        f"Classification:        {contract.classification.value}",
+        f"Risk:                  {contract.risk.label}",
+        f"Workspace Requirement: {contract.workspace.value}",
+        f"Policy Source:         {contract.policy_source}",
+        f"Policy Digest:         {contract.policy_digest}",
+        f"Project Model Digest:  {contract.project_model_digest}",
+        f"Context Digest:        {contract.context_digest}",
+        f"Contract Digest:       {contract.contract_digest}",
+        "Reasons:",
+    ]
+    if contract.decision.reasons:
+        for reason in contract.decision.reasons:
+            lines.append(f"  - {reason}")
+    else:
+        lines.append("  - none")
+
+    lines.append("Risk Signals:")
+    if contract.risk_signals:
+        for sig in contract.risk_signals:
+            lines.append(
+                f"  - {sig.id} ({sig.level.label}, source={sig.source}): {sig.reason}"
+            )
+    else:
+        lines.append("  - none")
+
+    lines.append(f"Tasks ({done_or_skipped}/{total_tasks} terminal):")
+    if state.tasks:
+        for task in state.tasks:
+            task_line = f"  - {task.id} [{task.status.value}] {task.description}"
+            if task.reason:
+                task_line += f" (reason: {task.reason})"
+            lines.append(task_line)
+    else:
+        lines.append("  - none")
+
+    lines.append("Required Gates:")
+    if state.gates:
+        contract_gates_by_id = {g.id: g for g in contract.gates}
+        for gate in state.gates:
+            c_gate = contract_gates_by_id.get(gate.id)
+            gate_reason = gate.reason or (c_gate.reason if c_gate else "")
+            lines.append(
+                f"  - {gate.id} ({gate.kind.value}, {gate.phase.value}, waivable={str(gate.waivable).lower()}) -> {gate.disposition.value}"
+            )
+            if gate_reason:
+                lines.append(f"    reason: {gate_reason}")
+    else:
+        lines.append("  - none")
+
+    lines.append("Artifacts:")
+    for name in (
+        "run.json",
+        "contract.json",
+        "context.md",
+        "context-manifest.json",
+        "state.json",
+    ):
+        if name in artifact_paths:
+            lines.append(f"  - {artifact_paths[name]}")
+    return "\n".join(lines)
+
+
+def run_command(args):
+    """Execute `rapid run` subcommands (`create`, `list`, `show`, `status`, `task`, `gate`)."""
+    action = getattr(args, "run_action", None) or getattr(args, "action", None)
+    try:
+        registry = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+
+        if action == "list":
+            status_filter = getattr(args, "status", None)
+            records = registry.list_runs(status=status_filter)
+            run_items = []
+            for rec in records:
+                contract = registry.get_contract(rec.id)
+                state = registry.get_state(rec.id)
+                run_items.append((rec, contract, state))
+
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": RUN_SCHEMA_VERSION,
+                    "runs": [
+                        {
+                            **rec.to_dict(),
+                            "status": state.status.value,
+                            "classification": contract.classification.value,
+                            "risk": contract.risk.label,
+                            "workspace": contract.workspace.value,
+                            "harness": contract.harness,
+                            "spec_content_digest": contract.spec_content_digest,
+                        }
+                        for rec, contract, state in run_items
+                    ],
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+
+            if not run_items:
+                print("No runs registered.")
+                return 0
+
+            for rec, contract, state in run_items:
+                print(
+                    f"{rec.id:<32} {state.status.value:<10} {contract.classification.value:<14} {contract.risk.label:<9} r{rec.spec_revision} s{rec.current_state_revision}"
+                )
+            return 0
+
+        if action == "show":
+            run_id = getattr(args, "run_id", None) or getattr(args, "id", None)
+            state_rev = getattr(args, "state_revision", None)
+            record = registry.get(run_id)
+            contract = registry.get_contract(run_id)
+            state = registry.get_state(run_id, revision=state_rev)
+            artifact_paths = registry.get_artifact_paths(
+                run_id,
+                state_revision=state.revision,
+            )
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": RUN_SCHEMA_VERSION,
+                    **record.to_dict(),
+                    "status": state.status.value,
+                    "classification": contract.classification.value,
+                    "risk": contract.risk.label,
+                    "workspace": contract.workspace.value,
+                    "harness": contract.harness,
+                    "spec_content_digest": contract.spec_content_digest,
+                    "policy_source": contract.policy_source,
+                    "policy_digest": contract.policy_digest,
+                    "project_model_digest": contract.project_model_digest,
+                    "context_digest": contract.context_digest,
+                    "context_manifest_digest": contract.context_manifest_digest,
+                    "reasons": list(contract.decision.reasons),
+                    "risk_signals": [s.to_dict() for s in contract.risk_signals],
+                    "tasks": [t.to_dict() for t in state.tasks],
+                    "gates": [g.to_dict() for g in state.gates],
+                    "run": record.to_dict(),
+                    "record": record.to_dict(),
+                    "contract": contract.to_dict(),
+                    "state": state.to_dict(),
+                    "artifacts": artifact_paths,
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print(render_run_show_text(record, contract, state, artifact_paths))
+            return 0
+
+        if action == "create":
+            spec_id = getattr(args, "spec", None)
+            if not spec_id or not str(spec_id).strip():
+                raise InvalidSpecBindingError(
+                    "Option '--spec' is required to create a run."
+                )
+            record = registry.create(
+                spec_id=spec_id,
+                spec_revision=getattr(args, "spec_revision", None),
+                run_id=getattr(args, "run_id", None),
+                harness=getattr(args, "harness", None) or "cursor",
+                classification=getattr(args, "classification", None),
+                risk=getattr(args, "risk", None),
+            )
+            contract = registry.get_contract(record.id)
+            state = registry.get_state(record.id)
+            artifact_paths = registry.get_artifact_paths(record.id)
+            if getattr(args, "json", False):
+                payload = {
+                    **record.to_dict(),
+                    "status": state.status.value,
+                    "classification": contract.classification.value,
+                    "risk": contract.risk.label,
+                    "workspace": contract.workspace.value,
+                    "harness": contract.harness,
+                    "spec_content_digest": contract.spec_content_digest,
+                    "run": record.to_dict(),
+                    "contract": contract.to_dict(),
+                    "state": state.to_dict(),
+                    "artifacts": artifact_paths,
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print_success(
+                f"Run '{record.id}' creado (spec={record.spec_id}@r{record.spec_revision}, status={state.status.value}, class={contract.classification.value}, risk={contract.risk.label})"
+            )
+            return 0
+
+        if action == "status":
+            run_id = getattr(args, "run_id", None) or getattr(args, "id", None)
+            target_status = getattr(args, "status", None)
+            reason = getattr(args, "reason", None) or ""
+            next_state = registry.transition_status(
+                run_id,
+                target_status,
+                reason=reason,
+            )
+            updated_record = registry.get(run_id)
+            if getattr(args, "json", False):
+                payload = {
+                    **updated_record.to_dict(),
+                    "status": next_state.status.value,
+                    "run": updated_record.to_dict(),
+                    "state": next_state.to_dict(),
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print_success(
+                f"Run '{updated_record.id}' status -> {next_state.status.value} (s{next_state.revision})"
+            )
+            return 0
+
+        if action == "task":
+            run_id = getattr(args, "run_id", None) or getattr(args, "id", None)
+            task_id = getattr(args, "task_id", None)
+            target_status = getattr(args, "status", None)
+            reason = getattr(args, "reason", None) or ""
+            next_state = registry.transition_task(
+                run_id,
+                task_id,
+                target_status,
+                reason=reason,
+            )
+            updated_record = registry.get(run_id)
+            if getattr(args, "json", False):
+                payload = {
+                    **updated_record.to_dict(),
+                    "status": next_state.status.value,
+                    "run": updated_record.to_dict(),
+                    "state": next_state.to_dict(),
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print_success(
+                f"Run '{updated_record.id}' task '{task_id}' -> {target_status} (s{next_state.revision})"
+            )
+            return 0
+
+        if action == "gate":
+            run_id = getattr(args, "run_id", None) or getattr(args, "id", None)
+            gate_id = getattr(args, "gate_id", None)
+            disposition = getattr(args, "disposition", None)
+            reason = getattr(args, "reason", None) or ""
+            next_state = registry.transition_gate(
+                run_id,
+                gate_id,
+                disposition,
+                reason=reason,
+            )
+            updated_record = registry.get(run_id)
+            if getattr(args, "json", False):
+                payload = {
+                    **updated_record.to_dict(),
+                    "status": next_state.status.value,
+                    "run": updated_record.to_dict(),
+                    "state": next_state.to_dict(),
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print_success(
+                f"Run '{updated_record.id}' gate '{gate_id}' -> {disposition} (s{next_state.revision})"
+            )
+            return 0
+
+        print("RAPID1001 Subcomando 'rapid run' requerido.", file=sys.stderr)
+        sys.exit(1)
+    except ExecutionError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except SpecRegistryError as exc:
+        print(f"RAPID1003 {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        print(f"RAPID1001 {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
 def show_guide():
     print("📘 RAPID OS - COMANDOS")
     print(" init    -> Configurar proyecto")
     print(" scan    -> Inspeccionar inteligencia del proyecto")
     print(" context -> Compilar contexto selectivo por tarea")
     print(" spec    -> Gestionar Spec Registry v3 (create, list, show, revise, status, export-legacy)")
+    print(" policy  -> Gestionar Execution Policy v3 (show, init)")
+    print(" run     -> Gestionar Run Contracts & Lifecycle v3 (create, list, show, status, task, gate)")
     print(" skill   -> Instalar capacidades (Local/Vercel)")
     print(" mcp     -> Configurar herramientas BD")
     print(" vision  -> Agregar referencias visuales")
@@ -1916,6 +2310,60 @@ def create_parser():
     spec_export.add_argument("spec_id")
     spec_export.add_argument("--revision", type=int)
 
+    policy = subparsers.add_parser("policy")
+    policy_subparsers = policy.add_subparsers(dest="policy_action")
+
+    policy_show = policy_subparsers.add_parser("show")
+    policy_show.add_argument("--json", action="store_true")
+
+    policy_init = policy_subparsers.add_parser("init")
+    policy_init.add_argument("--json", action="store_true")
+
+    run = subparsers.add_parser("run")
+    run_subparsers = run.add_subparsers(dest="run_action")
+
+    run_create = run_subparsers.add_parser("create")
+    run_create.add_argument("--spec")
+    run_create.add_argument("--spec-revision", dest="spec_revision", type=int)
+    run_create.add_argument("--id", dest="run_id")
+    run_create.add_argument(
+        "--harness",
+        default="cursor",
+        choices=["cursor", "claude", "codex", "vscode", "antigravity"],
+    )
+    run_create.add_argument("--classification")
+    run_create.add_argument("--risk")
+    run_create.add_argument("--json", action="store_true")
+
+    run_list = run_subparsers.add_parser("list")
+    run_list.add_argument("--status")
+    run_list.add_argument("--json", action="store_true")
+
+    run_show = run_subparsers.add_parser("show")
+    run_show.add_argument("run_id")
+    run_show.add_argument("--state-revision", dest="state_revision", type=int)
+    run_show.add_argument("--json", action="store_true")
+
+    run_status = run_subparsers.add_parser("status")
+    run_status.add_argument("run_id")
+    run_status.add_argument("status")
+    run_status.add_argument("--reason")
+    run_status.add_argument("--json", action="store_true")
+
+    run_task = run_subparsers.add_parser("task")
+    run_task.add_argument("run_id")
+    run_task.add_argument("task_id")
+    run_task.add_argument("status")
+    run_task.add_argument("--reason")
+    run_task.add_argument("--json", action="store_true")
+
+    run_gate = run_subparsers.add_parser("gate")
+    run_gate.add_argument("run_id")
+    run_gate.add_argument("gate_id")
+    run_gate.add_argument("disposition")
+    run_gate.add_argument("--reason")
+    run_gate.add_argument("--json", action="store_true")
+
     skill = subparsers.add_parser("skill")
     skill.add_argument("action", choices=["list", "install", "add"], nargs="?")
     skill.add_argument("name", nargs="?")
@@ -1961,6 +2409,10 @@ def main(argv=None):
         context_command(args)
     elif args.command == "spec":
         spec_command(args)
+    elif args.command == "policy":
+        policy_command(args)
+    elif args.command == "run":
+        run_command(args)
     elif args.command == "skill":
         manage_skills(args)
     elif args.command == "mcp":
@@ -1985,3 +2437,4 @@ def main(argv=None):
         show_guide()
     else:
         parser.print_help()
+
