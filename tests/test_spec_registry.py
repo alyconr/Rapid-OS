@@ -503,6 +503,10 @@ class SpecRegistryFilesystemTests(unittest.TestCase):
         )
         shutil.rmtree(r1_dir)
 
+        with self.assertRaises(CurrentRevisionMissingError) as ctx_current:
+            self.registry.get_revision("booking-idempotency")
+        self.assertEqual(ctx_current.exception.code, "RAPID802")
+
         with self.assertRaises(CurrentRevisionMissingError) as ctx_r1:
             self.registry.get_revision("booking-idempotency", 1)
         self.assertEqual(ctx_r1.exception.code, "RAPID802")
@@ -535,6 +539,10 @@ class SpecRegistryFilesystemTests(unittest.TestCase):
         )
         shutil.rmtree(r3_dir)
 
+        with self.assertRaises(CurrentRevisionMissingError) as ctx_multi_cur:
+            self.registry.get_revision("multi-gap-spec")
+        self.assertEqual(ctx_multi_cur.exception.code, "RAPID802")
+
         report_multi = validate_spec_registry(self.rapid_dir, self.project_root)
         self.assertTrue(report_multi.has_errors)
         r3_errors = [
@@ -544,6 +552,65 @@ class SpecRegistryFilesystemTests(unittest.TestCase):
         ]
         self.assertEqual(len(r3_errors), 1)
         self.assertNotIn("RAPID800", [d.code for d in report_multi.diagnostics])
+
+    def test_operational_get_revision_rejects_corrupt_or_missing_history_even_when_current_valid(self):
+        # Case A: r1 missing + r2 current valid -> get_revision(current) raises RAPID802
+        self.registry.create(
+            **_sample_spec_kwargs(
+                spec_id="hist-missing",
+                title="Hist Missing",
+                business_objective="v1",
+            )
+        )
+        self.registry.revise("hist-missing", business_objective="v2")
+        shutil.rmtree(
+            self.rapid_dir / "specs" / "hist-missing" / "revisions" / "0001"
+        )
+        with self.assertRaises(CurrentRevisionMissingError) as cm_802:
+            self.registry.get_revision("hist-missing")
+        self.assertEqual(cm_802.exception.code, "RAPID802")
+
+        # Case B: r1 revision.json corrupt + r2 current valid -> get_revision(current) raises RAPID803
+        self.registry.create(
+            **_sample_spec_kwargs(
+                spec_id="hist-bad-manifest",
+                title="Hist Bad Manifest",
+                business_objective="v1",
+            )
+        )
+        self.registry.revise("hist-bad-manifest", business_objective="v2")
+        (
+            self.rapid_dir
+            / "specs"
+            / "hist-bad-manifest"
+            / "revisions"
+            / "0001"
+            / "revision.json"
+        ).write_text("{corrupt-json", encoding="utf-8")
+        with self.assertRaises(InvalidRevisionManifestError) as cm_803:
+            self.registry.get_revision("hist-bad-manifest")
+        self.assertEqual(cm_803.exception.code, "RAPID803")
+
+        # Case C: r1 artifact/digest corrupt + r2 current valid -> get_revision(current) raises RAPID804
+        self.registry.create(
+            **_sample_spec_kwargs(
+                spec_id="hist-bad-digest",
+                title="Hist Bad Digest",
+                business_objective="v1",
+            )
+        )
+        self.registry.revise("hist-bad-digest", business_objective="v2")
+        (
+            self.rapid_dir
+            / "specs"
+            / "hist-bad-digest"
+            / "revisions"
+            / "0001"
+            / "requirements.md"
+        ).write_text("# Tampered historical requirement\n", encoding="utf-8")
+        with self.assertRaises(SpecArtifactDriftError) as cm_804:
+            self.registry.get_revision("hist-bad-digest")
+        self.assertEqual(cm_804.exception.code, "RAPID804")
 
     def test_corrupt_current_revision_never_falls_back_to_previous_revision(self):
         self.registry.create(**_sample_spec_kwargs(business_objective="Objective v1"))
@@ -555,14 +622,6 @@ class SpecRegistryFilesystemTests(unittest.TestCase):
             "booking-idempotency",
             business_objective="Objective v3",
         )
-        # Remove r2 AND corrupt current r3 -> neither falls back to r1/r2
-        shutil.rmtree(
-            self.rapid_dir
-            / "specs"
-            / "booking-idempotency"
-            / "revisions"
-            / "0002"
-        )
         r3_manifest = (
             self.rapid_dir
             / "specs"
@@ -573,9 +632,22 @@ class SpecRegistryFilesystemTests(unittest.TestCase):
         )
         r3_manifest.write_text("{corrupt-json", encoding="utf-8")
 
+        # 1. With valid r1 & r2, corrupt current r3 fails with RAPID803 (never falls back to r2)
         with self.assertRaises(InvalidRevisionManifestError) as ctx:
             self.registry.get_revision("booking-idempotency")
         self.assertEqual(ctx.exception.code, "RAPID803")
+
+        # 2. Removing r2 as well fails on historical gap RAPID802 (never falls back to r1) and validate reports both
+        shutil.rmtree(
+            self.rapid_dir
+            / "specs"
+            / "booking-idempotency"
+            / "revisions"
+            / "0002"
+        )
+        with self.assertRaises(CurrentRevisionMissingError) as ctx_gap:
+            self.registry.get_revision("booking-idempotency")
+        self.assertEqual(ctx_gap.exception.code, "RAPID802")
 
         report = validate_spec_registry(self.rapid_dir, self.project_root)
         self.assertTrue(report.has_errors)
@@ -834,6 +906,41 @@ class SpecRegistryContextAndE2ETests(unittest.TestCase):
                 err_output = err_buf.getvalue()
                 self.assertIn("RAPID805", err_output)
                 self.assertNotIn("RAPID704", err_output)
+
+    def test_ready_spec_with_historical_gap_or_corruption_fails_context_loader_and_cli(self):
+        # 1. Ready spec (current_revision=2) with r1 missing -> ContextSourceLoader and CLI return RAPID802
+        self.registry.create(
+            **_sample_spec_kwargs(spec_id="ready-hist-gap", business_objective="v1")
+        )
+        self.registry.revise("ready-hist-gap", business_objective="v2")
+        self.registry.set_status("ready-hist-gap", "ready")
+        shutil.rmtree(
+            self.rapid_dir / "specs" / "ready-hist-gap" / "revisions" / "0001"
+        )
+
+        req_gap = ContextRequest(mode="feature", spec_id="ready-hist-gap")
+        discovery_gap = ContextSourceLoader().load(
+            self.project_root,
+            self.rapid_dir,
+            request=req_gap,
+        )
+        self.assertTrue(discovery_gap.load_errors)
+        self.assertEqual(discovery_gap.load_errors[0].code, "RAPID802")
+
+        out_buf = io.StringIO()
+        err_buf = io.StringIO()
+        cli_args = cli_main.create_parser().parse_args(
+            ["context", "--spec", "ready-hist-gap"]
+        )
+        with patch.object(cli_main, "CURRENT_DIR", self.project_root), patch.object(
+            cli_main, "PROJECT_RAPID_DIR", self.rapid_dir
+        ), contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(err_buf):
+            with self.assertRaises(SystemExit) as cm:
+                cli_main.context_command(cli_args)
+        self.assertEqual(cm.exception.code, 1)
+        self.assertEqual(out_buf.getvalue(), "")
+        self.assertIn("RAPID802", err_buf.getvalue())
+        self.assertNotIn("RAPID704", err_buf.getvalue())
 
     def test_context_spec_single_diagnostic_identity_codes(self):
         # 1. Draft spec -> RAPID805 only

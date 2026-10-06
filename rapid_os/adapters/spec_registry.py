@@ -387,12 +387,34 @@ class SpecRegistry:
             )
         return record
 
+    def _verify_revision_history(
+        self,
+        spec_id: str,
+        record: SpecRecord,
+    ) -> dict[int, SpecRevision]:
+        """Verify that every historical revision in `1..record.current_revision` exists and passes full manifest + digest checks."""
+        spec_dir = self._resolve_spec_dir(spec_id)
+        verified: dict[int, SpecRevision] = {}
+        for rev_num in range(1, record.current_revision + 1):
+            rev_dir = self._resolve_revision_dir(spec_dir, rev_num)
+            if not rev_dir.exists() or not rev_dir.is_dir():
+                raise CurrentRevisionMissingError(
+                    f"Required revision r{rev_num} is missing for spec '{spec_id}' (current_revision={record.current_revision}).",
+                    path=rev_dir,
+                )
+            verified[rev_num] = self._read_and_verify_revision_dir(
+                spec_id,
+                rev_num,
+                rev_dir,
+            )
+        return verified
+
     def get_revision(
         self,
         spec_id: str,
         revision: int | None = None,
     ) -> SpecRevision:
-        """Load and validate a specific or current `SpecRevision` without fallback."""
+        """Load and validate a specific or current `SpecRevision` after verifying `1..current_revision` history without fallback."""
         record = self.get(spec_id)
         target_rev = record.current_revision if revision is None else revision
         if (
@@ -404,14 +426,13 @@ class SpecRegistry:
                 f"Invalid revision '{target_rev}': must be a positive integer."
             )
 
+        verified_history = self._verify_revision_history(spec_id, record)
+        if target_rev in verified_history:
+            return verified_history[target_rev]
+
         spec_dir = self._resolve_spec_dir(spec_id)
         rev_dir = self._resolve_revision_dir(spec_dir, target_rev)
         if not rev_dir.exists() or not rev_dir.is_dir():
-            if target_rev <= record.current_revision:
-                raise CurrentRevisionMissingError(
-                    f"Required revision r{target_rev} is missing for spec '{spec_id}' (current_revision={record.current_revision}).",
-                    path=rev_dir,
-                )
             raise SpecNotFoundError(
                 f"Revision r{target_rev} was not found for spec '{spec_id}'.",
                 path=rev_dir,
