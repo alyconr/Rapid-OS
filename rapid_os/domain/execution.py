@@ -220,6 +220,15 @@ CANONICAL_EXECUTION_CONTRACT_KEYS = frozenset(
 )
 
 
+ALLOWED_POLICY_SOURCES = frozenset(
+    {
+        "default",
+        ".rapid-os/policy.json",
+        "injected",
+    }
+)
+
+
 def _validate_sha256(value: object, label: str, error_cls=InvalidExecutionContractError) -> str:
     if not isinstance(value, str) or not SHA256_HEX_RE.match(value):
         raise error_cls(
@@ -319,9 +328,12 @@ class ExecutionContract:
             ),
         )
 
-        if self.policy_source not in ("default", ".rapid-os/policy.json"):
+        if (
+            not isinstance(self.policy_source, str)
+            or self.policy_source not in ALLOWED_POLICY_SOURCES
+        ):
             raise InvalidExecutionContractError(
-                f"Invalid ExecutionContract.policy_source '{self.policy_source}': expected 'default' or '.rapid-os/policy.json'."
+                f"Invalid ExecutionContract.policy_source '{self.policy_source}': expected one of {sorted(ALLOWED_POLICY_SOURCES)}."
             )
         object.__setattr__(
             self,
@@ -581,6 +593,10 @@ def build_execution_contract(
     if not isinstance(policy, ExecutionPolicy):
         raise InvalidExecutionContractError(
             "build_execution_contract requires an ExecutionPolicy instance."
+        )
+    if policy != DEFAULT_EXECUTION_POLICY and policy_source == "default":
+        raise InvalidExecutionContractError(
+            "Custom ExecutionPolicy cannot claim policy_source='default'."
         )
 
     resolved_decision = (
@@ -1300,6 +1316,193 @@ def enforce_run_transition_preconditions(
             raise ExecutionPreconditionError(
                 f"Cannot transition run '{state.run_id}' to 'finished': required POST_EXECUTION gate(s) still pending: {', '.join(pending_post_gates)}."
             )
+
+
+def enforce_task_transition_preconditions(
+    state: RunState,
+    task_id: str,
+) -> None:
+    """Tasks may only transition while the run is in `RunStatus.ACTIVE`."""
+    if state.status != RunStatus.ACTIVE:
+        raise ExecutionPreconditionError(
+            f"Cannot transition task '{task_id}' for run '{state.run_id}' while status is '{state.status.value}'; run must be 'active'."
+        )
+
+
+def enforce_gate_transition_preconditions(
+    state: RunState,
+    gate: GateState,
+) -> None:
+    """Enforce lifecycle phase boundaries for `PRE_EXECUTION` and `POST_EXECUTION` gates."""
+    if gate.phase == GatePhase.PRE_EXECUTION:
+        if state.status != RunStatus.PREPARED:
+            raise ExecutionPreconditionError(
+                f"Cannot modify PRE_EXECUTION gate '{gate.id}' for run '{state.run_id}' while status is '{state.status.value}'; PRE_EXECUTION gates may only be modified while 'prepared'."
+            )
+    elif gate.phase == GatePhase.POST_EXECUTION:
+        if state.status != RunStatus.ACTIVE:
+            raise ExecutionPreconditionError(
+                f"Cannot modify POST_EXECUTION gate '{gate.id}' for run '{state.run_id}' while status is '{state.status.value}'; POST_EXECUTION gates may only be modified while 'active'."
+            )
+        incomplete_tasks = [
+            f"{t.id} ({t.status.value})"
+            for t in state.tasks
+            if not t.status.is_terminal
+        ]
+        if incomplete_tasks:
+            raise ExecutionPreconditionError(
+                f"Cannot modify POST_EXECUTION gate '{gate.id}' for run '{state.run_id}' while task(s) are incomplete: {', '.join(incomplete_tasks)}."
+            )
+
+
+def verify_initial_run_state(state: RunState) -> None:
+    """Verify that initial snapshot `s1` (`0001.json`) strictly obeys initial state invariants."""
+    if not isinstance(state, RunState):
+        raise InvalidRunStateError("Expected a RunState instance for initial state verification.")
+    if state.revision != 1:
+        raise InvalidRunStateError(
+            f"Initial RunState must have revision 1, got {state.revision}."
+        )
+    if state.status != RunStatus.PREPARED:
+        raise InvalidRunStateError(
+            f"Initial RunState s1 for run '{state.run_id}' must have status 'prepared', got '{state.status.value}'."
+        )
+    if state.change_kind != "run.prepared":
+        raise InvalidRunStateError(
+            f"Initial RunState s1 for run '{state.run_id}' must have change_kind 'run.prepared', got '{state.change_kind}'."
+        )
+    non_pending_tasks = [
+        t.id for t in state.tasks if t.status != TaskStatus.PENDING or t.reason != ""
+    ]
+    if non_pending_tasks:
+        raise InvalidRunStateError(
+            f"Initial RunState s1 for run '{state.run_id}' must have all tasks in 'pending' status with empty reason; invalid task(s): {', '.join(non_pending_tasks)}."
+        )
+    non_pending_gates = [
+        g.id
+        for g in state.gates
+        if g.disposition != GateDisposition.PENDING or g.reason != ""
+    ]
+    if non_pending_gates:
+        raise InvalidRunStateError(
+            f"Initial RunState s1 for run '{state.run_id}' must have all gates in 'pending' disposition with empty reason; invalid gate(s): {', '.join(non_pending_gates)}."
+        )
+
+
+def verify_run_state_transition(
+    previous: RunState,
+    current: RunState,
+) -> None:
+    """Pure semantic verification proving `previous` (sN) -> `current` (sN+1) is a single legal transition."""
+    if not isinstance(previous, RunState) or not isinstance(current, RunState):
+        raise InvalidRunStateError(
+            "verify_run_state_transition requires two RunState instances."
+        )
+    if current.run_id != previous.run_id:
+        raise InvalidRunStateError(
+            f"State transition run_id mismatch: s{previous.revision} has '{previous.run_id}', s{current.revision} has '{current.run_id}'."
+        )
+    if current.revision != previous.revision + 1:
+        raise InvalidRunStateError(
+            f"State transition revision mismatch: expected revision {previous.revision + 1} after s{previous.revision}, got {current.revision}."
+        )
+
+    if len(current.tasks) != len(previous.tasks):
+        raise InvalidRunStateError(
+            f"State s{current.revision} task count ({len(current.tasks)}) differs from s{previous.revision} ({len(previous.tasks)})."
+        )
+    for prev_t, curr_t in zip(previous.tasks, current.tasks):
+        if prev_t.id != curr_t.id or prev_t.description != curr_t.description:
+            raise InvalidRunStateError(
+                f"State s{current.revision} task definition '{curr_t.id}' diverges from s{previous.revision} '{prev_t.id}'."
+            )
+
+    if len(current.gates) != len(previous.gates):
+        raise InvalidRunStateError(
+            f"State s{current.revision} gate count ({len(current.gates)}) differs from s{previous.revision} ({len(previous.gates)})."
+        )
+    for prev_g, curr_g in zip(previous.gates, current.gates):
+        if (
+            prev_g.id != curr_g.id
+            or prev_g.kind != curr_g.kind
+            or prev_g.phase != curr_g.phase
+            or prev_g.required != curr_g.required
+            or prev_g.waivable != curr_g.waivable
+        ):
+            raise InvalidRunStateError(
+                f"State s{current.revision} gate definition '{curr_g.id}' diverges from s{previous.revision} '{prev_g.id}'."
+            )
+
+    status_changed = current.status != previous.status
+    changed_tasks = [
+        (prev_t, curr_t)
+        for prev_t, curr_t in zip(previous.tasks, current.tasks)
+        if prev_t != curr_t
+    ]
+    changed_gates = [
+        (prev_g, curr_g)
+        for prev_g, curr_g in zip(previous.gates, current.gates)
+        if prev_g != curr_g
+    ]
+
+    mutation_categories = (
+        (1 if status_changed else 0)
+        + (1 if changed_tasks else 0)
+        + (1 if changed_gates else 0)
+    )
+    if (
+        mutation_categories != 1
+        or len(changed_tasks) > 1
+        or len(changed_gates) > 1
+    ):
+        raise InvalidRunStateError(
+            f"Invalid state transition s{previous.revision} -> s{current.revision} for run '{current.run_id}': each snapshot must mutate exactly one of run status, one task, or one gate."
+        )
+
+    try:
+        if status_changed:
+            validate_run_status_transition(previous.status, current.status)
+            enforce_run_transition_preconditions(previous, current.status)
+            expected_kind = f"run.status.{current.status.value}"
+            if current.change_kind != expected_kind:
+                raise InvalidRunStateError(
+                    f"State s{current.revision} change_kind '{current.change_kind}' does not match status transition '{expected_kind}'."
+                )
+        elif changed_tasks:
+            prev_t, curr_t = changed_tasks[0]
+            if prev_t.status == curr_t.status:
+                raise InvalidRunStateError(
+                    f"State s{current.revision} mutates task '{curr_t.id}' without changing status."
+                )
+            enforce_task_transition_preconditions(previous, curr_t.id)
+            validate_task_status_transition(prev_t.status, curr_t.status)
+            expected_kind = f"task.{curr_t.id}.{curr_t.status.value}"
+            if current.change_kind != expected_kind:
+                raise InvalidRunStateError(
+                    f"State s{current.revision} change_kind '{current.change_kind}' does not match task transition '{expected_kind}'."
+                )
+        else:
+            prev_g, curr_g = changed_gates[0]
+            if prev_g.disposition == curr_g.disposition:
+                raise InvalidRunStateError(
+                    f"State s{current.revision} mutates gate '{curr_g.id}' without changing disposition."
+                )
+            validate_gate_transition(
+                prev_g.disposition,
+                curr_g.disposition,
+                waivable=curr_g.waivable,
+                reason=curr_g.reason,
+            )
+            enforce_gate_transition_preconditions(previous, curr_g)
+            expected_kind = f"gate.{curr_g.id}.{curr_g.disposition.value}"
+            if current.change_kind != expected_kind:
+                raise InvalidRunStateError(
+                    f"State s{current.revision} change_kind '{current.change_kind}' does not match gate transition '{expected_kind}'."
+                )
+    except ExecutionError as exc:
+        if isinstance(exc, InvalidRunStateError):
+            raise
+        raise InvalidRunStateError(str(exc), path=exc.path) from exc
 
 
 @dataclass(frozen=True)

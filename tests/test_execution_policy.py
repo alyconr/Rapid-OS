@@ -36,6 +36,7 @@ from rapid_os.domain.execution import (
     GateDisposition,
     GateKind,
     GatePhase,
+    GateState,
     InvalidExecutionContractError,
     InvalidExecutionPolicyError,
     InvalidGateTransitionError,
@@ -52,13 +53,16 @@ from rapid_os.domain.execution import (
     RunStateHistoryGapError,
     RunStatus,
     TaskContract,
+    TaskState,
     TaskStatus,
     UnsafeRunPathError,
-     WorkspaceRequirement,
+    WorkspaceRequirement,
     build_execution_contract,
     derive_run_id,
     derive_task_contracts,
     validate_run_id,
+    verify_initial_run_state,
+    verify_run_state_transition,
 )
 from rapid_os.domain.project import ProjectModel
 from rapid_os.domain.specs import SpecMode, SpecRevision, SpecStatus
@@ -883,6 +887,319 @@ class RunRegistryAndLifecycleTests(unittest.TestCase):
         finally:
             if outside_target.exists():
                 outside_target.unlink()
+
+    def test_initial_state_invariants_reject_forged_s1(self):
+        self._create_ready_spec("init-inv-spec", tasks=("Task 1",))
+        run_rec = self.run_registry.create(spec_id="init-inv-spec")
+        run_id = run_rec.id
+        s1_file = self.rapid_dir / "runs" / run_id / "states" / "0001.json"
+        s1_orig = self.run_registry.get_state(run_id, 1)
+
+        # 1. Forged s1 with status = active (and recalculated valid digest) -> RAPID1012
+        forged_active_s1 = RunState(
+            schema_version=RUN_STATE_SCHEMA_VERSION,
+            run_id=run_id,
+            revision=1,
+            status=RunStatus.ACTIVE,
+            tasks=s1_orig.tasks,
+            gates=s1_orig.gates,
+            change_kind="run.prepared",
+            reason="Forged active initial state",
+        )
+        s1_file.write_text(forged_active_s1.to_json(indent=2) + "\n", encoding="utf-8")
+
+        with self.assertRaises(InvalidRunStateError) as ctx:
+            self.run_registry.get_state(run_id)
+        self.assertEqual(ctx.exception.code, "RAPID1012")
+
+        report = validate_run_registry(self.rapid_dir, self.root)
+        self.assertTrue(
+            any(d.level == ERROR and d.code == "RAPID1012" for d in report.diagnostics)
+        )
+
+        # 2. Forged s1 with non-pending task, non-pending gate, or wrong change_kind -> RAPID1012
+        forged_task_s1 = RunState(
+            schema_version=RUN_STATE_SCHEMA_VERSION,
+            run_id=run_id,
+            revision=1,
+            status=RunStatus.PREPARED,
+            tasks=(
+                TaskState(
+                    id=s1_orig.tasks[0].id,
+                    description=s1_orig.tasks[0].description,
+                    status=TaskStatus.DONE,
+                    reason="",
+                ),
+            ),
+            gates=s1_orig.gates,
+            change_kind="run.prepared",
+            reason="Forged task done in s1",
+        )
+        with self.assertRaises(InvalidRunStateError) as t_ctx:
+            verify_initial_run_state(forged_task_s1)
+        self.assertEqual(t_ctx.exception.code, "RAPID1012")
+
+        forged_kind_s1 = RunState(
+            schema_version=RUN_STATE_SCHEMA_VERSION,
+            run_id=run_id,
+            revision=1,
+            status=RunStatus.PREPARED,
+            tasks=s1_orig.tasks,
+            gates=s1_orig.gates,
+            change_kind="status.prepared",
+            reason="Wrong change_kind in s1",
+        )
+        with self.assertRaises(InvalidRunStateError) as k_ctx:
+            verify_initial_run_state(forged_kind_s1)
+        self.assertEqual(k_ctx.exception.code, "RAPID1012")
+
+    def test_semantic_run_state_history_rejects_forged_transitions_multi_mutation_and_wrong_change_kind(
+        self,
+    ):
+        self._create_ready_spec(
+            "semantic-history-spec",
+            mode="research",
+            tasks=("Spike 1",),
+        )
+        run_rec = self.run_registry.create(spec_id="semantic-history-spec")
+        run_id = run_rec.id
+        run_dir = self.rapid_dir / "runs" / run_id
+        states_dir = run_dir / "states"
+        s1 = self.run_registry.get_state(run_id, 1)
+
+        # Advance to revision 2 legally (prepared -> active, since research low risk has no PRE gates)
+        s2_legal = self.run_registry.transition_status(run_id, "active")
+        s2_file = states_dir / "0002.json"
+
+        # Case A: Manually forge 0002.json as prepared -> finished (with recalculated valid digest) -> RAPID1012
+        forged_finished = RunState(
+            schema_version=RUN_STATE_SCHEMA_VERSION,
+            run_id=run_id,
+            revision=2,
+            status=RunStatus.FINISHED,
+            tasks=s1.tasks,
+            gates=s1.gates,
+            change_kind="status.finished",
+            reason="Forged jump prepared -> finished",
+        )
+        s2_file.write_text(forged_finished.to_json(indent=2) + "\n", encoding="utf-8")
+
+        with self.assertRaises(InvalidRunStateError) as jump_ctx:
+            self.run_registry.get_state(run_id)
+        self.assertEqual(jump_ctx.exception.code, "RAPID1012")
+
+        report_jump = validate_run_registry(self.rapid_dir, self.root)
+        self.assertTrue(
+            any(
+                d.level == ERROR and d.code == "RAPID1012"
+                for d in report_jump.diagnostics
+            )
+        )
+
+        # Case B: Single snapshot mutates status AND a task simultaneously -> RAPID1012
+        forged_multi = RunState(
+            schema_version=RUN_STATE_SCHEMA_VERSION,
+            run_id=run_id,
+            revision=2,
+            status=RunStatus.ACTIVE,
+            tasks=(
+                TaskState(
+                    id=s1.tasks[0].id,
+                    description=s1.tasks[0].description,
+                    status=TaskStatus.IN_PROGRESS,
+                    reason="",
+                ),
+            ),
+            gates=s1.gates,
+            change_kind="status.active",
+            reason="Mutated both status and task",
+        )
+        s2_file.write_text(forged_multi.to_json(indent=2) + "\n", encoding="utf-8")
+        with self.assertRaises(InvalidRunStateError) as multi_ctx:
+            self.run_registry.get_state(run_id)
+        self.assertEqual(multi_ctx.exception.code, "RAPID1012")
+
+        # Case C: change_kind does not match actual mutation -> RAPID1012
+        forged_wrong_kind = RunState(
+            schema_version=RUN_STATE_SCHEMA_VERSION,
+            run_id=run_id,
+            revision=2,
+            status=RunStatus.ACTIVE,
+            tasks=s1.tasks,
+            gates=s1.gates,
+            change_kind="task.T001.in_progress",
+            reason="Status changed but change_kind says task",
+        )
+        s2_file.write_text(
+            forged_wrong_kind.to_json(indent=2) + "\n",
+            encoding="utf-8",
+        )
+        with self.assertRaises(InvalidRunStateError) as kind_ctx:
+            self.run_registry.get_state(run_id)
+        self.assertEqual(kind_ctx.exception.code, "RAPID1012")
+
+        # Restore legal s2 and verify clean
+        s2_file.write_text(s2_legal.to_json(indent=2) + "\n", encoding="utf-8")
+        self.assertEqual(self.run_registry.get_state(run_id).status, RunStatus.ACTIVE)
+
+    def test_existing_future_state_snapshot_is_never_overwritten_on_transition(self):
+        self._create_ready_spec(
+            "no-overwrite-spec",
+            mode="research",
+            tasks=("Spike 1",),
+        )
+        run_rec = self.run_registry.create(spec_id="no-overwrite-spec")
+        run_id = run_rec.id
+        states_dir = self.rapid_dir / "runs" / run_id / "states"
+
+        # Advance to revision 2 (active)
+        s2 = self.run_registry.transition_status(run_id, "active")
+        self.assertEqual(s2.revision, 2)
+
+        # Create orphan future snapshot 0003.json while current_state_revision = 2
+        orphan_s3 = RunState(
+            schema_version=RUN_STATE_SCHEMA_VERSION,
+            run_id=run_id,
+            revision=3,
+            status=RunStatus.BLOCKED,
+            tasks=s2.tasks,
+            gates=s2.gates,
+            change_kind="status.blocked",
+            reason="Orphan future snapshot",
+        )
+        s3_file = states_dir / "0003.json"
+        s3_file.write_text(orphan_s3.to_json(indent=2) + "\n", encoding="utf-8")
+        orphan_bytes = s3_file.read_bytes()
+
+        # Attempting next transition (which targets 0003.json) must fail with RAPID1012 and preserve 0003.json bytes
+        with self.assertRaises(InvalidRunStateError) as overwrite_ctx:
+            self.run_registry.transition_task(run_id, "T001", "in_progress")
+        self.assertEqual(overwrite_ctx.exception.code, "RAPID1012")
+        self.assertEqual(s3_file.read_bytes(), orphan_bytes)
+        self.assertEqual(self.run_registry.get(run_id).current_state_revision, 2)
+
+    def test_lifecycle_phase_boundaries_for_tasks_and_pre_post_gates(self):
+        self._create_ready_spec(
+            "phase-boundary-spec",
+            tasks=("Task 1", "Task 2"),
+        )
+        run_rec = self.run_registry.create(spec_id="phase-boundary-spec")
+        run_id = run_rec.id
+
+        # 1. Task transition while prepared -> RAPID1014
+        with self.assertRaises(ExecutionPreconditionError) as task_prep_ctx:
+            self.run_registry.transition_task(run_id, "T001", "in_progress")
+        self.assertEqual(task_prep_ctx.exception.code, "RAPID1014")
+
+        # 2. POST_EXECUTION gate modification while prepared -> RAPID1014
+        with self.assertRaises(ExecutionPreconditionError) as post_prep_ctx:
+            self.run_registry.transition_gate(
+                run_id,
+                "gate.tests",
+                "acknowledge",
+                reason="Too early",
+            )
+        self.assertEqual(post_prep_ctx.exception.code, "RAPID1014")
+
+        # 3. Acknowledge PRE_EXECUTION gate (gate.baseline) while prepared -> succeeds, then activate
+        self.run_registry.transition_gate(
+            run_id,
+            "gate.baseline",
+            "acknowledge",
+            reason="Baseline verified",
+        )
+        self.run_registry.transition_status(run_id, "active")
+
+        # 4. PRE_EXECUTION gate modification after active -> RAPID1014
+        with self.assertRaises(ExecutionPreconditionError) as pre_after_active_ctx:
+            self.run_registry.transition_gate(
+                run_id,
+                "gate.baseline",
+                "acknowledge",
+                reason="Cannot modify PRE gate after active",
+            )
+        self.assertEqual(pre_after_active_ctx.exception.code, "RAPID1014")
+
+        # 5. Task transition while blocked -> RAPID1014
+        self.run_registry.transition_status(
+            run_id,
+            "blocked",
+            reason="Waiting on dependency",
+        )
+        with self.assertRaises(ExecutionPreconditionError) as task_blocked_ctx:
+            self.run_registry.transition_task(run_id, "T001", "in_progress")
+        self.assertEqual(task_blocked_ctx.exception.code, "RAPID1014")
+
+        # Resume active
+        self.run_registry.transition_status(run_id, "active", reason="Unblocked")
+
+        # 6. POST_EXECUTION gate modification while tasks incomplete -> RAPID1014
+        self.run_registry.transition_task(run_id, "T001", "in_progress")
+        with self.assertRaises(ExecutionPreconditionError) as post_incomplete_ctx:
+            self.run_registry.transition_gate(
+                run_id,
+                "gate.tests",
+                "acknowledge",
+                reason="T001 in_progress and T002 pending",
+            )
+        self.assertEqual(post_incomplete_ctx.exception.code, "RAPID1014")
+
+        # 7. Complete all tasks (T001 done, T002 skipped) while active -> POST_EXECUTION gates now succeed
+        self.run_registry.transition_task(run_id, "T001", "done")
+        self.run_registry.transition_task(
+            run_id,
+            "T002",
+            "skipped",
+            reason="Not needed",
+        )
+        state_after_gate = self.run_registry.transition_gate(
+            run_id,
+            "gate.tests",
+            "acknowledge",
+            reason="All unit tests passing",
+        )
+        tests_gate = next(
+            g for g in state_after_gate.gates if g.id == "gate.tests"
+        )
+        self.assertEqual(tests_gate.disposition, GateDisposition.ACKNOWLEDGED)
+
+    def test_custom_policy_provenance_forbids_default_and_requires_truthful_source(self):
+        self._create_ready_spec("provenance-spec")
+        custom_policy = ExecutionPolicy(
+            schema_version=EXECUTION_POLICY_SCHEMA_VERSION,
+            minimum_classification=ExecutionClass.ARCHITECTURAL,
+            minimum_risk=RiskLevel.HIGH,
+            waivable_gate_ids=(),
+        )
+
+        # 1. Passing custom policy without policy_source -> RAPID1005
+        with self.assertRaises(InvalidExecutionPolicyError) as missing_src_ctx:
+            self.run_registry.create(
+                spec_id="provenance-spec",
+                policy=custom_policy,
+            )
+        self.assertEqual(missing_src_ctx.exception.code, "RAPID1005")
+
+        # 2. Passing custom policy with policy_source="default" -> RAPID1005
+        with self.assertRaises(InvalidExecutionPolicyError) as lie_src_ctx:
+            self.run_registry.create(
+                spec_id="provenance-spec",
+                policy=custom_policy,
+                policy_source="default",
+            )
+        self.assertEqual(lie_src_ctx.exception.code, "RAPID1005")
+
+        # 3. Passing custom policy with policy_source="injected" -> succeeds
+        rec = self.run_registry.create(
+            spec_id="provenance-spec",
+            policy=custom_policy,
+            policy_source="injected",
+        )
+        contract = self.run_registry.get_contract(rec.id)
+        self.assertEqual(contract.policy_source, "injected")
+        self.assertEqual(contract.policy_digest, custom_policy.content_digest())
+        self.assertEqual(contract.classification, ExecutionClass.ARCHITECTURAL)
+        self.assertEqual(contract.risk, RiskLevel.HIGH)
 
 
 class ExecutionPolicyCLIE2ETests(unittest.TestCase):

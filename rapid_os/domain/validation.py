@@ -32,11 +32,14 @@ from rapid_os.domain.execution import (
     DuplicateRunIdentityError,
     ExecutionError,
     RunRecord,
+    RunState,
     RunStatus,
     enforce_run_transition_preconditions,
     format_state_file_name,
     is_canonical_state_file_name,
     validate_run_id,
+    verify_initial_run_state,
+    verify_run_state_transition,
 )
 from rapid_os.domain.project import PROJECT_MODEL_SCHEMA_VERSION, ProjectModel
 from rapid_os.domain.specs import (
@@ -404,7 +407,7 @@ def validate_run_registry(
             diagnostics.append(
                 Diagnostic(
                     ERROR,
-                    "RAPID1003",
+                    "RAPID1001",
                     f"Unexpected non-directory entry '{run_entry.name}' inside .rapid-os/runs.",
                     run_entry,
                 )
@@ -550,7 +553,7 @@ def validate_run_registry(
             rev_num = int(state_entry.stem)
             canonical_state_files[rev_num] = state_entry
 
-        verified_states: dict[int, object] = {}
+        verified_states: dict[int, RunState] = {}
         for expected_rev in range(1, record.current_state_revision + 1):
             expected_file = states_dir / format_state_file_name(expected_rev)
             if expected_rev not in canonical_state_files:
@@ -572,6 +575,13 @@ def validate_run_registry(
                     expected_file,
                     contract=contract,
                 )
+                if expected_rev == 1:
+                    verify_initial_run_state(state_obj)
+                elif (expected_rev - 1) in verified_states:
+                    verify_run_state_transition(
+                        verified_states[expected_rev - 1],
+                        state_obj,
+                    )
                 verified_states[expected_rev] = state_obj
             except ExecutionError as exc:
                 diagnostics.append(
@@ -580,26 +590,6 @@ def validate_run_registry(
                         exc.code,
                         str(exc),
                         exc.path or expected_file,
-                    )
-                )
-                run_has_error = True
-
-        # Check current state preconditions (e.g., active requires pre_execution gates satisfied; finished requires tasks + post_execution gates satisfied)
-        current_state = verified_states.get(record.current_state_revision)
-        if current_state is not None:
-            try:
-                if current_state.status in (RunStatus.ACTIVE, RunStatus.FINISHED):
-                    enforce_run_transition_preconditions(
-                        current_state,
-                        current_state.status,
-                    )
-            except ExecutionError as exc:
-                diagnostics.append(
-                    Diagnostic(
-                        ERROR,
-                        exc.code,
-                        str(exc),
-                        states_dir / format_state_file_name(record.current_state_revision),
                     )
                 )
                 run_has_error = True

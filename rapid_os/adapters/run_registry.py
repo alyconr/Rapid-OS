@@ -15,6 +15,8 @@ from rapid_os.domain.context import (
     ContextRequest,
 )
 from rapid_os.domain.execution import (
+    ALLOWED_POLICY_SOURCES,
+    DEFAULT_EXECUTION_POLICY,
     RUN_SCHEMA_VERSION,
     RUN_STATE_SCHEMA_VERSION,
     ContextSnapshotMismatchError,
@@ -27,6 +29,7 @@ from rapid_os.domain.execution import (
     GateDisposition,
     GateState,
     InvalidExecutionContractError,
+    InvalidExecutionPolicyError,
     InvalidGateTransitionError,
     InvalidRunRecordError,
     InvalidRunStateError,
@@ -45,7 +48,9 @@ from rapid_os.domain.execution import (
     build_execution_contract,
     build_initial_run_state,
     derive_run_id,
+    enforce_gate_transition_preconditions,
     enforce_run_transition_preconditions,
+    enforce_task_transition_preconditions,
     format_state_file_name,
     sha256_utf8,
     validate_gate_transition,
@@ -53,7 +58,9 @@ from rapid_os.domain.execution import (
     validate_run_status_transition,
     validate_task_id,
     validate_task_status_transition,
+    verify_initial_run_state,
     verify_run_state_against_contract,
+    verify_run_state_transition,
 )
 from rapid_os.domain.specs import SpecRegistryError, SpecStatus
 
@@ -422,7 +429,7 @@ class RunRegistry:
         record: RunRecord,
         contract: ExecutionContract | None = None,
     ) -> dict[int, RunState]:
-        """Verify that every state snapshot in `1..record.current_state_revision` exists and is valid without gaps."""
+        """Verify that every state snapshot in `1..record.current_state_revision` exists and is structurally and semantically valid without gaps."""
         run_dir = self._resolve_run_dir(run_id)
         states_dir = self._resolve_states_dir(run_dir)
         if not states_dir.exists() or not states_dir.is_dir():
@@ -439,12 +446,26 @@ class RunRegistry:
                     f"Required state snapshot s{rev_num} ({state_file.name}) is missing for run '{run_id}' (current_state_revision={record.current_state_revision}).",
                     path=state_file,
                 )
-            verified[rev_num] = self._read_and_verify_state_file(
+            state_obj = self._read_and_verify_state_file(
                 run_id,
                 rev_num,
                 state_file,
                 contract=contract,
             )
+            try:
+                if rev_num == 1:
+                    verify_initial_run_state(state_obj)
+                else:
+                    verify_run_state_transition(
+                        verified[rev_num - 1],
+                        state_obj,
+                    )
+            except ExecutionError as exc:
+                raise InvalidRunStateError(
+                    str(exc),
+                    path=state_file,
+                ) from exc
+            verified[rev_num] = state_obj
         return verified
 
     def exists(self, run_id: str) -> bool:
@@ -607,6 +628,11 @@ class RunRegistry:
 
     def _write_state_snapshot(self, run_dir: Path, state: RunState) -> Path:
         state_file = self._resolve_state_file(run_dir, state.revision)
+        if state_file.exists() or state_file.is_symlink():
+            raise InvalidRunStateError(
+                f"Cannot overwrite existing state snapshot '{state_file.name}' for run '{state.run_id}'; state history is append-only.",
+                path=state_file,
+            )
         safe_write_text(
             state_file,
             state.to_json(indent=2) + "\n",
@@ -642,6 +668,7 @@ class RunRegistry:
         classification: ExecutionClass | str | None = None,
         risk: RiskLevel | str | int | None = None,
         policy: ExecutionPolicy | None = None,
+        policy_source: str | None = None,
     ) -> RunRecord:
         """Create a new Run bound to an exact `ready` SpecRevision, compiled context snapshot, project model, and policy decision."""
         # 1. Load and validate ready spec + full spec revision history
@@ -671,12 +698,40 @@ class RunRegistry:
                 path=exc.path,
             ) from exc
 
-        # 2. Load ExecutionPolicy
+        # 2. Load ExecutionPolicy and validate truthful policy_source provenance
         if policy is not None:
+            if not isinstance(policy, ExecutionPolicy):
+                raise InvalidExecutionPolicyError(
+                    "RunRegistry.create 'policy' must be an ExecutionPolicy instance."
+                )
+            if (
+                policy_source is None
+                or not isinstance(policy_source, str)
+                or not policy_source.strip()
+            ):
+                raise InvalidExecutionPolicyError(
+                    "Explicit 'policy_source' (e.g. 'injected') is required when providing an explicit 'policy' to RunRegistry.create."
+                )
+            cleaned_policy_source = policy_source.strip()
+            if cleaned_policy_source not in ALLOWED_POLICY_SOURCES:
+                raise InvalidExecutionPolicyError(
+                    f"Invalid policy_source '{cleaned_policy_source}': expected one of {sorted(ALLOWED_POLICY_SOURCES)}."
+                )
+            if (
+                cleaned_policy_source == "default"
+                and policy != DEFAULT_EXECUTION_POLICY
+            ):
+                raise InvalidExecutionPolicyError(
+                    "Custom ExecutionPolicy cannot claim policy_source='default'."
+                )
             resolved_policy = policy
-            policy_source = "default"
+            resolved_policy_source = cleaned_policy_source
         else:
-            resolved_policy, policy_source = load_execution_policy(
+            if policy_source is not None:
+                raise InvalidExecutionPolicyError(
+                    "Cannot specify 'policy_source' without providing an explicit 'policy' instance."
+                )
+            resolved_policy, resolved_policy_source = load_execution_policy(
                 self.root,
                 self.rapid_dir,
             )
@@ -751,7 +806,7 @@ class RunRegistry:
             compiled_context=compiled_context,
             project_model=discovery.project_model,
             policy=resolved_policy,
-            policy_source=policy_source,
+            policy_source=resolved_policy_source,
             decision=decision,
             harness=context_request.harness,
         )
@@ -822,12 +877,13 @@ class RunRegistry:
 
         # Verify persisted contract, context snapshots, and state 0001 before writing run.json
         self._read_and_verify_contract_from_dir(run_dir, record)
-        self._read_and_verify_state_file(
+        verified_s1 = self._read_and_verify_state_file(
             resolved_run_id,
             1,
             state_file,
             contract=contract,
         )
+        verify_initial_run_state(verified_s1)
 
         self._write_run_record(run_dir, record)
         return record
@@ -836,8 +892,10 @@ class RunRegistry:
         self,
         record: RunRecord,
         contract: ExecutionContract,
+        current_state: RunState,
         next_state: RunState,
     ) -> RunState:
+        verify_run_state_transition(current_state, next_state)
         run_dir = self._resolve_run_dir(record.id)
         state_file = self._write_state_snapshot(run_dir, next_state)
         verified_state = self._read_and_verify_state_file(
@@ -846,6 +904,7 @@ class RunRegistry:
             state_file,
             contract=contract,
         )
+        verify_run_state_transition(current_state, verified_state)
         updated_record = RunRecord(
             schema_version=RUN_SCHEMA_VERSION,
             id=record.id,
@@ -891,7 +950,12 @@ class RunRegistry:
             change_kind=f"run.status.{coerced_target.value}",
             reason=cleaned_reason,
         )
-        return self._commit_next_state(record, contract, next_state)
+        return self._commit_next_state(
+            record,
+            contract,
+            current_state,
+            next_state,
+        )
 
     def transition_task(
         self,
@@ -906,13 +970,9 @@ class RunRegistry:
         contract = self.get_contract(run_id)
         current_state = self.get_state(run_id)
 
-        if current_state.status.is_terminal:
-            raise InvalidRunTransitionError(
-                f"Cannot modify tasks for run '{run_id}' in terminal status '{current_state.status.value}'."
-            )
-
         validated_task_id = validate_task_id(task_id)
         coerced_target = TaskStatus.coerce(target_status)
+        enforce_task_transition_preconditions(current_state, validated_task_id)
 
         updated_tasks: list[TaskState] = []
         found = False
@@ -952,7 +1012,12 @@ class RunRegistry:
             change_kind=f"task.{validated_task_id}.{coerced_target.value}",
             reason=cleaned_reason,
         )
-        return self._commit_next_state(record, contract, next_state)
+        return self._commit_next_state(
+            record,
+            contract,
+            current_state,
+            next_state,
+        )
 
     def transition_gate(
         self,
@@ -967,11 +1032,6 @@ class RunRegistry:
         contract = self.get_contract(run_id)
         current_state = self.get_state(run_id)
 
-        if current_state.status.is_terminal:
-            raise InvalidRunTransitionError(
-                f"Cannot modify gates for run '{run_id}' in terminal status '{current_state.status.value}'."
-            )
-
         if not isinstance(gate_id, str) or not gate_id.strip():
             raise InvalidGateTransitionError("Gate ID must be a non-empty string.")
         cleaned_gate_id = gate_id.strip()
@@ -982,6 +1042,16 @@ class RunRegistry:
         for gate in current_state.gates:
             if gate.id == cleaned_gate_id:
                 found = True
+                if target_disp == GateDisposition.WAIVED:
+                    if not gate.waivable:
+                        raise InvalidGateTransitionError(
+                            "Gate is not waivable under the active ExecutionContract."
+                        )
+                    if not isinstance(reason, str) or not reason.strip():
+                        raise InvalidGateTransitionError(
+                            "A non-empty '--reason' is required when waiving a gate."
+                        )
+                enforce_gate_transition_preconditions(current_state, gate)
                 validate_gate_transition(
                     gate.disposition,
                     target_disp,
@@ -1023,7 +1093,12 @@ class RunRegistry:
             change_kind=f"gate.{cleaned_gate_id}.{target_disp.value}",
             reason=cleaned_reason,
         )
-        return self._commit_next_state(record, contract, next_state)
+        return self._commit_next_state(
+            record,
+            contract,
+            current_state,
+            next_state,
+        )
 
     def validate(self):
         from rapid_os.domain.validation import validate_run_registry

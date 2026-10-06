@@ -376,9 +376,15 @@ Optional project-level policy configuration (`EXECUTION_POLICY_SCHEMA_VERSION = 
 
 #### `RunStatus`, `TaskStatus`, `GateDisposition`, & `RunState`
 `RunState` (`RUN_STATE_SCHEMA_VERSION = 1`) records the state revision (`1..current_state_revision`):
+- Initial snapshot (`states/0001.json`) invariant: `revision = 1`, `status = prepared`, all tasks `pending` (empty reason), all gates `pending` (empty reason), and `change_kind = "run.prepared"` (`RAPID1012`).
+- Sequential history verification (`s1 → s2 → ... → current`): every consecutive snapshot must advance `revision` by 1, mutate exactly one category (`run status`, `1 task`, or `1 gate`), match `change_kind`, and satisfy all phase boundary preconditions (`RAPID1012`).
 - `RunStatus` transitions: `prepared → active | cancelled`, `active → blocked | finished | cancelled`, `blocked → active | cancelled`. `finished` and `cancelled` are terminal (`RAPID1009`).
-- Precondition for `prepared → active`: all required `PRE_EXECUTION` gates must be `acknowledged` or `waived` (`RAPID1014`).
-- Precondition for `active → finished`: all tasks must be `done` or `skipped` and all required `POST_EXECUTION` gates must be `acknowledged` or `waived` (`RAPID1014`).
+- Phase boundaries (`RAPID1014`):
+  - `PRE_EXECUTION` gates can only change while `status = prepared`.
+  - Precondition for `prepared → active`: all required `PRE_EXECUTION` gates must be `acknowledged` or `waived`.
+  - Tasks can only change while `status = active`.
+  - `POST_EXECUTION` gates can only change while `status = active` and after all tasks are terminal (`done` or `skipped`).
+  - Precondition for `active → finished`: all tasks must be `done` or `skipped` and all required `POST_EXECUTION` gates must be `acknowledged` or `waived`.
 - `TaskStatus` transitions: `pending → in_progress | skipped`, `in_progress → done | blocked | skipped`, `blocked → in_progress | skipped`. `done` and `skipped` are terminal (`RAPID1010`).
 
 ### Execution Policy & Run Registry Validation (`RAPID1000–RAPID1019` in `rapid_os.domain.validation`)
@@ -387,19 +393,19 @@ Optional project-level policy configuration (`EXECUTION_POLICY_SCHEMA_VERSION = 
 - `RAPID1000` (`INFO`): Execution policy and run registry valid.
 - `RAPID1001` (`ERROR`): Invalid `run.json` record or schema (`InvalidRunRecordError`).
 - `RAPID1002` (`ERROR`): Invalid `contract.json` or contract digest mismatch (`InvalidExecutionContractError`).
-- `RAPID1003` (`ERROR`): Referenced spec or revision missing, not `ready`, or `spec_content_digest` mismatch (`InvalidSpecBindingError`).
-- `RAPID1004` (`ERROR`): Missing or corrupt `context.md` / `context-manifest.json` snapshot or digest mismatch (`ContextSnapshotMismatchError`).
-- `RAPID1005` (`ERROR`): Invalid `.rapid-os/policy.json` schema (`InvalidExecutionPolicyError`).
+- `RAPID1003` (`ERROR`): Invalid spec binding (`InvalidSpecBindingError` — missing spec/revision, spec not `ready`, or `spec_content_digest` mismatch).
+- `RAPID1004` (`ERROR`): Context snapshot or digest mismatch (`ContextSnapshotMismatchError`).
+- `RAPID1005` (`ERROR`): Invalid execution policy schema (`InvalidExecutionPolicyError`).
 - `RAPID1006` (`ERROR`): Policy violation or forbidden risk/classification downgrade (`PolicyViolationError`).
-- `RAPID1007` (`ERROR`): Duplicate or mismatched `run_id` (`DuplicateRunIdentityError`).
-- `RAPID1008` (`ERROR`): Referenced run not found (`RunNotFoundError`).
+- `RAPID1007` (`ERROR`): Run identity error or referenced run not found (`DuplicateRunIdentityError`, `RunNotFoundError`).
+- `RAPID1008` (`ERROR`): Unsafe run/policy path or symlink escape (`UnsafeRunPathError`).
 - `RAPID1009` (`ERROR`): Invalid run status transition (`InvalidRunTransitionError`).
 - `RAPID1010` (`ERROR`): Invalid task status transition (`InvalidTaskTransitionError`).
-- `RAPID1011` (`ERROR` / `WARNING`): Missing `states/` directory or gap in historical state sequence `1..current_state_revision` (`ERROR`, `RunStateHistoryGapError`); unreferenced future state `revision > current_state_revision` or non-canonical entry in `states/` (`WARNING`).
-- `RAPID1012` (`ERROR`): Invalid `RunState` schema or task/gate contract mismatch (`InvalidRunStateError`).
+- `RAPID1011` (`ERROR` / `WARNING`): Run state history gap or missing `states/` directory (`ERROR`, `RunStateHistoryGapError`); unreferenced future state `revision > current_state_revision` or non-canonical entry in `states/` (`WARNING`).
+- `RAPID1012` (`ERROR`): Invalid `RunState` schema, digest, contract alignment, initial state invariant, or semantic state transition history (`InvalidRunStateError`).
 - `RAPID1013` (`ERROR`): Invalid gate disposition transition or invalid waiver (`InvalidGateTransitionError`).
-- `RAPID1014` (`ERROR`): Run lifecycle precondition not satisfied (`ExecutionPreconditionError`).
-- `RAPID1015` (`ERROR`): Unsafe run/policy path or symlink escape (`UnsafeRunPathError`).
+- `RAPID1014` (`ERROR`): Run lifecycle or phase boundary precondition not satisfied (`ExecutionPreconditionError`).
+- `RAPID1015–RAPID1019`: Reserved for future execution policy diagnostics.
 
 ### CLI Surface (`rapid policy` & `rapid run`)
 
