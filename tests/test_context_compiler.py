@@ -6,6 +6,7 @@ from rapid_os.adapters.context_sources import (
     ContextSourceLoader,
     discover_context_sources,
 )
+from rapid_os.adapters.project_snapshot import write_project_snapshot
 from rapid_os.domain.context import (
     CONTEXT_MANIFEST_SCHEMA_VERSION,
     DEFAULT_CONTEXT_POLICY,
@@ -19,11 +20,13 @@ from rapid_os.domain.context import (
     ContextPolicy,
     ContextPriority,
     ContextRequest,
+    ContextRequiredSourceMissingError,
     ContextResolver,
     ContextSource,
     ContextSourceKind,
     ManifestEntry,
     build_project_intelligence_source,
+    build_task_constraints_source,
 )
 from rapid_os.domain.project import (
     Confidence,
@@ -591,6 +594,347 @@ class ProjectModelIntegrationAndSafetyTests(unittest.TestCase):
                 discovered_ids,
                 ["standard.security", "standard.tech-stack", "spec.scope"],
             )
+
+    def test_end_to_end_provenance_from_source_to_fragment_to_manifest_round_trip(self):
+        source = ContextSource(
+            id="standard.security",
+            kind=ContextSourceKind.SECURITY,
+            content="Never use shell=True.",
+            priority=ContextPriority.CRITICAL,
+            required=True,
+            path=".rapid-os/standards/security.md",
+            provenance=".rapid-os/standards/security.md",
+        )
+        fragments = source.to_fragments()
+        self.assertEqual(len(fragments), 1)
+        self.assertEqual(fragments[0].provenance, ".rapid-os/standards/security.md")
+
+        # Explicit child fragments without own provenance inherit parent source provenance
+        explicit_frag = ContextFragment(
+            id="standard.security#child",
+            source_id="standard.security",
+            kind=ContextSourceKind.SECURITY,
+            content="Validate remote package names.",
+            priority=ContextPriority.CRITICAL,
+            required=True,
+        )
+        parent_with_explicit = ContextSource(
+            id="standard.security",
+            kind=ContextSourceKind.SECURITY,
+            content="Validate remote package names.",
+            priority=ContextPriority.CRITICAL,
+            required=True,
+            path=".rapid-os/standards/security.md",
+            provenance=".rapid-os/standards/security.md",
+            fragments=(explicit_frag,),
+        )
+        self.assertEqual(
+            parent_with_explicit.to_fragments()[0].provenance,
+            ".rapid-os/standards/security.md",
+        )
+
+        # Reject non-portable absolute or traversal provenance
+        for unsafe_prov in ("/etc/passwd", "C:\\Users\\secret.md", "snapshot:../outside.json"):
+            with self.subTest(unsafe_prov=unsafe_prov):
+                with self.assertRaises(ValueError):
+                    ContextSource(
+                        id="standard.security",
+                        kind=ContextSourceKind.SECURITY,
+                        content="Rule",
+                        provenance=unsafe_prov,
+                    )
+
+        compiler = ContextCompiler()
+        compiled = compiler.compile(
+            ContextRequest(
+                mode="hardening",
+                constraints=("Use strict validation",),
+            ),
+            sources=(source,),
+        )
+        prov_by_id = {e.source_id: e.provenance for e in compiled.manifest.selected}
+        self.assertEqual(
+            prov_by_id["task.constraints"],
+            "ContextRequest.constraints",
+        )
+        self.assertEqual(
+            prov_by_id["standard.security"],
+            ".rapid-os/standards/security.md",
+        )
+
+        # Manifest to_dict / from_dict round-trip preserves provenance
+        manifest_dict = compiled.manifest.to_dict()
+        restored_manifest = ContextManifest.from_dict(manifest_dict)
+        self.assertEqual(compiled.manifest, restored_manifest)
+        self.assertEqual(
+            {e.source_id: e.provenance for e in restored_manifest.selected},
+            prov_by_id,
+        )
+
+    def test_project_intelligence_provenance_distinguishes_snapshot_vs_live_scan_and_fails_on_corrupt_snapshot(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rapid_dir = root / ".rapid-os"
+            (root / "pyproject.toml").write_text(
+                '[project]\nname = "demo"\ndependencies = ["fastapi"]\n',
+                encoding="utf-8",
+            )
+
+            # 1. Live scan when .rapid-os/project.json does not exist
+            live_result = ContextSourceLoader().load(root, rapid_dir)
+            self.assertEqual(len(live_result.load_errors), 0)
+            pi_live = next(
+                s for s in live_result.sources if s.id == "project.intelligence"
+            )
+            self.assertEqual(pi_live.provenance, "scan:live")
+
+            compiled_live = ContextCompiler().compile(
+                ContextRequest(mode="feature"),
+                sources=live_result.sources,
+                project_model=live_result.project_model,
+            )
+            pi_entry_live = next(
+                e
+                for e in compiled_live.manifest.selected
+                if e.source_id == "project.intelligence"
+            )
+            self.assertEqual(pi_entry_live.provenance, "scan:live")
+
+            # 2. Snapshot provenance when valid .rapid-os/project.json exists
+            write_project_snapshot(live_result.project_model, rapid_dir, backup=False)
+            snap_result = ContextSourceLoader().load(root, rapid_dir)
+            self.assertEqual(len(snap_result.load_errors), 0)
+            pi_snap = next(
+                s for s in snap_result.sources if s.id == "project.intelligence"
+            )
+            self.assertEqual(pi_snap.provenance, "snapshot:.rapid-os/project.json")
+
+            compiled_snap = ContextCompiler().compile(
+                ContextRequest(mode="feature"),
+                sources=snap_result.sources,
+                project_model=snap_result.project_model,
+            )
+            pi_entry_snap = next(
+                e
+                for e in compiled_snap.manifest.selected
+                if e.source_id == "project.intelligence"
+            )
+            self.assertEqual(pi_entry_snap.provenance, "snapshot:.rapid-os/project.json")
+
+            # 3. Corrupt .rapid-os/project.json produces load error without silent fallback
+            (rapid_dir / "project.json").write_text("{not-valid-json", encoding="utf-8")
+            corrupt_result = ContextSourceLoader().load(root, rapid_dir)
+            self.assertEqual(len(corrupt_result.load_errors), 1)
+            self.assertEqual(
+                corrupt_result.load_errors[0].source_id, "project.intelligence"
+            )
+            self.assertEqual(
+                corrupt_result.load_errors[0].path, ".rapid-os/project.json"
+            )
+            self.assertIsNone(corrupt_result.project_model)
+            self.assertFalse(
+                any(s.id == "project.intelligence" for s in corrupt_result.sources)
+            )
+
+
+class TaskConstraintsAndEffectiveConflictTests(unittest.TestCase):
+    def test_explicit_task_constraints_are_first_class_context_ordered_first_and_rendered_once(self):
+        security = ContextSource(
+            id="standard.security",
+            kind=ContextSourceKind.SECURITY,
+            content="Validate all inputs.",
+            priority=ContextPriority.CRITICAL,
+            required=True,
+            provenance=".rapid-os/standards/security.md",
+        )
+        business = ContextSource(
+            id="standard.business",
+            kind=ContextSourceKind.BUSINESS,
+            content="Orders require audit log.",
+            priority=ContextPriority.HIGH,
+            provenance=".rapid-os/standards/business.md",
+        )
+        request = ContextRequest(
+            mode="feature",
+            constraints=(
+                "Use SQLite for this migration test",
+                "Do not modify public API routes",
+                "Use SQLite for this migration test",  # duplicate deduplicated deterministically
+            ),
+        )
+        self.assertEqual(
+            request.constraints,
+            (
+                "Use SQLite for this migration test",
+                "Do not modify public API routes",
+            ),
+        )
+
+        compiled = ContextCompiler().compile(
+            request,
+            sources=(business, security),
+        )
+
+        selected_ids = [e.source_id for e in compiled.manifest.selected]
+        self.assertEqual(
+            selected_ids,
+            ["task.constraints", "standard.security", "standard.business"],
+        )
+
+        tc_entry = compiled.manifest.selected[0]
+        self.assertEqual(tc_entry.source_id, "task.constraints")
+        self.assertEqual(tc_entry.kind, "task_constraints")
+        self.assertEqual(tc_entry.priority, 100)
+        self.assertTrue(tc_entry.required)
+        self.assertEqual(tc_entry.provenance, "ContextRequest.constraints")
+
+        # Task constraints appear before Security and Business in compiled markdown
+        tc_pos = compiled.content.index("## Task Constraints")
+        sec_pos = compiled.content.index("## Security Rules")
+        bus_pos = compiled.content.index("## Business Rules")
+        self.assertLess(tc_pos, sec_pos)
+        self.assertLess(sec_pos, bus_pos)
+
+        # Rendered once under ## Task Constraints (no duplicate block in ## Task header)
+        self.assertEqual(
+            compiled.content.count("Use SQLite for this migration test"),
+            1,
+        )
+        self.assertNotIn("### Explicit Task Constraints", compiled.content)
+
+    def test_task_constraints_count_toward_budget_and_raise_when_exceeding_max_chars(self):
+        request = ContextRequest(
+            mode="general",
+            constraints=("Constraint " + ("X" * 300),),
+            max_chars=120,
+        )
+        with self.assertRaises(ContextBudgetExceededError) as ctx:
+            ContextCompiler().compile(request, sources=())
+        self.assertIn("task.constraints", ctx.exception.required_sources)
+
+    def test_task_constraints_win_database_conflict_over_business_tech_stack_and_project_model(self):
+        business = ContextSource(
+            id="standard.business",
+            kind=ContextSourceKind.BUSINESS,
+            content="Store records in MySQL.",
+            priority=ContextPriority.HIGH,
+        )
+        tech_stack = ContextSource(
+            id="standard.tech-stack",
+            kind=ContextSourceKind.TECH_STACK,
+            content="Database: PostgreSQL.",
+            priority=ContextPriority.HIGH,
+            required=True,
+        )
+        project_model = ProjectModel(
+            facts=(
+                ProjectFact(
+                    category="database",
+                    value="mongodb",
+                    confidence=Confidence.HIGH,
+                    detector="database.mongodb",
+                    evidence=(
+                        Evidence(
+                            path="package.json",
+                            reason="mongodb dependency",
+                            source_type=SourceType.DEPENDENCY,
+                            detector="database.mongodb",
+                        ),
+                    ),
+                ),
+            )
+        )
+
+        compiled = ContextCompiler().compile(
+            ContextRequest(
+                mode="feature",
+                constraints=("Use SQLite for local execution",),
+            ),
+            sources=(tech_stack, business),
+            project_model=project_model,
+        )
+
+        self.assertEqual(len(compiled.manifest.conflicts), 1)
+        conflict = compiled.manifest.conflicts[0]
+        self.assertEqual(conflict.category, "database")
+        self.assertEqual(conflict.winner, "task.constraints")
+        self.assertEqual(
+            conflict.sources,
+            (
+                "task.constraints",
+                "standard.business",
+                "standard.tech-stack",
+                "project.intelligence",
+            ),
+        )
+
+    def test_skipped_source_by_budget_never_wins_or_participates_in_conflicts(self):
+        # standard.business is optional and huge so it gets skipped due to budget
+        business_skipped = ContextSource(
+            id="standard.business",
+            kind=ContextSourceKind.BUSINESS,
+            content="Database: MySQL. " + ("B" * 2000),
+            priority=ContextPriority.HIGH,
+        )
+        tech_stack_selected = ContextSource(
+            id="standard.tech-stack",
+            kind=ContextSourceKind.TECH_STACK,
+            content="Database: PostgreSQL.",
+            priority=ContextPriority.HIGH,
+            required=True,
+        )
+        project_model = ProjectModel(
+            facts=(
+                ProjectFact(
+                    category="database",
+                    value="sqlite",
+                    confidence=Confidence.HIGH,
+                    detector="database.sqlite",
+                    evidence=(
+                        Evidence(
+                            path="pyproject.toml",
+                            reason="sqlite configured",
+                            source_type=SourceType.CONFIG,
+                            detector="database.sqlite",
+                        ),
+                    ),
+                ),
+            )
+        )
+
+        compiled = ContextCompiler().compile(
+            ContextRequest(mode="feature", max_chars=500),
+            sources=(business_skipped, tech_stack_selected),
+            project_model=project_model,
+        )
+
+        skipped_ids = [e.source_id for e in compiled.manifest.skipped]
+        selected_ids = [e.source_id for e in compiled.manifest.selected]
+        self.assertIn("standard.business", skipped_ids)
+        self.assertIn("standard.tech-stack", selected_ids)
+        self.assertIn("project.intelligence", selected_ids)
+
+        self.assertEqual(len(compiled.manifest.conflicts), 1)
+        conflict = compiled.manifest.conflicts[0]
+        self.assertEqual(conflict.winner, "standard.tech-stack")
+        self.assertNotIn("standard.business", conflict.sources)
+        self.assertEqual(
+            conflict.sources,
+            ("standard.tech-stack", "project.intelligence"),
+        )
+        # project.intelligence appears only once in conflict.sources
+        self.assertEqual(conflict.sources.count("project.intelligence"), 1)
+
+    def test_missing_required_source_raises_in_compiler_compile(self):
+        compiler = ContextCompiler()
+        with self.assertRaises(ContextRequiredSourceMissingError) as ctx:
+            compiler.compile(
+                ContextRequest(mode="hardening"),
+                sources=(),
+            )
+        self.assertIn("security", ctx.exception.missing_kinds)
+        self.assertIn("missing.security", ctx.exception.missing_source_ids)
+        self.assertIsNotNone(ctx.exception.manifest)
 
 
 if __name__ == "__main__":

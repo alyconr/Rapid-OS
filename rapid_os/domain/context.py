@@ -1,7 +1,7 @@
 import hashlib
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum, IntEnum
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
@@ -43,6 +43,23 @@ class ContextBudgetExceededError(ValueError):
         self.max_chars = max_chars
         self.required_chars = required_chars
         self.required_sources = required_sources
+
+
+class ContextRequiredSourceMissingError(ValueError):
+    """Raised when one or more required context sources or kinds are missing."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        missing_kinds: tuple[str, ...] = (),
+        missing_source_ids: tuple[str, ...] = (),
+        manifest: "ContextManifest | None" = None,
+    ):
+        super().__init__(message)
+        self.missing_kinds = tuple(missing_kinds)
+        self.missing_source_ids = tuple(missing_source_ids)
+        self.manifest = manifest
 
 
 class ContextSourceKind(str, Enum):
@@ -296,6 +313,40 @@ def _normalize_tags(tags: Iterable[str] | None) -> tuple[str, ...]:
     return tuple(sorted(cleaned))
 
 
+_WINDOWS_DRIVE_PROVENANCE_RE = re.compile(
+    r"^(?:[A-Za-z0-9_.-]+:)?[A-Za-z]:(?:[\\/]|$)"
+)
+
+
+def normalize_context_provenance(
+    provenance: str | None,
+    fallback: str = "",
+) -> str:
+    raw = str(provenance).strip() if provenance is not None else ""
+    if not raw:
+        raw = str(fallback).strip() if fallback else ""
+    if not raw:
+        return ""
+    if "\x00" in raw:
+        raise ValueError("Context provenance cannot contain null bytes.")
+    if _WINDOWS_DRIVE_PROVENANCE_RE.match(raw):
+        raise ValueError(
+            f"Context provenance '{raw}' must not contain an absolute drive path."
+        )
+    normalized = raw.replace("\\", "/")
+    target_part = normalized.split(":", 1)[1] if ":" in normalized else normalized
+    if normalized.startswith("/") or target_part.startswith("/"):
+        raise ValueError(
+            f"Context provenance '{raw}' must not be an absolute path."
+        )
+    segments = [seg for seg in target_part.split("/") if seg]
+    if ".." in segments:
+        raise ValueError(
+            f"Context provenance '{raw}' must not contain '..' traversal segments."
+        )
+    return normalized
+
+
 @dataclass(frozen=True)
 class ContextFragment:
     id: str
@@ -307,6 +358,7 @@ class ContextFragment:
     reason: str = ""
     path: str | None = None
     tags: tuple[str, ...] = ()
+    provenance: str = ""
 
     def __post_init__(self):
         object.__setattr__(
@@ -331,6 +383,11 @@ class ContextFragment:
         if self.path is not None:
             object.__setattr__(self, "path", normalize_evidence_path(self.path, None))
         object.__setattr__(self, "tags", _normalize_tags(self.tags))
+        object.__setattr__(
+            self,
+            "provenance",
+            normalize_context_provenance(self.provenance, fallback=self.path or ""),
+        )
 
     @property
     def chars(self) -> int:
@@ -362,27 +419,31 @@ class ContextSource:
         object.__setattr__(self, "priority", ContextPriority.coerce(self.priority))
         object.__setattr__(self, "required", bool(self.required))
         object.__setattr__(self, "tags", _normalize_tags(self.tags))
-        object.__setattr__(
-            self,
-            "provenance",
-            str(self.provenance).strip()
-            if self.provenance
-            else (self.path or self.id),
+        resolved_provenance = normalize_context_provenance(
+            self.provenance,
+            fallback=self.path or self.id,
         )
+        object.__setattr__(self, "provenance", resolved_provenance)
         if self.fragments:
-            frag_tuple = tuple(self.fragments)
-            for item in frag_tuple:
+            normalized_frags: list[ContextFragment] = []
+            for item in self.fragments:
                 if not isinstance(item, ContextFragment):
                     raise ValueError(
                         "ContextSource fragments must be ContextFragment instances."
                     )
-            object.__setattr__(self, "fragments", frag_tuple)
+                if not item.provenance:
+                    item = replace(item, provenance=resolved_provenance)
+                normalized_frags.append(item)
+            object.__setattr__(self, "fragments", tuple(normalized_frags))
         else:
             object.__setattr__(self, "fragments", ())
 
     def to_fragments(self) -> tuple[ContextFragment, ...]:
         if self.fragments:
-            return self.fragments
+            return tuple(
+                item if item.provenance else replace(item, provenance=self.provenance)
+                for item in self.fragments
+            )
         return (
             ContextFragment(
                 id=self.id,
@@ -393,6 +454,7 @@ class ContextSource:
                 required=self.required,
                 path=self.path,
                 tags=self.tags,
+                provenance=self.provenance,
             ),
         )
 
@@ -462,9 +524,11 @@ class ContextRequest:
             raise ValueError("ContextRequest constraints must be a sequence of strings.")
         else:
             cleaned_constraints = tuple(
-                str(item).strip()
-                for item in self.constraints
-                if item is not None and str(item).strip()
+                dict.fromkeys(
+                    str(item).strip()
+                    for item in self.constraints
+                    if item is not None and str(item).strip()
+                )
             )
         object.__setattr__(self, "constraints", cleaned_constraints)
 
@@ -621,6 +685,7 @@ class ManifestEntry:
     path: str | None = None
     chars: int = 0
     precedence: int = 0
+    provenance: str = ""
 
     def __post_init__(self):
         object.__setattr__(
@@ -640,6 +705,11 @@ class ManifestEntry:
             object.__setattr__(self, "path", normalize_evidence_path(self.path, None))
         object.__setattr__(self, "chars", int(self.chars))
         object.__setattr__(self, "precedence", int(self.precedence))
+        object.__setattr__(
+            self,
+            "provenance",
+            normalize_context_provenance(self.provenance, fallback=self.path or ""),
+        )
 
     @property
     def priority_label(self) -> str:
@@ -655,6 +725,7 @@ class ManifestEntry:
             "required": self.required,
             "chars": self.chars,
             "precedence": self.precedence,
+            "provenance": self.provenance,
         }
         if self.path is not None:
             payload["path"] = self.path
@@ -665,6 +736,7 @@ class ManifestEntry:
         if not isinstance(payload, Mapping):
             raise ValueError("ManifestEntry payload must be an object.")
         raw_path = payload.get("path")
+        raw_prov = payload.get("provenance")
         return cls(
             source_id=str(payload.get("source_id") or payload.get("id") or ""),
             kind=str(payload.get("kind", "")),
@@ -675,6 +747,7 @@ class ManifestEntry:
             path=str(raw_path) if raw_path is not None else None,
             chars=int(payload.get("chars", 0)),  # type: ignore[arg-type]
             precedence=int(payload.get("precedence", 0)),  # type: ignore[arg-type]
+            provenance=str(raw_prov) if raw_prov is not None else "",
         )
 
 
@@ -968,6 +1041,7 @@ def build_project_intelligence_source(
     *,
     priority: ContextPriority = ContextPriority.MEDIUM,
     required: bool = False,
+    provenance: str = "scan:live",
 ) -> ContextSource | None:
     """Create a native `ContextSource` from a `ProjectModel` if relevant facts exist."""
     compact_text = format_compact_project_intelligence(project_model, request)
@@ -988,7 +1062,27 @@ def build_project_intelligence_source(
         priority=priority,
         required=required,
         tags=tuple(sorted(fact_tags)),
-        provenance="ProjectModel",
+        provenance=provenance,
+    )
+
+
+def build_task_constraints_source(
+    request: ContextRequest | None,
+) -> ContextSource | None:
+    """Create a canonical first-class `ContextSource` from `ContextRequest.constraints`."""
+    if request is None or not request.constraints:
+        return None
+
+    content = "\n".join(f"- {item}" for item in request.constraints)
+    return ContextSource(
+        id="task.constraints",
+        kind=ContextSourceKind.TASK_CONSTRAINTS,
+        content=content,
+        path=None,
+        priority=ContextPriority.CRITICAL,
+        required=True,
+        tags=request.tags,
+        provenance="ContextRequest.constraints",
     )
 
 
@@ -1040,22 +1134,34 @@ def _extract_exclusive_claims(content: str, token_map) -> tuple[str, ...]:
 
 
 def detect_context_conflicts(
-    sources: Sequence[ContextSource],
+    sources: Sequence[ContextFragment | ContextSource],
     project_model: ProjectModel | None = None,
     policy: ContextPolicy = DEFAULT_CONTEXT_POLICY,
 ) -> tuple[ContextConflict, ...]:
-    """Detect structural conflicts across context sources and ProjectModel facts."""
-    ordered_sources = sorted(
-        sources,
-        key=lambda src: (policy.precedence_rank(src.kind), src.id),
+    """Detect structural conflicts across effectively selected fragments/sources and ProjectModel facts."""
+    grouped_by_source: dict[str, tuple[ContextSourceKind, list[str]]] = {}
+    for item in sources:
+        source_id = getattr(item, "source_id", item.id)
+        kind = ContextSourceKind.coerce(item.kind)
+        if source_id not in grouped_by_source:
+            grouped_by_source[source_id] = (kind, [item.content])
+        else:
+            grouped_by_source[source_id][1].append(item.content)
+
+    ordered_sources: list[tuple[str, ContextSourceKind, str]] = [
+        (source_id, kind, "\n".join(chunks))
+        for source_id, (kind, chunks) in grouped_by_source.items()
+    ]
+    ordered_sources.sort(
+        key=lambda entry: (policy.precedence_rank(entry[1]), entry[0])
     )
 
     conflicts: list[ContextConflict] = []
 
     # 1. Database conflicts across structured rules and ProjectModel
     db_claims: list[tuple[str, str, int]] = []
-    for src in ordered_sources:
-        if src.kind not in {
+    for source_id, kind, content in ordered_sources:
+        if kind not in {
             ContextSourceKind.TASK_CONSTRAINTS,
             ContextSourceKind.SECURITY,
             ContextSourceKind.BUSINESS,
@@ -1065,10 +1171,10 @@ def detect_context_conflicts(
             ContextSourceKind.PROJECT_INTELLIGENCE,
         }:
             continue
-        matched_dbs = _extract_exclusive_claims(src.content, _DATABASE_TOKEN_MAP)
+        matched_dbs = _extract_exclusive_claims(content, _DATABASE_TOKEN_MAP)
         if len(matched_dbs) == 1:
             db_claims.append(
-                (src.id, matched_dbs[0], policy.precedence_rank(src.kind))
+                (source_id, matched_dbs[0], policy.precedence_rank(kind))
             )
 
     if project_model is not None and not any(
@@ -1087,6 +1193,8 @@ def detect_context_conflicts(
                     policy.precedence_rank(ContextSourceKind.PROJECT_INTELLIGENCE),
                 )
             )
+
+    db_claims.sort(key=lambda item: (item[2], item[0]))
 
     distinct_db_values = []
     for _, value, _ in db_claims:
@@ -1110,8 +1218,8 @@ def detect_context_conflicts(
 
     # 2. Topology conflicts across structured rules
     topo_claims: list[tuple[str, str, int]] = []
-    for src in ordered_sources:
-        if src.kind not in {
+    for source_id, kind, content in ordered_sources:
+        if kind not in {
             ContextSourceKind.TASK_CONSTRAINTS,
             ContextSourceKind.BUSINESS,
             ContextSourceKind.ARCHITECTURE,
@@ -1119,11 +1227,13 @@ def detect_context_conflicts(
             ContextSourceKind.TECH_STACK,
         }:
             continue
-        matched_topos = _extract_exclusive_claims(src.content, _TOPOLOGY_TOKEN_MAP)
+        matched_topos = _extract_exclusive_claims(content, _TOPOLOGY_TOKEN_MAP)
         if len(matched_topos) == 1:
             topo_claims.append(
-                (src.id, matched_topos[0], policy.precedence_rank(src.kind))
+                (source_id, matched_topos[0], policy.precedence_rank(kind))
             )
+
+    topo_claims.sort(key=lambda item: (item[2], item[0]))
 
     distinct_topo_values = []
     for _, value, _ in topo_claims:
@@ -1183,11 +1293,6 @@ def render_compiled_markdown(
         lines.append(f"Affected Paths: {', '.join(request.affected_paths)}")
     if request.tags:
         lines.append(f"Tags: {', '.join(request.tags)}")
-    if request.constraints:
-        lines.append("")
-        lines.append("### Explicit Task Constraints")
-        for item in request.constraints:
-            lines.append(f"- {item}")
 
     ordered_fragments = sorted(
         fragments,
@@ -1298,7 +1403,12 @@ def _evaluate_fragment_relevance(
 
 
 class ContextResolver:
-    """Harness-neutral, deterministic resolver that selects context fragments within budget."""
+    """Harness-neutral, deterministic resolver that selects context fragments within budget.
+
+    `ContextResolver.resolve()` returns `ContextSelection` (including `missing_required_kinds`)
+    for low-level inspection; operational failure on missing required sources is enforced by
+    `ContextCompiler.compile()`.
+    """
 
     def __init__(self, policy: ContextPolicy = DEFAULT_CONTEXT_POLICY):
         self.policy = policy
@@ -1316,6 +1426,17 @@ class ContextResolver:
         )
 
         all_sources: list[ContextSource] = list(sources)
+
+        has_explicit_task_constraints = any(
+            src.id == "task.constraints"
+            or src.kind == ContextSourceKind.TASK_CONSTRAINTS
+            for src in all_sources
+        )
+        if request.constraints and not has_explicit_task_constraints:
+            tc_source = build_task_constraints_source(request)
+            if tc_source is not None:
+                all_sources.append(tc_source)
+
         has_explicit_pi_source = any(
             src.id == "project.intelligence"
             or src.kind == ContextSourceKind.PROJECT_INTELLIGENCE
@@ -1331,6 +1452,7 @@ class ContextResolver:
                 required=policy.is_kind_required(
                     ContextSourceKind.PROJECT_INTELLIGENCE, request.mode
                 ),
+                provenance="scan:live",
             )
             if pi_source is not None:
                 all_sources.append(pi_source)
@@ -1382,6 +1504,7 @@ class ContextResolver:
                 is_relevant, relevance_score, reason = _evaluate_fragment_relevance(
                     raw_frag, request, project_model, policy
                 )
+                effective_provenance = raw_frag.provenance or src.provenance
                 normalized_frag = ContextFragment(
                     id=raw_frag.id,
                     source_id=raw_frag.source_id,
@@ -1392,6 +1515,7 @@ class ContextResolver:
                     reason=raw_frag.reason or reason,
                     path=raw_frag.path,
                     tags=raw_frag.tags,
+                    provenance=effective_provenance,
                 )
 
                 if not is_relevant:
@@ -1406,6 +1530,7 @@ class ContextResolver:
                             path=normalized_frag.path,
                             chars=len(normalized_frag.content),
                             precedence=policy.precedence_rank(normalized_frag.kind),
+                            provenance=normalized_frag.provenance,
                         )
                     )
                 elif is_req:
@@ -1474,6 +1599,7 @@ class ContextResolver:
                         path=frag.path,
                         chars=len(frag.content),
                         precedence=policy.precedence_rank(frag.kind),
+                        provenance=frag.provenance,
                     )
                 )
 
@@ -1487,7 +1613,7 @@ class ContextResolver:
             )
         )
 
-        present_kinds = {src.kind for src in canonical_sources}
+        present_kinds = {frag.kind for frag in selected_fragments}
         missing_required: list[ContextSourceKind] = []
         for kind in list(policy.precedence_order) + list(ContextSourceKind):
             if (
@@ -1507,6 +1633,7 @@ class ContextResolver:
                         path=None,
                         chars=0,
                         precedence=policy.precedence_rank(kind),
+                        provenance="",
                     )
                 )
 
@@ -1519,9 +1646,16 @@ class ContextResolver:
             )
         )
 
+        pi_was_skipped = any(
+            entry.source_id == "project.intelligence"
+            or entry.kind == ContextSourceKind.PROJECT_INTELLIGENCE.value
+            for entry in skipped_entries
+        )
+        effective_project_model = None if pi_was_skipped else project_model
+
         conflicts = detect_context_conflicts(
-            canonical_sources,
-            project_model=project_model,
+            selected_fragments,
+            project_model=effective_project_model,
             policy=policy,
         )
 
@@ -1578,6 +1712,7 @@ class ContextCompiler:
                 path=frag.path,
                 chars=len(frag.content),
                 precedence=policy.precedence_rank(frag.kind),
+                provenance=frag.provenance,
             )
             for frag in selection.selected_fragments
         )
@@ -1595,8 +1730,24 @@ class ContextCompiler:
             conflicts=selection.conflicts,
         )
 
+        missing_kinds_tuple = tuple(
+            kind.value for kind in selection.missing_required_kinds
+        )
+        missing_ids_tuple = tuple(
+            entry.source_id for entry in selection.skipped_entries if entry.required
+        )
+        if missing_kinds_tuple or missing_ids_tuple:
+            missing_desc = ", ".join(missing_kinds_tuple or missing_ids_tuple)
+            raise ContextRequiredSourceMissingError(
+                f"Required context source missing for mode '{selection.request.mode.value}': {missing_desc}.",
+                missing_kinds=missing_kinds_tuple,
+                missing_source_ids=missing_ids_tuple,
+                manifest=manifest,
+            )
+
         return CompiledContext(
             schema_version=CONTEXT_MANIFEST_SCHEMA_VERSION,
             content=compiled_text,
             manifest=manifest,
         )
+

@@ -21,6 +21,7 @@ from rapid_os.domain.context import (
     ContextCompiler,
     ContextPolicy,
     ContextRequest,
+    ContextRequiredSourceMissingError,
     ContextSource,
 )
 from rapid_os.domain.project import PROJECT_MODEL_SCHEMA_VERSION, ProjectModel
@@ -743,6 +744,39 @@ def validate_context_compilation(
             project_model=project_model,
             policy=policy,
         )
+    except ContextRequiredSourceMissingError as exc:
+        if exc.manifest is not None:
+            for skipped in exc.manifest.skipped:
+                if skipped.required:
+                    path_obj = Path(skipped.path) if skipped.path else None
+                    diagnostics.append(
+                        Diagnostic(
+                            ERROR,
+                            "RAPID701",
+                            f"Required context source missing or empty: {skipped.source_id} ({skipped.reason})",
+                            path_obj,
+                        )
+                    )
+            for conflict in exc.manifest.conflicts:
+                diagnostics.append(
+                    Diagnostic(
+                        WARNING,
+                        "RAPID703",
+                        (
+                            f"Context conflict detected in '{conflict.category}' between "
+                            f"{', '.join(conflict.sources)} (winner: {conflict.winner}): {conflict.reason}"
+                        ),
+                    )
+                )
+        else:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID701",
+                    f"Required context source missing: {exc}",
+                )
+            )
+        return ValidationReport(tuple(diagnostics))
     except ContextBudgetExceededError as exc:
         diagnostics.append(
             Diagnostic(

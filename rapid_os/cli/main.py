@@ -56,6 +56,7 @@ from rapid_os.domain.context import (
     ContextCompiler,
     ContextManifest,
     ContextRequest,
+    ContextRequiredSourceMissingError,
 )
 from rapid_os.domain.mcp import build_mcp_config
 from rapid_os.domain.scanner import (
@@ -1248,7 +1249,7 @@ def context_command(args):
             request_kwargs["harness"] = args.harness
         request = ContextRequest(**request_kwargs)
     except ValueError as exc:
-        print_error(f"RAPID705 Solicitud de contexto invalida: {exc}")
+        print(f"RAPID705 Solicitud de contexto invalida: {exc}", file=sys.stderr)
         sys.exit(1)
 
     discovery = ContextSourceLoader().load(
@@ -1256,8 +1257,9 @@ def context_command(args):
     )
     if discovery.load_errors:
         for err in discovery.load_errors:
-            print_error(
-                f"RAPID704 No se pudo leer la fuente de contexto {err.source_id} ({err.path}): {err.message}"
+            print(
+                f"RAPID704 No se pudo leer la fuente de contexto {err.source_id} ({err.path}): {err.message}",
+                file=sys.stderr,
             )
         sys.exit(1)
 
@@ -1267,17 +1269,25 @@ def context_command(args):
             sources=discovery.sources,
             project_model=discovery.project_model,
         )
+    except ContextRequiredSourceMissingError as exc:
+        if exc.manifest is not None:
+            for entry in exc.manifest.skipped:
+                if entry.required:
+                    print(
+                        f"RAPID701 {entry.source_id}: {entry.reason}",
+                        file=sys.stderr,
+                    )
+        else:
+            print(f"RAPID701 {exc}", file=sys.stderr)
+        sys.exit(1)
     except ContextBudgetExceededError as exc:
-        print_error(f"RAPID702 {exc}")
+        print(f"RAPID702 {exc}", file=sys.stderr)
         sys.exit(1)
     except ValueError as exc:
-        print_error(f"RAPID705 {exc}")
+        print(f"RAPID705 {exc}", file=sys.stderr)
         sys.exit(1)
 
     # Diagnostics go to stderr so stdout stays machine-readable in --json mode.
-    for entry in compiled.manifest.skipped:
-        if entry.required:
-            print(f"RAPID701 {entry.reason}", file=sys.stderr)
     for conflict in compiled.manifest.conflicts:
         print(
             f"RAPID703 Conflicto de contexto en '{conflict.category}': "

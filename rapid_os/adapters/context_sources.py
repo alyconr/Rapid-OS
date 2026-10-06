@@ -217,20 +217,51 @@ class ContextSourceLoader:
             )
 
         resolved_model = project_model
+        pi_provenance = "scan:live"
         if include_project_intelligence and resolved_model is None:
             snapshot_path = resolve_project_snapshot_path(rapid_dir)
-            if snapshot_path.exists() and snapshot_path.is_file():
+            if snapshot_path.exists():
                 try:
-                    resolved_model = read_project_snapshot(rapid_dir, root)
-                except (OSError, UnicodeDecodeError, ValueError):
-                    resolved_model = build_project_model(root)
+                    contained_snapshot = ensure_path_within_root(root, snapshot_path)
+                    portable_snapshot = normalize_evidence_path(contained_snapshot, root)
+                except ValueError as exc:
+                    load_errors.append(
+                        ContextSourceLoadError(
+                            source_id="project.intelligence",
+                            path=".rapid-os/project.json",
+                            message=str(exc),
+                        )
+                    )
+                else:
+                    if not contained_snapshot.is_file():
+                        load_errors.append(
+                            ContextSourceLoadError(
+                                source_id="project.intelligence",
+                                path=portable_snapshot,
+                                message=f"Project intelligence snapshot '{portable_snapshot}' is not a regular file.",
+                            )
+                        )
+                    else:
+                        try:
+                            resolved_model = read_project_snapshot(rapid_dir, root)
+                            pi_provenance = f"snapshot:{portable_snapshot}"
+                        except (OSError, UnicodeDecodeError, ValueError) as exc:
+                            load_errors.append(
+                                ContextSourceLoadError(
+                                    source_id="project.intelligence",
+                                    path=portable_snapshot,
+                                    message=f"Invalid project intelligence snapshot '{portable_snapshot}': {exc}",
+                                )
+                            )
             else:
                 resolved_model = build_project_model(root)
+                pi_provenance = "scan:live"
 
         if include_project_intelligence and resolved_model is not None:
             pi_source = build_project_intelligence_source(
                 resolved_model,
                 request=request,
+                provenance=pi_provenance,
             )
             if pi_source is not None:
                 loaded_sources.append(pi_source)

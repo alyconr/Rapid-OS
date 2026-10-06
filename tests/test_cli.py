@@ -714,6 +714,63 @@ class CliProjectIntelligenceScanTests(unittest.TestCase):
             files_after = sorted(p.relative_to(project).as_posix() for p in project.rglob("*"))
             self.assertEqual(files_before, files_after)
 
+    def test_context_command_fails_on_missing_required_source_and_corrupt_snapshot(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            project = Path(temp_dir) / "project"
+            standards = project / ".rapid-os" / "standards"
+            standards.mkdir(parents=True)
+            (standards / "tech-stack.md").write_text(
+                "# Tech Stack\nPython 3.12", encoding="utf-8"
+            )
+
+            # 1. Missing security.md in hardening mode (text output) -> exit 1, RAPID701 on stderr, empty stdout
+            out_text = io.StringIO()
+            err_text = io.StringIO()
+            args_hardening = create_parser().parse_args(["context", "--mode", "hardening"])
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), contextlib.redirect_stdout(out_text), contextlib.redirect_stderr(err_text):
+                with self.assertRaises(SystemExit) as cm_text:
+                    cli_main.context_command(args_hardening)
+
+            self.assertEqual(cm_text.exception.code, 1)
+            self.assertEqual(out_text.getvalue(), "")
+            self.assertIn("RAPID701", err_text.getvalue())
+
+            # 2. Missing security.md in hardening mode (--json) -> exit 1, RAPID701 on stderr, empty stdout
+            out_json = io.StringIO()
+            err_json = io.StringIO()
+            args_hardening_json = create_parser().parse_args(
+                ["context", "--mode", "hardening", "--json"]
+            )
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), contextlib.redirect_stdout(out_json), contextlib.redirect_stderr(err_json):
+                with self.assertRaises(SystemExit) as cm_json:
+                    cli_main.context_command(args_hardening_json)
+
+            self.assertEqual(cm_json.exception.code, 1)
+            self.assertEqual(out_json.getvalue(), "")
+            self.assertIn("RAPID701", err_json.getvalue())
+
+            # 3. Corrupt .rapid-os/project.json -> exit 1, RAPID704 on stderr, empty stdout
+            (project / ".rapid-os" / "project.json").write_text(
+                "{corrupt-snapshot", encoding="utf-8"
+            )
+            out_corrupt = io.StringIO()
+            err_corrupt = io.StringIO()
+            args_feature = create_parser().parse_args(["context", "--mode", "feature", "--json"])
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), contextlib.redirect_stdout(out_corrupt), contextlib.redirect_stderr(err_corrupt):
+                with self.assertRaises(SystemExit) as cm_corrupt:
+                    cli_main.context_command(args_feature)
+
+            self.assertEqual(cm_corrupt.exception.code, 1)
+            self.assertEqual(out_corrupt.getvalue(), "")
+            self.assertIn("RAPID704", err_corrupt.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()
