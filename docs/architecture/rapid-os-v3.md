@@ -366,19 +366,20 @@ Canonical execution gates evaluated across `PRE_EXECUTION` (`gate.workspace-isol
 - At `CRITICAL` risk, no gate is waivable. Below `CRITICAL`, only gates listed in `policy.waivable_gate_ids` (`gate.review`, `gate.tests` by default) may be waived, and waiving always requires a non-empty `reason`.
 
 #### `ExecutionPolicy` (`.rapid-os/policy.json`)
-Optional project-level policy configuration (`EXECUTION_POLICY_SCHEMA_VERSION = 1`).
+Optional project-level policy configuration (`EXECUTION_POLICY_SCHEMA_VERSION = 1`) defining `minimum_classification`, `minimum_risk`, `architectural_tags`, `architectural_path_prefixes`, `high_risk_tags`, `critical_risk_tags`, `workspace_by_risk`, `waivable_gate_ids`, and `extra_required_gate_ids`.
 - If `.rapid-os/policy.json` does not exist, `DEFAULT_EXECUTION_POLICY` is used (`source="default"`).
 - If `.rapid-os/policy.json` exists, it is validated strictly (`source=".rapid-os/policy.json"`); corrupt or invalid policy files fail explicitly with `RAPID1005` or `RAPID1006` without falling back to defaults.
+- Programmatically injected custom policies require an explicit truthful `policy_source` (`"injected"`) and cannot claim `"default"` (`RAPID1005`).
 
 #### `TaskContract` & `ExecutionContract`
-`ExecutionContract` (`EXECUTION_CONTRACT_SCHEMA_VERSION = 1`) pins `spec_id`, `spec_revision`, `spec_content_digest`, `harness`, `policy_source`, `policy_digest`, `project_model_digest`, `context_digest`, `context_manifest_digest`, `decision`, `tasks` (`T001`, `T002`, ... derived deterministically from `SpecRevision.implementation_tasks`), `acceptance_criteria`, `affected_paths`, `technical_constraints`, and `contract_digest`.
+`ExecutionContract` (`EXECUTION_CONTRACT_SCHEMA_VERSION = 1`) pins `schema_version`, `run_id`, `spec_id`, `spec_revision`, `spec_content_digest`, `harness`, `context_digest`, `context_manifest_digest`, `project_model_digest`, `policy_source`, `policy_digest`, `decision`, `classification`, `risk`, `risk_signals`, `workspace`, `gates`, `tasks` (`T001`, `T002`, ... derived deterministically from `SpecRevision.implementation_tasks`), and `contract_digest`.
 - `contract_digest` is computed over the semantic contract payload (excluding `run_id` and `contract_digest`), so identical inputs produce identical `contract_digest` values across runs.
 
 #### `RunStatus`, `TaskStatus`, `GateDisposition`, & `RunState`
 `RunState` (`RUN_STATE_SCHEMA_VERSION = 1`) records the state revision (`1..current_state_revision`):
 - Initial snapshot (`states/0001.json`) invariant: `revision = 1`, `status = prepared`, all tasks `pending` (empty reason), all gates `pending` (empty reason), and `change_kind = "run.prepared"` (`RAPID1012`).
 - Sequential history verification (`s1 → s2 → ... → current`): every consecutive snapshot must advance `revision` by 1, mutate exactly one category (`run status`, `1 task`, or `1 gate`), match `change_kind`, and satisfy all phase boundary preconditions (`RAPID1012`).
-- `RunStatus` transitions: `prepared → active | cancelled`, `active → blocked | finished | cancelled`, `blocked → active | cancelled`. `finished` and `cancelled` are terminal (`RAPID1009`).
+- `RunStatus` transitions: `prepared → active | cancelled`, `active → blocked | finished | failed | cancelled`, `blocked → active | failed | cancelled`. `finished`, `failed`, and `cancelled` are terminal (`RAPID1009`).
 - Phase boundaries (`RAPID1014`):
   - `PRE_EXECUTION` gates can only change while `status = prepared`.
   - Precondition for `prepared → active`: all required `PRE_EXECUTION` gates must be `acknowledged` or `waived`.
