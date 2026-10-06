@@ -46,10 +46,18 @@ from rapid_os.core.paths import (
     SCRIPT_DIR,
     TEMPLATES_DIR,
 )
+from rapid_os.adapters.context_sources import ContextSourceLoader
 from rapid_os.adapters.project_snapshot import write_project_snapshot
 from rapid_os.core.process import run_npx_skills_add
 from rapid_os.core.text import read_text_best_effort
 from rapid_os.domain.agents import generate_agent_contexts
+from rapid_os.domain.context import (
+    ContextBudgetExceededError,
+    ContextCompiler,
+    ContextManifest,
+    ContextRequest,
+    ContextRequiredSourceMissingError,
+)
 from rapid_os.domain.mcp import build_mcp_config
 from rapid_os.domain.scanner import (
     build_project_model,
@@ -1183,10 +1191,126 @@ def scan_command(args):
     return 0
 
 
+def render_context_manifest(manifest: ContextManifest) -> str:
+    lines = [
+        "Rapid OS Context Manifest",
+        "",
+        f"Mode: {manifest.mode}",
+        f"Harness: {manifest.harness or 'default'}",
+        f"Budget: {manifest.compiled_chars} / {manifest.budget_max_chars} chars",
+        "",
+        "SELECTED",
+    ]
+    if manifest.selected:
+        for entry in manifest.selected:
+            chars_label = f"{entry.chars} chars"
+            lines.append(
+                f"  {entry.source_id:<22} {entry.priority_label:<9} {chars_label:<12} {entry.reason}"
+            )
+    else:
+        lines.append("  none")
+
+    lines.append("")
+    lines.append("SKIPPED")
+    if manifest.skipped:
+        for entry in manifest.skipped:
+            chars_label = f"{entry.chars} chars"
+            lines.append(
+                f"  {entry.source_id:<22} {entry.priority_label:<9} {chars_label:<12} {entry.reason}"
+            )
+    else:
+        lines.append("  none")
+
+    lines.append("")
+    lines.append("CONFLICTS")
+    if manifest.conflicts:
+        for conflict in manifest.conflicts:
+            lines.append(
+                f"  {conflict.category:<21} {', '.join(conflict.sources)} -> winner: {conflict.winner} ({conflict.reason})"
+            )
+    else:
+        lines.append("  none")
+
+    return "\n".join(lines)
+
+
+def context_command(args):
+    """Compile task-specific context (read-only: never writes files, never prompts)."""
+    try:
+        request_kwargs = {
+            "mode": getattr(args, "mode", None) or "general",
+            "objective": getattr(args, "objective", None) or "",
+            "tags": tuple(getattr(args, "tag", None) or ()),
+            "affected_paths": tuple(getattr(args, "path", None) or ()),
+            "constraints": tuple(getattr(args, "constraint", None) or ()),
+            "max_chars": getattr(args, "max_chars", None),
+        }
+        if getattr(args, "harness", None):
+            request_kwargs["harness"] = args.harness
+        request = ContextRequest(**request_kwargs)
+    except ValueError as exc:
+        print(f"RAPID705 Solicitud de contexto invalida: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    discovery = ContextSourceLoader().load(
+        CURRENT_DIR, PROJECT_RAPID_DIR, request=request
+    )
+    if discovery.load_errors:
+        for err in discovery.load_errors:
+            print(
+                f"RAPID704 No se pudo leer la fuente de contexto {err.source_id} ({err.path}): {err.message}",
+                file=sys.stderr,
+            )
+        sys.exit(1)
+
+    try:
+        compiled = ContextCompiler().compile(
+            request=request,
+            sources=discovery.sources,
+            project_model=discovery.project_model,
+        )
+    except ContextRequiredSourceMissingError as exc:
+        if exc.manifest is not None:
+            for entry in exc.manifest.skipped:
+                if entry.required:
+                    print(
+                        f"RAPID701 {entry.source_id}: {entry.reason}",
+                        file=sys.stderr,
+                    )
+        else:
+            print(f"RAPID701 {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ContextBudgetExceededError as exc:
+        print(f"RAPID702 {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        print(f"RAPID705 {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    # Diagnostics go to stderr so stdout stays machine-readable in --json mode.
+    for conflict in compiled.manifest.conflicts:
+        print(
+            f"RAPID703 Conflicto de contexto en '{conflict.category}': "
+            f"{', '.join(conflict.sources)} (prevalece {conflict.winner})",
+            file=sys.stderr,
+        )
+
+    if getattr(args, "json", False):
+        print(compiled.to_json(indent=2))
+        return 0
+    if getattr(args, "manifest", False):
+        print(render_context_manifest(compiled.manifest))
+        return 0
+
+    print(compiled.content, end="")
+    return 0
+
+
 def show_guide():
     print("📘 RAPID OS - COMANDOS")
     print(" init    -> Configurar proyecto")
     print(" scan    -> Inspeccionar inteligencia del proyecto")
+    print(" context -> Compilar contexto selectivo por tarea")
     print(" skill   -> Instalar capacidades (Local/Vercel)")
     print(" mcp     -> Configurar herramientas BD")
     print(" vision  -> Agregar referencias visuales")
@@ -1214,6 +1338,21 @@ def create_parser():
     scan.add_argument("--json", action="store_true")
     scan.add_argument("--write", action="store_true")
     scan.add_argument("--verbose", action="store_true")
+
+    context = subparsers.add_parser("context")
+    context.add_argument("action", choices=["compile"], nargs="?")
+    context.add_argument("--mode", default="general")
+    context.add_argument(
+        "--harness",
+        choices=["cursor", "claude", "codex", "vscode", "antigravity"],
+    )
+    context.add_argument("--objective")
+    context.add_argument("--max-chars", type=int)
+    context.add_argument("--constraint", action="append")
+    context.add_argument("--tag", action="append")
+    context.add_argument("--path", action="append")
+    context.add_argument("--json", action="store_true")
+    context.add_argument("--manifest", action="store_true")
 
     skill = subparsers.add_parser("skill")
     skill.add_argument("action", choices=["list", "install", "add"], nargs="?")
@@ -1252,6 +1391,8 @@ def main(argv=None):
         init_project(args)
     elif args.command == "scan":
         scan_command(args)
+    elif args.command == "context":
+        context_command(args)
     elif args.command == "skill":
         manage_skills(args)
     elif args.command == "mcp":

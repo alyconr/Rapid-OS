@@ -14,6 +14,16 @@ from rapid_os.core.config import (
     inspect_project_config_file,
 )
 from rapid_os.core.context import STANDARDS_PRIORITY, compose_project_context
+from rapid_os.domain.context import (
+    DEFAULT_CONTEXT_POLICY,
+    CompiledContext,
+    ContextBudgetExceededError,
+    ContextCompiler,
+    ContextPolicy,
+    ContextRequest,
+    ContextRequiredSourceMissingError,
+    ContextSource,
+)
 from rapid_os.domain.project import PROJECT_MODEL_SCHEMA_VERSION, ProjectModel
 
 
@@ -615,6 +625,179 @@ def inspect_project_context(
         included_sections=_included_context_sections(project_rapid_dir, current_dir),
         selected_tools=tuple(selected_tools),
     )
+
+
+def validate_compiled_context(
+    compiled: CompiledContext,
+    load_errors=(),
+) -> ValidationReport:
+    """Validate a CompiledContext and any source load errors using RAPID7xx codes."""
+    diagnostics: list[Diagnostic] = []
+
+    for load_error in load_errors or ():
+        err_path = getattr(load_error, "path", None)
+        path_obj = Path(err_path) if err_path else None
+        source_id = getattr(load_error, "source_id", "unknown")
+        err_msg = getattr(load_error, "message", str(load_error))
+        diagnostics.append(
+            Diagnostic(
+                ERROR,
+                "RAPID704",
+                f"Context source '{source_id}' could not be read: {err_msg}",
+                path_obj,
+            )
+        )
+
+    for skipped in compiled.manifest.skipped:
+        if skipped.required:
+            path_obj = Path(skipped.path) if skipped.path else None
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID701",
+                    f"Required context source missing or empty: {skipped.source_id} ({skipped.reason})",
+                    path_obj,
+                )
+            )
+
+    for conflict in compiled.manifest.conflicts:
+        diagnostics.append(
+            Diagnostic(
+                WARNING,
+                "RAPID703",
+                (
+                    f"Context conflict detected in '{conflict.category}' between "
+                    f"{', '.join(conflict.sources)} (winner: {conflict.winner}): {conflict.reason}"
+                ),
+            )
+        )
+
+    diagnostics.append(
+        Diagnostic(
+            INFO,
+            "RAPID700",
+            (
+                f"Context compiled ({compiled.manifest.compiled_chars}/"
+                f"{compiled.manifest.budget_max_chars} chars, "
+                f"{len(compiled.manifest.selected)} fragment(s))."
+            ),
+        )
+    )
+
+    return ValidationReport(tuple(diagnostics))
+
+
+def validate_context_compilation(
+    request: ContextRequest | dict | None,
+    sources: Iterable[ContextSource] = (),
+    project_model: ProjectModel | None = None,
+    policy: ContextPolicy = DEFAULT_CONTEXT_POLICY,
+    load_errors=(),
+) -> ValidationReport:
+    """Compile and validate context, emitting RAPID700-RAPID705 diagnostics."""
+    diagnostics: list[Diagnostic] = []
+
+    for load_error in load_errors or ():
+        err_path = getattr(load_error, "path", None)
+        path_obj = Path(err_path) if err_path else None
+        source_id = getattr(load_error, "source_id", "unknown")
+        err_msg = getattr(load_error, "message", str(load_error))
+        diagnostics.append(
+            Diagnostic(
+                ERROR,
+                "RAPID704",
+                f"Context source '{source_id}' could not be read: {err_msg}",
+                path_obj,
+            )
+        )
+
+    resolved_request: ContextRequest | None = None
+    if isinstance(request, ContextRequest):
+        resolved_request = request
+    elif isinstance(request, dict):
+        try:
+            resolved_request = ContextRequest(**request)
+        except (TypeError, ValueError) as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID705",
+                    f"Invalid ContextRequest: {exc}",
+                )
+            )
+            return ValidationReport(tuple(diagnostics))
+    else:
+        diagnostics.append(
+            Diagnostic(
+                ERROR,
+                "RAPID705",
+                "Invalid ContextRequest: request must be a ContextRequest instance.",
+            )
+        )
+        return ValidationReport(tuple(diagnostics))
+
+    compiler = ContextCompiler()
+    try:
+        compiled = compiler.compile(
+            request=resolved_request,
+            sources=tuple(sources),
+            project_model=project_model,
+            policy=policy,
+        )
+    except ContextRequiredSourceMissingError as exc:
+        if exc.manifest is not None:
+            for skipped in exc.manifest.skipped:
+                if skipped.required:
+                    path_obj = Path(skipped.path) if skipped.path else None
+                    diagnostics.append(
+                        Diagnostic(
+                            ERROR,
+                            "RAPID701",
+                            f"Required context source missing or empty: {skipped.source_id} ({skipped.reason})",
+                            path_obj,
+                        )
+                    )
+            for conflict in exc.manifest.conflicts:
+                diagnostics.append(
+                    Diagnostic(
+                        WARNING,
+                        "RAPID703",
+                        (
+                            f"Context conflict detected in '{conflict.category}' between "
+                            f"{', '.join(conflict.sources)} (winner: {conflict.winner}): {conflict.reason}"
+                        ),
+                    )
+                )
+        else:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID701",
+                    f"Required context source missing: {exc}",
+                )
+            )
+        return ValidationReport(tuple(diagnostics))
+    except ContextBudgetExceededError as exc:
+        diagnostics.append(
+            Diagnostic(
+                ERROR,
+                "RAPID702",
+                f"Context budget exceeded by required sources: {exc}",
+            )
+        )
+        return ValidationReport(tuple(diagnostics))
+    except ValueError as exc:
+        diagnostics.append(
+            Diagnostic(
+                ERROR,
+                "RAPID705",
+                f"Invalid ContextRequest or context sources: {exc}",
+            )
+        )
+        return ValidationReport(tuple(diagnostics))
+
+    compiled_report = validate_compiled_context(compiled, load_errors=())
+    return ValidationReport(tuple(diagnostics)).merge(compiled_report)
 
 
 def infer_stack(content: str):

@@ -43,3 +43,6 @@ jobs:
           python rapid.py scan
           python rapid.py scan --json > /tmp/rapid-project-model.json
           python -m json.tool /tmp/rapid-project-model.json > /dev/null
+          python rapid.py context --mode general
+          python rapid.py context --mode general --json > /tmp/context.json
+          python -m json.tool /tmp/context.json > /dev/null
