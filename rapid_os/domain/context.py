@@ -6,6 +6,7 @@ from enum import Enum, IntEnum
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
+from rapid_os.domain.harnesses import validate_harness_id
 from rapid_os.domain.project import (
     FACT_CATEGORIES,
     ProjectFact,
@@ -484,14 +485,14 @@ class ContextRequest:
 
         if self.harness is None:
             cleaned_harness = "cursor"
-        elif not isinstance(self.harness, str) or not self.harness.strip():
-            raise ValueError("ContextRequest harness must be a non-empty string.")
         else:
-            cleaned_harness = self.harness.strip().lower()
-        if cleaned_harness not in SUPPORTED_HARNESSES:
-            raise ValueError(
-                f"Unsupported harness '{self.harness}': expected one of {list(SUPPORTED_HARNESSES)}."
-            )
+            try:
+                cleaned_harness = validate_harness_id(
+                    self.harness,
+                    "ContextRequest.harness",
+                )
+            except ValueError as exc:
+                raise ValueError(str(exc)) from exc
         object.__setattr__(self, "harness", cleaned_harness)
 
         if self.affected_paths is None:
@@ -800,11 +801,13 @@ class ContextManifest:
             )
         coerced_mode = ContextMode.coerce(self.mode)
         object.__setattr__(self, "mode", coerced_mode.value)
-        cleaned_harness = str(self.harness).strip().lower()
-        if cleaned_harness not in SUPPORTED_HARNESSES:
-            raise ValueError(
-                f"Unsupported harness '{self.harness}' in ContextManifest."
+        try:
+            cleaned_harness = validate_harness_id(
+                self.harness,
+                "ContextManifest.harness",
             )
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
         object.__setattr__(self, "harness", cleaned_harness)
         object.__setattr__(self, "objective", str(self.objective or "").strip())
         if isinstance(self.max_chars, bool) or int(self.max_chars) <= 0:

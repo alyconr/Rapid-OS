@@ -55,4 +55,10 @@ jobs:
           python rapid.py run list
           python rapid.py run list --json > /tmp/runs.json
           python -m json.tool /tmp/runs.json > /dev/null
+          python rapid.py harness list
+          python rapid.py harness list --json > /tmp/harnesses.json
+          python -m json.tool /tmp/harnesses.json > /dev/null
+          python rapid.py harness show codex
+          python rapid.py harness show codex --json > /tmp/harness.json
+          python -m json.tool /tmp/harness.json > /dev/null
 

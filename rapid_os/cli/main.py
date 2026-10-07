@@ -46,17 +46,27 @@ from rapid_os.core.paths import (
     SCRIPT_DIR,
     TEMPLATES_DIR,
 )
+from rapid_os.adapters.capability_lock import (
+    load_capability_lock,
+    write_capability_lock,
+)
 from rapid_os.adapters.context_sources import ContextSourceLoader
 from rapid_os.adapters.execution_policy import (
     load_execution_policy,
     write_default_execution_policy,
 )
+from rapid_os.adapters.harness_registry import HarnessRegistry
 from rapid_os.adapters.project_snapshot import write_project_snapshot
 from rapid_os.adapters.run_registry import RunRegistry
 from rapid_os.adapters.spec_registry import SpecRegistry
 from rapid_os.core.process import run_npx_skills_add
 from rapid_os.core.text import read_text_best_effort
 from rapid_os.domain.agents import generate_agent_contexts
+from rapid_os.domain.capabilities import (
+    HARNESS_PROFILE_SCHEMA_VERSION,
+    CapabilityResolver,
+    CompatibilityStatus,
+)
 from rapid_os.domain.context import (
     ContextBudgetExceededError,
     ContextCompiler,
@@ -75,6 +85,11 @@ from rapid_os.domain.execution import (
     InvalidTaskTransitionError,
     RunStatus,
     TaskStatus,
+)
+from rapid_os.domain.harnesses import (
+    CapabilityLockError,
+    HarnessCapabilityError,
+    InvalidCapabilityResolutionError,
 )
 from rapid_os.domain.mcp import build_mcp_config
 from rapid_os.domain.scanner import (
@@ -104,8 +119,10 @@ from rapid_os.domain.validation import (
     Diagnostic,
     ValidationReport,
     inspect_project_context,
+    validate_capability_lock,
     validate_composed_context,
     validate_execution_policy,
+    validate_harness_registry,
     validate_project,
     validate_project_config,
     validate_project_intelligence,
@@ -1116,6 +1133,8 @@ def doctor_command(args):
             validate_spec_registry(PROJECT_RAPID_DIR, CURRENT_DIR),
             validate_execution_policy(PROJECT_RAPID_DIR, CURRENT_DIR),
             validate_run_registry(PROJECT_RAPID_DIR, CURRENT_DIR),
+            validate_harness_registry(PROJECT_RAPID_DIR, CURRENT_DIR),
+            validate_capability_lock(PROJECT_RAPID_DIR, CURRENT_DIR),
         )
     else:
         report = report.extend(
@@ -2141,6 +2160,223 @@ def run_command(args):
         sys.exit(1)
 
 
+def render_harness_show_text(resolved) -> str:
+    profile = resolved.profile
+    lines = [
+        f"ID:             {resolved.id}",
+        f"Source:         {resolved.source}",
+        f"Profile Digest: {resolved.profile_digest}",
+        "Capabilities:",
+    ]
+    if profile.capabilities:
+        for cap in profile.capabilities:
+            lines.append(
+                f"  - {cap.capability_id:<22} {cap.status.value:<12} ({cap.reason})"
+            )
+    else:
+        lines.append("  - none")
+    return "\n".join(lines)
+
+
+def render_capability_resolution_text(resolution, *, run_id: str = "") -> str:
+    lines = []
+    if run_id:
+        lines.append(f"Run:               {run_id}")
+    lines.extend(
+        [
+            f"Harness:           {resolution.harness_id}",
+            f"Profile Source:    {resolution.profile_source}",
+            f"Profile Digest:    {resolution.profile_digest}",
+            f"Contract Digest:   {resolution.contract_digest}",
+            f"Resolution Digest: {resolution.resolution_digest}",
+            f"Compatibility:     {resolution.status.value.upper()} ({resolution.status.value})",
+            "",
+            "Required:",
+        ]
+    )
+    if resolution.requirements:
+        for req in resolution.requirements:
+            lines.append(
+                f"  {req.capability_id} (source={req.source}, reason={req.reason})"
+            )
+    else:
+        lines.append("  none")
+
+    lines.append("")
+    lines.append("Satisfied:")
+    if resolution.satisfied:
+        for cap_id in resolution.satisfied:
+            lines.append(f"  {cap_id}")
+    else:
+        lines.append("  none")
+
+    lines.append("")
+    lines.append("Missing:")
+    if resolution.missing:
+        for cap_id in resolution.missing:
+            lines.append(f"  {cap_id}")
+    else:
+        lines.append("  none")
+
+    lines.append("")
+    lines.append("Unknown:")
+    if resolution.unknown:
+        for cap_id in resolution.unknown:
+            lines.append(f"  {cap_id}")
+    else:
+        lines.append("  none")
+
+    return "\n".join(lines)
+
+
+def harness_command(args):
+    """Execute `rapid harness` subcommands (`list`, `show`, `init`, `lock`, `resolve`)."""
+    action = getattr(args, "harness_action", None) or getattr(args, "action", None)
+    try:
+        registry = HarnessRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+
+        if action == "list":
+            profiles = registry.list_profiles()
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": HARNESS_PROFILE_SCHEMA_VERSION,
+                    "profiles": [
+                        {
+                            "id": item.id,
+                            "source": item.source,
+                            "profile_digest": item.profile_digest,
+                            "content_digest": item.profile_digest,
+                            "capabilities": [
+                                cap.to_dict() for cap in item.profile.capabilities
+                            ],
+                            "profile": item.profile.to_dict(),
+                        }
+                        for item in profiles
+                    ],
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+
+            for item in profiles:
+                print(
+                    f"{item.id:<20} {item.source:<36} {item.profile_digest[:12]}"
+                )
+            return 0
+
+        if action == "show":
+            harness_id = getattr(args, "harness_id", None) or getattr(args, "id", None)
+            resolved = registry.resolve_active_profile(harness_id)
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": HARNESS_PROFILE_SCHEMA_VERSION,
+                    "id": resolved.id,
+                    "source": resolved.source,
+                    "profile_digest": resolved.profile_digest,
+                    "content_digest": resolved.profile_digest,
+                    "capabilities": [
+                        cap.to_dict() for cap in resolved.profile.capabilities
+                    ],
+                    "profile": resolved.profile.to_dict(),
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print(render_harness_show_text(resolved))
+            return 0
+
+        if action == "init":
+            harness_id = getattr(args, "harness_id", None) or getattr(args, "id", None)
+            path = registry.initialize_project_profile(harness_id)
+            resolved = registry.resolve_active_profile(harness_id)
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": HARNESS_PROFILE_SCHEMA_VERSION,
+                    "id": resolved.id,
+                    "source": resolved.source,
+                    "path": resolved.source,
+                    "profile_digest": resolved.profile_digest,
+                    "content_digest": resolved.profile_digest,
+                    "capabilities": [
+                        cap.to_dict() for cap in resolved.profile.capabilities
+                    ],
+                    "profile": resolved.profile.to_dict(),
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print_success(f"Harness profile '{resolved.id}' escrito en: {path}")
+            return 0
+
+        if action == "lock":
+            lock_obj, lock_path = write_capability_lock(
+                CURRENT_DIR,
+                PROJECT_RAPID_DIR,
+                registry=registry,
+            )
+            if getattr(args, "json", False):
+                print(lock_obj.to_json(indent=2))
+                return 0
+            print_success(
+                f"Capabilities lock escrito en: {lock_path} ({len(lock_obj.profiles)} profiles)"
+            )
+            return 0
+
+        if action == "resolve":
+            run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
+            if not run_id or not str(run_id).strip():
+                raise InvalidCapabilityResolutionError(
+                    "Option '--run' is required to resolve harness capabilities."
+                )
+            run_registry = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+            record = run_registry.get(run_id)
+            contract = run_registry.get_contract(record.id)
+
+            if getattr(args, "locked", False):
+                lock_obj = load_capability_lock(CURRENT_DIR, PROJECT_RAPID_DIR)
+                locked_entry = lock_obj.get_profile(contract.harness)
+                target_profile = locked_entry.profile
+                target_source = locked_entry.source
+            else:
+                resolved = registry.resolve_active_profile(contract.harness)
+                target_profile = resolved.profile
+                target_source = resolved.source
+
+            extra_reqs = tuple(getattr(args, "require", None) or ())
+            resolution = CapabilityResolver().resolve(
+                contract,
+                target_profile,
+                profile_source=target_source,
+                extra_requirements=extra_reqs,
+            )
+
+            if getattr(args, "json", False):
+                print(resolution.to_json(indent=2))
+            else:
+                print(render_capability_resolution_text(resolution, run_id=record.id))
+
+            if (
+                getattr(args, "require_compatible", False)
+                and resolution.status != CompatibilityStatus.COMPATIBLE
+            ):
+                print(
+                    f"RAPID1110 Harness '{resolution.harness_id}' is not compatible with run '{record.id}' (status={resolution.status.value}).",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            return 0
+
+        print("RAPID1109 Subcomando 'rapid harness' requerido.", file=sys.stderr)
+        sys.exit(1)
+    except HarnessCapabilityError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ExecutionError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        code = getattr(exc, "code", None) or "RAPID1109"
+        print(f"{code} {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
 def show_guide():
     print("📘 RAPID OS - COMANDOS")
     print(" init    -> Configurar proyecto")
@@ -2149,6 +2385,7 @@ def show_guide():
     print(" spec    -> Gestionar Spec Registry v3 (create, list, show, revise, status, export-legacy)")
     print(" policy  -> Gestionar Execution Policy v3 (show, init)")
     print(" run     -> Gestionar Run Contracts & Lifecycle v3 (create, list, show, status, task, gate)")
+    print(" harness -> Gestionar Harness Capability Registry v3 (list, show, init, lock, resolve)")
     print(" skill   -> Instalar capacidades (Local/Vercel)")
     print(" mcp     -> Configurar herramientas BD")
     print(" vision  -> Agregar referencias visuales")
@@ -2265,10 +2502,7 @@ def create_parser():
     context = subparsers.add_parser("context")
     context.add_argument("action", choices=["compile"], nargs="?")
     context.add_argument("--mode", default="general")
-    context.add_argument(
-        "--harness",
-        choices=["cursor", "claude", "codex", "vscode", "antigravity"],
-    )
+    context.add_argument("--harness")
     context.add_argument("--objective")
     context.add_argument("--max-chars", type=int)
     context.add_argument("--constraint", action="append")
@@ -2329,7 +2563,6 @@ def create_parser():
     run_create.add_argument(
         "--harness",
         default="cursor",
-        choices=["cursor", "claude", "codex", "vscode", "antigravity"],
     )
     run_create.add_argument("--classification")
     run_create.add_argument("--risk")
@@ -2363,6 +2596,34 @@ def create_parser():
     run_gate.add_argument("disposition")
     run_gate.add_argument("--reason")
     run_gate.add_argument("--json", action="store_true")
+
+    harness = subparsers.add_parser("harness")
+    harness_subparsers = harness.add_subparsers(dest="harness_action")
+
+    harness_list = harness_subparsers.add_parser("list")
+    harness_list.add_argument("--json", action="store_true")
+
+    harness_show = harness_subparsers.add_parser("show")
+    harness_show.add_argument("harness_id")
+    harness_show.add_argument("--json", action="store_true")
+
+    harness_init = harness_subparsers.add_parser("init")
+    harness_init.add_argument("harness_id")
+    harness_init.add_argument("--json", action="store_true")
+
+    harness_lock = harness_subparsers.add_parser("lock")
+    harness_lock.add_argument("--json", action="store_true")
+
+    harness_resolve = harness_subparsers.add_parser("resolve")
+    harness_resolve.add_argument("--run", dest="run")
+    harness_resolve.add_argument("--locked", action="store_true")
+    harness_resolve.add_argument("--require", action="append")
+    harness_resolve.add_argument(
+        "--require-compatible",
+        dest="require_compatible",
+        action="store_true",
+    )
+    harness_resolve.add_argument("--json", action="store_true")
 
     skill = subparsers.add_parser("skill")
     skill.add_argument("action", choices=["list", "install", "add"], nargs="?")
@@ -2413,6 +2674,8 @@ def main(argv=None):
         policy_command(args)
     elif args.command == "run":
         run_command(args)
+    elif args.command == "harness":
+        harness_command(args)
     elif args.command == "skill":
         manage_skills(args)
     elif args.command == "mcp":
@@ -2437,4 +2700,5 @@ def main(argv=None):
         show_guide()
     else:
         parser.print_help()
+
 
