@@ -10,11 +10,11 @@ Phase 1  Project Intelligence (COMPLETE)
 Phase 2  Context Compiler (COMPLETE)
 Phase 3  Spec Registry v3 (COMPLETE)
 Phase 4  Execution Policy Engine & Run Contract (COMPLETE)
-Phase 5  Harness Capability Registry (CURRENT)
-Phase 6  Evidence Engine & Evals (PLANNED)
+Phase 5  Harness Capability Registry (COMPLETE)
+Phase 6  Evidence Engine & Behavioral Evals (CURRENT)
 ```
 
-> Phases 0 through 5 are implemented in the repository today. Phase 6 is documented strictly as a planned architecture target.
+> Phases 0 through 5 are complete and Phase 6 is currently implemented under audit in the repository today.
 
 ---
 
@@ -570,4 +570,235 @@ Evaluates required capabilities against a `HarnessProfile` (`CAPABILITY_RESOLUTI
 - `rapid harness init <harness-id> [--json]`: Materializes a built-in harness profile to `.rapid-os/harnesses/<harness-id>.json` without overwriting existing files (`RAPID1102` if file exists; `RAPID1103` for custom IDs without a built-in profile).
 - `rapid harness lock [--json]`: Writes deterministic `.rapid-os/capabilities.lock` across all active profiles.
 - `rapid harness resolve --run <run-id> [--locked] [--require <capability-id>] [--require-compatible] [--json]`: Resolves an immutable run's `ExecutionContract` (`contract.harness`) against the active (or `--locked`) harness profile in read-only mode. Default mode is informational (`exit 0` on `compatible`, `incompatible`, or `unresolved`); `--require-compatible` enforces gate mode (`exit 0` only on `compatible`, `RAPID1110` and `exit 1` on `incompatible` or `unresolved`).
+
+---
+
+## Phase 6: Evidence Engine & Behavioral Evals
+
+### Architectural Principle & Four-Layer Separation
+
+Phase 6 answers:
+
+> *"What observable evidence exists for what actually happened, and what deterministic conclusions can Rapid derive from that evidence?"*
+
+Rapid OS v3 strictly separates four distinct layers that must never be conflated:
+
+```text
+Phase 4 RunState
+    DECLARES lifecycle and gate disposition
+
+Phase 5 CapabilityResolution
+    EVALUATES declared harness capability compatibility
+
+Phase 6 RunEvidence
+    RECORDS immutable observations and artifact digests
+
+Phase 6 EvaluationReport
+    DERIVES deterministic behavioral conclusions
+```
+
+- **Declaration is not Verification**: `GateDisposition.ACKNOWLEDGED` in Phase 4 means someone declared that the gate was addressed; without qualifying `RunEvidence`, Phase 6 evaluates the gate assertion as `UNVERIFIED` (never `PASS`).
+- **Immutability of Phase 4 and Phase 5**: Phase 6 never mutates `.rapid-os/runs/<run-id>/` (`run.json`, `contract.json`, `context.md`, `context-manifest.json`, `states/*.json`), never auto-acknowledges gates, never auto-completes runs, and never mutates `.rapid-os/harnesses/` or `.rapid-os/capabilities.lock`.
+- **Offline & Runtime-Agnostic**: Phase 6 contains zero `subprocess`, `os.system`, `Popen`, `shell=True`, or LLM-as-a-judge calls.
+- **Evidence Authenticity Boundary**: The Evidence Registry verifies local integrity (`content_digest`, copied artifact SHA-256 digests, byte sizes, sequence continuity, and Run/Contract/`RunState` binding), not cryptographic external attestation.
+
+### Pipeline & Filesystem Layout
+
+```text
+ExecutionContract + RunState + RunEvidence[] + BehavioralRuleset (v1)
+    ↓
+EvidenceRegistry (.rapid-os/evidence/<run-id>/)
+    ├── records/
+    │   ├── E001.json (schema_version = 1, immutable RunEvidence + content_digest)
+    │   ├── E002.json
+    │   └── ...
+    └── artifacts/
+        ├── E001/
+        │   └── unittest-output.txt (copied immutable artifact verified by SHA-256 + byte size)
+        └── E002/
+            └── ...
+    ↓
+BehavioralEvaluator (rapid_os.domain.evals)
+    ↓
+EvalRegistry (.rapid-os/evals/<run-id>/)
+    └── reports/
+        ├── 0001.json (schema_version = 1, immutable EvaluationReport + report_digest)
+        ├── 0002.json
+        └── ...
+```
+
+### Canonical Domain Entities (`rapid_os.domain.evidence` & `rapid_os.domain.evals`)
+
+#### `RunEvidence` (`RUN_EVIDENCE_SCHEMA_VERSION = 1`) & `EvidenceArtifact`
+- Deterministic append-only evidence IDs (`E001`..`E999`, `E1000`, ...; `EVIDENCE_ID_RE = ^E\d{3,}$`).
+- Bound to exact `run_id`, `contract_digest`, historical `state_revision`, and `state_digest`.
+- If `producer` starts with `harness:<id>`, `<id>` must equal `ExecutionContract.harness` (`RAPID1203`).
+- Validates `task_ids` against `contract.tasks`, `gate_ids` against `contract.gates`, and `capability_ids` against `CANONICAL_CAPABILITY_IDS` (`RAPID1207`).
+- Supporting artifacts are copied into `.rapid-os/evidence/<run-id>/artifacts/<evidence-id>/<filename>` before committing `records/<evidence-id>.json`, isolating evidence from external file modifications or deletions (`RAPID1205`).
+- `compute_evidence_set_digest(run_id, records)` computes the canonical SHA-256 digest over `(id, content_digest)` sorted by ordinal.
+
+#### `EvidenceKind` & Structured Payload Schemas
+Nine canonical evidence kinds with strict per-kind payload validation (`RAPID1206`) and secret-value rejection:
+1. `command_result`: `command` (list of strings), `exit_code` (int), optional `cwd` (relative POSIX path).
+2. `test_result`: `suite` (str), `exit_code` (int), `passed` (int >= 0), `failed` (int >= 0), `skipped` (int >= 0).
+3. `file_change`: `paths` (non-empty list of relative POSIX paths), optional `operation` (`added | modified | deleted | mixed`).
+4. `git_result`: `operation` (`inspect | modify`), `summary` (str), optional `commit`, `branch`, `clean`.
+5. `workspace`: `mode` (`current | isolated`), optional `isolated_ref`.
+6. `review`: `review_type` (`peer | security | migration | manual | final`), `outcome` (`approved | changes_requested | rejected`), `reviewer` (str).
+7. `tool_invocation`: `tool_id` (str), `outcome` (`success | failure`).
+8. `delegation`: `delegate_id` (str), `outcome` (`success | failure`).
+9. `artifact`: `label` (str) — requires at least one copied `EvidenceArtifact`.
+
+#### `BehavioralRuleset` (`BEHAVIORAL_RULESET_VERSION = 1`), `EvalAssertion`, & `EvaluationReport` (`EVALUATION_REPORT_SCHEMA_VERSION = 1`)
+- `DEFAULT_BEHAVIORAL_RULESET` defines 18 versioned, deterministic rules with `compute_ruleset_digest()`.
+- `BehavioralEvaluator.evaluate()` evaluates four categories of `EvalAssertion`:
+  1. **Run Lifecycle (`run.lifecycle`)**: `FINISHED → PASS`, `FAILED | CANCELLED → FAIL`, `PREPARED | ACTIVE | BLOCKED → UNVERIFIED`.
+  2. **Task Evidence (`task.<task-id>.evidence`)**: `DONE` with non-failing execution evidence (`COMMAND_RESULT`, `TEST_RESULT`, `FILE_CHANGE`, `GIT_RESULT`, `TOOL_INVOCATION`, `DELEGATION`, `ARTIFACT`) → `PASS`; `DONE` with failing evidence → `FAIL`; `DONE` without evidence → `UNVERIFIED`; `SKIPPED` → `NOT_APPLICABLE` (`required=False`).
+  3. **Gate Evidence (`gate.<gate-id>.evidence`)**:
+     - `PENDING` → `UNVERIFIED` (even if evidence exists).
+     - `WAIVED` → `WAIVED`.
+     - `ACKNOWLEDGED` without qualifying evidence → `UNVERIFIED`.
+     - `IMPLEMENTATION_TESTS` (`gate.tests`): requires artifact-backed `TEST_RESULT` with `exit_code == 0` and `failed == 0` (`FAIL` if `exit_code != 0` or `failed > 0`).
+     - `BASELINE_CHECK` (`gate.baseline`): requires artifact-backed `COMMAND_RESULT` or `TEST_RESULT` with `exit_code == 0` (and `failed == 0`).
+     - `WORKSPACE_ISOLATION` (`gate.workspace-isolation`): requires `WORKSPACE` with `mode == "isolated"`.
+     - Review gates (`PEER_REVIEW → peer`, `SECURITY_REVIEW → security`, `MIGRATION_REVIEW → migration`, `MANUAL_APPROVAL → manual`, `FINAL_VERIFICATION → final`): require `REVIEW` with matching `review_type` and `outcome == "approved"` (`FAIL` on `changes_requested` or `rejected`).
+     - **Conservative multi-evidence policy**: any `FAIL` → `FAIL`; else any `PASS` → `PASS`; else `UNVERIFIED`.
+  4. **Capability Observation (`capability.<capability-id>.observed`)**:
+     - Reuses Phase 5 `CapabilityRequirementResolver` (plus optional additive `--require <capability-id>`).
+     - Non-observable capabilities in v1 (`context.consume`, `repository.read`) emit `NOT_APPLICABLE` (`required=False`) with reason `"not objectively observable by Evidence Engine v1"`.
+     - Observable capabilities (`repository.write`, `workspace.current`, `workspace.isolated`, `tests.execute`, `shell.execute`, `git.inspect`, `git.modify`, `mcp.invoke`, `subagents.delegate`) are evaluated against matching evidence records.
+- **Verdict Precedence (`EvaluationVerdict`)**:
+  1. `run.lifecycle == FAIL` or any required assertion `== FAIL` → `FAIL`
+  2. Else any required assertion `== UNVERIFIED` → `UNVERIFIED`
+  3. Else any required assertion `== WAIVED` → `PASS_WITH_WAIVERS`
+  4. Else → `PASS`
+
+> **`EvaluationVerdict.PASS` Product Truth**: `EvaluationVerdict.PASS` means the configured Phase 6 evidence rules are satisfied by the exact recorded evidence set. It does not mathematically prove that the software has no bugs, that security is perfect, or that production deployment is safe.
+
+### Evidence & Behavioral Eval Validation (`RAPID1200–RAPID1239` in `rapid_os.domain.validation`)
+
+`validate_evidence_registry(rapid_dir, root)` and `validate_eval_registry(rapid_dir, root)` are integrated into `rapid validate` and `rapid doctor`:
+- `RAPID1200` (`INFO`): Evidence Registry valid.
+- `RAPID1201` (`ERROR`): Invalid evidence ID (`InvalidEvidenceIdError`).
+- `RAPID1202` (`ERROR`): Invalid `RunEvidence` schema or `content_digest` (`InvalidRunEvidenceError`).
+- `RAPID1203` (`ERROR`): Evidence Run / Contract / `RunState` / harness producer binding mismatch (`EvidenceBindingMismatchError`).
+- `RAPID1204` (`ERROR`): Unsafe evidence path or symlink (`UnsafeEvidencePathError`).
+- `RAPID1205` (`ERROR`): Evidence artifact missing, digest mismatch, or size mismatch (`EvidenceArtifactIntegrityError`).
+- `RAPID1206` (`ERROR`): Invalid `EvidenceKind` or payload (`InvalidEvidencePayloadError`).
+- `RAPID1207` (`ERROR`): Invalid task, gate, or capability reference (`InvalidEvidenceReferenceError`).
+- `RAPID1208` (`ERROR`): Evidence sequence gap or duplicate identity (`EvidenceSequenceGapError`).
+- `RAPID1209` (`WARNING`): Orphan evidence artifact directory (`artifacts/E00N` without `records/E00N.json`; never auto-deleted).
+- `RAPID1210` (`ERROR`): Evidence not found (`EvidenceNotFoundError`).
+- `RAPID1211` (`ERROR`): Append-only evidence overwrite violation (`EvidenceOverwriteError`).
+- `RAPID1212–RAPID1219`: Reserved for Evidence diagnostics.
+- `RAPID1220` (`INFO`): Eval Registry valid.
+- `RAPID1221` (`ERROR`): Invalid `EvaluationReport` schema (`InvalidEvaluationReportError`).
+- `RAPID1222` (`ERROR`): `EvaluationReport` digest mismatch (`EvaluationReportDigestMismatchError`).
+- `RAPID1223` (`ERROR`): Evaluation Run / state / evidence binding mismatch (`EvaluationBindingMismatchError`).
+- `RAPID1224` (`ERROR`): Unsafe eval path or symlink (`UnsafeEvaluationPathError`).
+- `RAPID1225` (`ERROR`): Evaluation `UNVERIFIED` when `--require-pass` (`EvaluationUnverifiedError`).
+- `RAPID1226` (`ERROR`): Evaluation `FAIL` when `--require-pass` (`EvaluationFailedError`).
+- `RAPID1227` (`WARNING`): Stored `EvaluationReport` is stale relative to current `RunState`, `evidence_set_digest`, or `ruleset_digest`.
+- `RAPID1228` (`ERROR`): `EvaluationReport` not found (`EvaluationReportNotFoundError`).
+- `RAPID1229` (`ERROR`): Append-only evaluation report overwrite violation (`EvaluationOverwriteError`).
+- `RAPID1230–RAPID1239`: Reserved for Eval diagnostics.
+
+---
+
+## Core v3 Governance Loop & Architectural Invariant
+
+### Full v3 Architecture Flow
+
+```text
+Repository
+    ↓
+Project Intelligence
+    ↓
+ProjectModel
+
+Scope / Spec Authoring
+    ↓
+Spec Registry
+    ↓
+SpecRevision
+
+ProjectModel + Standards + SpecRevision
+    ↓
+Context Compiler
+    ↓
+CompiledContext
+
+Spec + Context + Policy
+    ↓
+Execution Policy
+    ↓
+ExecutionContract
+    ↓
+Run Ledger
+
+ExecutionContract
+    ↓
+Harness Capability Registry
+    ↓
+CapabilityResolution
+
+Actual external execution
+    ↓
+RunEvidence
+    ↓
+Evidence Registry
+    ↓
+BehavioralEvaluator
+    ↓
+EvaluationReport
+```
+
+### Core v3 Governance Loop
+
+```text
+WHAT EXISTS?
+    Project Intelligence
+
+WHAT SHOULD BE BUILT?
+    Spec Registry
+
+WHAT DOES THE AGENT NEED TO KNOW?
+    Context Compiler
+
+UNDER WHAT RULES MAY IT WORK?
+    Execution Policy
+
+WHAT EXACT ATTEMPT ARE WE GOVERNING?
+    Run Contract
+
+CAN THE HARNESS DECLARE THE REQUIRED CAPABILITIES?
+    Harness Capability Registry
+
+WHAT ACTUALLY HAPPENED?
+    Evidence Engine
+
+WHAT CAN WE CONCLUDE FROM THAT EVIDENCE?
+    Behavioral Evals
+```
+
+### Architectural Invariant
+
+```text
+Governed AI Development
+=
+Project Intelligence
++
+Context
++
+Spec
++
+Policy
++
+Capability
++
+Evidence
++
+Evaluation
+```
+
 

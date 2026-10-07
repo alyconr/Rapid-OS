@@ -1,6 +1,6 @@
 # Rapid OS CLI Reference
 
-Rapid OS provides a deterministic, standard-library-only command-line interface (`rapid` or `python rapid.py`) for project intelligence, task-aware context compilation, spec authoring, execution policy & runs, and harness capability resolution.
+Rapid OS provides a deterministic, standard-library-only command-line interface (`rapid` or `python rapid.py`) for project intelligence, task-aware context compilation, spec authoring, execution policy & runs, harness capability resolution, immutable run evidence ingestion, and deterministic behavioral evaluations.
 
 ## Global Options
 
@@ -40,7 +40,7 @@ rapid scan --json --write
 ```
 
 ### `rapid validate` & `rapid doctor`
-Validate `.rapid-os/` configuration, standards, project intelligence snapshot (`RAPID6xx`), spec registry (`RAPID8xx`), execution policy & run registry (`RAPID1000–RAPID1019`), and harness capability registry & lock (`RAPID1100–RAPID1119`).
+Validate `.rapid-os/` configuration, standards, project intelligence snapshot (`RAPID6xx`), spec registry (`RAPID8xx`), execution policy & run registry (`RAPID1000–RAPID1019`), harness capability registry & lock (`RAPID1100–RAPID1119`), evidence registry (`RAPID1200–RAPID1219`), and behavioral evaluation registry (`RAPID1220–RAPID1239`).
 
 ```bash
 rapid validate
@@ -196,4 +196,116 @@ Options:
 - `RAPID1111` (`ERROR`): Invalid or missing `capabilities.lock` (`InvalidCapabilityLockError`)
 - `RAPID1112` (`WARNING`): `capabilities.lock` stale relative to active profiles
 - `RAPID1113–RAPID1119`: Reserved
+
+---
+
+## Evidence Engine (`rapid evidence`)
+
+Ingest, inspect, and verify append-only, immutable execution evidence (`RunEvidence`, `schema_version = 1`) and copied SHA-256-verified artifacts under `.rapid-os/evidence/<run-id>/`.
+
+> **Product Truth**: Evidence authenticity is local integrity verification (`content_digest`, artifact SHA-256, size in bytes, and Run/Contract/RunState binding), not cryptographic external attestation. Adding evidence never mutates `.rapid-os/runs/<run-id>/`.
+
+### `rapid evidence list --run <run-id>`
+List recorded evidence items (`E001`, `E002`, ...) for a run in deterministic sequence order, along with `evidence_set_digest`. Read-only.
+
+```bash
+rapid evidence list --run checkout-r1-run-001
+rapid evidence list --run checkout-r1-run-001 --json
+```
+
+### `rapid evidence show --run <run-id> <evidence-id>`
+Show an individual `RunEvidence` record (`E001`), its task/gate/capability bindings, structured payload, and copied artifact digests. Read-only.
+
+```bash
+rapid evidence show --run checkout-r1-run-001 E001
+rapid evidence show --run checkout-r1-run-001 E001 --json
+```
+
+### `rapid evidence add --run <run-id> --input <file>`
+Ingest a new `RunEvidence` record from a JSON file, copy any referenced artifacts into `.rapid-os/evidence/<run-id>/artifacts/E00N/` with SHA-256 and byte-size verification, and commit `.rapid-os/evidence/<run-id>/records/E00N.json` last. Append-only (no `update` or `delete`).
+
+```bash
+rapid evidence add --run checkout-r1-run-001 --input evidence.json
+rapid evidence add --run checkout-r1-run-001 --input evidence.json --json
+```
+
+### `rapid evidence verify --run <run-id>`
+Verify all `RunEvidence` records, sequence continuity (`E001..E00N`), Run/Contract/historical `RunState` bindings, and copied artifact SHA-256 digests and sizes. Read-only.
+
+```bash
+rapid evidence verify --run checkout-r1-run-001
+rapid evidence verify --run checkout-r1-run-001 --json
+```
+
+### Evidence Diagnostics (`RAPID1200–RAPID1219`)
+- `RAPID1200` (`INFO`): Evidence Registry valid
+- `RAPID1201` (`ERROR`): Invalid evidence ID (`InvalidEvidenceIdError`)
+- `RAPID1202` (`ERROR`): Invalid `RunEvidence` schema or `content_digest` (`InvalidRunEvidenceError`)
+- `RAPID1203` (`ERROR`): Evidence Run / Contract / `RunState` / harness producer binding mismatch (`EvidenceBindingMismatchError`)
+- `RAPID1204` (`ERROR`): Unsafe evidence path or symlink (`UnsafeEvidencePathError`)
+- `RAPID1205` (`ERROR`): Evidence artifact missing, digest mismatch, or size mismatch (`EvidenceArtifactIntegrityError`)
+- `RAPID1206` (`ERROR`): Invalid `EvidenceKind` or payload (`InvalidEvidencePayloadError`)
+- `RAPID1207` (`ERROR`): Invalid task, gate, or capability reference (`InvalidEvidenceReferenceError`)
+- `RAPID1208` (`ERROR`): Evidence sequence gap or duplicate identity (`EvidenceSequenceGapError`)
+- `RAPID1209` (`WARNING`): Orphan evidence artifact directory (`artifacts/E00N` without `records/E00N.json`)
+- `RAPID1210` (`ERROR`): Evidence not found (`EvidenceNotFoundError`)
+- `RAPID1211` (`ERROR`): Append-only evidence overwrite violation (`EvidenceOverwriteError`)
+- `RAPID1212–RAPID1219`: Reserved
+
+---
+
+## Behavioral Evals (`rapid eval`)
+
+Run deterministic, offline behavioral evaluations (`BehavioralEvaluator` → `EvaluationReport`, `schema_version = 1`) over an `ExecutionContract`, `RunState`, `RunEvidence[]`, and `BehavioralRuleset` (`version = 1`), and inspect append-only evaluation reports under `.rapid-os/evals/<run-id>/reports/`.
+
+> **Product Truth**: `GateDisposition.ACKNOWLEDGED` is a declaration, not proof (`UNVERIFIED` without qualifying evidence). `EvaluationVerdict.PASS` means the configured Phase 6 evidence rules are satisfied by the exact recorded evidence set; it does not mathematically prove the software has zero bugs or that requirements are complete.
+
+### `rapid eval run --run <run-id>`
+Evaluate a run's lifecycle, tasks, required gates, and required capabilities against its verified evidence set. Read-only unless `--write` is passed. Never modifies `.rapid-os/runs/<run-id>/` or `.rapid-os/harnesses/`.
+
+```bash
+rapid eval run --run checkout-r1-run-001
+rapid eval run --run checkout-r1-run-001 --json
+rapid eval run --run checkout-r1-run-001 --require mcp.invoke
+rapid eval run --run checkout-r1-run-001 --write
+rapid eval run --run checkout-r1-run-001 --require-pass
+rapid eval run --run checkout-r1-run-001 --write --require-pass --json
+```
+
+Options:
+- `--run <run-id>`: Required run identifier to evaluate.
+- `--require <capability-id>`: Repeatable extra canonical capability requirement (`source="cli.require"`, additive only).
+- `--write`: Persist the resulting `EvaluationReport` as the next append-only `.rapid-os/evals/<run-id>/reports/000N.json` file.
+- `--require-pass`: Gate mode — exits `0` when `verdict` is `pass` or `pass_with_waivers`; exits `1` with `RAPID1225` (`EvaluationUnverifiedError`) when `verdict == "unverified"`, and exits `1` with `RAPID1226` (`EvaluationFailedError`) when `verdict == "fail"`. Without `--require-pass`, valid evaluations exit `0` regardless of verdict (`pass`, `pass_with_waivers`, `unverified`, `fail`).
+- `--json`: Emit pure `EvaluationReport` JSON (`schema_version = 1`) on `stdout`.
+
+### `rapid eval list --run <run-id>`
+List persisted `EvaluationReport` snapshots (`0001.json`, `0002.json`, ...) for a run in deterministic sequence order. Read-only.
+
+```bash
+rapid eval list --run checkout-r1-run-001
+rapid eval list --run checkout-r1-run-001 --json
+```
+
+### `rapid eval show --run <run-id> [--revision <n>]`
+Show the latest (or pinned `--revision <n>`) persisted `EvaluationReport` for a run. Read-only.
+
+```bash
+rapid eval show --run checkout-r1-run-001
+rapid eval show --run checkout-r1-run-001 --revision 1 --json
+```
+
+### Behavioral Eval Diagnostics (`RAPID1220–RAPID1239`)
+- `RAPID1220` (`INFO`): Eval Registry valid
+- `RAPID1221` (`ERROR`): Invalid `EvaluationReport` schema (`InvalidEvaluationReportError`)
+- `RAPID1222` (`ERROR`): `EvaluationReport` digest mismatch (`EvaluationReportDigestMismatchError`)
+- `RAPID1223` (`ERROR`): Evaluation Run / state / evidence binding mismatch (`EvaluationBindingMismatchError`)
+- `RAPID1224` (`ERROR`): Unsafe eval path or symlink (`UnsafeEvaluationPathError`)
+- `RAPID1225` (`ERROR`): Evaluation `UNVERIFIED` when `--require-pass` (`EvaluationUnverifiedError`)
+- `RAPID1226` (`ERROR`): Evaluation `FAIL` when `--require-pass` (`EvaluationFailedError`)
+- `RAPID1227` (`WARNING`): Stored `EvaluationReport` is stale relative to current `RunState`, `evidence_set_digest`, or `ruleset_digest`
+- `RAPID1228` (`ERROR`): `EvaluationReport` not found (`EvaluationReportNotFoundError`)
+- `RAPID1229` (`ERROR`): Append-only evaluation report overwrite violation (`EvaluationOverwriteError`)
+- `RAPID1230–RAPID1239`: Reserved
+
 

@@ -61,4 +61,6 @@ jobs:
           python rapid.py harness show codex
           python rapid.py harness show codex --json > /tmp/harness.json
           python -m json.tool /tmp/harness.json > /dev/null
+          python rapid.py evidence --help
+          python rapid.py eval --help
 

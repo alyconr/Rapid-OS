@@ -35,6 +35,8 @@ class CliSmokeTests(unittest.TestCase):
                 "policy",
                 "run",
                 "harness",
+                "evidence",
+                "eval",
                 "deploy",
                 "vision",
                 "mcp",
@@ -132,7 +134,7 @@ class CliSmokeTests(unittest.TestCase):
         env = os.environ.copy()
         env["PYTHONDONTWRITEBYTECODE"] = "1"
 
-        for command in ("validate", "doctor", "inspect-context"):
+        for command in ("validate", "doctor", "inspect-context", "evidence", "eval"):
             result = subprocess.run(
                 [sys.executable, "rapid.py", command, "--help"],
                 cwd=repo_root,
