@@ -71,7 +71,8 @@ Future work is tracked as post-v2 enhancement work. The v2 baseline keeps the ex
 | Project Intelligence (v3 Phase 1) | Complete | Deterministic `ProjectModel`, `ProjectFact`, `Evidence` provenance, `rapid scan` (`--json`, `--write`, `--verbose`), and optional `.rapid-os/project.json` snapshot. |
 | Context Compiler (v3 Phase 2) | Complete | Task-aware `ContextCompiler`, `ContextResolver`, `ContextManifest`, budget enforcement, conflict detection, `RAPID7xx` diagnostics, and read-only `rapid context` (`--mode`, `--harness`, `--objective`, `--spec`, `--spec-revision`, `--max-chars`, `--manifest`, `--json`). |
 | Spec Registry (v3 Phase 3) | Complete | Canonical `SpecRecord` & `SpecRevision`, immutable revisions under `.rapid-os/specs/<id>/`, `rapid spec` (`create`, `list`, `show`, `revise`, `status`, `export-legacy`), `RAPID8xx` validation, and `rapid context --spec` integration. |
-| Execution Policy Engine & Run Contract (v3 Phase 4) | Current | Deterministic `ExecutionPolicy`, `PolicyDecision`, `ExecutionContract`, immutable `RunRecord` & `RunState` ledger under `.rapid-os/runs/<run-id>/`, `rapid policy` (`show`, `init`), `rapid run` (`create`, `list`, `show`, `status`, `task`, `gate`), and `RAPID1000–RAPID1014` validation. |
+| Execution Policy Engine & Run Contract (v3 Phase 4) | Complete | Deterministic `ExecutionPolicy`, `PolicyDecision`, `ExecutionContract`, immutable `RunRecord` & `RunState` ledger under `.rapid-os/runs/<run-id>/`, `rapid policy` (`show`, `init`), `rapid run` (`create`, `list`, `show`, `status`, `task`, `gate`), and `RAPID1000–RAPID1014` validation. |
+| Harness Capability Registry (v3 Phase 5) | Current | Canonical capability catalog, conservative builtin & project `HarnessProfile` overrides (`.rapid-os/harnesses/<id>.json`), deterministic `CapabilityRequirementResolver` & `CapabilityResolver`, `.rapid-os/capabilities.lock`, `rapid harness` (`list`, `show`, `init`, `lock`, `resolve`), and `RAPID1100–RAPID1112` validation. |
 | MCP abstraction | Complete | Structured MCP model with editor-specific rendering and package metadata. |
 | Testing and CI hardening | Complete | GitHub Actions plus `python -m unittest discover` and CLI smoke checks. |
 
@@ -439,13 +440,14 @@ Tabla completa de comandos disponibles en Rapid OS y sus resultados.
 | `rapid spec`                 | **Spec Registry (v3)**. Gestiona especificaciones con identidad estable, revisiones inmutables y estado (`draft`, `ready`, `archived`). | Subcomandos: `create`, `list`, `show`, `revise`, `status` y `export-legacy`. Persiste bajo `.rapid-os/specs/<spec-id>/`. |
 | `rapid policy`               | **Execution Policy (v3)**. Inspecciona la política de ejecución efectiva o inicializa `.rapid-os/policy.json`. | Subcomandos: `show [--json]` (read-only) e `init [--json]`. |
 | `rapid run`                  | **Run Registry & Execution Contracts (v3)**. Crea y gobierna contratos de ejecución inmutables e historial de estados de ejecución declarada. | Subcomandos: `create`, `list`, `show`, `status`, `task` y `gate`. Persiste bajo `.rapid-os/runs/<run-id>/`. |
+| `rapid harness`              | **Harness Capability Registry (v3)**. Inspecciona perfiles de capacidades de harnesses, inicializa overrides de proyecto, genera `.rapid-os/capabilities.lock` y resuelve compatibilidad declarada contra un `ExecutionContract`. | Subcomandos: `list`, `show`, `init`, `lock` y `resolve` (`--run`, `--locked`, `--require`, `--require-compatible`, `--json`). |
 | `rapid scope`                | **Asistente de Alcance (Legacy Compatible)**. Te entrevista para definir una feature, refactor, bugfix o hardening. | Genera `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` con backups. Con `--register` también registra la spec en `.rapid-os/specs/`. |
 | `rapid refine <file>`        | **Refinamiento de Reglas**. Mejora cualquier documento de reglas usando IA.                     | Genera un Mega-Prompt para que pegues en tu chat y la IA reescriba el archivo profesionalmente.   |
 | `rapid skill [action] [name]` | **Instala o lista Skills** desde menú interactivo, registro comunitario o template privado.     | Sin argumentos abre menú; con `add`/`install` conserva el flujo directo existente.                 |
 | `rapid mcp [--ide ... --scope ...]` | **Configura MCP Servers**. Modela filesystem, BD y research tools.                    | Escribe el archivo MCP propio de cada editor con backup previo; si faltan flags entra en modo interactivo. |
 | `rapid vision [image_path]`  | **Contexto de Referencia Visual**. Copia una imagen de referencia y documenta su descripción.   | Copia la imagen a `references/`, registra la descripción en `references/VISION_CONTEXT.md` y actualiza el contexto de agentes. |
 | `rapid deploy <target>`      | **Guía de Despliegue**. Genera instrucciones de despliegue basadas en templates locales.        | Crea `DEPLOY.md` desde `templates/deploy/<target>.md` (template incluido: `aws`, o guía genérica fallback `Deploy to <target>`) con backup previo. |
-| `rapid validate`             | **Validación de Proyecto**. Revisa templates, estándares, config, snapshots, specs, policy, runs, herramientas y contexto. | No escribe archivos. Sale con `0` si no hay errores y `1` si encuentra errores de validación.     |
+| `rapid validate`             | **Validación de Proyecto**. Revisa templates, estándares, config, snapshots, specs, policy, runs, harnesses, capabilities.lock, herramientas y contexto. | No escribe archivos. Sale con `0` si no hay errores y `1` si encuentra errores de validación.     |
 | `rapid doctor`               | **Diagnóstico Local**. Revisa rutas resueltas, templates, Node/npx opcional y proyecto actual.  | No escribe archivos. Usa advertencias para capacidades opcionales como Node/npx.                  |
 | `rapid inspect-context`      | **Inspección de Contexto**. Ensambla y previsualiza el contexto final antes de generar archivos. | No escribe archivos. Muestra secciones incluidas, herramientas seleccionadas y preview final.     |
 
@@ -547,6 +549,69 @@ rapid run gate booking-idempotency-r1-run-001 gate.final-verification acknowledg
 rapid run status booking-idempotency-r1-run-001 finished
 ```
 
+### Harness Capability Registry (`rapid harness`)
+
+La **Fase 5** de Rapid OS v3 introduce un registro determinista y declarativo de capacidades de harnesses (`HarnessProfile`) y un resolvedor de compatibilidad (`CapabilityResolver`) frente a los requisitos derivados de cada `ExecutionContract`:
+
+```bash
+# Listar perfiles activos (built-in + overrides/perfiles de proyecto en .rapid-os/harnesses/)
+rapid harness list
+rapid harness list --json
+
+# Inspeccionar un perfil activo (read-only)
+rapid harness show codex
+rapid harness show codex --json
+
+# Inicializar un override de proyecto editable (.rapid-os/harnesses/codex.json) desde el built-in
+rapid harness init codex
+rapid harness init codex --json
+
+# Generar snapshot determinista de todos los perfiles activos en .rapid-os/capabilities.lock
+rapid harness lock
+rapid harness lock --json
+
+# Resolver compatibilidad declarada contra el ExecutionContract de un Run (read-only; evalúa contract.harness y nunca muta el Run)
+rapid harness resolve --run booking-idempotency-r1-run-001
+rapid harness resolve --run booking-idempotency-r1-run-001 --json
+rapid harness resolve --run booking-idempotency-r1-run-001 --require mcp.invoke --require shell.execute
+rapid harness resolve --run booking-idempotency-r1-run-001 --locked --require-compatible
+```
+
+- **Fuente de verdad del harness**: `rapid harness resolve` evalúa exclusivamente `ExecutionContract.harness` (`profile.id == contract.harness`). El harness se selecciona al crear el Run (`rapid run create --harness <id>`); `validate_harness_id()` valida el ID canónico (`RAPID1104` `HarnessIdentityError`).
+- **Derivación determinista de requisitos (`CapabilityRequirementResolver`)**:
+  - **Siempre**: `context.consume` (`source="contract.context"`), `repository.read` (`source="contract.repository"`).
+  - **Si `contract.tasks` no está vacío**: `repository.write` (`source="contract.tasks"`).
+  - **Workspace (`contract.workspace`)**: `current_allowed` → `workspace.current` (`source="contract.workspace"`), `isolated_required` → `workspace.isolated` (`source="contract.workspace"`).
+  - **Required `gate.tests`**: `tests.execute` (`source="contract.gate.tests"`).
+  - **Gates humanos/de gobernanza**: No derivan capacidades técnicas del harness.
+  - **`--require <capability-id>` explícitos**: Estrictamente aditivos (`source="cli.require"`); nunca eliminan, degradan ni reemplazan requisitos derivados del contrato.
+- **Códigos de diagnóstico (`RAPID1100–RAPID1119`)**:
+  - `RAPID1100` (`INFO`): Harness capability registry / lock valid.
+  - `RAPID1101` (`ERROR`): Invalid or unknown `capability_id` (`InvalidCapabilityIdError`).
+  - `RAPID1102` (`ERROR`): Invalid `HarnessProfile` schema/content/digest (`InvalidHarnessProfileError`).
+  - `RAPID1103` (`ERROR`): `HarnessProfile` not found (`HarnessProfileNotFoundError`).
+  - `RAPID1104` (`ERROR`): Invalid harness identity / filename-ID mismatch (`HarnessIdentityError`).
+  - `RAPID1105` (`ERROR`): Unsafe profile/registry/lock path or symlink (`UnsafeHarnessPathError`).
+  - `RAPID1106` (`ERROR`): Invalid capability support declaration (`InvalidCapabilitySupportError`).
+  - `RAPID1107` (`ERROR`): Invalid `CapabilityRequirement` (`InvalidCapabilityRequirementError`).
+  - `RAPID1108` (`ERROR`): Invalid `CapabilityResolution` (`InvalidCapabilityResolutionError`).
+  - `RAPID1109` (`ERROR`): `CapabilityResolution` digest mismatch (`CapabilityResolutionDigestMismatchError`).
+  - `RAPID1110` (`ERROR`): Strict compatibility requirement not satisfied (`IncompatibleHarnessError`; aplica tanto a `incompatible` como a `unresolved` bajo `--require-compatible`).
+  - `RAPID1111` (`ERROR`): Invalid or missing `capabilities.lock` (`InvalidCapabilityLockError`).
+  - `RAPID1112` (`WARNING`): `capabilities.lock` stale relative to active profiles.
+  - `RAPID1113–RAPID1119`: Reservados.
+
+```text
+HarnessProfile
+    DECLARES capabilities
+
+CapabilityResolution
+    DETERMINES declared compatibility
+
+Neither proves runtime behavior.
+```
+
+
 ### Validación y Diagnósticos
 
 Antes de regenerar contexto o usar Rapid OS en CI, puedes validar el estado del proyecto:
@@ -557,7 +622,7 @@ rapid validate --json
 rapid validate --strict
 ```
 
-`rapid validate` falla con código `1` cuando hay errores, como `tech-stack.md` o `topology.md` faltantes, JSON inválido en `.rapid-os/config.json`, `.rapid-os/project.json`, `.rapid-os/specs/` (`RAPID801–RAPID809`), `.rapid-os/policy.json` o `.rapid-os/runs/` (`RAPID1001–RAPID1014`), templates MCP, herramientas desconocidas en `.rapid-os/config.json`, combinaciones stack/topología incompatibles o contexto ensamblado vacío. Con `--strict`, las advertencias también devuelven `1`.
+`rapid validate` falla con código `1` cuando hay errores, como `tech-stack.md` o `topology.md` faltantes, JSON inválido en `.rapid-os/config.json`, `.rapid-os/project.json`, `.rapid-os/specs/` (`RAPID801–RAPID809`), `.rapid-os/policy.json` o `.rapid-os/runs/` (`RAPID1001–RAPID1014`), `.rapid-os/harnesses/` o `.rapid-os/capabilities.lock` (`RAPID1101–RAPID1112`), templates MCP, herramientas desconocidas en `.rapid-os/config.json`, combinaciones stack/topología incompatibles o contexto ensamblado vacío. Con `--strict`, las advertencias también devuelven `1`.
 
 Para revisar la instalación local sin modificar nada:
 
@@ -566,7 +631,7 @@ rapid doctor
 rapid doctor --json
 ```
 
-`rapid doctor` reporta rutas resueltas, directorio de templates activo, estado del proyecto actual (incluyendo `.rapid-os/project.json`, `.rapid-os/specs/`, `.rapid-os/policy.json` y `.rapid-os/runs/` si existen) y disponibilidad opcional de Node/npx.
+`rapid doctor` reporta rutas resueltas, directorio de templates activo, estado del proyecto actual (incluyendo `.rapid-os/project.json`, `.rapid-os/specs/`, `.rapid-os/policy.json`, `.rapid-os/runs/`, `.rapid-os/harnesses/` y `.rapid-os/capabilities.lock` si existen) y disponibilidad opcional de Node/npx.
 
 Para ver el contexto final antes de escribir archivos de agente:
 
@@ -588,6 +653,7 @@ Rapid OS DOES:
 - produce immutable execution contracts
 - persist run state
 - enforce declared lifecycle/policy rules
+- model harness capability profiles and resolve declared contract compatibility
 
 Rapid OS DOES NOT YET:
 - launch coding agents

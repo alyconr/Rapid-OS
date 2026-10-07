@@ -24,10 +24,24 @@ from rapid_os.domain.context import (
     ContextRequiredSourceMissingError,
     ContextSource,
 )
+from rapid_os.adapters.capability_lock import (
+    build_capability_lock,
+    load_capability_lock,
+)
 from rapid_os.adapters.execution_policy import load_execution_policy
+from rapid_os.adapters.harness_registry import (
+    BUILTIN_HARNESS_PROFILES,
+    HarnessRegistry,
+)
 from rapid_os.adapters.run_registry import RunRegistry
 from rapid_os.adapters.spec_registry import SpecRegistry
 from rapid_os.core.filesystem import ensure_path_within_root
+from rapid_os.domain.capabilities import (
+    HarnessCapabilityError,
+    HarnessIdentityError,
+    HarnessProfile,
+    validate_harness_id,
+)
 from rapid_os.domain.execution import (
     DuplicateRunIdentityError,
     ExecutionError,
@@ -245,6 +259,8 @@ def validate_project(
     spec_registry_report = validate_spec_registry(project_rapid_dir, current_dir)
     execution_policy_report = validate_execution_policy(project_rapid_dir, current_dir)
     run_registry_report = validate_run_registry(project_rapid_dir, current_dir)
+    harness_registry_report = validate_harness_registry(project_rapid_dir, current_dir)
+    capability_lock_report = validate_capability_lock(project_rapid_dir, current_dir)
     return template_report.merge(
         standards_report,
         config_report,
@@ -254,6 +270,8 @@ def validate_project(
         spec_registry_report,
         execution_policy_report,
         run_registry_report,
+        harness_registry_report,
+        capability_lock_report,
     )
 
 
@@ -273,6 +291,283 @@ def _resolve_root_and_rapid_dir(
         rapid_dir = raw_dir
         root = Path(current_dir) if current_dir is not None else rapid_dir.parent
     return root, rapid_dir
+
+
+def validate_harness_registry(
+    project_rapid_dir: Path | None = None,
+    current_dir: Path | None = None,
+) -> ValidationReport:
+    """Validate built-in harness profiles and optional `.rapid-os/harnesses/` registry using RAPID1100-RAPID1106 codes."""
+    builtin_diagnostics: list[Diagnostic] = []
+    for builtin_id, builtin_profile in sorted(BUILTIN_HARNESS_PROFILES.items()):
+        try:
+            validated_id = validate_harness_id(builtin_id, "builtin harness id")
+            reconstructed = HarnessProfile.from_dict(
+                builtin_profile.to_dict(),
+                verify_digest=True,
+                require_digest=True,
+            )
+            if reconstructed.id != validated_id:
+                raise HarnessIdentityError(
+                    f"Built-in HarnessProfile.id '{reconstructed.id}' does not match registry key '{validated_id}'."
+                )
+        except HarnessCapabilityError as exc:
+            builtin_diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    exc.code,
+                    f"Invalid built-in harness profile '{builtin_id}': {exc}",
+                )
+            )
+
+    if project_rapid_dir is None:
+        if not builtin_diagnostics:
+            builtin_diagnostics.append(
+                Diagnostic(
+                    INFO,
+                    "RAPID1100",
+                    f"Harness capability registry valid ({len(BUILTIN_HARNESS_PROFILES)} built-in profile(s)).",
+                )
+            )
+        return ValidationReport(tuple(builtin_diagnostics))
+
+    root, rapid_dir = _resolve_root_and_rapid_dir(project_rapid_dir, current_dir)
+    harnesses_dir = rapid_dir / "harnesses"
+    if not harnesses_dir.exists() and not harnesses_dir.is_symlink():
+        return ValidationReport(tuple(builtin_diagnostics))
+
+    if rapid_dir.is_symlink() or harnesses_dir.is_symlink():
+        return ValidationReport(
+            tuple(
+                builtin_diagnostics
+                + [
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1105",
+                        "Harness registry root cannot be a symlink.",
+                        harnesses_dir,
+                    )
+                ]
+            )
+        )
+
+    try:
+        ensure_path_within_root(root, harnesses_dir)
+    except ValueError as exc:
+        return ValidationReport(
+            tuple(
+                builtin_diagnostics
+                + [
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1105",
+                        f"Harness registry root escapes project root: {exc}",
+                        harnesses_dir,
+                    )
+                ]
+            )
+        )
+
+    if not harnesses_dir.is_dir():
+        return ValidationReport(
+            tuple(
+                builtin_diagnostics
+                + [
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1105",
+                        "Harness registry path is not a directory.",
+                        harnesses_dir,
+                    )
+                ]
+            )
+        )
+
+    try:
+        entries = sorted(harnesses_dir.iterdir(), key=lambda p: p.name)
+    except OSError as exc:
+        return ValidationReport(
+            tuple(
+                builtin_diagnostics
+                + [
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1105",
+                        f"Harness registry directory could not be read: {exc}",
+                        harnesses_dir,
+                    )
+                ]
+            )
+        )
+
+    diagnostics: list[Diagnostic] = list(builtin_diagnostics)
+    valid_profiles = 0
+    registry_helper = HarnessRegistry(root, rapid_dir)
+
+    for entry in entries:
+        if entry.is_symlink():
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID1105",
+                    f"Harness profile entry '{entry.name}' cannot be a symlink.",
+                    entry,
+                )
+            )
+            continue
+
+        try:
+            ensure_path_within_root(root, entry)
+        except ValueError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID1105",
+                    f"Harness profile entry '{entry.name}' escapes project root: {exc}",
+                    entry,
+                )
+            )
+            continue
+
+        if not entry.is_file() or not entry.name.endswith(".json"):
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID1102",
+                    f"Unexpected non-profile entry '{entry.name}' inside .rapid-os/harnesses.",
+                    entry,
+                )
+            )
+            continue
+
+        stem = entry.name[:-5]
+        try:
+            validated_stem = validate_harness_id(stem, "harness profile filename")
+        except HarnessCapabilityError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    exc.code,
+                    str(exc),
+                    entry,
+                )
+            )
+            continue
+
+        try:
+            registry_helper._read_project_profile_file(entry, validated_stem)
+            valid_profiles += 1
+        except HarnessCapabilityError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    exc.code,
+                    str(exc),
+                    exc.path or entry,
+                )
+            )
+
+    if not any(d.level == ERROR for d in diagnostics):
+        diagnostics.insert(
+            0,
+            Diagnostic(
+                INFO,
+                "RAPID1100",
+                f"Harness capability registry valid ({valid_profiles} project profile(s), {len(BUILTIN_HARNESS_PROFILES)} built-in).",
+                harnesses_dir,
+            ),
+        )
+
+    return ValidationReport(tuple(diagnostics))
+
+
+def validate_capability_lock(
+    project_rapid_dir: Path,
+    current_dir: Path | None = None,
+) -> ValidationReport:
+    """Validate optional `.rapid-os/capabilities.lock` when present using RAPID1100, RAPID1105, RAPID1111, and RAPID1112 codes."""
+    root, rapid_dir = _resolve_root_and_rapid_dir(project_rapid_dir, current_dir)
+    lock_file = rapid_dir / "capabilities.lock"
+    if not lock_file.exists() and not lock_file.is_symlink():
+        return ValidationReport(())
+
+    if rapid_dir.is_symlink() or lock_file.is_symlink():
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID1105",
+                    "Capabilities lock file cannot be a symlink.",
+                    lock_file,
+                ),
+            )
+        )
+
+    try:
+        ensure_path_within_root(root, lock_file)
+    except ValueError as exc:
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID1105",
+                    f"Capabilities lock file escapes project root: {exc}",
+                    lock_file,
+                ),
+            )
+        )
+
+    if not lock_file.is_file():
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID1105",
+                    "Capabilities lock path is not a regular file.",
+                    lock_file,
+                ),
+            )
+        )
+
+    try:
+        lock = load_capability_lock(root, rapid_dir)
+    except HarnessCapabilityError as exc:
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    exc.code,
+                    str(exc),
+                    exc.path or lock_file,
+                ),
+            )
+        )
+
+    diagnostics: list[Diagnostic] = [
+        Diagnostic(
+            INFO,
+            "RAPID1100",
+            f"Capabilities lock valid ({len(lock.profiles)} profile(s)).",
+            lock_file,
+        )
+    ]
+
+    try:
+        expected_lock = build_capability_lock(HarnessRegistry(root, rapid_dir))
+        if lock.content_digest != expected_lock.content_digest:
+            diagnostics.append(
+                Diagnostic(
+                    WARNING,
+                    "RAPID1112",
+                    "capabilities.lock is stale against active harness profiles; run 'rapid harness lock' to refresh.",
+                    lock_file,
+                )
+            )
+    except HarnessCapabilityError:
+        # Active profile errors are reported by validate_harness_registry.
+        pass
+
+    return ValidationReport(tuple(diagnostics))
 
 
 def validate_execution_policy(

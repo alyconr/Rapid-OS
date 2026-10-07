@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Iterable, Mapping
 
 from rapid_os.domain.context import SUPPORTED_HARNESSES, CompiledContext
+from rapid_os.domain.harnesses import validate_harness_id
 from rapid_os.domain.policy import (
     DEFAULT_EXECUTION_POLICY,
     EXECUTION_POLICY_SCHEMA_VERSION,
@@ -300,11 +301,14 @@ class ExecutionContract:
             ),
         )
 
-        if not isinstance(self.harness, str) or self.harness.strip().lower() not in SUPPORTED_HARNESSES:
-            raise InvalidExecutionContractError(
-                f"Unsupported harness '{self.harness}': expected one of {list(SUPPORTED_HARNESSES)}."
+        try:
+            validated_harness = validate_harness_id(
+                self.harness,
+                "ExecutionContract.harness",
             )
-        object.__setattr__(self, "harness", self.harness.strip().lower())
+        except ValueError as exc:
+            raise InvalidExecutionContractError(str(exc)) from exc
+        object.__setattr__(self, "harness", validated_harness)
 
         object.__setattr__(
             self,
