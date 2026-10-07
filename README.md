@@ -72,7 +72,8 @@ Future work is tracked as post-v2 enhancement work. The v2 baseline keeps the ex
 | Context Compiler (v3 Phase 2) | Complete | Task-aware `ContextCompiler`, `ContextResolver`, `ContextManifest`, budget enforcement, conflict detection, `RAPID7xx` diagnostics, and read-only `rapid context` (`--mode`, `--harness`, `--objective`, `--spec`, `--spec-revision`, `--max-chars`, `--manifest`, `--json`). |
 | Spec Registry (v3 Phase 3) | Complete | Canonical `SpecRecord` & `SpecRevision`, immutable revisions under `.rapid-os/specs/<id>/`, `rapid spec` (`create`, `list`, `show`, `revise`, `status`, `export-legacy`), `RAPID8xx` validation, and `rapid context --spec` integration. |
 | Execution Policy Engine & Run Contract (v3 Phase 4) | Complete | Deterministic `ExecutionPolicy`, `PolicyDecision`, `ExecutionContract`, immutable `RunRecord` & `RunState` ledger under `.rapid-os/runs/<run-id>/`, `rapid policy` (`show`, `init`), `rapid run` (`create`, `list`, `show`, `status`, `task`, `gate`), and `RAPID1000–RAPID1014` validation. |
-| Harness Capability Registry (v3 Phase 5) | Current | Canonical capability catalog, conservative builtin & project `HarnessProfile` overrides (`.rapid-os/harnesses/<id>.json`), deterministic `CapabilityRequirementResolver` & `CapabilityResolver`, `.rapid-os/capabilities.lock`, `rapid harness` (`list`, `show`, `init`, `lock`, `resolve`), and `RAPID1100–RAPID1112` validation. |
+| Harness Capability Registry (v3 Phase 5) | Complete | Canonical capability catalog, conservative builtin & project `HarnessProfile` overrides (`.rapid-os/harnesses/<id>.json`), deterministic `CapabilityRequirementResolver` & `CapabilityResolver`, `.rapid-os/capabilities.lock`, `rapid harness` (`list`, `show`, `init`, `lock`, `resolve`), and `RAPID1100–RAPID1112` validation. |
+| Evidence Engine & Behavioral Evals (v3 Phase 6) | Current | Immutable `RunEvidence` records & copied SHA-256-verified artifacts (`.rapid-os/evidence/<run-id>/`), deterministic `BehavioralEvaluator` & append-only `EvaluationReport` ledger (`.rapid-os/evals/<run-id>/`), `rapid evidence` (`list`, `show`, `add`, `verify`), `rapid eval` (`run`, `list`, `show`), and `RAPID1200–RAPID1229` validation. |
 | MCP abstraction | Complete | Structured MCP model with editor-specific rendering and package metadata. |
 | Testing and CI hardening | Complete | GitHub Actions plus `python -m unittest discover` and CLI smoke checks. |
 
@@ -441,13 +442,15 @@ Tabla completa de comandos disponibles en Rapid OS y sus resultados.
 | `rapid policy`               | **Execution Policy (v3)**. Inspecciona la política de ejecución efectiva o inicializa `.rapid-os/policy.json`. | Subcomandos: `show [--json]` (read-only) e `init [--json]`. |
 | `rapid run`                  | **Run Registry & Execution Contracts (v3)**. Crea y gobierna contratos de ejecución inmutables e historial de estados de ejecución declarada. | Subcomandos: `create`, `list`, `show`, `status`, `task` y `gate`. Persiste bajo `.rapid-os/runs/<run-id>/`. |
 | `rapid harness`              | **Harness Capability Registry (v3)**. Inspecciona perfiles de capacidades de harnesses, inicializa overrides de proyecto, genera `.rapid-os/capabilities.lock` y resuelve compatibilidad declarada contra un `ExecutionContract`. | Subcomandos: `list`, `show`, `init`, `lock` y `resolve` (`--run`, `--locked`, `--require`, `--require-compatible`, `--json`). |
+| `rapid evidence`             | **Evidence Engine (v3)**. Registra, lista, inspecciona y verifica evidencias inmutables de ejecución (`RunEvidence`) y artefactos copiados con verificación SHA-256. | Subcomandos: `list`, `show`, `add` (`--run`, `--input`, `--json`) y `verify`. Persiste bajo `.rapid-os/evidence/<run-id>/`. |
+| `rapid eval`                 | **Behavioral Evals (v3)**. Evalúa determinísticamente contratos de ejecución, estados de Run, evidencias y capacidades observables (`EvaluationReport`). | Subcomandos: `run` (`--run`, `--require`, `--write`, `--require-pass`, `--json`), `list` y `show`. Persiste bajo `.rapid-os/evals/<run-id>/`. |
 | `rapid scope`                | **Asistente de Alcance (Legacy Compatible)**. Te entrevista para definir una feature, refactor, bugfix o hardening. | Genera `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` con backups. Con `--register` también registra la spec en `.rapid-os/specs/`. |
 | `rapid refine <file>`        | **Refinamiento de Reglas**. Mejora cualquier documento de reglas usando IA.                     | Genera un Mega-Prompt para que pegues en tu chat y la IA reescriba el archivo profesionalmente.   |
 | `rapid skill [action] [name]` | **Instala o lista Skills** desde menú interactivo, registro comunitario o template privado.     | Sin argumentos abre menú; con `add`/`install` conserva el flujo directo existente.                 |
 | `rapid mcp [--ide ... --scope ...]` | **Configura MCP Servers**. Modela filesystem, BD y research tools.                    | Escribe el archivo MCP propio de cada editor con backup previo; si faltan flags entra en modo interactivo. |
 | `rapid vision [image_path]`  | **Contexto de Referencia Visual**. Copia una imagen de referencia y documenta su descripción.   | Copia la imagen a `references/`, registra la descripción en `references/VISION_CONTEXT.md` y actualiza el contexto de agentes. |
 | `rapid deploy <target>`      | **Guía de Despliegue**. Genera instrucciones de despliegue basadas en templates locales.        | Crea `DEPLOY.md` desde `templates/deploy/<target>.md` (template incluido: `aws`, o guía genérica fallback `Deploy to <target>`) con backup previo. |
-| `rapid validate`             | **Validación de Proyecto**. Revisa templates, estándares, config, snapshots, specs, policy, runs, harnesses, capabilities.lock, herramientas y contexto. | No escribe archivos. Sale con `0` si no hay errores y `1` si encuentra errores de validación.     |
+| `rapid validate`             | **Validación de Proyecto**. Revisa templates, estándares, config, snapshots, specs, policy, runs, harnesses, capabilities.lock, evidence, evals, herramientas y contexto. | No escribe archivos. Sale con `0` si no hay errores y `1` si encuentra errores de validación.     |
 | `rapid doctor`               | **Diagnóstico Local**. Revisa rutas resueltas, templates, Node/npx opcional y proyecto actual.  | No escribe archivos. Usa advertencias para capacidades opcionales como Node/npx.                  |
 | `rapid inspect-context`      | **Inspección de Contexto**. Ensambla y previsualiza el contexto final antes de generar archivos. | No escribe archivos. Muestra secciones incluidas, herramientas seleccionadas y preview final.     |
 
@@ -611,6 +614,87 @@ CapabilityResolution
 Neither proves runtime behavior.
 ```
 
+### Evidence Engine & Behavioral Evals (`rapid evidence` & `rapid eval`)
+
+La **Fase 6** de Rapid OS v3 cierra el bucle de gobernanza separando estrictamente **Declaración** (`GateDisposition.ACKNOWLEDGED`), **Capacidad** (`HarnessProfile`), **Observación** (`RunEvidence`) y **Juicio Determinista** (`BehavioralEvaluator` → `EvaluationReport`):
+
+```bash
+# Ingestar evidencia inmutable ligada a un Run y copiar artefactos verificados por SHA-256
+rapid evidence add --run booking-idempotency-r1-run-001 --input evidence.json
+rapid evidence add --run booking-idempotency-r1-run-001 --input evidence.json --json
+
+# Listar, inspeccionar y verificar integridad de evidencias y artefactos (read-only)
+rapid evidence list --run booking-idempotency-r1-run-001
+rapid evidence list --run booking-idempotency-r1-run-001 --json
+rapid evidence show --run booking-idempotency-r1-run-001 E001
+rapid evidence show --run booking-idempotency-r1-run-001 E001 --json
+rapid evidence verify --run booking-idempotency-r1-run-001
+rapid evidence verify --run booking-idempotency-r1-run-001 --json
+
+# Evaluar el comportamiento observado contra el contrato, estado y evidencias del Run
+rapid eval run --run booking-idempotency-r1-run-001
+rapid eval run --run booking-idempotency-r1-run-001 --json
+rapid eval run --run booking-idempotency-r1-run-001 --require mcp.invoke
+rapid eval run --run booking-idempotency-r1-run-001 --write
+rapid eval run --run booking-idempotency-r1-run-001 --require-pass
+rapid eval run --run booking-idempotency-r1-run-001 --write --require-pass --json
+
+# Listar e inspeccionar reportes de evaluación persistidos (read-only)
+rapid eval list --run booking-idempotency-r1-run-001
+rapid eval list --run booking-idempotency-r1-run-001 --json
+rapid eval show --run booking-idempotency-r1-run-001
+rapid eval show --run booking-idempotency-r1-run-001 --revision 1 --json
+```
+
+- **Esquemas canónicos deterministas**:
+  - `RunEvidence` (`schema_version = 1`): `id`, `run_id`, `contract_digest`, `state_revision`, `state_digest`, `kind`, `producer`, `summary`, `task_ids`, `gate_ids`, `capability_ids`, `payload` (ej. `command_result`: `{"label": "...", "exit_code": 0}`), `artifacts`, `content_digest` (sin `recorded_at`, garantizando digests deterministas).
+  - `EvidenceArtifact`: `path`, `sha256`, `size_bytes`.
+  - `EvaluationReport` (`schema_version = 1`): incluye `extra_capability_ids` (validados contra el catálogo de Fase 5, ordenados, deduplicados e incluidos en `report_digest`) y `EvaluationVerdict` (`pass`, `pass_with_waivers`, `fail`, `unverified`).
+  - **Replay semántico obligatorio (`RAPID1223`)**: Todo `EvaluationReport` persistido se reconstruye con `BehavioralEvaluator` a partir de `ExecutionContract + RunState histórico + conjunto exacto de evidencias + BehavioralRuleset + extra_capability_ids`, exigiendo igualdad exacta de `assertions`, `verdict`, `ruleset_digest`, `evidence_set_digest`, `extra_capability_ids` y `report_digest`.
+- **Aislamiento inmutable (Fase 4 y Fase 5 intactas)**: `rapid evidence` y `rapid eval` nunca modifican `.rapid-os/runs/<run-id>/` (`run.json`, `contract.json`, `context.md`, `context-manifest.json`, `states/*.json`), nunca auto-reconocen gates, nunca auto-finalizan Runs y nunca mutan `.rapid-os/harnesses/` ni `.rapid-os/capabilities.lock`.
+- **`ACKNOWLEDGED` no implica `PASS`**: Un gate reconocido (`GateDisposition.ACKNOWLEDGED`) o una tarea marcada `DONE` sin evidencia verificada permanece en `UNVERIFIED`. Un gate con exención explícita (`WAIVED`) produce `WAIVED` y veredicto global `PASS_WITH_WAIVERS` (`pass_with_waivers`) cuando el resto de aserciones requeridas pasan.
+- **Significado de `EvaluationVerdict.PASS` (`pass`)**: Indica que las reglas deterministas de evidencia de Fase 6 se cumplen para el conjunto exacto de evidencias registradas; **no** demuestra matemáticamente ausencia total de bugs, perfección de seguridad ni completitud de requisitos.
+- **Autenticidad de evidencias**: El Evidence Registry verifica integridad local (`content_digest`, `sha256` de artefactos copiados, `size_bytes`, secuencia continua `E001..E00N` y vinculación a `run_id`, `contract_digest` y `RunState`), pero no proporciona atestación criptográfica externa de hardware o runtime remoto.
+- **Códigos de diagnóstico (`RAPID1200–RAPID1239`)**:
+  - `RAPID1200` (`INFO`): Evidence Registry valid.
+  - `RAPID1201` (`ERROR`): Invalid evidence ID (`InvalidEvidenceIdError`).
+  - `RAPID1202` (`ERROR`): Invalid `RunEvidence` schema or `content_digest` (`InvalidRunEvidenceError`).
+  - `RAPID1203` (`ERROR`): Evidence Run / Contract / `RunState` / harness producer binding mismatch (`EvidenceBindingMismatchError`).
+  - `RAPID1204` (`ERROR`): Unsafe evidence path or symlink (`UnsafeEvidencePathError`).
+  - `RAPID1205` (`ERROR`): Evidence artifact missing, digest mismatch, or size mismatch (`EvidenceArtifactIntegrityError`).
+  - `RAPID1206` (`ERROR`): Invalid `EvidenceKind` or payload (`InvalidEvidencePayloadError`).
+  - `RAPID1207` (`ERROR`): Invalid task, gate, or capability reference (`InvalidEvidenceReferenceError`).
+  - `RAPID1208` (`ERROR`): Evidence sequence gap or duplicate identity (`EvidenceSequenceGapError`, incluyendo cualquier record histórico faltante aunque su directorio `artifacts/E00K/` exista).
+  - `RAPID1209` (`WARNING`): Trailing crash-orphan evidence artifact directory (`artifacts/E00N` sin `records/E00N.json` en `max_record_ordinal + 1`; bloquea de forma segura `rapid evidence add`).
+  - `RAPID1210` (`ERROR`): Evidence not found (`EvidenceNotFoundError`).
+  - `RAPID1211` (`ERROR`): Append-only evidence overwrite violation (`EvidenceOverwriteError`).
+  - `RAPID1212–RAPID1219`: Reservados para Evidence.
+  - `RAPID1220` (`INFO`): Eval Registry valid.
+  - `RAPID1221` (`ERROR`): Invalid `EvaluationReport` schema (`InvalidEvaluationReportError`).
+  - `RAPID1222` (`ERROR`): `EvaluationReport` digest mismatch (`EvaluationReportDigestMismatchError`).
+  - `RAPID1223` (`ERROR`): Evaluation Run / state / evidence binding or semantic replay mismatch (`EvaluationBindingMismatchError`).
+  - `RAPID1224` (`ERROR`): Unsafe eval path or symlink (`UnsafeEvaluationPathError`).
+  - `RAPID1225` (`ERROR`): Evaluation `UNVERIFIED` when `--require-pass` (`EvaluationUnverifiedError`).
+  - `RAPID1226` (`ERROR`): Evaluation `FAIL` when `--require-pass` (`EvaluationFailedError`).
+  - `RAPID1227` (`WARNING`): Stored `EvaluationReport` is stale relative to current `RunState`, `evidence_set_digest`, or `ruleset_digest`.
+  - `RAPID1228` (`ERROR`): `EvaluationReport` not found (`EvaluationReportNotFoundError`).
+  - `RAPID1229` (`ERROR`): Append-only evaluation report overwrite violation (`EvaluationOverwriteError`).
+  - `RAPID1230–RAPID1239`: Reservados para Evals.
+
+```text
+Phase 4 RunState
+    DECLARES lifecycle and gate disposition
+
+Phase 5 CapabilityResolution
+    EVALUATES declared harness capability compatibility
+
+Phase 6 RunEvidence
+    RECORDS immutable observations and artifact digests
+
+Phase 6 EvaluationReport
+    DERIVES deterministic behavioral conclusions
+```
+
 
 ### Validación y Diagnósticos
 
@@ -622,7 +706,7 @@ rapid validate --json
 rapid validate --strict
 ```
 
-`rapid validate` falla con código `1` cuando hay errores, como `tech-stack.md` o `topology.md` faltantes, JSON inválido en `.rapid-os/config.json`, `.rapid-os/project.json`, `.rapid-os/specs/` (`RAPID801–RAPID809`), `.rapid-os/policy.json` o `.rapid-os/runs/` (`RAPID1001–RAPID1014`), `.rapid-os/harnesses/` o `.rapid-os/capabilities.lock` (`RAPID1101–RAPID1112`), templates MCP, herramientas desconocidas en `.rapid-os/config.json`, combinaciones stack/topología incompatibles o contexto ensamblado vacío. Con `--strict`, las advertencias también devuelven `1`.
+`rapid validate` falla con código `1` cuando hay errores, como `tech-stack.md` o `topology.md` faltantes, JSON inválido en `.rapid-os/config.json`, `.rapid-os/project.json`, `.rapid-os/specs/` (`RAPID801–RAPID809`), `.rapid-os/policy.json` o `.rapid-os/runs/` (`RAPID1001–RAPID1014`), `.rapid-os/harnesses/` o `.rapid-os/capabilities.lock` (`RAPID1101–RAPID1112`), `.rapid-os/evidence/` (`RAPID1201–RAPID1211`), `.rapid-os/evals/` (`RAPID1221–RAPID1229`), templates MCP, herramientas desconocidas en `.rapid-os/config.json`, combinaciones stack/topología incompatibles o contexto ensamblado vacío. Con `--strict`, las advertencias también devuelven `1`.
 
 Para revisar la instalación local sin modificar nada:
 
@@ -631,7 +715,7 @@ rapid doctor
 rapid doctor --json
 ```
 
-`rapid doctor` reporta rutas resueltas, directorio de templates activo, estado del proyecto actual (incluyendo `.rapid-os/project.json`, `.rapid-os/specs/`, `.rapid-os/policy.json`, `.rapid-os/runs/`, `.rapid-os/harnesses/` y `.rapid-os/capabilities.lock` si existen) y disponibilidad opcional de Node/npx.
+`rapid doctor` reporta rutas resueltas, directorio de templates activo, estado del proyecto actual (incluyendo `.rapid-os/project.json`, `.rapid-os/specs/`, `.rapid-os/policy.json`, `.rapid-os/runs/`, `.rapid-os/harnesses/`, `.rapid-os/capabilities.lock`, `.rapid-os/evidence/` y `.rapid-os/evals/` si existen) y disponibilidad opcional de Node/npx.
 
 Para ver el contexto final antes de escribir archivos de agente:
 
@@ -649,18 +733,22 @@ rapid inspect-context --json
 
 ```text
 Rapid OS DOES:
-- classify execution risk
-- produce immutable execution contracts
-- persist run state
-- enforce declared lifecycle/policy rules
-- model harness capability profiles and resolve declared contract compatibility
+- scan repository facts with evidence
+- compile task-specific context with provenance and budgets
+- manage immutable specs and revisions
+- classify execution risk and produce immutable execution contracts
+- track append-only run state
+- resolve declared harness capability compatibility
+- store immutable run evidence and verify artifact digests
+- evaluate runs deterministically against evidence rules
 
-Rapid OS DOES NOT YET:
+Rapid OS DOES NOT:
 - launch coding agents
-- create worktrees
-- run tests
-- collect evidence
-- verify gate success
+- execute shell commands for runs
+- run tests automatically
+- create git worktrees automatically
+- cryptographically attest external producer identity
+- guarantee software correctness beyond recorded evidence rules
 ```
 
 Lo que Rapid OS **ES** y lo que **NO ES**:

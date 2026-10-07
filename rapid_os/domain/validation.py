@@ -28,6 +28,8 @@ from rapid_os.adapters.capability_lock import (
     build_capability_lock,
     load_capability_lock,
 )
+from rapid_os.adapters.eval_registry import EvalRegistry
+from rapid_os.adapters.evidence_registry import EvidenceRegistry
 from rapid_os.adapters.execution_policy import load_execution_policy
 from rapid_os.adapters.harness_registry import (
     BUILTIN_HARNESS_PROFILES,
@@ -42,6 +44,8 @@ from rapid_os.domain.capabilities import (
     HarnessProfile,
     validate_harness_id,
 )
+from rapid_os.domain.evals import EvaluationError
+from rapid_os.domain.evidence import EvidenceError
 from rapid_os.domain.execution import (
     DuplicateRunIdentityError,
     ExecutionError,
@@ -261,6 +265,14 @@ def validate_project(
     run_registry_report = validate_run_registry(project_rapid_dir, current_dir)
     harness_registry_report = validate_harness_registry(project_rapid_dir, current_dir)
     capability_lock_report = validate_capability_lock(project_rapid_dir, current_dir)
+    evidence_registry_report = validate_evidence_registry(
+        project_rapid_dir,
+        current_dir,
+    )
+    eval_registry_report = validate_eval_registry(
+        project_rapid_dir,
+        current_dir,
+    )
     return template_report.merge(
         standards_report,
         config_report,
@@ -272,6 +284,8 @@ def validate_project(
         run_registry_report,
         harness_registry_report,
         capability_lock_report,
+        evidence_registry_report,
+        eval_registry_report,
     )
 
 
@@ -291,6 +305,397 @@ def _resolve_root_and_rapid_dir(
         rapid_dir = raw_dir
         root = Path(current_dir) if current_dir is not None else rapid_dir.parent
     return root, rapid_dir
+
+
+def validate_evidence_registry(
+    project_rapid_dir: Path,
+    current_dir: Path | None = None,
+    *,
+    run_id: str | None = None,
+) -> ValidationReport:
+    """Validate optional `.rapid-os/evidence/` registry using RAPID1200-RAPID1219 codes."""
+    root, rapid_dir = _resolve_root_and_rapid_dir(project_rapid_dir, current_dir)
+    evidence_dir = rapid_dir / "evidence"
+
+    if rapid_dir.is_symlink() or evidence_dir.is_symlink():
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID1204",
+                    "Evidence registry root cannot be a symlink.",
+                    evidence_dir,
+                ),
+            )
+        )
+
+    try:
+        ensure_path_within_root(root, evidence_dir)
+    except ValueError as exc:
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID1204",
+                    f"Evidence registry root escapes project root: {exc}",
+                    evidence_dir,
+                ),
+            )
+        )
+
+    if not evidence_dir.exists():
+        if run_id is None:
+            return ValidationReport(())
+        try:
+            validated_id = validate_run_id(run_id)
+            run_reg = RunRegistry(root, rapid_dir)
+            run_reg.get(validated_id)
+            run_reg.get_contract(validated_id)
+        except ExecutionError as exc:
+            return ValidationReport(
+                (
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1203",
+                        str(exc),
+                        exc.path or (rapid_dir / "runs" / str(run_id)),
+                    ),
+                )
+            )
+        return ValidationReport(
+            (
+                Diagnostic(
+                    INFO,
+                    "RAPID1200",
+                    f"Evidence registry valid for run '{validated_id}' (0 record(s)).",
+                    evidence_dir / validated_id,
+                ),
+            )
+        )
+
+    if not evidence_dir.is_dir():
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID1204",
+                    "Evidence registry path is not a directory.",
+                    evidence_dir,
+                ),
+            )
+        )
+
+    diagnostics: list[Diagnostic] = []
+    registry = EvidenceRegistry(root, rapid_dir)
+    target_run_ids: list[str] = []
+
+    if run_id is not None:
+        try:
+            target_run_ids.append(validate_run_id(run_id))
+        except ExecutionError as exc:
+            return ValidationReport(
+                (
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1203",
+                        str(exc),
+                        evidence_dir / str(run_id),
+                    ),
+                )
+            )
+    else:
+        try:
+            entries = sorted(evidence_dir.iterdir(), key=lambda p: p.name)
+        except OSError as exc:
+            return ValidationReport(
+                (
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1204",
+                        f"Evidence registry directory could not be read: {exc}",
+                        evidence_dir,
+                    ),
+                )
+            )
+        for entry in entries:
+            if entry.is_symlink():
+                diagnostics.append(
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1204",
+                        f"Run evidence directory '{entry.name}' cannot be a symlink.",
+                        entry,
+                    )
+                )
+                continue
+            if not entry.is_dir():
+                diagnostics.append(
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1202",
+                        f"Unexpected non-directory entry '{entry.name}' in evidence registry.",
+                        entry,
+                    )
+                )
+                continue
+            try:
+                validated_id = validate_run_id(entry.name)
+                target_run_ids.append(validated_id)
+            except ExecutionError as exc:
+                diagnostics.append(
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1203",
+                        str(exc),
+                        entry,
+                    )
+                )
+
+    total_records = 0
+    valid_runs = 0
+    for target_id in target_run_ids:
+        try:
+            _, _, _, verified_records, orphan_dirs = registry._scan_run_evidence(
+                target_id
+            )
+            total_records += len(verified_records)
+            valid_runs += 1
+            for orphan_dir in orphan_dirs:
+                diagnostics.append(
+                    Diagnostic(
+                        WARNING,
+                        "RAPID1209",
+                        f"Orphan evidence artifact directory '{orphan_dir.name}' for run '{target_id}' has no matching record '{orphan_dir.name}.json'.",
+                        orphan_dir,
+                    )
+                )
+        except EvidenceError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    exc.code,
+                    str(exc),
+                    exc.path or (evidence_dir / target_id),
+                )
+            )
+        except ExecutionError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID1203",
+                    f"Evidence run binding failed for '{target_id}': {exc}",
+                    exc.path or (evidence_dir / target_id),
+                )
+            )
+
+    has_errors = any(d.level == ERROR for d in diagnostics)
+    if not has_errors:
+        diagnostics.insert(
+            0,
+            Diagnostic(
+                INFO,
+                "RAPID1200",
+                f"Evidence registry valid ({total_records} record(s) across {valid_runs} run(s)).",
+                evidence_dir if run_id is None else (evidence_dir / target_run_ids[0]),
+            ),
+        )
+    return ValidationReport(tuple(diagnostics))
+
+
+def validate_eval_registry(
+    project_rapid_dir: Path,
+    current_dir: Path | None = None,
+    *,
+    run_id: str | None = None,
+) -> ValidationReport:
+    """Validate optional `.rapid-os/evals/` registry using RAPID1220-RAPID1239 codes."""
+    root, rapid_dir = _resolve_root_and_rapid_dir(project_rapid_dir, current_dir)
+    evals_dir = rapid_dir / "evals"
+
+    if rapid_dir.is_symlink() or evals_dir.is_symlink():
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID1224",
+                    "Eval registry root cannot be a symlink.",
+                    evals_dir,
+                ),
+            )
+        )
+
+    try:
+        ensure_path_within_root(root, evals_dir)
+    except ValueError as exc:
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID1224",
+                    f"Eval registry root escapes project root: {exc}",
+                    evals_dir,
+                ),
+            )
+        )
+
+    if not evals_dir.exists():
+        if run_id is None:
+            return ValidationReport(())
+        try:
+            validated_id = validate_run_id(run_id)
+            run_reg = RunRegistry(root, rapid_dir)
+            run_reg.get(validated_id)
+            run_reg.get_contract(validated_id)
+        except ExecutionError as exc:
+            return ValidationReport(
+                (
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1223",
+                        str(exc),
+                        exc.path or (rapid_dir / "runs" / str(run_id)),
+                    ),
+                )
+            )
+        return ValidationReport(
+            (
+                Diagnostic(
+                    INFO,
+                    "RAPID1220",
+                    f"Eval registry valid for run '{validated_id}' (0 report(s)).",
+                    evals_dir / validated_id,
+                ),
+            )
+        )
+
+    if not evals_dir.is_dir():
+        return ValidationReport(
+            (
+                Diagnostic(
+                    ERROR,
+                    "RAPID1224",
+                    "Eval registry path is not a directory.",
+                    evals_dir,
+                ),
+            )
+        )
+
+    diagnostics: list[Diagnostic] = []
+    registry = EvalRegistry(root, rapid_dir)
+    target_run_ids: list[str] = []
+
+    if run_id is not None:
+        try:
+            target_run_ids.append(validate_run_id(run_id))
+        except ExecutionError as exc:
+            return ValidationReport(
+                (
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1223",
+                        str(exc),
+                        evals_dir / str(run_id),
+                    ),
+                )
+            )
+    else:
+        try:
+            entries = sorted(evals_dir.iterdir(), key=lambda p: p.name)
+        except OSError as exc:
+            return ValidationReport(
+                (
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1224",
+                        f"Eval registry directory could not be read: {exc}",
+                        evals_dir,
+                    ),
+                )
+            )
+        for entry in entries:
+            if entry.is_symlink():
+                diagnostics.append(
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1224",
+                        f"Run evals directory '{entry.name}' cannot be a symlink.",
+                        entry,
+                    )
+                )
+                continue
+            if not entry.is_dir():
+                diagnostics.append(
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1221",
+                        f"Unexpected non-directory entry '{entry.name}' in eval registry.",
+                        entry,
+                    )
+                )
+                continue
+            try:
+                validated_id = validate_run_id(entry.name)
+                target_run_ids.append(validated_id)
+            except ExecutionError as exc:
+                diagnostics.append(
+                    Diagnostic(
+                        ERROR,
+                        "RAPID1223",
+                        str(exc),
+                        entry,
+                    )
+                )
+
+    total_reports = 0
+    valid_runs = 0
+    for target_id in target_run_ids:
+        try:
+            report_entries = registry.list_report_entries(target_id)
+            total_reports += len(report_entries)
+            valid_runs += 1
+            if report_entries:
+                latest_rev, latest_path, _, is_stale = report_entries[-1]
+                if is_stale:
+                    diagnostics.append(
+                        Diagnostic(
+                            WARNING,
+                            "RAPID1227",
+                            f"Stored EvaluationReport '{latest_path.name}' (revision {latest_rev}) for run '{target_id}' is stale relative to current run state or evidence set.",
+                            latest_path,
+                        )
+                    )
+        except EvaluationError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    exc.code,
+                    str(exc),
+                    exc.path or (evals_dir / target_id),
+                )
+            )
+        except (ExecutionError, EvidenceError) as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID1223",
+                    f"Evaluation run/evidence binding failed for '{target_id}': {exc}",
+                    getattr(exc, "path", None) or (evals_dir / target_id),
+                )
+            )
+
+    has_errors = any(d.level == ERROR for d in diagnostics)
+    if not has_errors:
+        diagnostics.insert(
+            0,
+            Diagnostic(
+                INFO,
+                "RAPID1220",
+                f"Eval registry valid ({total_reports} report(s) across {valid_runs} run(s)).",
+                evals_dir if run_id is None else (evals_dir / target_run_ids[0]),
+            ),
+        )
+    return ValidationReport(tuple(diagnostics))
+
 
 
 def validate_harness_registry(

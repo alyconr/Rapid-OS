@@ -51,6 +51,8 @@ from rapid_os.adapters.capability_lock import (
     write_capability_lock,
 )
 from rapid_os.adapters.context_sources import ContextSourceLoader
+from rapid_os.adapters.eval_registry import EvalRegistry
+from rapid_os.adapters.evidence_registry import EvidenceRegistry
 from rapid_os.adapters.execution_policy import (
     load_execution_policy,
     write_default_execution_policy,
@@ -73,6 +75,22 @@ from rapid_os.domain.context import (
     ContextManifest,
     ContextRequest,
     ContextRequiredSourceMissingError,
+)
+from rapid_os.domain.evals import (
+    EVALUATION_REPORT_SCHEMA_VERSION,
+    EvaluationError,
+    EvaluationFailedError,
+    EvaluationReport,
+    EvaluationUnverifiedError,
+    EvaluationVerdict,
+    InvalidEvaluationReportError,
+)
+from rapid_os.domain.evidence import (
+    RUN_EVIDENCE_SCHEMA_VERSION,
+    EvidenceError,
+    InvalidRunEvidenceError,
+    RunEvidence,
+    compute_evidence_set_digest,
 )
 from rapid_os.domain.execution import (
     EXECUTION_POLICY_SCHEMA_VERSION,
@@ -122,6 +140,8 @@ from rapid_os.domain.validation import (
     inspect_project_context,
     validate_capability_lock,
     validate_composed_context,
+    validate_eval_registry,
+    validate_evidence_registry,
     validate_execution_policy,
     validate_harness_registry,
     validate_project,
@@ -1136,6 +1156,8 @@ def doctor_command(args):
             validate_run_registry(PROJECT_RAPID_DIR, CURRENT_DIR),
             validate_harness_registry(PROJECT_RAPID_DIR, CURRENT_DIR),
             validate_capability_lock(PROJECT_RAPID_DIR, CURRENT_DIR),
+            validate_evidence_registry(PROJECT_RAPID_DIR, CURRENT_DIR),
+            validate_eval_registry(PROJECT_RAPID_DIR, CURRENT_DIR),
         )
     else:
         report = report.extend(
@@ -2376,22 +2398,328 @@ def harness_command(args):
         sys.exit(1)
 
 
+def render_evidence_show_text(evidence: RunEvidence) -> str:
+    lines = [
+        f"Evidence: {evidence.id}",
+        f"Run: {evidence.run_id}",
+        f"Kind: {evidence.kind.value}",
+        f"Producer: {evidence.producer}",
+        f"Summary: {evidence.summary}",
+        f"Contract Digest: {evidence.contract_digest}",
+        f"State Revision: s{evidence.state_revision} ({evidence.state_digest})",
+        f"Content Digest: {evidence.content_digest}",
+        f"Tasks: {', '.join(evidence.task_ids) if evidence.task_ids else 'none'}",
+        f"Gates: {', '.join(evidence.gate_ids) if evidence.gate_ids else 'none'}",
+        f"Capabilities: {', '.join(evidence.capability_ids) if evidence.capability_ids else 'none'}",
+        "",
+        "Payload:",
+    ]
+    for key, val in sorted(evidence.payload.items()):
+        lines.append(f"  {key}: {json.dumps(val, ensure_ascii=False)}")
+
+    lines.append("")
+    lines.append("Artifacts:")
+    if evidence.artifacts:
+        for art in evidence.artifacts:
+            lines.append(
+                f"  {art.path} ({art.size_bytes} bytes, sha256={art.sha256[:12]})"
+            )
+    else:
+        lines.append("  none")
+    return "\n".join(lines)
+
+
+def evidence_command(args):
+    """Execute `rapid evidence` subcommands (`list`, `show`, `add`, `verify`)."""
+    action = getattr(args, "evidence_action", None) or getattr(args, "action", None)
+    try:
+        registry = EvidenceRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+
+        if action == "list":
+            run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
+            if not run_id or not str(run_id).strip():
+                raise InvalidRunEvidenceError(
+                    "Option '--run' is required to list evidence records."
+                )
+            records = registry.list(run_id)
+            set_digest = compute_evidence_set_digest(run_id, records)
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": RUN_EVIDENCE_SCHEMA_VERSION,
+                    "run_id": run_id,
+                    "evidence_set_digest": set_digest,
+                    "records": [rec.to_dict() for rec in records],
+                }
+                print(json.dumps(payload, indent=2, ensure_ascii=False))
+                return 0
+
+            if not records:
+                print(f"No evidence records found for run '{run_id}'.")
+                return 0
+            for rec in records:
+                print(
+                    f"{rec.id:<8} s{rec.state_revision:<4} {rec.kind.value:<18} {rec.producer:<22} {rec.summary}"
+                )
+            return 0
+
+        if action == "show":
+            run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
+            evidence_id = getattr(args, "evidence_id", None) or getattr(
+                args, "id", None
+            )
+            if not run_id or not str(run_id).strip():
+                raise InvalidRunEvidenceError(
+                    "Option '--run' is required to show an evidence record."
+                )
+            if not evidence_id or not str(evidence_id).strip():
+                raise InvalidRunEvidenceError(
+                    "Argument '<evidence-id>' is required to show an evidence record."
+                )
+            record_obj = registry.get(run_id, evidence_id)
+            if getattr(args, "json", False):
+                print(record_obj.to_json(indent=2))
+                return 0
+            print(render_evidence_show_text(record_obj))
+            return 0
+
+        if action == "add":
+            run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
+            input_file = getattr(args, "input", None)
+            if not run_id or not str(run_id).strip():
+                raise InvalidRunEvidenceError(
+                    "Option '--run' is required to add evidence."
+                )
+            if not input_file or not str(input_file).strip():
+                raise InvalidRunEvidenceError(
+                    "Option '--input' is required to add evidence."
+                )
+            input_path = Path(input_file)
+            if not input_path.is_absolute():
+                input_path = CURRENT_DIR / input_path
+            added = registry.add(run_id, input_path)
+            if getattr(args, "json", False):
+                print(added.to_json(indent=2))
+                return 0
+            print_success(
+                f"Evidence '{added.id}' ({added.kind.value}) registrada para run '{added.run_id}'."
+            )
+            return 0
+
+        if action == "verify":
+            run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
+            if not run_id or not str(run_id).strip():
+                raise InvalidRunEvidenceError(
+                    "Option '--run' is required to verify evidence."
+                )
+            records = registry.verify(run_id)
+            orphans = registry.orphan_artifact_dirs(run_id)
+            set_digest = compute_evidence_set_digest(run_id, records)
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": RUN_EVIDENCE_SCHEMA_VERSION,
+                    "ok": True,
+                    "run_id": run_id,
+                    "record_count": len(records),
+                    "evidence_set_digest": set_digest,
+                    "records": [rec.to_dict() for rec in records],
+                    "orphan_artifact_dirs": [p.name for p in orphans],
+                }
+                print(json.dumps(payload, indent=2, ensure_ascii=False))
+                return 0
+
+            print(
+                f"Evidence verified for run '{run_id}': {len(records)} record(s), digest={set_digest}"
+            )
+            for orphan in orphans:
+                print(
+                    f"RAPID1209 Orphan evidence artifact directory: {orphan.name}",
+                    file=sys.stderr,
+                )
+            return 0
+
+        print("RAPID1202 Subcomando 'rapid evidence' requerido.", file=sys.stderr)
+        sys.exit(1)
+    except EvidenceError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ExecutionError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        code = getattr(exc, "code", None) or "RAPID1202"
+        print(f"{code} {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def render_evaluation_report_text(
+    report: EvaluationReport,
+    *,
+    stale: bool = False,
+) -> str:
+    extra_caps_text = (
+        ", ".join(report.extra_capability_ids)
+        if report.extra_capability_ids
+        else "none"
+    )
+    lines = [
+        f"Run: {report.run_id}",
+        f"Contract Digest: {report.contract_digest}",
+        f"State Revision: s{report.state_revision} ({report.state_digest})",
+        f"Evidence Set Digest: {report.evidence_set_digest}",
+        f"Ruleset: v{report.ruleset_version} ({report.ruleset_digest})",
+        f"Extra Capabilities: {extra_caps_text}",
+        f"Report Digest: {report.report_digest}",
+        f"Verdict: {report.verdict.value.upper()}",
+    ]
+    if stale:
+        lines.append("Stale: YES (RAPID1227)")
+
+    lines.append("")
+    lines.append("Assertions:")
+    for item in report.assertions:
+        req_tag = "required" if item.required else "optional"
+        ev_str = (
+            f" [evidence: {', '.join(item.evidence_ids)}]"
+            if item.evidence_ids
+            else ""
+        )
+        lines.append(
+            f"  {item.id:<40} {item.status.value.upper():<16} ({req_tag}) {item.reason}{ev_str}"
+        )
+    return "\n".join(lines)
+
+
+def eval_command(args):
+    """Execute `rapid eval` subcommands (`run`, `list`, `show`)."""
+    action = getattr(args, "eval_action", None) or getattr(args, "action", None)
+    try:
+        registry = EvalRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+
+        if action == "run":
+            run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
+            if not run_id or not str(run_id).strip():
+                raise InvalidEvaluationReportError(
+                    "Option '--run' is required to evaluate a run."
+                )
+            extra_reqs = tuple(getattr(args, "require", None) or ())
+            report = registry.evaluate_run(
+                run_id,
+                extra_capability_requirements=extra_reqs,
+                write=bool(getattr(args, "write", False)),
+            )
+
+            if getattr(args, "json", False):
+                print(report.to_json(indent=2))
+            else:
+                print(render_evaluation_report_text(report))
+
+            if getattr(args, "require_pass", False):
+                if report.verdict == EvaluationVerdict.UNVERIFIED:
+                    raise EvaluationUnverifiedError(
+                        f"Evaluation for run '{report.run_id}' is unverified (verdict={report.verdict.value})."
+                    )
+                if report.verdict == EvaluationVerdict.FAIL:
+                    raise EvaluationFailedError(
+                        f"Evaluation for run '{report.run_id}' failed (verdict={report.verdict.value})."
+                    )
+            return 0
+
+        if action == "list":
+            run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
+            if not run_id or not str(run_id).strip():
+                raise InvalidEvaluationReportError(
+                    "Option '--run' is required to list evaluation reports."
+                )
+            entries = registry.list_report_entries(run_id)
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": EVALUATION_REPORT_SCHEMA_VERSION,
+                    "run_id": run_id,
+                    "reports": [
+                        {
+                            "revision": rev_num,
+                            "file": rep_path.name,
+                            "verdict": rep_obj.verdict.value,
+                            "state_revision": rep_obj.state_revision,
+                            "state_digest": rep_obj.state_digest,
+                            "evidence_set_digest": rep_obj.evidence_set_digest,
+                            "ruleset_version": rep_obj.ruleset_version,
+                            "ruleset_digest": rep_obj.ruleset_digest,
+                            "extra_capability_ids": list(
+                                rep_obj.extra_capability_ids
+                            ),
+                            "report_digest": rep_obj.report_digest,
+                            "stale": is_stale,
+                        }
+                        for rev_num, rep_path, rep_obj, is_stale in entries
+                    ],
+                }
+                print(json.dumps(payload, indent=2, ensure_ascii=False))
+                return 0
+
+            if not entries:
+                print(f"No evaluation reports found for run '{run_id}'.")
+                return 0
+            for rev_num, rep_path, rep_obj, is_stale in entries:
+                stale_label = "STALE" if is_stale else "CURRENT"
+                print(
+                    f"{rep_path.name:<12} rev={rev_num:<4} s{rep_obj.state_revision:<4} {rep_obj.verdict.value.upper():<18} {stale_label:<8} {rep_obj.report_digest[:12]}"
+                )
+            return 0
+
+        if action == "show":
+            run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
+            if not run_id or not str(run_id).strip():
+                raise InvalidEvaluationReportError(
+                    "Option '--run' is required to show an evaluation report."
+                )
+            revision = getattr(args, "revision", None)
+            report = registry.get_report(run_id, revision=revision)
+            stale = registry.is_report_stale(report)
+            if getattr(args, "json", False):
+                print(report.to_json(indent=2))
+                return 0
+            print(render_evaluation_report_text(report, stale=stale))
+            return 0
+
+        print("RAPID1221 Subcomando 'rapid eval' requerido.", file=sys.stderr)
+        sys.exit(1)
+    except EvaluationError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except EvidenceError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except HarnessCapabilityError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ExecutionError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        code = getattr(exc, "code", None) or "RAPID1221"
+        print(f"{code} {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
 def show_guide():
     print("📘 RAPID OS - COMANDOS")
-    print(" init    -> Configurar proyecto")
-    print(" scan    -> Inspeccionar inteligencia del proyecto")
-    print(" context -> Compilar contexto selectivo por tarea")
-    print(" spec    -> Gestionar Spec Registry v3 (create, list, show, revise, status, export-legacy)")
-    print(" policy  -> Gestionar Execution Policy v3 (show, init)")
-    print(" run     -> Gestionar Run Contracts & Lifecycle v3 (create, list, show, status, task, gate)")
-    print(" harness -> Gestionar Harness Capability Registry v3 (list, show, init, lock, resolve)")
-    print(" skill   -> Instalar capacidades (Local/Vercel)")
-    print(" mcp     -> Configurar herramientas BD")
-    print(" vision  -> Agregar referencias visuales")
-    print(" scope   -> Crear specs (legacy singleton workflow)")
-    print(" prompt  -> Generar prompt para IA")
+    print(" init     -> Configurar proyecto")
+    print(" scan     -> Inspeccionar inteligencia del proyecto")
+    print(" context  -> Compilar contexto selectivo por tarea")
+    print(" spec     -> Gestionar Spec Registry v3 (create, list, show, revise, status, export-legacy)")
+    print(" policy   -> Gestionar Execution Policy v3 (show, init)")
+    print(" run      -> Gestionar Run Contracts & Lifecycle v3 (create, list, show, status, task, gate)")
+    print(" harness  -> Gestionar Harness Capability Registry v3 (list, show, init, lock, resolve)")
+    print(" evidence -> Gestionar Evidence Engine v3 (list, show, add, verify)")
+    print(" eval     -> Ejecutar Behavioral Evals v3 (run, list, show)")
+    print(" skill    -> Instalar capacidades (Local/Vercel)")
+    print(" mcp      -> Configurar herramientas BD")
+    print(" vision   -> Agregar referencias visuales")
+    print(" scope    -> Crear specs (legacy singleton workflow)")
+    print(" prompt   -> Generar prompt para IA")
     print(" validate -> Validar proyecto Rapid OS")
-    print(" doctor  -> Diagnosticar instalacion local")
+    print(" doctor   -> Diagnosticar instalacion local")
     print(" inspect-context -> Previsualizar contexto ensamblado")
 
 
@@ -2624,6 +2952,50 @@ def create_parser():
     )
     harness_resolve.add_argument("--json", action="store_true")
 
+    evidence = subparsers.add_parser("evidence")
+    evidence_subparsers = evidence.add_subparsers(dest="evidence_action")
+
+    evidence_list = evidence_subparsers.add_parser("list")
+    evidence_list.add_argument("--run", dest="run", required=True)
+    evidence_list.add_argument("--json", action="store_true")
+
+    evidence_show = evidence_subparsers.add_parser("show")
+    evidence_show.add_argument("--run", dest="run", required=True)
+    evidence_show.add_argument("evidence_id")
+    evidence_show.add_argument("--json", action="store_true")
+
+    evidence_add = evidence_subparsers.add_parser("add")
+    evidence_add.add_argument("--run", dest="run", required=True)
+    evidence_add.add_argument("--input", dest="input", required=True)
+    evidence_add.add_argument("--json", action="store_true")
+
+    evidence_verify = evidence_subparsers.add_parser("verify")
+    evidence_verify.add_argument("--run", dest="run", required=True)
+    evidence_verify.add_argument("--json", action="store_true")
+
+    eval_parser = subparsers.add_parser("eval")
+    eval_subparsers = eval_parser.add_subparsers(dest="eval_action")
+
+    eval_run = eval_subparsers.add_parser("run")
+    eval_run.add_argument("--run", dest="run", required=True)
+    eval_run.add_argument("--require", action="append")
+    eval_run.add_argument("--write", action="store_true")
+    eval_run.add_argument(
+        "--require-pass",
+        dest="require_pass",
+        action="store_true",
+    )
+    eval_run.add_argument("--json", action="store_true")
+
+    eval_list = eval_subparsers.add_parser("list")
+    eval_list.add_argument("--run", dest="run", required=True)
+    eval_list.add_argument("--json", action="store_true")
+
+    eval_show = eval_subparsers.add_parser("show")
+    eval_show.add_argument("--run", dest="run", required=True)
+    eval_show.add_argument("--revision", type=int)
+    eval_show.add_argument("--json", action="store_true")
+
     skill = subparsers.add_parser("skill")
     skill.add_argument("action", choices=["list", "install", "add"], nargs="?")
     skill.add_argument("name", nargs="?")
@@ -2675,6 +3047,10 @@ def main(argv=None):
         run_command(args)
     elif args.command == "harness":
         harness_command(args)
+    elif args.command == "evidence":
+        evidence_command(args)
+    elif args.command == "eval":
+        eval_command(args)
     elif args.command == "skill":
         manage_skills(args)
     elif args.command == "mcp":
