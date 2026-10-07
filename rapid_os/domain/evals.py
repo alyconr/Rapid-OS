@@ -9,6 +9,7 @@ from rapid_os.domain.capabilities import (
     CANONICAL_CAPABILITY_IDS,
     CapabilityRequirement,
     CapabilityRequirementResolver,
+    validate_capability_id,
 )
 from rapid_os.domain.evidence import (
     EvidenceError,
@@ -496,6 +497,7 @@ CANONICAL_EVALUATION_REPORT_KEYS = frozenset(
         "evidence_set_digest",
         "ruleset_version",
         "ruleset_digest",
+        "extra_capability_ids",
         "assertions",
         "verdict",
         "report_digest",
@@ -515,6 +517,7 @@ class EvaluationReport:
     ruleset_digest: str
     assertions: tuple[EvalAssertion, ...]
     verdict: EvaluationVerdict
+    extra_capability_ids: tuple[str, ...] = ()
     report_digest: str = ""
 
     def __post_init__(self):
@@ -588,6 +591,28 @@ class EvaluationReport:
             ),
         )
 
+        if isinstance(
+            self.extra_capability_ids, (str, bytes, Mapping)
+        ) or not isinstance(self.extra_capability_ids, Iterable):
+            raise InvalidEvaluationReportError(
+                "EvaluationReport.extra_capability_ids must be a sequence of canonical capability IDs."
+            )
+        seen_extra_caps: set[str] = set()
+        for raw_cap in self.extra_capability_ids:
+            try:
+                validated_cap = validate_capability_id(
+                    raw_cap,
+                    "EvaluationReport.extra_capability_ids",
+                )
+            except HarnessCapabilityError as exc:
+                raise InvalidEvaluationReportError(str(exc)) from exc
+            seen_extra_caps.add(validated_cap)
+        object.__setattr__(
+            self,
+            "extra_capability_ids",
+            tuple(sorted(seen_extra_caps)),
+        )
+
         if isinstance(self.assertions, (str, bytes)) or not isinstance(
             self.assertions, Iterable
         ):
@@ -650,6 +675,7 @@ class EvaluationReport:
             "evidence_set_digest": self.evidence_set_digest,
             "ruleset_version": self.ruleset_version,
             "ruleset_digest": self.ruleset_digest,
+            "extra_capability_ids": list(self.extra_capability_ids),
             "assertions": [a.to_dict() for a in self.assertions],
             "verdict": self.verdict.value,
         }
@@ -687,6 +713,11 @@ class EvaluationReport:
             raise InvalidEvaluationReportError(
                 f"Missing required fields in EvaluationReport: {sorted(missing)}."
             )
+        raw_extra_caps = payload["extra_capability_ids"]
+        if not isinstance(raw_extra_caps, list):
+            raise InvalidEvaluationReportError(
+                "EvaluationReport 'extra_capability_ids' must be a JSON list."
+            )
         raw_assertions = payload["assertions"]
         if not isinstance(raw_assertions, list):
             raise InvalidEvaluationReportError(
@@ -706,6 +737,7 @@ class EvaluationReport:
                 EvalAssertion.from_dict(item) for item in raw_assertions
             ),
             verdict=EvaluationVerdict.coerce(payload["verdict"]),
+            extra_capability_ids=tuple(raw_extra_caps),  # type: ignore[arg-type]
             report_digest=raw_digest,
         )
 
@@ -777,7 +809,7 @@ class BehavioralEvaluator:
         state: RunState,
         evidence: Iterable[RunEvidence] = (),
         *,
-        extra_capability_requirements: Iterable[CapabilityRequirement | str] = (),
+        extra_capability_requirements: Iterable[CapabilityRequirement | Mapping[str, object] | str] = (),
     ) -> EvaluationReport:
         if not isinstance(contract, ExecutionContract):
             raise EvaluationBindingMismatchError(
@@ -887,10 +919,53 @@ class BehavioralEvaluator:
             )
 
         # 4. Capability Observation Assertions (derived via Phase 5 CapabilityRequirementResolver)
+        if extra_capability_requirements is None:
+            raw_extra_reqs: Iterable[object] = ()
+        elif isinstance(
+            extra_capability_requirements, (str, bytes, Mapping)
+        ) or not isinstance(extra_capability_requirements, Iterable):
+            raise InvalidEvidenceReferenceError(
+                "extra_capability_requirements must be an iterable of capability IDs or CapabilityRequirement items."
+            )
+        else:
+            raw_extra_reqs = tuple(extra_capability_requirements)
+
+        extra_cap_set: set[str] = set()
         try:
+            for item in raw_extra_reqs:
+                if isinstance(item, str):
+                    extra_cap_set.add(
+                        validate_capability_id(
+                            item,
+                            "extra capability requirement",
+                        )
+                    )
+                elif isinstance(item, CapabilityRequirement):
+                    if not item.required:
+                        raise InvalidEvidenceReferenceError(
+                            f"Extra capability requirement '{item.capability_id}' cannot set required=False."
+                        )
+                    extra_cap_set.add(
+                        validate_capability_id(
+                            item.capability_id,
+                            "extra capability requirement",
+                        )
+                    )
+                elif isinstance(item, Mapping):
+                    req_obj = CapabilityRequirement.from_dict(item)
+                    if not req_obj.required:
+                        raise InvalidEvidenceReferenceError(
+                            f"Extra capability requirement '{req_obj.capability_id}' cannot set required=False."
+                        )
+                    extra_cap_set.add(req_obj.capability_id)
+                else:
+                    raise InvalidEvidenceReferenceError(
+                        f"Invalid extra capability requirement '{item}': expected capability ID string or CapabilityRequirement."
+                    )
+            normalized_extra_ids = tuple(sorted(extra_cap_set))
             capability_requirements = self.requirement_resolver.derive(
                 contract,
-                extra_requirements=extra_capability_requirements,
+                extra_requirements=normalized_extra_ids,
             )
         except HarnessCapabilityError as exc:
             raise InvalidEvidenceReferenceError(str(exc)) from exc
@@ -913,6 +988,7 @@ class BehavioralEvaluator:
             ruleset_digest=self.ruleset_digest,
             assertions=tuple(assertions),
             verdict=verdict,
+            extra_capability_ids=normalized_extra_ids,
         )
 
     def _evaluate_lifecycle(

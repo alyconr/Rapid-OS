@@ -220,7 +220,7 @@ class EvalRegistry:
             and report.ruleset_digest != DEFAULT_BEHAVIORAL_RULESET_DIGEST
             and report.ruleset_digest != self.evaluator.ruleset_digest
         ):
-            raise InvalidEvaluationReportError(
+            raise EvaluationBindingMismatchError(
                 f"EvaluationReport.ruleset_digest '{report.ruleset_digest}' does not match ruleset v{BEHAVIORAL_RULESET_VERSION} digest.",
                 path=report_path,
             )
@@ -257,6 +257,34 @@ class EvalRegistry:
                         f"EvalAssertion '{assertion.id}' references evidence '{ref_ev_id}' not present in the evaluated evidence set.",
                         path=report_path,
                     )
+
+        # Mandatory semantic replay: reconstruct evaluation from contract + historical RunState +
+        # exact historical evidence set + behavioral ruleset + extra capability requirements
+        try:
+            replayed = self.evaluator.evaluate(
+                contract,
+                bound_state,
+                matched_prefix,
+                extra_capability_requirements=report.extra_capability_ids,
+            )
+        except (EvaluationError, EvidenceError) as exc:
+            raise EvaluationBindingMismatchError(
+                f"Semantic replay failed for EvaluationReport of run '{record.id}': {exc}",
+                path=report_path,
+            ) from exc
+
+        if (
+            report.assertions != replayed.assertions
+            or report.verdict != replayed.verdict
+            or report.ruleset_digest != replayed.ruleset_digest
+            or report.evidence_set_digest != replayed.evidence_set_digest
+            or report.extra_capability_ids != replayed.extra_capability_ids
+            or report.report_digest != replayed.report_digest
+        ):
+            raise EvaluationBindingMismatchError(
+                f"EvaluationReport for run '{record.id}' at state s{report.state_revision} does not match deterministic semantic replay.",
+                path=report_path,
+            )
 
     def _scan_run_reports(
         self,

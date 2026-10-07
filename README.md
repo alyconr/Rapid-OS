@@ -646,10 +646,15 @@ rapid eval show --run booking-idempotency-r1-run-001
 rapid eval show --run booking-idempotency-r1-run-001 --revision 1 --json
 ```
 
+- **Esquemas canónicos deterministas**:
+  - `RunEvidence` (`schema_version = 1`): `id`, `run_id`, `contract_digest`, `state_revision`, `state_digest`, `kind`, `producer`, `summary`, `task_ids`, `gate_ids`, `capability_ids`, `payload` (ej. `command_result`: `{"label": "...", "exit_code": 0}`), `artifacts`, `content_digest` (sin `recorded_at`, garantizando digests deterministas).
+  - `EvidenceArtifact`: `path`, `sha256`, `size_bytes`.
+  - `EvaluationReport` (`schema_version = 1`): incluye `extra_capability_ids` (validados contra el catálogo de Fase 5, ordenados, deduplicados e incluidos en `report_digest`) y `EvaluationVerdict` (`pass`, `pass_with_waivers`, `fail`, `unverified`).
+  - **Replay semántico obligatorio (`RAPID1223`)**: Todo `EvaluationReport` persistido se reconstruye con `BehavioralEvaluator` a partir de `ExecutionContract + RunState histórico + conjunto exacto de evidencias + BehavioralRuleset + extra_capability_ids`, exigiendo igualdad exacta de `assertions`, `verdict`, `ruleset_digest`, `evidence_set_digest`, `extra_capability_ids` y `report_digest`.
 - **Aislamiento inmutable (Fase 4 y Fase 5 intactas)**: `rapid evidence` y `rapid eval` nunca modifican `.rapid-os/runs/<run-id>/` (`run.json`, `contract.json`, `context.md`, `context-manifest.json`, `states/*.json`), nunca auto-reconocen gates, nunca auto-finalizan Runs y nunca mutan `.rapid-os/harnesses/` ni `.rapid-os/capabilities.lock`.
-- **`ACKNOWLEDGED` no implica `PASS`**: Un gate reconocido (`GateDisposition.ACKNOWLEDGED`) o una tarea marcada `DONE` sin evidencia verificada permanece en `UNVERIFIED`. Un gate con exención explícita (`WAIVED`) produce `WAIVED` y veredicto global `PASS_WITH_WAIVERS` cuando el resto de aserciones requeridas pasan.
-- **Significado de `EvaluationVerdict.PASS`**: Indica que las reglas deterministas de evidencia de Fase 6 se cumplen para el conjunto exacto de evidencias registradas; **no** demuestra matemáticamente ausencia total de bugs, perfección de seguridad ni completitud de requisitos.
-- **Autenticidad de evidencias**: El Evidence Registry verifica integridad local (`content_digest`, SHA-256 de artefactos copiados, tamaño en bytes, secuencia `E001..E00N` y vinculación a `run_id`, `contract_digest` y `RunState`), pero no proporciona atestación criptográfica externa de hardware o runtime remoto.
+- **`ACKNOWLEDGED` no implica `PASS`**: Un gate reconocido (`GateDisposition.ACKNOWLEDGED`) o una tarea marcada `DONE` sin evidencia verificada permanece en `UNVERIFIED`. Un gate con exención explícita (`WAIVED`) produce `WAIVED` y veredicto global `PASS_WITH_WAIVERS` (`pass_with_waivers`) cuando el resto de aserciones requeridas pasan.
+- **Significado de `EvaluationVerdict.PASS` (`pass`)**: Indica que las reglas deterministas de evidencia de Fase 6 se cumplen para el conjunto exacto de evidencias registradas; **no** demuestra matemáticamente ausencia total de bugs, perfección de seguridad ni completitud de requisitos.
+- **Autenticidad de evidencias**: El Evidence Registry verifica integridad local (`content_digest`, `sha256` de artefactos copiados, `size_bytes`, secuencia continua `E001..E00N` y vinculación a `run_id`, `contract_digest` y `RunState`), pero no proporciona atestación criptográfica externa de hardware o runtime remoto.
 - **Códigos de diagnóstico (`RAPID1200–RAPID1239`)**:
   - `RAPID1200` (`INFO`): Evidence Registry valid.
   - `RAPID1201` (`ERROR`): Invalid evidence ID (`InvalidEvidenceIdError`).
@@ -659,15 +664,15 @@ rapid eval show --run booking-idempotency-r1-run-001 --revision 1 --json
   - `RAPID1205` (`ERROR`): Evidence artifact missing, digest mismatch, or size mismatch (`EvidenceArtifactIntegrityError`).
   - `RAPID1206` (`ERROR`): Invalid `EvidenceKind` or payload (`InvalidEvidencePayloadError`).
   - `RAPID1207` (`ERROR`): Invalid task, gate, or capability reference (`InvalidEvidenceReferenceError`).
-  - `RAPID1208` (`ERROR`): Evidence sequence gap or duplicate identity (`EvidenceSequenceGapError`).
-  - `RAPID1209` (`WARNING`): Orphan evidence artifact directory (`artifacts/E00N` without `records/E00N.json`).
+  - `RAPID1208` (`ERROR`): Evidence sequence gap or duplicate identity (`EvidenceSequenceGapError`, incluyendo cualquier record histórico faltante aunque su directorio `artifacts/E00K/` exista).
+  - `RAPID1209` (`WARNING`): Trailing crash-orphan evidence artifact directory (`artifacts/E00N` sin `records/E00N.json` en `max_record_ordinal + 1`; bloquea de forma segura `rapid evidence add`).
   - `RAPID1210` (`ERROR`): Evidence not found (`EvidenceNotFoundError`).
   - `RAPID1211` (`ERROR`): Append-only evidence overwrite violation (`EvidenceOverwriteError`).
   - `RAPID1212–RAPID1219`: Reservados para Evidence.
   - `RAPID1220` (`INFO`): Eval Registry valid.
   - `RAPID1221` (`ERROR`): Invalid `EvaluationReport` schema (`InvalidEvaluationReportError`).
   - `RAPID1222` (`ERROR`): `EvaluationReport` digest mismatch (`EvaluationReportDigestMismatchError`).
-  - `RAPID1223` (`ERROR`): Evaluation Run / state / evidence binding mismatch (`EvaluationBindingMismatchError`).
+  - `RAPID1223` (`ERROR`): Evaluation Run / state / evidence binding or semantic replay mismatch (`EvaluationBindingMismatchError`).
   - `RAPID1224` (`ERROR`): Unsafe eval path or symlink (`UnsafeEvaluationPathError`).
   - `RAPID1225` (`ERROR`): Evaluation `UNVERIFIED` when `--require-pass` (`EvaluationUnverifiedError`).
   - `RAPID1226` (`ERROR`): Evaluation `FAIL` when `--require-pass` (`EvaluationFailedError`).

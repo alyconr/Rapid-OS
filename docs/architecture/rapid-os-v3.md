@@ -630,27 +630,33 @@ EvalRegistry (.rapid-os/evals/<run-id>/)
 ### Canonical Domain Entities (`rapid_os.domain.evidence` & `rapid_os.domain.evals`)
 
 #### `RunEvidence` (`RUN_EVIDENCE_SCHEMA_VERSION = 1`) & `EvidenceArtifact`
+- Canonical `RunEvidence` fields: `schema_version`, `id`, `run_id`, `contract_digest`, `state_revision`, `state_digest`, `kind`, `producer`, `summary`, `task_ids`, `gate_ids`, `capability_ids`, `payload`, `artifacts`, `content_digest` (no wall-clock `recorded_at` field, preserving deterministic content digests).
+- Canonical `EvidenceArtifact` fields: `path`, `sha256`, `size_bytes`.
 - Deterministic append-only evidence IDs (`E001`..`E999`, `E1000`, ...; `EVIDENCE_ID_RE = ^E\d{3,}$`).
 - Bound to exact `run_id`, `contract_digest`, historical `state_revision`, and `state_digest`.
 - If `producer` starts with `harness:<id>`, `<id>` must equal `ExecutionContract.harness` (`RAPID1203`).
 - Validates `task_ids` against `contract.tasks`, `gate_ids` against `contract.gates`, and `capability_ids` against `CANONICAL_CAPABILITY_IDS` (`RAPID1207`).
 - Supporting artifacts are copied into `.rapid-os/evidence/<run-id>/artifacts/<evidence-id>/<filename>` before committing `records/<evidence-id>.json`, isolating evidence from external file modifications or deletions (`RAPID1205`).
+- Crash-orphan & sequence integrity: a single trailing `artifacts/E00N/` directory at `max_record_ordinal + 1` without `records/E00N.json` is reported as `RAPID1209 WARNING` (never auto-deleted) and blocks `rapid evidence add` (`RAPID1211`) until resolved so it cannot advance to `E00(N+1)`. Any missing record at or before `max_record_ordinal` (even if `artifacts/E00K/` exists) is a historical sequence gap (`RAPID1208 ERROR`).
 - `compute_evidence_set_digest(run_id, records)` computes the canonical SHA-256 digest over `(id, content_digest)` sorted by ordinal.
 
 #### `EvidenceKind` & Structured Payload Schemas
 Nine canonical evidence kinds with strict per-kind payload validation (`RAPID1206`) and secret-value rejection:
-1. `command_result`: `command` (list of strings), `exit_code` (int), optional `cwd` (relative POSIX path).
-2. `test_result`: `suite` (str), `exit_code` (int), `passed` (int >= 0), `failed` (int >= 0), `skipped` (int >= 0).
-3. `file_change`: `paths` (non-empty list of relative POSIX paths), optional `operation` (`added | modified | deleted | mixed`).
-4. `git_result`: `operation` (`inspect | modify`), `summary` (str), optional `commit`, `branch`, `clean`.
-5. `workspace`: `mode` (`current | isolated`), optional `isolated_ref`.
-6. `review`: `review_type` (`peer | security | migration | manual | final`), `outcome` (`approved | changes_requested | rejected`), `reviewer` (str).
-7. `tool_invocation`: `tool_id` (str), `outcome` (`success | failure`).
-8. `delegation`: `delegate_id` (str), `outcome` (`success | failure`).
-9. `artifact`: `label` (str) — requires at least one copied `EvidenceArtifact`.
+1. `command_result`: `{"label": "<str>", "exit_code": <int>}`.
+2. `test_result`: `{"suite": "<str>", "exit_code": <int>, "passed": <int >= 0>, "failed": <int >= 0>, "skipped": <int >= 0>}`.
+3. `file_change`: `{"paths": ["<rel-posix-path>", ...]}` (non-empty, sorted, deduplicated relative POSIX paths).
+4. `git_result`: `{"operation": "inspect" | "modify"}`.
+5. `workspace`: `{"mode": "current" | "isolated"}`.
+6. `review`: `{"review_type": "peer" | "security" | "migration" | "manual" | "final", "outcome": "approved" | "changes_requested" | "rejected", "reviewer": "<str>"}`.
+7. `tool_invocation`: `{"tool_id": "<str>", "outcome": "success" | "failure"}`.
+8. `delegation`: `{"target": "<str>", "outcome": "success" | "failure"}`.
+9. `artifact`: `{"label": "<str>"}` — requires at least one copied `EvidenceArtifact`.
 
 #### `BehavioralRuleset` (`BEHAVIORAL_RULESET_VERSION = 1`), `EvalAssertion`, & `EvaluationReport` (`EVALUATION_REPORT_SCHEMA_VERSION = 1`)
-- `DEFAULT_BEHAVIORAL_RULESET` defines 18 versioned, deterministic rules with `compute_ruleset_digest()`.
+- Canonical `EvaluationReport` fields: `schema_version`, `run_id`, `contract_digest`, `state_revision`, `state_digest`, `evidence_count`, `evidence_set_digest`, `ruleset_version`, `ruleset_digest`, `extra_capability_ids`, `verdict`, `assertions`, `summary`, `report_digest`.
+- `extra_capability_ids: tuple[str, ...]` is validated against `CANONICAL_CAPABILITY_IDS`, deduplicated, sorted, and included in `report_digest`.
+- Mandatory semantic replay: when loading or validating any persisted `EvaluationReport`, `EvalRegistry` reconstructs the evaluation via `BehavioralEvaluator.evaluate(contract, historical_state, historical_evidence_prefix, extra_capability_requirements=report.extra_capability_ids)` and requires exact equality of `assertions`, `verdict`, `ruleset_digest`, `evidence_set_digest`, `extra_capability_ids`, and `report_digest` (`RAPID1223` on any semantic mismatch, even if `report_digest` was recomputed after tampering).
+- `DEFAULT_BEHAVIORAL_RULESET` defines 10 versioned, deterministic rules with `compute_ruleset_digest()`.
 - `BehavioralEvaluator.evaluate()` evaluates four categories of `EvalAssertion`:
   1. **Run Lifecycle (`run.lifecycle`)**: `FINISHED → PASS`, `FAILED | CANCELLED → FAIL`, `PREPARED | ACTIVE | BLOCKED → UNVERIFIED`.
   2. **Task Evidence (`task.<task-id>.evidence`)**: `DONE` with non-failing execution evidence (`COMMAND_RESULT`, `TEST_RESULT`, `FILE_CHANGE`, `GIT_RESULT`, `TOOL_INVOCATION`, `DELEGATION`, `ARTIFACT`) → `PASS`; `DONE` with failing evidence → `FAIL`; `DONE` without evidence → `UNVERIFIED`; `SKIPPED` → `NOT_APPLICABLE` (`required=False`).
@@ -664,14 +670,14 @@ Nine canonical evidence kinds with strict per-kind payload validation (`RAPID120
      - Review gates (`PEER_REVIEW → peer`, `SECURITY_REVIEW → security`, `MIGRATION_REVIEW → migration`, `MANUAL_APPROVAL → manual`, `FINAL_VERIFICATION → final`): require `REVIEW` with matching `review_type` and `outcome == "approved"` (`FAIL` on `changes_requested` or `rejected`).
      - **Conservative multi-evidence policy**: any `FAIL` → `FAIL`; else any `PASS` → `PASS`; else `UNVERIFIED`.
   4. **Capability Observation (`capability.<capability-id>.observed`)**:
-     - Reuses Phase 5 `CapabilityRequirementResolver` (plus optional additive `--require <capability-id>`).
+     - Reuses Phase 5 `CapabilityRequirementResolver` (plus optional additive `--require <capability-id>` persisted in `extra_capability_ids`).
      - Non-observable capabilities in v1 (`context.consume`, `repository.read`) emit `NOT_APPLICABLE` (`required=False`) with reason `"not objectively observable by Evidence Engine v1"`.
      - Observable capabilities (`repository.write`, `workspace.current`, `workspace.isolated`, `tests.execute`, `shell.execute`, `git.inspect`, `git.modify`, `mcp.invoke`, `subagents.delegate`) are evaluated against matching evidence records.
-- **Verdict Precedence (`EvaluationVerdict`)**:
-  1. `run.lifecycle == FAIL` or any required assertion `== FAIL` → `FAIL`
-  2. Else any required assertion `== UNVERIFIED` → `UNVERIFIED`
-  3. Else any required assertion `== WAIVED` → `PASS_WITH_WAIVERS`
-  4. Else → `PASS`
+- **Verdict Precedence (`EvaluationVerdict`: `pass`, `pass_with_waivers`, `fail`, `unverified`)**:
+  1. `run.lifecycle == FAIL` or any required assertion `== FAIL` → `FAIL` (`fail`)
+  2. Else any required assertion `== UNVERIFIED` → `UNVERIFIED` (`unverified`)
+  3. Else any required assertion `== WAIVED` → `PASS_WITH_WAIVERS` (`pass_with_waivers`)
+  4. Else → `PASS` (`pass`)
 
 > **`EvaluationVerdict.PASS` Product Truth**: `EvaluationVerdict.PASS` means the configured Phase 6 evidence rules are satisfied by the exact recorded evidence set. It does not mathematically prove that the software has no bugs, that security is perfect, or that production deployment is safe.
 
@@ -687,14 +693,14 @@ Nine canonical evidence kinds with strict per-kind payload validation (`RAPID120
 - `RAPID1206` (`ERROR`): Invalid `EvidenceKind` or payload (`InvalidEvidencePayloadError`).
 - `RAPID1207` (`ERROR`): Invalid task, gate, or capability reference (`InvalidEvidenceReferenceError`).
 - `RAPID1208` (`ERROR`): Evidence sequence gap or duplicate identity (`EvidenceSequenceGapError`).
-- `RAPID1209` (`WARNING`): Orphan evidence artifact directory (`artifacts/E00N` without `records/E00N.json`; never auto-deleted).
+- `RAPID1209` (`WARNING`): Trailing crash-orphan evidence artifact directory (`artifacts/E00N` without `records/E00N.json` at `max_record_ordinal + 1`; never auto-deleted and blocks `rapid evidence add`).
 - `RAPID1210` (`ERROR`): Evidence not found (`EvidenceNotFoundError`).
 - `RAPID1211` (`ERROR`): Append-only evidence overwrite violation (`EvidenceOverwriteError`).
 - `RAPID1212–RAPID1219`: Reserved for Evidence diagnostics.
 - `RAPID1220` (`INFO`): Eval Registry valid.
 - `RAPID1221` (`ERROR`): Invalid `EvaluationReport` schema (`InvalidEvaluationReportError`).
 - `RAPID1222` (`ERROR`): `EvaluationReport` digest mismatch (`EvaluationReportDigestMismatchError`).
-- `RAPID1223` (`ERROR`): Evaluation Run / state / evidence binding mismatch (`EvaluationBindingMismatchError`).
+- `RAPID1223` (`ERROR`): Evaluation Run / state / evidence binding or semantic replay mismatch (`EvaluationBindingMismatchError`).
 - `RAPID1224` (`ERROR`): Unsafe eval path or symlink (`UnsafeEvaluationPathError`).
 - `RAPID1225` (`ERROR`): Evaluation `UNVERIFIED` when `--require-pass` (`EvaluationUnverifiedError`).
 - `RAPID1226` (`ERROR`): Evaluation `FAIL` when `--require-pass` (`EvaluationFailedError`).

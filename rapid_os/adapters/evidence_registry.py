@@ -553,19 +553,28 @@ class EvidenceRegistry:
                 ordinal = parse_evidence_ordinal(ev_id)
                 artifact_dirs_by_ordinal[ordinal] = (ev_id, entry)
 
-        # Sequence continuity check across records
-        if record_files_by_ordinal:
-            max_record_ordinal = max(record_files_by_ordinal.keys())
-            for expected_ord in range(1, max_record_ordinal + 1):
-                if expected_ord not in record_files_by_ordinal:
-                    # Only if an orphan artifact directory exists for expected_ord is it a crash orphan;
-                    # otherwise it is an illegal evidence sequence gap (RAPID1208).
-                    if expected_ord not in artifact_dirs_by_ordinal:
-                        missing_id = format_evidence_id(expected_ord)
-                        raise EvidenceSequenceGapError(
-                            f"Evidence sequence gap detected for run '{record.id}': missing record '{missing_id}.json'.",
-                            path=records_dir / f"{missing_id}.json",
-                        )
+        # Sequence continuity check across records and artifact directories:
+        # Every record 1..max_record_ordinal must exist (an artifact directory never excuses a missing historical record).
+        # Only a single trailing artifact directory at max_record_ordinal + 1 is allowed as a crash orphan (RAPID1209 WARNING).
+        max_record_ordinal = max(record_files_by_ordinal.keys(), default=0)
+        max_seen_ordinal = max(
+            list(record_files_by_ordinal.keys())
+            + list(artifact_dirs_by_ordinal.keys()),
+            default=0,
+        )
+        for expected_ord in range(1, max_seen_ordinal + 1):
+            if expected_ord not in record_files_by_ordinal:
+                is_trailing_crash_orphan = (
+                    expected_ord == max_seen_ordinal
+                    and expected_ord == max_record_ordinal + 1
+                    and expected_ord in artifact_dirs_by_ordinal
+                )
+                if not is_trailing_crash_orphan:
+                    missing_id = format_evidence_id(expected_ord)
+                    raise EvidenceSequenceGapError(
+                        f"Evidence sequence gap detected for run '{record.id}': missing record '{missing_id}.json'.",
+                        path=records_dir / f"{missing_id}.json",
+                    )
 
         state_cache: dict[int, RunState] = {}
         verified_records: list[RunEvidence] = []
@@ -604,13 +613,18 @@ class EvidenceRegistry:
         )
 
     def _next_evidence_id(self, run_id: str) -> str:
-        """Compute the next sequential evidence ID (`E001`, ...), avoiding collision with any crash-orphan artifact directory."""
-        _, _, run_ev_dir, records, orphan_dirs = self._scan_run_evidence(run_id)
-        max_ordinal = 0
-        for rec in records:
-            max_ordinal = max(max_ordinal, parse_evidence_ordinal(rec.id))
-        for orphan in orphan_dirs:
-            max_ordinal = max(max_ordinal, parse_evidence_ordinal(orphan.name))
+        """Compute the next sequential evidence ID (`E001`, ...), failing safely if a trailing crash orphan exists."""
+        _, _, _, records, orphan_dirs = self._scan_run_evidence(run_id)
+        if orphan_dirs:
+            orphan_path = orphan_dirs[0]
+            raise EvidenceOverwriteError(
+                f"Cannot add new evidence while trailing orphan artifact directory '{orphan_path}' exists without a committed record.",
+                path=orphan_path,
+            )
+        max_ordinal = max(
+            (parse_evidence_ordinal(rec.id) for rec in records),
+            default=0,
+        )
         return format_evidence_id(max_ordinal + 1)
 
     def list(self, run_id: str) -> tuple[RunEvidence, ...]:
@@ -926,6 +940,12 @@ class EvidenceRegistry:
         record, contract, run_ev_dir, existing_records, orphan_dirs = (
             self._scan_run_evidence(run_id)
         )
+        if orphan_dirs:
+            orphan_path = orphan_dirs[0]
+            raise EvidenceOverwriteError(
+                f"Cannot add new evidence for run '{record.id}' while trailing orphan artifact directory '{orphan_path}' exists without a committed record.",
+                path=orphan_path,
+            )
         raw_state_rev = payload_map.get(
             "state_revision",
             record.current_state_revision,
@@ -936,12 +956,11 @@ class EvidenceRegistry:
             current_state_revision=record.current_state_revision,
         )
 
-        # 2. Allocate next sequential evidence ID (avoiding any crash-orphan directory collision)
-        max_ordinal = 0
-        for rec in existing_records:
-            max_ordinal = max(max_ordinal, parse_evidence_ordinal(rec.id))
-        for orphan in orphan_dirs:
-            max_ordinal = max(max_ordinal, parse_evidence_ordinal(orphan.name))
+        # 2. Allocate next sequential evidence ID
+        max_ordinal = max(
+            (parse_evidence_ordinal(rec.id) for rec in existing_records),
+            default=0,
+        )
         evidence_id = format_evidence_id(max_ordinal + 1)
 
         # 3. Validate declarative fields and pre-read source artifacts before mutating disk

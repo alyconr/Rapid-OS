@@ -520,8 +520,8 @@ class EvidenceRegistryIntegrityTests(unittest.TestCase):
             report = validate_evidence_registry(rapid_dir, root)
             self.assertIn("RAPID1208", [d.code for d in report.diagnostics])
 
-    def test_orphan_artifact_directory_produces_rapid1209_warning_and_next_id_skips_orphan(self):
-        # Section 39 & 96
+    def test_orphan_artifact_directory_produces_rapid1209_warning_and_blocks_add_safely(self):
+        # Section 39 & 96: trailing crash orphan E003 -> RAPID1209 WARNING, and rapid evidence add fails safely without creating E004
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             rapid_dir, _, _, run_id = _setup_ready_project(root)
@@ -560,22 +560,125 @@ class EvidenceRegistryIntegrityTests(unittest.TestCase):
             self.assertIn("RAPID1209", [d.code for d in val_report.diagnostics])
             self.assertTrue(orphan_file.exists())
 
-            # Next evidence addition must avoid colliding with E003 and allocate E004
-            next_ev = ev_reg.add(
-                run_id,
-                {
-                    "kind": "file_change",
-                    "producer": "harness:codex",
-                    "summary": "Change after crash orphan",
-                    "task_ids": ["T001"],
-                    "payload": {"paths": ["file_4.py"]},
-                },
+            # While trailing orphan E003 exists, rapid evidence add must fail safely and NOT create E003.json or E004.json
+            with self.assertRaises(EvidenceOverwriteError) as ctx_add:
+                ev_reg.add(
+                    run_id,
+                    {
+                        "kind": "file_change",
+                        "producer": "harness:codex",
+                        "summary": "Change while crash orphan exists",
+                        "task_ids": ["T001"],
+                        "payload": {"paths": ["file_4.py"]},
+                    },
+                )
+            self.assertEqual(ctx_add.exception.code, "RAPID1211")
+            records_dir = rapid_dir / "evidence" / run_id / "records"
+            self.assertFalse((records_dir / "E003.json").exists())
+            self.assertFalse((records_dir / "E004.json").exists())
+
+            # CLI `rapid evidence add` also fails safely without creating E004.json
+            in_file = root / "attempt_add.json"
+            in_file.write_text(
+                json.dumps(
+                    {
+                        "kind": "file_change",
+                        "producer": "harness:codex",
+                        "summary": "CLI add while crash orphan exists",
+                        "task_ids": ["T001"],
+                        "payload": {"paths": ["file_4.py"]},
+                    }
+                ),
+                encoding="utf-8",
             )
-            self.assertEqual(next_ev.id, "E004")
+            c_add, _, err_add = _run_cli(
+                root,
+                ["evidence", "add", "--run", run_id, "--input", str(in_file)],
+            )
+            self.assertEqual(c_add, 1)
+            self.assertIn("RAPID1211", err_add)
+            self.assertFalse((records_dir / "E003.json").exists())
+            self.assertFalse((records_dir / "E004.json").exists())
             self.assertEqual(
                 orphan_file.read_text(encoding="utf-8"),
                 "partial crash output",
             )
+
+    def test_historical_record_gap_with_remaining_artifact_dir_produces_rapid1208(self):
+        # E001, E002, E003 + artifacts/E003, E004 -> delete records/E003.json (keep artifacts/E003/) -> RAPID1208 ERROR
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rapid_dir, _, _, run_id = _setup_ready_project(root)
+            ev_reg = EvidenceRegistry(root, rapid_dir)
+
+            art_src = root / "e3.log"
+            art_src.write_text("e3 log content", encoding="utf-8")
+
+            ev_reg.add(
+                run_id,
+                {
+                    "kind": "file_change",
+                    "producer": "harness:codex",
+                    "summary": "Change 1",
+                    "task_ids": ["T001"],
+                    "payload": {"paths": ["file_1.py"]},
+                },
+            )
+            ev_reg.add(
+                run_id,
+                {
+                    "kind": "file_change",
+                    "producer": "harness:codex",
+                    "summary": "Change 2",
+                    "task_ids": ["T001"],
+                    "payload": {"paths": ["file_2.py"]},
+                },
+            )
+            ev_reg.add(
+                run_id,
+                {
+                    "kind": "artifact",
+                    "producer": "harness:codex",
+                    "summary": "Artifact 3",
+                    "task_ids": ["T001"],
+                    "payload": {"label": "e3-log"},
+                    "artifacts": ["e3.log"],
+                },
+            )
+            ev_reg.add(
+                run_id,
+                {
+                    "kind": "file_change",
+                    "producer": "harness:codex",
+                    "summary": "Change 4",
+                    "task_ids": ["T001"],
+                    "payload": {"paths": ["file_4.py"]},
+                },
+            )
+
+            e3_record = rapid_dir / "evidence" / run_id / "records" / "E003.json"
+            e3_art_dir = rapid_dir / "evidence" / run_id / "artifacts" / "E003"
+            self.assertTrue(e3_record.exists())
+            self.assertTrue(e3_art_dir.is_dir())
+
+            # Delete records/E003.json while keeping artifacts/E003/
+            e3_record.unlink()
+            self.assertTrue(e3_art_dir.is_dir())
+
+            with self.assertRaises(EvidenceSequenceGapError) as ctx:
+                ev_reg.verify(run_id)
+            self.assertEqual(ctx.exception.code, "RAPID1208")
+
+            c_ver, _, err_ver = _run_cli(
+                root,
+                ["evidence", "verify", "--run", run_id],
+            )
+            self.assertEqual(c_ver, 1)
+            self.assertIn("RAPID1208", err_ver)
+
+            val_report = validate_evidence_registry(rapid_dir, root)
+            self.assertTrue(val_report.has_errors)
+            self.assertIn("RAPID1208", [d.code for d in val_report.diagnostics])
 
     def test_append_only_record_and_artifact_overwrite_protection_produces_rapid1211(self):
         # Section 37 & 97
@@ -940,6 +1043,113 @@ class BehavioralEvaluatorAndRegistryTests(unittest.TestCase):
             # Historical reports remain valid and retrievable
             self.assertEqual(len(eval_reg.list_reports(run_id)), 3)
             self.assertEqual(eval_reg.get_report(run_id, revision=1), rep_a)
+
+    def test_semantic_replay_rejects_tampered_assertions_with_recomputed_report_digest(self):
+        # 1. Generate valid report (including extra_capability_ids)
+        # 2. Modify/remove assertions and recompute a formally valid report_digest
+        # 3. Rapid must reject the forged report with RAPID1223 during semantic replay
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rapid_dir, _, _, run_id = _setup_ready_project(root)
+            ev_reg = EvidenceRegistry(root, rapid_dir)
+            eval_reg = EvalRegistry(root, rapid_dir)
+
+            ev_reg.add(
+                run_id,
+                {
+                    "kind": "file_change",
+                    "producer": "harness:codex",
+                    "summary": "Initial change",
+                    "task_ids": ["T001"],
+                    "payload": {"paths": ["a.py"]},
+                },
+            )
+
+            # Verify extra_capability_ids is deduplicated, sorted, and persisted in report_digest
+            valid_rep = eval_reg.evaluate_run(
+                run_id,
+                extra_capability_requirements=("subagents.delegate", "mcp.invoke", "mcp.invoke"),
+                write=True,
+            )
+            self.assertEqual(
+                valid_rep.extra_capability_ids,
+                ("mcp.invoke", "subagents.delegate"),
+            )
+            self.assertEqual(eval_reg.get_report(run_id, revision=1), valid_rep)
+
+            # Invalid extra_capability_ids in EvaluationReport is rejected with RAPID1221
+            with self.assertRaises(InvalidEvaluationReportError) as ctx_cap:
+                EvaluationReport(
+                    schema_version=valid_rep.schema_version,
+                    run_id=valid_rep.run_id,
+                    contract_digest=valid_rep.contract_digest,
+                    state_revision=valid_rep.state_revision,
+                    state_digest=valid_rep.state_digest,
+                    evidence_set_digest=valid_rep.evidence_set_digest,
+                    ruleset_version=valid_rep.ruleset_version,
+                    ruleset_digest=valid_rep.ruleset_digest,
+                    assertions=valid_rep.assertions,
+                    verdict=valid_rep.verdict,
+                    extra_capability_ids=("unknown.capability",),
+                )
+            self.assertEqual(ctx_cap.exception.code, "RAPID1221")
+
+            # Tamper with persisted 0001.json: remove non-lifecycle assertions and flip lifecycle to PASS,
+            # then construct a new EvaluationReport so report_digest is formally recomputed and valid
+            lifecycle_only = (
+                valid_rep.assertions[0].__class__(
+                    id="run.lifecycle",
+                    category="lifecycle",
+                    subject_id=run_id,
+                    required=True,
+                    status=EvalAssertionStatus.PASS,
+                    reason="Forged pass",
+                    evidence_ids=(),
+                ),
+            )
+            forged_report = EvaluationReport(
+                schema_version=valid_rep.schema_version,
+                run_id=valid_rep.run_id,
+                contract_digest=valid_rep.contract_digest,
+                state_revision=valid_rep.state_revision,
+                state_digest=valid_rep.state_digest,
+                evidence_set_digest=valid_rep.evidence_set_digest,
+                ruleset_version=valid_rep.ruleset_version,
+                ruleset_digest=valid_rep.ruleset_digest,
+                assertions=lifecycle_only,
+                verdict=EvaluationVerdict.PASS,
+                extra_capability_ids=valid_rep.extra_capability_ids,
+            )
+            # Confirm forged_report has a formally valid report_digest on its own
+            self.assertEqual(
+                EvaluationReport.from_json(
+                    forged_report.to_json(),
+                    verify_digest=True,
+                ),
+                forged_report,
+            )
+
+            report_path = rapid_dir / "evals" / run_id / "reports" / "0001.json"
+            report_path.write_text(
+                forged_report.to_json(indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            # EvalRegistry semantic replay must reject the forged report with RAPID1223
+            with self.assertRaises(EvaluationBindingMismatchError) as ctx_replay:
+                eval_reg.get_report(run_id, revision=1)
+            self.assertEqual(ctx_replay.exception.code, "RAPID1223")
+
+            c_show, _, err_show = _run_cli(
+                root,
+                ["eval", "show", "--run", run_id, "--revision", "1"],
+            )
+            self.assertEqual(c_show, 1)
+            self.assertIn("RAPID1223", err_show)
+
+            val_rep = validate_eval_registry(rapid_dir, root)
+            self.assertTrue(val_rep.has_errors)
+            self.assertIn("RAPID1223", [d.code for d in val_rep.diagnostics])
 
     def test_read_only_eval_and_write_isolation_preserve_phase4_and_phase5_bytes(self):
         # Section 4, 86, 87, 88, 90, 110, 111

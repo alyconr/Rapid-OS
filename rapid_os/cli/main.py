@@ -2556,12 +2556,18 @@ def render_evaluation_report_text(
     *,
     stale: bool = False,
 ) -> str:
+    extra_caps_text = (
+        ", ".join(report.extra_capability_ids)
+        if report.extra_capability_ids
+        else "none"
+    )
     lines = [
         f"Run: {report.run_id}",
         f"Contract Digest: {report.contract_digest}",
         f"State Revision: s{report.state_revision} ({report.state_digest})",
         f"Evidence Set Digest: {report.evidence_set_digest}",
         f"Ruleset: v{report.ruleset_version} ({report.ruleset_digest})",
+        f"Extra Capabilities: {extra_caps_text}",
         f"Report Digest: {report.report_digest}",
         f"Verdict: {report.verdict.value.upper()}",
     ]
@@ -2639,6 +2645,9 @@ def eval_command(args):
                             "evidence_set_digest": rep_obj.evidence_set_digest,
                             "ruleset_version": rep_obj.ruleset_version,
                             "ruleset_digest": rep_obj.ruleset_digest,
+                            "extra_capability_ids": list(
+                                rep_obj.extra_capability_ids
+                            ),
                             "report_digest": rep_obj.report_digest,
                             "stale": is_stale,
                         }
