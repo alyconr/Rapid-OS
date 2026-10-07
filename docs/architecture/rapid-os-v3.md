@@ -470,9 +470,10 @@ Phase 5 does **not** manage:
 
 #### Harness Identity (`validate_harness_id`)
 - Validated by `HARNESS_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")`.
-- Rejects uppercase characters, whitespace, null bytes, path separators, traversal segments (`..`), and Windows drive prefixes (`RAPID1101`).
+- Rejects uppercase characters, whitespace, null bytes, path separators, traversal segments (`..`), and Windows drive prefixes (`RAPID1104`, `HarnessIdentityError`).
 - Built-in harness IDs: `codex`, `claude`, `cursor`, `vscode`, `antigravity`.
 - `ContextRequest`, `ContextManifest`, and `ExecutionContract` (`EXECUTION_CONTRACT_SCHEMA_VERSION = 1` unchanged) accept any syntactically valid `harness_id`. The Context Compiler remains pure with respect to the Harness Registry.
+- `ExecutionContract.harness` is the single source of truth for capability resolution (`profile.id == contract.harness`); the harness is selected when creating a Run (`rapid run create --harness <id>`).
 
 #### Capability Catalog (`CapabilityCategory` & `CapabilityDefinition`)
 First-class canonical catalog with 8 categories (`context`, `repository`, `workspace`, `execution`, `testing`, `git`, `integration`, `delegation`) and 11 canonical capability IDs:
@@ -488,17 +489,17 @@ First-class canonical catalog with 8 categories (`context`, `repository`, `works
 - `mcp.invoke` (`integration`)
 - `subagents.delegate` (`delegation`)
 
-Unknown or out-of-catalog capability IDs are rejected with `RAPID1102`.
+Unknown or out-of-catalog capability IDs are rejected with `RAPID1101` (`InvalidCapabilityIdError`).
 
 #### Capability Support (`CapabilitySupportStatus` & `CapabilitySupport`)
 - `CapabilitySupportStatus`: `SUPPORTED = "supported"`, `UNSUPPORTED = "unsupported"`, `UNKNOWN = "unknown"`.
 - Critical invariant: `UNKNOWN != SUPPORTED`. An `unknown` capability never satisfies a required capability.
-- `CapabilitySupport(capability_id, status, reason)` requires a non-empty `reason`, is deduplicated, and is sorted deterministically by `capability_id`.
+- `CapabilitySupport(capability_id, status, reason)` requires a non-empty `reason`, is deduplicated, and is sorted deterministically by `capability_id`. Invalid or duplicate support declarations fail with `RAPID1106` (`InvalidCapabilitySupportError`).
 
 #### `HarnessProfile` (`HARNESS_PROFILE_SCHEMA_VERSION = 1`)
 - Immutable profile (`schema_version`, `id`, `capabilities`, `content_digest`).
-- Strict persisted schema (`schema_version`, `id`, `capabilities`, optional `content_digest` on authoring input; unknown fields like `agent_status`, `model`, `last_seen`, or `execution_result` are rejected with `RAPID1104`).
-- `content_digest` is the SHA-256 hex digest of the canonical JSON payload excluding `content_digest`. If `content_digest` is present in persisted JSON, it is strictly verified (`RAPID1106`); if omitted in hand-authored JSON, it is computed deterministically on load and always emitted on serialization.
+- Strict persisted schema (`schema_version`, `id`, `capabilities`, optional `content_digest` on authoring input; unknown fields like `agent_status`, `model`, `last_seen`, or `execution_result` are rejected with `RAPID1102`, `InvalidHarnessProfileError`).
+- `content_digest` is the SHA-256 hex digest of the canonical JSON payload excluding `content_digest`. If `content_digest` is present in persisted JSON, it is strictly verified (`RAPID1102`); if omitted in hand-authored JSON, it is computed deterministically on load and always emitted on serialization.
 
 #### Conservative Built-in Profiles & Project Override Semantics (`rapid_os.adapters.harness_registry`)
 - Built-in profiles (`builtin:<id>`) follow a conservative policy:
@@ -508,29 +509,28 @@ Unknown or out-of-catalog capability IDs are rejected with `RAPID1102`.
   - All other canonical capabilities (`repository.write`, `workspace.isolated`, `shell.execute`, `tests.execute`, `git.inspect`, `git.modify`, `mcp.invoke`, `subagents.delegate`): `unknown`
 - Project profiles live in `.rapid-os/harnesses/<id>.json` (`source = ".rapid-os/harnesses/<id>.json"`).
 - **Full Replacement Semantics**: When `.rapid-os/harnesses/<id>.json` exists, it completely replaces `builtin:<id>` (any canonical capability omitted from the JSON file defaults to `unknown` on that profile rather than merging from the built-in profile).
-- **No Silent Fallback**: If `.rapid-os/harnesses/<id>.json` exists on disk but is corrupt, unreadable, has an ID/filename mismatch, or fails schema/digest validation, `HarnessRegistry` raises a `HarnessCapabilityError` (`RAPID1104` / `RAPID1105` / `RAPID1106`) and never falls back to `builtin:<id>`.
+- **No Silent Fallback**: If `.rapid-os/harnesses/<id>.json` exists on disk but is corrupt, unreadable, has an ID/filename mismatch, or fails schema/digest validation, `HarnessRegistry` raises a `HarnessCapabilityError` (`RAPID1102` / `RAPID1104` / `RAPID1105` / `RAPID1106`) and never falls back to `builtin:<id>`.
 
 #### Requirement Derivation (`CapabilityRequirementResolver`)
 Derives required capabilities deterministically from an `ExecutionContract` (plus optional explicit `--require <capability-id>` requirements):
 1. Always required:
    - `context.consume` (`source="contract.context"`)
    - `repository.read` (`source="contract.repository"`)
-2. Classification rule:
-   - `classification in {bounded, architectural}` → `repository.write` (`source="contract.classification"`)
-   - `classification == spike` → does **not** require `repository.write` by default
-3. Workspace rule:
+2. Tasks rule:
+   - If `contract.tasks` is not empty → `repository.write` (`source="contract.tasks"`)
+   - (`SPIKE` with tasks requires `repository.write`; `ARCHITECTURAL` without tasks does not automatically require `repository.write`.)
+3. Workspace rule (derived solely from `contract.workspace`):
    - `workspace == current_allowed` → `workspace.current` (`source="contract.workspace"`)
    - `workspace == isolated_required` → `workspace.isolated` (`source="contract.workspace"`)
-4. Gate rule (technical harness capabilities only; human/governance gates like `gate.review`, `gate.manual-approval`, `gate.security-review`, `gate.migration-review`, `gate.final-verification` never imply harness capabilities):
+4. Gate rule (technical harness capabilities only; human/governance gates like `gate.review`, `gate.manual-approval`, `gate.security-review`, `gate.migration-review`, `gate.final-verification`, and `gate.workspace-isolation` do not derive additional technical harness capabilities):
    - Required `gate.tests` → `tests.execute` (`source="contract.gate.tests"`)
-   - Required `gate.workspace-isolation` → `workspace.isolated` (`source="contract.gate.workspace-isolation"`)
 5. Extra explicit CLI/API requirements:
    - `--require <capability-id>` → `source="cli.require"`
 
-Duplicate capability requirements are consolidated deterministically by joining distinct reasons (`; `) and sources (`, `) in canonical `capability_id` order.
+> Explicit extra requirements are additive only. They never remove, downgrade or replace contract-derived requirements.
 
 #### Compatibility Resolution (`CapabilityResolver` & `CapabilityResolution`)
-Evaluates required capabilities against a `HarnessProfile` (`CAPABILITY_RESOLUTION_SCHEMA_VERSION = 1`):
+Evaluates required capabilities against a `HarnessProfile` (`CAPABILITY_RESOLUTION_SCHEMA_VERSION = 1`, enforcing `profile.id == contract.harness`):
 - `SUPPORTED` → `satisfied`
 - `UNSUPPORTED` → `missing`
 - `UNKNOWN` (or absent from profile) → `unknown`
@@ -543,30 +543,31 @@ Evaluates required capabilities against a `HarnessProfile` (`CAPABILITY_RESOLUTI
 #### Capability Lock (`.rapid-os/capabilities.lock`)
 - Optional deterministic snapshot (`CAPABILITY_LOCK_SCHEMA_VERSION = 1`) written only via `rapid harness lock`.
 - Pins every active profile (`builtin` + project overrides) sorted by `harness_id` (`id`, `source`, `profile_digest`, `profile`) and records a top-level canonical `content_digest`.
-- `rapid harness resolve --run <id> --locked` resolves against the exact `HarnessProfile` snapshot stored inside `.rapid-os/capabilities.lock` (failing with `RAPID1109` if `.rapid-os/capabilities.lock` is missing or invalid, or `RAPID1103` if the harness is not present in the lock).
+- `rapid harness resolve --run <id> --locked` resolves against the exact `HarnessProfile` snapshot stored inside `.rapid-os/capabilities.lock` (failing with `RAPID1111` if `.rapid-os/capabilities.lock` is missing or invalid, or `RAPID1103` if the harness is not present in the lock).
 
 ### Harness Capability Validation (`RAPID1100–RAPID1119` in `rapid_os.domain.validation`)
 
 `validate_harness_registry(rapid_dir, root)` and `validate_capability_lock(rapid_dir, root)` are integrated into `rapid validate` and `rapid doctor`:
-- `RAPID1100` (`INFO`): Harness capability registry valid.
-- `RAPID1101` (`ERROR`): Invalid `harness_id` (`InvalidHarnessIdError`).
-- `RAPID1102` (`ERROR`): Invalid or unknown `capability_id` (`InvalidCapabilityIdError`).
-- `RAPID1103` (`ERROR`): Harness profile not found (`HarnessProfileNotFoundError`).
-- `RAPID1104` (`ERROR`): Invalid harness profile schema, unknown fields, duplicate capabilities, or filename/ID mismatch (`InvalidHarnessProfileError`).
-- `RAPID1105` (`ERROR`): Unsafe harness profile or capability lock path / symlink escape (`UnsafeHarnessPathError`).
-- `RAPID1106` (`ERROR`): Harness profile `content_digest` mismatch (`HarnessProfileDigestMismatchError`).
-- `RAPID1107` (`ERROR`): Invalid capability requirement (`InvalidCapabilityRequirementError`).
-- `RAPID1108` (`ERROR`): Invalid `CapabilityResolution` schema or digest (`InvalidCapabilityResolutionError`).
-- `RAPID1109` (`ERROR`): Invalid or missing `.rapid-os/capabilities.lock` schema or digest (`InvalidCapabilityLockError`).
-- `RAPID1110` (`ERROR`): Harness capability resolution is `incompatible` when compatibility is required (`HarnessIncompatibleError`).
-- `RAPID1111` (`ERROR`): Harness capability resolution is `unresolved` when compatibility is required (`HarnessUnresolvedError`).
-- `RAPID1112` (`WARNING`): Stale `.rapid-os/capabilities.lock` (active profile source or digest differs from locked snapshot, or active profile missing/extra vs. lock).
+- `RAPID1100` (`INFO`): Harness capability registry / lock valid.
+- `RAPID1101` (`ERROR`): Invalid or unknown `capability_id` (`InvalidCapabilityIdError`).
+- `RAPID1102` (`ERROR`): Invalid `HarnessProfile` schema/content/digest (`InvalidHarnessProfileError`).
+- `RAPID1103` (`ERROR`): `HarnessProfile` not found (`HarnessProfileNotFoundError`).
+- `RAPID1104` (`ERROR`): Invalid harness identity / filename-ID mismatch (`HarnessIdentityError`, including `validate_harness_id()`).
+- `RAPID1105` (`ERROR`): Unsafe profile/registry/lock path or symlink (`UnsafeHarnessPathError`).
+- `RAPID1106` (`ERROR`): Invalid capability support declaration (`InvalidCapabilitySupportError`).
+- `RAPID1107` (`ERROR`): Invalid `CapabilityRequirement` (`InvalidCapabilityRequirementError`).
+- `RAPID1108` (`ERROR`): Invalid `CapabilityResolution` (`InvalidCapabilityResolutionError`).
+- `RAPID1109` (`ERROR`): `CapabilityResolution` digest mismatch (`CapabilityResolutionDigestMismatchError`).
+- `RAPID1110` (`ERROR`): Strict compatibility requirement not satisfied (`IncompatibleHarnessError` — applies to both `incompatible` and `unresolved` under `--require-compatible`).
+- `RAPID1111` (`ERROR`): Invalid or missing `capabilities.lock` (`InvalidCapabilityLockError`).
+- `RAPID1112` (`WARNING`): `capabilities.lock` stale relative to active profiles.
 - `RAPID1113–RAPID1119`: Reserved for future harness capability diagnostics.
 
 ### CLI Surface (`rapid harness`)
 
 - `rapid harness list [--json]`: Lists active harness profiles (`builtin` and project overrides) in deterministic `harness_id` order without writing files.
 - `rapid harness show <harness-id> [--json]`: Displays a resolved harness profile, provenance (`source`), `content_digest`, and capability statuses in read-only mode.
-- `rapid harness init <harness-id> [--json]`: Materializes a built-in harness profile to `.rapid-os/harnesses/<harness-id>.json` without overwriting existing files (`RAPID1104` if file exists; `RAPID1103` for custom IDs without a built-in profile).
-- `rapid harness resolve --run <run-id> [--harness <harness-id>] [--locked] [--require <capability-id>] [--require-compatible] [--json]`: Resolves an immutable run's `ExecutionContract` against the active (or `--locked`) harness profile in read-only mode. Default mode is informational (`exit 0` on `compatible`, `incompatible`, or `unresolved`); `--require-compatible` enforces gate mode (`exit 0` only on `compatible`, `RAPID1110` on `incompatible`, `RAPID1111` on `unresolved`).
+- `rapid harness init <harness-id> [--json]`: Materializes a built-in harness profile to `.rapid-os/harnesses/<harness-id>.json` without overwriting existing files (`RAPID1102` if file exists; `RAPID1103` for custom IDs without a built-in profile).
 - `rapid harness lock [--json]`: Writes deterministic `.rapid-os/capabilities.lock` across all active profiles.
+- `rapid harness resolve --run <run-id> [--locked] [--require <capability-id>] [--require-compatible] [--json]`: Resolves an immutable run's `ExecutionContract` (`contract.harness`) against the active (or `--locked`) harness profile in read-only mode. Default mode is informational (`exit 0` on `compatible`, `incompatible`, or `unresolved`); `--require-compatible` enforces gate mode (`exit 0` only on `compatible`, `RAPID1110` and `exit 1` on `incompatible` or `unresolved`).
+

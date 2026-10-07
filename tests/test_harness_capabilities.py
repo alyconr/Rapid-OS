@@ -542,7 +542,14 @@ class RequirementDerivationAndResolutionTests(unittest.TestCase):
                 "workspace.current",
             ],
         )
+        by_id = {r.capability_id: r for r in reqs}
+        self.assertEqual(by_id["context.consume"].source, "contract.context")
+        self.assertEqual(by_id["repository.read"].source, "contract.repository")
+        self.assertEqual(by_id["repository.write"].source, "contract.tasks")
+        self.assertEqual(by_id["tests.execute"].source, "contract.gate.tests")
+        self.assertEqual(by_id["workspace.current"].source, "contract.workspace")
 
+        # ARCHITECTURAL + no tasks -> repository.write NOT automatically required
         isolated_contract = _sample_contract(
             classification=ExecutionClass.ARCHITECTURAL,
             risk=RiskLevel.HIGH,
@@ -552,6 +559,7 @@ class RequirementDerivationAndResolutionTests(unittest.TestCase):
             with_human_gates=True,
         )
         isolated_reqs = CapabilityRequirementResolver.derive(isolated_contract)
+        isolated_by_id = {r.capability_id: r for r in isolated_reqs}
         self.assertEqual(
             [r.capability_id for r in isolated_reqs],
             [
@@ -560,6 +568,25 @@ class RequirementDerivationAndResolutionTests(unittest.TestCase):
                 "workspace.isolated",
             ],
         )
+        self.assertNotIn("repository.write", isolated_by_id)
+        self.assertEqual(
+            isolated_by_id["workspace.isolated"].source,
+            "contract.workspace",
+        )
+
+        # SPIKE + tasks -> repository.write required with source="contract.tasks"
+        spike_with_tasks = _sample_contract(
+            classification=ExecutionClass.SPIKE,
+            risk=RiskLevel.LOW,
+            workspace=WorkspaceRequirement.CURRENT_ALLOWED,
+            with_tasks=True,
+            with_tests_gate=False,
+            with_human_gates=False,
+        )
+        spike_reqs = CapabilityRequirementResolver.derive(spike_with_tasks)
+        spike_by_id = {r.capability_id: r for r in spike_reqs}
+        self.assertIn("repository.write", spike_by_id)
+        self.assertEqual(spike_by_id["repository.write"].source, "contract.tasks")
 
     def test_additive_extra_requirements_and_deduplication(self):
         contract = _sample_contract(
@@ -583,9 +610,13 @@ class RequirementDerivationAndResolutionTests(unittest.TestCase):
                 "subagents.delegate",
             },
         )
-        self.assertEqual(by_id["context.consume"].source, "contract")
-        self.assertEqual(by_id["mcp.invoke"].source, "extra")
-        self.assertEqual(by_id["subagents.delegate"].source, "extra")
+        # Contract-derived requirement preserves primary contractual provenance
+        self.assertEqual(by_id["context.consume"].source, "contract.context")
+        self.assertEqual(by_id["repository.read"].source, "contract.repository")
+        self.assertEqual(by_id["repository.write"].source, "contract.tasks")
+        self.assertEqual(by_id["workspace.current"].source, "contract.workspace")
+        self.assertEqual(by_id["mcp.invoke"].source, "cli.require")
+        self.assertEqual(by_id["subagents.delegate"].source, "cli.require")
 
     def test_resolution_outcomes_compatible_incompatible_and_unresolved(self):
         contract = _sample_contract(
@@ -1228,6 +1259,91 @@ class EndToEndHarnessCapabilityFlowsTests(unittest.TestCase):
             )
             self.assertEqual(code, 1)
             self.assertIn("RAPID1111", err)
+
+            # unresolved + --require-compatible -> exit 1 + RAPID1110
+            code, _, err = self._run_cli(
+                root,
+                [
+                    "harness",
+                    "resolve",
+                    "--run",
+                    "run-cli",
+                    "--require-compatible",
+                ],
+            )
+            self.assertEqual(code, 1)
+            self.assertIn("RAPID1110", err)
+
+            # --require mcp.invoke (cli.require) & --require context.consume (does not replace contract.context)
+            code, req_out, err = self._run_cli(
+                root,
+                [
+                    "harness",
+                    "resolve",
+                    "--run",
+                    "run-cli",
+                    "--require",
+                    "mcp.invoke",
+                    "--require",
+                    "context.consume",
+                    "--json",
+                ],
+            )
+            self.assertEqual(code, 0, err)
+            req_res = json.loads(req_out)
+            req_sources = {
+                item["capability_id"]: item["source"]
+                for item in req_res["requirements"]
+            }
+            self.assertEqual(req_sources["context.consume"], "contract.context")
+            self.assertEqual(req_sources["repository.read"], "contract.repository")
+            self.assertEqual(req_sources["repository.write"], "contract.tasks")
+            self.assertEqual(req_sources["workspace.current"], "contract.workspace")
+            self.assertEqual(req_sources["tests.execute"], "contract.gate.tests")
+            self.assertEqual(req_sources["mcp.invoke"], "cli.require")
+
+            # incompatible + --require-compatible -> exit 1 + RAPID1110
+            registry = HarnessRegistry(root, root / ".rapid-os")
+            registry.write_project_profile(
+                _profile_with_overrides(
+                    "codex",
+                    {
+                        "context.consume": CapabilitySupportStatus.SUPPORTED,
+                        "repository.read": CapabilitySupportStatus.SUPPORTED,
+                        "repository.write": CapabilitySupportStatus.UNSUPPORTED,
+                        "workspace.current": CapabilitySupportStatus.SUPPORTED,
+                        "tests.execute": CapabilitySupportStatus.SUPPORTED,
+                    },
+                )
+            )
+            code, _, err = self._run_cli(
+                root,
+                [
+                    "harness",
+                    "resolve",
+                    "--run",
+                    "run-cli",
+                    "--require-compatible",
+                ],
+            )
+            self.assertEqual(code, 1)
+            self.assertIn("RAPID1110", err)
+
+            # rapid harness resolve --harness ... is rejected by the CLI parser
+            parser = cli_main.create_parser()
+            with contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as parser_ctx:
+                    parser.parse_args(
+                        [
+                            "harness",
+                            "resolve",
+                            "--run",
+                            "run-cli",
+                            "--harness",
+                            "claude",
+                        ]
+                    )
+            self.assertNotEqual(parser_ctx.exception.code, 0)
 
             # Contract vs profile harness mismatch -> RAPID1108
             contract = _sample_contract(harness="codex")

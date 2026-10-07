@@ -89,6 +89,7 @@ from rapid_os.domain.execution import (
 from rapid_os.domain.harnesses import (
     CapabilityLockError,
     HarnessCapabilityError,
+    IncompatibleHarnessError,
     InvalidCapabilityResolutionError,
 )
 from rapid_os.domain.mcp import build_mcp_config
@@ -2356,14 +2357,12 @@ def harness_command(args):
                 getattr(args, "require_compatible", False)
                 and resolution.status != CompatibilityStatus.COMPATIBLE
             ):
-                print(
-                    f"RAPID1110 Harness '{resolution.harness_id}' is not compatible with run '{record.id}' (status={resolution.status.value}).",
-                    file=sys.stderr,
+                raise IncompatibleHarnessError(
+                    f"Harness '{resolution.harness_id}' is not compatible with run '{record.id}' (status={resolution.status.value})."
                 )
-                sys.exit(1)
             return 0
 
-        print("RAPID1109 Subcomando 'rapid harness' requerido.", file=sys.stderr)
+        print("RAPID1102 Subcomando 'rapid harness' requerido.", file=sys.stderr)
         sys.exit(1)
     except HarnessCapabilityError as exc:
         print(f"{exc.code} {exc}", file=sys.stderr)
@@ -2372,7 +2371,7 @@ def harness_command(args):
         print(f"{exc.code} {exc}", file=sys.stderr)
         sys.exit(1)
     except ValueError as exc:
-        code = getattr(exc, "code", None) or "RAPID1109"
+        code = getattr(exc, "code", None) or "RAPID1102"
         print(f"{code} {exc}", file=sys.stderr)
         sys.exit(1)
 

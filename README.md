@@ -570,12 +570,36 @@ rapid harness init codex --json
 rapid harness lock
 rapid harness lock --json
 
-# Resolver compatibilidad declarada contra el ExecutionContract de un Run (read-only; nunca muta el Run)
+# Resolver compatibilidad declarada contra el ExecutionContract de un Run (read-only; evalúa contract.harness y nunca muta el Run)
 rapid harness resolve --run booking-idempotency-r1-run-001
 rapid harness resolve --run booking-idempotency-r1-run-001 --json
 rapid harness resolve --run booking-idempotency-r1-run-001 --require mcp.invoke --require shell.execute
 rapid harness resolve --run booking-idempotency-r1-run-001 --locked --require-compatible
 ```
+
+- **Fuente de verdad del harness**: `rapid harness resolve` evalúa exclusivamente `ExecutionContract.harness` (`profile.id == contract.harness`). El harness se selecciona al crear el Run (`rapid run create --harness <id>`); `validate_harness_id()` valida el ID canónico (`RAPID1104` `HarnessIdentityError`).
+- **Derivación determinista de requisitos (`CapabilityRequirementResolver`)**:
+  - **Siempre**: `context.consume` (`source="contract.context"`), `repository.read` (`source="contract.repository"`).
+  - **Si `contract.tasks` no está vacío**: `repository.write` (`source="contract.tasks"`).
+  - **Workspace (`contract.workspace`)**: `current_allowed` → `workspace.current` (`source="contract.workspace"`), `isolated_required` → `workspace.isolated` (`source="contract.workspace"`).
+  - **Required `gate.tests`**: `tests.execute` (`source="contract.gate.tests"`).
+  - **Gates humanos/de gobernanza**: No derivan capacidades técnicas del harness.
+  - **`--require <capability-id>` explícitos**: Estrictamente aditivos (`source="cli.require"`); nunca eliminan, degradan ni reemplazan requisitos derivados del contrato.
+- **Códigos de diagnóstico (`RAPID1100–RAPID1119`)**:
+  - `RAPID1100` (`INFO`): Harness capability registry / lock valid.
+  - `RAPID1101` (`ERROR`): Invalid or unknown `capability_id` (`InvalidCapabilityIdError`).
+  - `RAPID1102` (`ERROR`): Invalid `HarnessProfile` schema/content/digest (`InvalidHarnessProfileError`).
+  - `RAPID1103` (`ERROR`): `HarnessProfile` not found (`HarnessProfileNotFoundError`).
+  - `RAPID1104` (`ERROR`): Invalid harness identity / filename-ID mismatch (`HarnessIdentityError`).
+  - `RAPID1105` (`ERROR`): Unsafe profile/registry/lock path or symlink (`UnsafeHarnessPathError`).
+  - `RAPID1106` (`ERROR`): Invalid capability support declaration (`InvalidCapabilitySupportError`).
+  - `RAPID1107` (`ERROR`): Invalid `CapabilityRequirement` (`InvalidCapabilityRequirementError`).
+  - `RAPID1108` (`ERROR`): Invalid `CapabilityResolution` (`InvalidCapabilityResolutionError`).
+  - `RAPID1109` (`ERROR`): `CapabilityResolution` digest mismatch (`CapabilityResolutionDigestMismatchError`).
+  - `RAPID1110` (`ERROR`): Strict compatibility requirement not satisfied (`IncompatibleHarnessError`; aplica tanto a `incompatible` como a `unresolved` bajo `--require-compatible`).
+  - `RAPID1111` (`ERROR`): Invalid or missing `capabilities.lock` (`InvalidCapabilityLockError`).
+  - `RAPID1112` (`WARNING`): `capabilities.lock` stale relative to active profiles.
+  - `RAPID1113–RAPID1119`: Reservados.
 
 ```text
 HarnessProfile
@@ -586,6 +610,7 @@ CapabilityResolution
 
 Neither proves runtime behavior.
 ```
+
 
 ### Validación y Diagnósticos
 

@@ -132,32 +132,12 @@ rapid harness show codex --json
 ```
 
 ### `rapid harness init <harness-id>`
-Copy a built-in harness profile to `.rapid-os/harnesses/<harness-id>.json` for project-specific customization. Never overwrites an existing file (`RAPID1104`). For custom harness IDs without a built-in profile, fails with `RAPID1103` and explains how to author `.rapid-os/harnesses/<harness-id>.json`.
+Copy a built-in harness profile to `.rapid-os/harnesses/<harness-id>.json` for project-specific customization. Never overwrites an existing file (`RAPID1102`). For custom harness IDs without a built-in profile, fails with `RAPID1103` and explains how to author `.rapid-os/harnesses/<harness-id>.json`.
 
 ```bash
 rapid harness init codex
 rapid harness init codex --json
 ```
-
-### `rapid harness resolve --run <run-id>`
-Resolve an immutable run's `ExecutionContract` against a harness profile in read-only mode (never modifies `.rapid-os/runs/<run-id>/`).
-
-```bash
-rapid harness resolve --run checkout-r1-run-001
-rapid harness resolve --run checkout-r1-run-001 --harness claude
-rapid harness resolve --run checkout-r1-run-001 --locked
-rapid harness resolve --run checkout-r1-run-001 --require mcp.invoke
-rapid harness resolve --run checkout-r1-run-001 --require-compatible
-rapid harness resolve --run checkout-r1-run-001 --json
-```
-
-Options:
-- `--run <run-id>`: Required run identifier whose `ExecutionContract` is evaluated.
-- `--harness <harness-id>`: Optional harness override (defaults to `contract.harness`).
-- `--locked`: Resolve against the exact `HarnessProfile` snapshot stored in `.rapid-os/capabilities.lock` instead of live profiles on disk.
-- `--require <capability-id>`:Repeatable extra canonical capability requirement (`source="cli.require"`).
-- `--require-compatible`: Gate mode — exits `0` only when `compatibility == "compatible"`, and exits `1` with `RAPID1110` (`incompatible`) or `RAPID1111` (`unresolved`). Without `--require-compatible`, resolution is informational and exits `0` for `compatible`, `incompatible`, and `unresolved`.
-- `--json`: Emit pure `CapabilityResolution` JSON (`schema_version = 1`) on `stdout`.
 
 ### `rapid harness lock`
 Write a deterministic `.rapid-os/capabilities.lock` snapshot (`schema_version = 1`) pinning all active harness profiles and their digests.
@@ -166,3 +146,54 @@ Write a deterministic `.rapid-os/capabilities.lock` snapshot (`schema_version = 
 rapid harness lock
 rapid harness lock --json
 ```
+
+### `rapid harness resolve --run <run-id>`
+Resolve an immutable run's `ExecutionContract` (`contract.harness`) against its active or locked harness profile in read-only mode (never modifies `.rapid-os/runs/<run-id>/`).
+
+```bash
+rapid harness resolve --run checkout-r1-run-001
+rapid harness resolve --run checkout-r1-run-001 --locked
+rapid harness resolve --run checkout-r1-run-001 --require mcp.invoke
+rapid harness resolve --run checkout-r1-run-001 --require-compatible
+rapid harness resolve --run checkout-r1-run-001 --json
+```
+
+Options:
+- `--run <run-id>`: Required run identifier whose `ExecutionContract` is evaluated (`profile.id == contract.harness`; the harness is selected when creating the run via `rapid run create --harness <id>`).
+- `--locked`: Resolve against the exact `HarnessProfile` snapshot stored in `.rapid-os/capabilities.lock` instead of live profiles on disk (`RAPID1111` if `.rapid-os/capabilities.lock` is missing or invalid).
+- `--require <capability-id>`: Repeatable extra canonical capability requirement (`source="cli.require"`). Explicit extra requirements are additive only; they never remove, downgrade, or replace contract-derived requirements.
+- `--require-compatible`: Gate mode — exits `0` only when `status == "compatible"`, and exits `1` with `RAPID1110` (`IncompatibleHarnessError`) when `status` is `incompatible` or `unresolved`. Without `--require-compatible`, resolution is informational and exits `0` for `compatible`, `incompatible`, and `unresolved`.
+- `--json`: Emit pure `CapabilityResolution` JSON (`schema_version = 1`) on `stdout`.
+
+### Requirement Derivation Rules (`CapabilityRequirementResolver`)
+- **Always**:
+  - `context.consume` (`source="contract.context"`)
+  - `repository.read` (`source="contract.repository"`)
+- **If `contract.tasks` is not empty**:
+  - `repository.write` (`source="contract.tasks"`)
+- **Workspace (`contract.workspace`)**:
+  - `current_allowed` → `workspace.current` (`source="contract.workspace"`)
+  - `isolated_required` → `workspace.isolated` (`source="contract.workspace"`)
+- **Required `gate.tests`**:
+  - `tests.execute` (`source="contract.gate.tests"`)
+- **Human/governance gates**:
+  - No technical harness capability derived
+- **Explicit `--require <capability-id>`**:
+  - `source="cli.require"` (additive only; never replaces contract-derived provenance)
+
+### Harness Capability Diagnostics (`RAPID1100–RAPID1119`)
+- `RAPID1100` (`INFO`): Harness capability registry / lock valid
+- `RAPID1101` (`ERROR`): Invalid or unknown `capability_id` (`InvalidCapabilityIdError`)
+- `RAPID1102` (`ERROR`): Invalid `HarnessProfile` schema/content/digest (`InvalidHarnessProfileError`)
+- `RAPID1103` (`ERROR`): `HarnessProfile` not found (`HarnessProfileNotFoundError`)
+- `RAPID1104` (`ERROR`): Invalid harness identity / filename-ID mismatch (`HarnessIdentityError`, `validate_harness_id()`)
+- `RAPID1105` (`ERROR`): Unsafe profile/registry/lock path or symlink (`UnsafeHarnessPathError`)
+- `RAPID1106` (`ERROR`): Invalid capability support declaration (`InvalidCapabilitySupportError`)
+- `RAPID1107` (`ERROR`): Invalid `CapabilityRequirement` (`InvalidCapabilityRequirementError`)
+- `RAPID1108` (`ERROR`): Invalid `CapabilityResolution` (`InvalidCapabilityResolutionError`)
+- `RAPID1109` (`ERROR`): `CapabilityResolution` digest mismatch (`CapabilityResolutionDigestMismatchError`)
+- `RAPID1110` (`ERROR`): Strict compatibility requirement not satisfied (`IncompatibleHarnessError`; applies to `incompatible` and `unresolved`)
+- `RAPID1111` (`ERROR`): Invalid or missing `capabilities.lock` (`InvalidCapabilityLockError`)
+- `RAPID1112` (`WARNING`): `capabilities.lock` stale relative to active profiles
+- `RAPID1113–RAPID1119`: Reserved
+

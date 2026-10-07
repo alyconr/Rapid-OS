@@ -630,12 +630,12 @@ class CapabilityRequirementResolver:
         # 1. Always required
         _add_derived(
             "context.consume",
-            "contract",
+            "contract.context",
             "Execution contract requires consuming the compiled context snapshot.",
         )
         _add_derived(
             "repository.read",
-            "contract",
+            "contract.repository",
             "Execution contract requires reading repository files.",
         )
 
@@ -668,11 +668,11 @@ class CapabilityRequirementResolver:
         ):
             _add_derived(
                 "tests.execute",
-                "contract.gates",
+                "contract.gate.tests",
                 "Execution contract requires implementation test verification (gate.tests).",
             )
 
-        # 5. Extra requirements (additive only; never remove or downgrade derived requirements)
+        # 5. Extra requirements (additive only; never remove, downgrade, or replace contract-derived requirements)
         if extra_requirements is not None:
             if isinstance(extra_requirements, (str, bytes)) or not isinstance(
                 extra_requirements, Iterable
@@ -689,7 +689,7 @@ class CapabilityRequirementResolver:
                     extra_req = CapabilityRequirement(
                         capability_id=validated_id,
                         required=True,
-                        source="extra",
+                        source="cli.require",
                         reason=f"Explicitly required capability '{validated_id}'.",
                     )
                 elif isinstance(item, CapabilityRequirement):
