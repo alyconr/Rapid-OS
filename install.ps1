@@ -1,9 +1,10 @@
 $ErrorActionPreference = "Stop"
 
 $RepoUrl = "https://github.com/alyconr/Rapid-OS.git"
+$RapidVersion = "v3.0.0"
 $InstallDir = Join-Path $HOME ".rapid-os"
 
-Write-Host "🚀 Installing Rapid OS v3.0.0 for Windows..." -ForegroundColor Cyan
+Write-Host "🚀 Installing Rapid OS $RapidVersion (stable release) for Windows..." -ForegroundColor Cyan
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     Write-Error "Git is not installed. Please install Git first."
@@ -13,13 +14,16 @@ if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
 }
 
 if (Test-Path (Join-Path $InstallDir ".git")) {
-    Write-Host "🔄 Updating existing Rapid OS installation in $InstallDir..."
-    git -C $InstallDir pull --ff-only origin main
+    Write-Host "🔄 Fetching tags and checking out Rapid OS $RapidVersion in $InstallDir..."
+    git -C $InstallDir fetch --tags --force origin
+    git -C $InstallDir checkout --detach $RapidVersion
 } elseif (Test-Path $InstallDir) {
     Write-Error "$InstallDir already exists and is not a Git repository. Remove or rename it, or install via 'pip install .'."
 } else {
-    Write-Host "⬇️ Cloning Rapid OS repository..."
+    Write-Host "⬇️ Cloning Rapid OS repository and checking out $RapidVersion..."
     git clone $RepoUrl $InstallDir
+    git -C $InstallDir fetch --tags --force origin
+    git -C $InstallDir checkout --detach $RapidVersion
 }
 
 $ProfilePath = $PROFILE
@@ -38,5 +42,5 @@ if (-not (Select-String -Path $ProfilePath -Pattern "function rapid\b" -Quiet)) 
     Write-Host "✅ Alias added to your PowerShell profile ($ProfilePath)." -ForegroundColor Green
     Write-Host "👉 Restart your terminal or run '. `"$ProfilePath`"' to start using 'rapid'."
 } else {
-    Write-Host "✅ Rapid OS v3.0.0 is ready." -ForegroundColor Green
+    Write-Host "✅ Rapid OS $RapidVersion is ready." -ForegroundColor Green
 }

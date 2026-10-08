@@ -39,7 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Updated `rapid guide` to present the 8-step Rapid OS v3 governance loop alongside read-only vs. state-writing command classifications.
 - Enhanced `--help` descriptions across `rapid` and all v3 subcommands (`spec`, `policy`, `run`, `harness`, `evidence`, `eval`) to indicate read-only vs. write behavior.
 - Improved `resolve_paths()` in `rapid_os.core.paths` to fall back to packaged `rapid_os.templates` resources when installed via wheel outside a repository checkout.
-- Updated `install.sh` and `install.ps1` to `v3.0.0` with `.git` repository verification before `git pull --ff-only origin main` and safe path quoting.
+- Updated `install.sh` and `install.ps1` to pin stable installations to the `v3.0.0` tag (`git fetch --tags --force origin` and `git checkout --detach v3.0.0`) with `.git` repository verification and safe path quoting.
 
 ### Fixed
 - Removed obsolete legacy harness constant/import in `rapid_os.domain.context` and `rapid_os.domain.execution` in favor of canonical `BUILTIN_HARNESS_IDS` and `validate_harness_id()`.

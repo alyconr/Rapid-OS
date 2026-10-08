@@ -80,7 +80,7 @@ Rapid OS `v3.0.0` is complete and preserves full backward compatibility with all
 | Harness Capability Registry (v3 Phase 5) | Complete | Canonical capability catalog, conservative builtin & project `HarnessProfile` overrides (`.rapid-os/harnesses/<id>.json`), deterministic `CapabilityRequirementResolver` & `CapabilityResolver`, `.rapid-os/capabilities.lock`, `rapid harness` (`list`, `show`, `init`, `lock`, `resolve`), and `RAPID1100–RAPID1112` validation. |
 | Evidence Engine & Behavioral Evals (v3 Phase 6) | Complete | Immutable `RunEvidence` records & copied SHA-256-verified artifacts (`.rapid-os/evidence/<run-id>/`), deterministic `BehavioralEvaluator` & append-only `EvaluationReport` ledger (`.rapid-os/evals/<run-id>/`), `rapid evidence` (`list`, `show`, `add`, `verify`), `rapid eval` (`run`, `list`, `show`), and `RAPID1200–RAPID1229` validation. |
 | MCP abstraction | Complete | Structured MCP model with editor-specific rendering and package metadata. |
-| Testing and CI hardening | Complete | GitHub Actions on Python 3.10 & 3.12 running `unittest`, CLI smoke checks, and clean wheel installation tests. |
+| Testing and CI hardening | Complete | GitHub Actions on Python 3.10, 3.11, 3.12 & 3.13 running `unittest`, CLI smoke checks, `python -m build` artifact checks, and clean wheel + sdist installation tests. |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -190,79 +190,78 @@ No necesitas clonar este repositorio manualmente para usar la herramienta. El in
 Asegúrate de tener instalado:
 
 - **Git**: Para control de versiones.
-- **Python 3.10+**: Para ejecutar el núcleo de Rapid OS.
-- **Node.js (Opcional)**: Requerido solo si deseas instalar Skills remotas usando `npx`.
+- **Python 3.10+**: Para ejecutar el núcleo de gobernanza de Rapid OS (`3.10`, `3.11`, `3.12`, `3.13` verificados en CI; biblioteca estándar sin dependencias obligatorias externas).
+- **Node.js (Opcional)**: Requerido solo si deseas instalar Skills remotas usando `npx` (`rapid skill add`).
 
 ### Install <a name="install"></a>
 
-#### Opción A: Instalación estándar de paquete Python (`pip` / `venv`)
+#### Stable Release (`v3.0.0`)
 
-Desde un clone local del repositorio:
+Una vez publicado el tag estable `v3.0.0`, utiliza los instaladores anclados a ese release reproducible:
 
-```bash
-python -m pip install .
-rapid --version
-```
-
-#### Opción B: Linux, macOS o WSL
-
-```bash
-curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.sh | bash
-```
-
-#### Opción C: Windows (PowerShell Nativo)
-
-```powershell
-irm https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.ps1 | iex
-```
+- **Opción A: Instalación estándar de paquete Python (`pip` / `venv`) en el tag `v3.0.0`**:
+  ```bash
+  git clone --branch v3.0.0 https://github.com/alyconr/Rapid-OS.git
+  cd Rapid-OS
+  python -m pip install .
+  rapid --version
+  ```
+- **Opción B: Linux, macOS o WSL (Stable `v3.0.0`)**:
+  ```bash
+  curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.sh | bash
+  ```
+- **Opción C: Windows PowerShell (Stable `v3.0.0`)**:
+  ```powershell
+  irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.ps1 | iex
+  ```
 
 Reinicia tu terminal después de la instalación para cargar el comando `rapid` y verifica con `rapid --version` (`Rapid OS 3.0.0`).
+
+#### Development (`latest development version` on `main`)
+
+Si deseas probar cambios en desarrollo desde la rama `main` (no anclado a un release estable):
+
+```bash
+git clone https://github.com/alyconr/Rapid-OS.git
+cd Rapid-OS
+git checkout main
+python -m pip install -e .
+```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Update <a name="update"></a>
 
-Cuando Rapid OS implemente nuevas funcionalidades, actualiza la copia instalada antes de usar los comandos nuevos.
+#### Actualizar a la versión estable `v3.0.0`
 
-#### Windows PowerShell
+- **Windows PowerShell (Stable `v3.0.0`)**:
+  ```powershell
+  git -C "$HOME\.rapid-os" fetch --tags --force origin
+  git -C "$HOME\.rapid-os" checkout --detach v3.0.0
+  ```
+  O ejecutando el instalador estable:
+  ```powershell
+  irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.ps1 | iex
+  ```
+- **Linux, macOS o WSL (Stable `v3.0.0`)**:
+  ```bash
+  git -C "$HOME/.rapid-os" fetch --tags --force origin
+  git -C "$HOME/.rapid-os" checkout --detach v3.0.0
+  ```
+  O ejecutando el instalador estable:
+  ```bash
+  curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.sh | bash
+  ```
 
-```powershell
-git -C $HOME\.rapid-os pull origin main
-```
+#### Actualizar un entorno de desarrollo (`latest development version` en `main`)
 
-Si prefieres reinstalar desde el instalador remoto:
-
-```powershell
-irm https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.ps1 | iex
-```
-
-#### Linux, macOS o WSL
+Si estás trabajando sobre un checkout de desarrollo en `main`:
 
 ```bash
-git -C "$HOME/.rapid-os" pull origin main
-```
-
-Si prefieres reinstalar desde el instalador remoto:
-
-```bash
-curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.sh | bash
-```
-
-#### Desde un checkout local de desarrollo
-
-Si ejecutas Rapid OS directamente desde este repositorio, solo necesitas traer la rama principal:
-
-```powershell
-git pull origin main
-```
-
-Luego valida que la herramienta quedó disponible:
-
-```powershell
+git checkout main
+git pull --ff-only origin main
 rapid doctor
 ```
-
-Si el comando global `rapid` sigue apuntando a una versión antigua, actualiza la copia instalada en `$HOME\.rapid-os` con el comando de PowerShell anterior.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

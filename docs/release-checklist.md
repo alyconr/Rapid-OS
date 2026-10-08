@@ -4,7 +4,19 @@ This checklist documents the exact verification and release procedure for cuttin
 
 ---
 
-## 1. Pre-Tag Verification on `main`
+## 1. Mandatory Pre-Tag Verification Gates on `main`
+
+All of the following gates MUST be checked before creating tag `v3.0.0`:
+
+- [ ] `python -m build` succeeds
+- [ ] wheel exists (`dist/rapid_os-3.0.0-py3-none-any.whl`)
+- [ ] sdist exists (`dist/rapid_os-3.0.0.tar.gz`)
+- [ ] clean wheel installation succeeds outside repository checkout
+- [ ] declared Python versions (`3.10`, `3.11`, `3.12`, `3.13`) are green in CI
+- [ ] stable installer resolves exact `v3.0.0` tag (`install.sh` and `install.ps1`)
+- [ ] stable installation docs do not track `main`
+
+### Step-by-Step Verification Commands
 
 1. Checkout `main` and pull the merged release-readiness commit:
    ```bash
@@ -18,27 +30,28 @@ This checklist documents the exact verification and release procedure for cuttin
    python rapid.py --version
    # Expected: Rapid OS 3.0.0
    ```
-4. Verify bytecode compilation:
+4. Verify bytecode compilation and full test suite:
    ```bash
    python -m compileall -q rapid.py rapid_os tests
-   ```
-5. Run the complete unit and E2E test suite:
-   ```bash
    python -m unittest discover -v
    ```
-6. Run project validation and diagnostics:
+5. Build distribution artifacts (`wheel` + `sdist`) and verify both exist:
    ```bash
-   python rapid.py doctor
-   python rapid.py validate
+   python -m pip install --upgrade pip build
+   python -m build
+   test -f dist/rapid_os-3.0.0-py3-none-any.whl
+   test -f dist/rapid_os-3.0.0.tar.gz
    ```
-7. Verify clean virtual environment installation and `rapid` console script:
+6. Verify clean wheel installation in an isolated virtual environment outside the checkout:
    ```bash
-   python -m venv /tmp/rapid-release-check
-   /tmp/rapid-release-check/bin/pip install .
-   /tmp/rapid-release-check/bin/rapid --version
-   /tmp/rapid-release-check/bin/rapid guide
+   python -m venv /tmp/rapid-wheel-check
+   /tmp/rapid-wheel-check/bin/pip install dist/rapid_os-3.0.0-py3-none-any.whl
+   (cd /tmp && /tmp/rapid-wheel-check/bin/rapid --version)
+   (cd /tmp && /tmp/rapid-wheel-check/bin/rapid --help)
+   (cd /tmp && /tmp/rapid-wheel-check/bin/rapid guide)
+   (cd /tmp && /tmp/rapid-wheel-check/bin/rapid doctor)
    ```
-8. Confirm GitHub Actions CI (`Tests` workflow on Python 3.10 and Python 3.12) is green on `main`.
+7. Confirm GitHub Actions CI (`Tests` workflow across Python `3.10`, `3.11`, `3.12`, and `3.13`) is green on `main`.
 
 ---
 
@@ -64,3 +77,4 @@ gh release create v3.0.0 \
   --title "Rapid OS v3.0.0" \
   --notes-file docs/release-v3.0.0.md
 ```
+

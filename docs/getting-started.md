@@ -6,18 +6,21 @@ This guide walks through installing Rapid OS `v3.0.0` and executing a complete, 
 
 ## 1. Prerequisites
 
-- **Python 3.10+** (standard library only; zero external Python dependencies)
+- **Python 3.10+** (`3.10`, `3.11`, `3.12`, and `3.13` verified in CI; the v3 governance core has no mandatory external runtime dependencies and uses the Python standard library)
 - **Git**
+- **Node.js / `npx` (Optional)**: Only required if you use optional remote skill installation (`rapid skill add`)
 
 ---
 
 ## 2. Installation
 
-### Option A: Standard Python Package (`pip` / `venv`)
+### Stable Release (`v3.0.0`)
 
-From a local clone of the repository:
+#### Option A: Standard Python Package (`pip` / `venv`) from Tag `v3.0.0`
 
 ```bash
+git clone --branch v3.0.0 https://github.com/alyconr/Rapid-OS.git
+cd Rapid-OS
 python -m pip install .
 rapid --version
 ```
@@ -28,21 +31,28 @@ Expected output:
 Rapid OS 3.0.0
 ```
 
-### Option B: Shell / PowerShell Installer
+#### Option B: Reproducible Stable Shell / PowerShell Installer (`v3.0.0`)
+
+Once the `v3.0.0` tag is published:
 
 - **Linux / macOS / WSL**:
   ```bash
-  curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.sh | bash
+  curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.sh | bash
   ```
 - **Windows PowerShell**:
   ```powershell
-  irm https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.ps1 | iex
+  irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.ps1 | iex
   ```
 
-### Option C: Direct Repository Checkout
+### Development (`latest development version` on `main`)
+
+If you are working from the latest development branch (`main`) rather than a pinned stable release:
 
 ```bash
-python rapid.py --version
+git clone https://github.com/alyconr/Rapid-OS.git
+cd Rapid-OS
+git checkout main
+python -m pip install -e .
 python rapid.py guide
 ```
 

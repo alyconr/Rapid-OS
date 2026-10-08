@@ -624,6 +624,81 @@ class V3ReleaseReadinessTests(unittest.TestCase):
             self.assertTrue((paths.templates_dir / "stacks").is_dir())
             self.assertTrue((paths.templates_dir / "topologies").is_dir())
 
+    def test_release_engineering_product_truth_contracts(self) -> None:
+        # 1. __version__ == 3.0.0
+        self.assertEqual(rapid_os.__version__, "3.0.0")
+
+        # 2. pyproject classifiers match supported CI versions in .github/workflows/tests.yml
+        pyproject_text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        workflow_text = (REPO_ROOT / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
+
+        declared_py_versions = set(
+            re.findall(r"Programming Language :: Python :: (3\.\d+)", pyproject_text)
+        )
+        matrix_match = re.search(
+            r"matrix:\s+python-version:\s*((?:\s*-\s*\"3\.\d+\"\s*)+|\[[^\]]+\])",
+            workflow_text,
+        )
+        self.assertIsNotNone(matrix_match, "Could not find python-version matrix in .github/workflows/tests.yml")
+        ci_py_versions = set(re.findall(r'"(3\.\d+)"', matrix_match.group(1)))
+
+        self.assertEqual(declared_py_versions, {"3.10", "3.11", "3.12", "3.13"})
+        self.assertEqual(declared_py_versions, ci_py_versions)
+
+        # Verify CI builds wheel + sdist and tests installing the built wheel artifact
+        self.assertIn("python -m build", workflow_text)
+        self.assertIn("dist/rapid_os-3.0.0-py3-none-any.whl", workflow_text)
+        self.assertIn("dist/rapid_os-3.0.0.tar.gz", workflow_text)
+
+        # 3. Stable installers reference v3.0.0 and do NOT update via origin main
+        install_sh = (REPO_ROOT / "install.sh").read_text(encoding="utf-8")
+        install_ps1 = (REPO_ROOT / "install.ps1").read_text(encoding="utf-8")
+
+        self.assertIn('RAPID_VERSION="v3.0.0"', install_sh)
+        self.assertIn('checkout --detach "$RAPID_VERSION"', install_sh)
+        self.assertNotIn("origin main", install_sh)
+
+        self.assertIn('$RapidVersion = "v3.0.0"', install_ps1)
+        self.assertIn("checkout --detach $RapidVersion", install_ps1)
+        self.assertNotIn("origin main", install_ps1)
+
+        # 4. README and getting-started distinguish stable v3.0.0 vs development main
+        readme_text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        getting_started_text = (REPO_ROOT / "docs" / "getting-started.md").read_text(encoding="utf-8")
+
+        for doc_name, doc_text in (("README.md", readme_text), ("docs/getting-started.md", getting_started_text)):
+            self.assertIn("https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.sh", doc_text, doc_name)
+            self.assertIn("https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.ps1", doc_text, doc_name)
+            self.assertNotIn("https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.sh", doc_text, doc_name)
+            self.assertNotIn("https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.ps1", doc_text, doc_name)
+            self.assertIn("Stable Release (`v3.0.0`)", doc_text, doc_name)
+            self.assertIn("latest development version", doc_text, doc_name)
+
+        # 5. Release notes do not claim zero optional network/runtime dependencies
+        release_notes_text = (REPO_ROOT / "docs" / "release-v3.0.0.md").read_text(encoding="utf-8")
+        self.assertNotIn("No Network or External Runtime Dependencies", release_notes_text)
+        self.assertIn(
+            "Rapid OS v3 governance core has no mandatory external runtime dependencies and uses the Python standard library.",
+            release_notes_text,
+        )
+        self.assertIn("Node.js", release_notes_text)
+        self.assertIn("npx", release_notes_text)
+        self.assertIn("network access", release_notes_text)
+
+        # 6. Release checklist enforces pre-tag build, wheel/sdist, CI matrix, and installer gates
+        checklist_text = (REPO_ROOT / "docs" / "release-checklist.md").read_text(encoding="utf-8")
+        for required_gate in (
+            "python -m build",
+            "dist/rapid_os-3.0.0-py3-none-any.whl",
+            "dist/rapid_os-3.0.0.tar.gz",
+            "clean wheel installation succeeds",
+            "declared Python versions (`3.10`, `3.11`, `3.12`, `3.13`) are green in CI",
+            "stable installer resolves exact `v3.0.0` tag",
+            "stable installation docs do not track `main`",
+        ):
+            self.assertIn(required_gate, checklist_text)
+
 
 if __name__ == "__main__":
     unittest.main()
+

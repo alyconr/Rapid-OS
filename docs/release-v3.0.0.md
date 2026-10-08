@@ -2,7 +2,7 @@
 
 **Release Version**: `3.0.0`  
 **Artifact Schema Version**: `1` (`BehavioralRuleset` version `1`)  
-**Python Requirement**: Python `>=3.10` (Standard Library Only)
+**Python Requirement**: Python `>=3.10` (`3.10`, `3.11`, `3.12`, and `3.13` verified in CI)
 
 ---
 
@@ -51,8 +51,8 @@ While preserving full backward compatibility with all Rapid OS v2 commands (`rap
 - Strict separation between gate declarations (`ACKNOWLEDGED`), waivers (`WAIVED`), missing proof (`UNVERIFIED`), and verified evidence (`PASS`, `PASS_WITH_WAIVERS`, `FAIL`), backed by `RAPID1200–RAPID1229` diagnostics.
 
 ### Release Hardening & Packaging
-- PEP 517/518 packaging via `pyproject.toml` and `MANIFEST.in` with `rapid` console script entrypoint (`rapid_os.cli.main:main`) and bundled package templates (`importlib.resources` fallback when installed as a wheel outside a repo checkout).
-- Global `rapid --version` (`Rapid OS 3.0.0`), updated `rapid guide`, comprehensive `--help` descriptions, hardened `install.sh` and `install.ps1`, and end-to-end governance/tampering/wheel test suites.
+- PEP 517/518 packaging via `pyproject.toml` and `MANIFEST.in` with `rapid` console script entrypoint (`rapid_os.cli.main:main`), `python -m build` wheel + sdist verification, and bundled package templates (`importlib.resources` fallback when installed as a wheel outside a repo checkout).
+- Global `rapid --version` (`Rapid OS 3.0.0`), updated `rapid guide`, comprehensive `--help` descriptions, reproducible `v3.0.0`-pinned `install.sh` and `install.ps1`, and end-to-end governance/tampering/wheel test suites.
 
 ---
 
@@ -88,5 +88,6 @@ rapid prompt
 ## 4. Compatibility & Upgrade Notes
 
 - **Zero Breaking Changes to v2 Workflows**: Existing projects using `.rapid-os/config.json`, `.rapid-os/standards/`, `SPECS.md`, `TASKS.md`, `ACCEPTANCE.md`, and `python rapid.py` continue to work without modification.
-- **No Network or External Runtime Dependencies**: Rapid OS v3.0.0 uses only the Python 3.10+ standard library.
+- **Standard Library Governance Core & Optional Integrations**: Rapid OS v3 governance core has no mandatory external runtime dependencies and uses the Python standard library. Optional compatibility/integration features such as remote skill installation (`rapid skill add`) may require Node.js, `npx`, or network access.
 - **Independent Schema Versioning**: Package version is `3.0.0`, while all v3 JSON schemas remain at `schema_version = 1`.
+
