@@ -38,6 +38,7 @@ const sidebars: SidebarsConfig = {
         'release-v3.0.0',
         'release-checklist',
         'audit/documentation-scope',
+        'audit/sprint-1-validation',
         'contributing/documentation',
       ],
     },
