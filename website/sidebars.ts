@@ -37,6 +37,8 @@ const sidebars: SidebarsConfig = {
       items: [
         'release-v3.0.0',
         'release-checklist',
+        'audit/documentation-scope',
+        'contributing/documentation',
       ],
     },
   ],
