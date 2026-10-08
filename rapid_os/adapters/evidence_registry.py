@@ -618,9 +618,12 @@ class EvidenceRegistry:
         if orphan_dirs:
             orphan_path = orphan_dirs[0]
             raise EvidenceOverwriteError(
-                f"Cannot add new evidence while trailing orphan artifact directory '{orphan_path}' exists without a committed record.",
+                f"Cannot add new evidence while trailing orphan artifact directory '{orphan_path.name}' exists without a committed record ({orphan_path}). "
+                "The previous evidence write may have been interrupted. "
+                "Resolve or inspect the orphan directory before adding new evidence.",
                 path=orphan_path,
             )
+
         max_ordinal = max(
             (parse_evidence_ordinal(rec.id) for rec in records),
             default=0,

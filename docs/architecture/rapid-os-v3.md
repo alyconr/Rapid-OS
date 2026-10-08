@@ -11,10 +11,12 @@ Phase 2  Context Compiler (COMPLETE)
 Phase 3  Spec Registry v3 (COMPLETE)
 Phase 4  Execution Policy Engine & Run Contract (COMPLETE)
 Phase 5  Harness Capability Registry (COMPLETE)
-Phase 6  Evidence Engine & Behavioral Evals (CURRENT)
+Phase 6  Evidence Engine & Behavioral Evals (COMPLETE)
 ```
 
-> Phases 0 through 5 are complete and Phase 6 is currently implemented under audit in the repository today.
+> All Rapid OS v3 phases (Phases 0 through 6) are complete and hardened for the `v3.0.0` stable release.
+>
+> **Release Versioning vs. Artifact Schema Versioning**: The product release version (`rapid_os.__version__ = "3.0.0"`) follows Semantic Versioning for the CLI and Python package, whereas persisted domain artifacts (`.rapid-os/project.json`, `spec.json`, `revision.json`, `policy.json`, `run.json`, `contract.json`, `states/*.json`, `harnesses/*.json`, `capabilities.lock`, `records/E00N.json`, `reports/000N.json`) independently maintain `schema_version = 1` (and `BehavioralRuleset.version = 1`) for deterministic serialization compatibility.
 
 ---
 
@@ -313,7 +315,7 @@ Rapid OS v3 strictly separates:
 - **Context**: *WHAT* the agent needs to know (`CompiledContext`).
 - **Policy**: *UNDER WHAT RULES* work may happen (`ExecutionPolicy` → `PolicyDecision`).
 - **Run**: *ONE* concrete execution attempt pinned to an immutable `ExecutionContract` and append-only `RunState` snapshots in `.rapid-os/runs/<run-id>/`.
-- **Evidence** (Phase 6, planned): *PROOF* of what actually happened.
+- **Evidence** (Phase 6): *PROOF* of what actually happened (`RunEvidence` & `EvaluationReport`).
 
 Rapid OS does **not** act as an autonomous agent runtime: it never invokes external LLM CLIs, never runs shell commands, never creates git worktrees automatically, and never mutates application source code.
 
@@ -463,7 +465,7 @@ Phase 5 does **not** manage:
 - Shell execution (`subprocess`, `os.system`, `Popen`, `shell=True`)
 - Git command execution or worktree creation
 - Subagent or MCP runtime invocation
-- Evidence collection or behavioral proof (planned for Phase 6)
+- Evidence collection or behavioral evaluation (handled by Phase 6)
 - Mutation of Phase 4 run artifacts (`run.json`, `contract.json`, `context.md`, `context-manifest.json`, `states/*.json`)
 
 ### Canonical Domain Entities (`rapid_os.domain.harnesses` & `rapid_os.domain.capabilities`)
@@ -630,7 +632,7 @@ EvalRegistry (.rapid-os/evals/<run-id>/)
 ### Canonical Domain Entities (`rapid_os.domain.evidence` & `rapid_os.domain.evals`)
 
 #### `RunEvidence` (`RUN_EVIDENCE_SCHEMA_VERSION = 1`) & `EvidenceArtifact`
-- Canonical `RunEvidence` fields: `schema_version`, `id`, `run_id`, `contract_digest`, `state_revision`, `state_digest`, `kind`, `producer`, `summary`, `task_ids`, `gate_ids`, `capability_ids`, `payload`, `artifacts`, `content_digest` (no wall-clock `recorded_at` field, preserving deterministic content digests).
+- Canonical `RunEvidence` fields: `schema_version`, `id`, `run_id`, `contract_digest`, `state_revision`, `state_digest`, `kind`, `producer`, `summary`, `task_ids`, `gate_ids`, `capability_ids`, `payload`, `artifacts`, `content_digest` (contains no wall-clock timestamps, preserving deterministic content digests).
 - Canonical `EvidenceArtifact` fields: `path`, `sha256`, `size_bytes`.
 - Deterministic append-only evidence IDs (`E001`..`E999`, `E1000`, ...; `EVIDENCE_ID_RE = ^E\d{3,}$`).
 - Bound to exact `run_id`, `contract_digest`, historical `state_revision`, and `state_digest`.
@@ -653,7 +655,7 @@ Nine canonical evidence kinds with strict per-kind payload validation (`RAPID120
 9. `artifact`: `{"label": "<str>"}` — requires at least one copied `EvidenceArtifact`.
 
 #### `BehavioralRuleset` (`BEHAVIORAL_RULESET_VERSION = 1`), `EvalAssertion`, & `EvaluationReport` (`EVALUATION_REPORT_SCHEMA_VERSION = 1`)
-- Canonical `EvaluationReport` fields: `schema_version`, `run_id`, `contract_digest`, `state_revision`, `state_digest`, `evidence_count`, `evidence_set_digest`, `ruleset_version`, `ruleset_digest`, `extra_capability_ids`, `verdict`, `assertions`, `summary`, `report_digest`.
+- Canonical `EvaluationReport` fields: `schema_version`, `run_id`, `contract_digest`, `state_revision`, `state_digest`, `evidence_set_digest`, `ruleset_version`, `ruleset_digest`, `extra_capability_ids`, `verdict`, `assertions`, `summary`, `report_digest`.
 - `extra_capability_ids: tuple[str, ...]` is validated against `CANONICAL_CAPABILITY_IDS`, deduplicated, sorted, and included in `report_digest`.
 - Mandatory semantic replay: when loading or validating any persisted `EvaluationReport`, `EvalRegistry` reconstructs the evaluation via `BehavioralEvaluator.evaluate(contract, historical_state, historical_evidence_prefix, extra_capability_requirements=report.extra_capability_ids)` and requires exact equality of `assertions`, `verdict`, `ruleset_digest`, `evidence_set_digest`, `extra_capability_ids`, and `report_digest` (`RAPID1223` on any semantic mismatch, even if `report_digest` was recomputed after tampering).
 - `DEFAULT_BEHAVIORAL_RULESET` defines 10 versioned, deterministic rules with `compute_ruleset_digest()`.

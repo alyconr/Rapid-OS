@@ -1,40 +1,42 @@
 $ErrorActionPreference = "Stop"
-# REEMPLAZA CON TU REPO REAL:
+
 $RepoUrl = "https://github.com/alyconr/Rapid-OS.git"
-$InstallDir = "$HOME\.rapid-os"
+$InstallDir = Join-Path $HOME ".rapid-os"
 
-Write-Host "🚀 Installing Rapid OS for Windows..." -ForegroundColor Cyan
+Write-Host "🚀 Installing Rapid OS v3.0.0 for Windows..." -ForegroundColor Cyan
 
-# Comprobar dependencias
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-    Write-Error "Git is not installed."
+    Write-Error "Git is not installed. Please install Git first."
 }
 if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
-    Write-Error "Python is not installed."
+    Write-Error "Python is not installed. Please install Python 3.10+ first."
 }
 
-# Clonar o Actualizar
-if (Test-Path $InstallDir) {
-    Write-Host "🔄 Updating..."
-    git -C $InstallDir pull origin main
+if (Test-Path (Join-Path $InstallDir ".git")) {
+    Write-Host "🔄 Updating existing Rapid OS installation in $InstallDir..."
+    git -C $InstallDir pull --ff-only origin main
+} elseif (Test-Path $InstallDir) {
+    Write-Error "$InstallDir already exists and is not a Git repository. Remove or rename it, or install via 'pip install .'."
 } else {
-    Write-Host "⬇️ Cloning..."
+    Write-Host "⬇️ Cloning Rapid OS repository..."
     git clone $RepoUrl $InstallDir
 }
 
-# Crear Alias Persistente en PowerShell
 $ProfilePath = $PROFILE
+$ProfileDir = Split-Path -Parent $ProfilePath
+if ($ProfileDir -and -not (Test-Path $ProfileDir)) {
+    New-Item -ItemType Directory -Path $ProfileDir -Force | Out-Null
+}
 if (-not (Test-Path $ProfilePath)) {
-    New-Item -Type File -Path $ProfilePath -Force | Out-Null
+    New-Item -ItemType File -Path $ProfilePath -Force | Out-Null
 }
 
-# Función wrapper para llamar a python
 $AliasCommand = "function rapid { python `"$InstallDir\rapid.py`" `$args }"
 
-if (-not (Select-String -Path $ProfilePath -Pattern "function rapid")) {
+if (-not (Select-String -Path $ProfilePath -Pattern "function rapid\b" -Quiet)) {
     Add-Content -Path $ProfilePath -Value "`n# Rapid OS CLI`n$AliasCommand"
-    Write-Host "✅ Alias added to your PowerShell profile." -ForegroundColor Green
-    Write-Host "👉 Please restart your terminal or run '. $ProfilePath' to start using 'rapid'."
+    Write-Host "✅ Alias added to your PowerShell profile ($ProfilePath)." -ForegroundColor Green
+    Write-Host "👉 Restart your terminal or run '. `"$ProfilePath`"' to start using 'rapid'."
 } else {
-    Write-Host "✅ Rapid OS is ready." -ForegroundColor Green
+    Write-Host "✅ Rapid OS v3.0.0 is ready." -ForegroundColor Green
 }

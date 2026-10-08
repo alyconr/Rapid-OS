@@ -32,11 +32,12 @@ jobs:
       - name: Verify bytecode compilation
         run: python -m compileall -q rapid.py rapid_os tests
 
-      - name: Run unit tests
+      - name: Run unit and E2E tests
         run: python -m unittest discover
 
       - name: Run CLI smoke checks
         run: |
+          python rapid.py --version
           python rapid.py --help
           python rapid.py guide
           python rapid.py doctor
@@ -64,3 +65,20 @@ jobs:
           python rapid.py evidence --help
           python rapid.py eval --help
 
+      - name: Verify PEP 517 wheel installation and console entrypoint
+        run: |
+          python -m venv /tmp/rapid-wheel-env
+          /tmp/rapid-wheel-env/bin/pip install --upgrade pip
+          /tmp/rapid-wheel-env/bin/pip install .
+          mkdir -p /tmp/rapid-clean-project/src /tmp/rapid-clean-project/.rapid-os/standards
+          printf 'print("ok")\n' > /tmp/rapid-clean-project/src/app.py
+          printf '# Tech Stack\nPython 3.12\n' > /tmp/rapid-clean-project/.rapid-os/standards/tech-stack.md
+          printf '# Topology\nModular service\n' > /tmp/rapid-clean-project/.rapid-os/standards/topology.md
+          cd /tmp/rapid-clean-project
+          /tmp/rapid-wheel-env/bin/rapid --version
+          /tmp/rapid-wheel-env/bin/rapid --help > /dev/null
+          /tmp/rapid-wheel-env/bin/rapid guide > /dev/null
+          /tmp/rapid-wheel-env/bin/rapid doctor
+          /tmp/rapid-wheel-env/bin/rapid scan --write --json > /tmp/wheel-scan.json
+          python -m json.tool /tmp/wheel-scan.json > /dev/null
+          /tmp/rapid-wheel-env/bin/rapid validate

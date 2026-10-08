@@ -14,7 +14,7 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity, VS Code y Codex) en Ingeni
   <summary>Table of Contents</summary>
   <ol>
     <li><a href="#about-the-project">📖 About the Project</a></li>
-    <li><a href="#rapid-os-v2-status">Rapid OS v2 Status</a></li>
+    <li><a href="#rapid-os-v3-status">Rapid OS v3.0.0 Status</a></li>
     <li><a href="#how-it-works">🧩 How it Works</a></li>
     <li>
       <a href="#build-with">⚒️ Build With</a>
@@ -36,7 +36,7 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity, VS Code y Codex) en Ingeni
     <li><a href="#run-tests">Run tests</a></li>
     <li><a href="#deployment">Deployment</a></li>
     <li><a href="#authors">👥 Authors</a></li>
-    <li><a href="#future-features">Future v2.1+ Enhancements</a></li>
+    <li><a href="#future-features">Future v3.1+ Enhancements</a></li>
     <li><a href="#contributing">🤝 Contributing</a></li>
     <li><a href="#show-your-support">⭐ Show your Support</a></li>
     <li><a href="#acknowledgements">👏 Acknowledgements</a></li>
@@ -49,33 +49,38 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity, VS Code y Codex) en Ingeni
 
 ## 📖 About the Project <a name="about-the-project"></a>
 
-**Rapid OS** es un framework de "Inyección de Contexto" diseñado para resolver el problema de la **"Amnesia de Contexto"** en los LLMs.
+**Rapid OS** es un **Contract-Driven Engineering OS** y framework de **Inyección y Gobernanza de Contexto** diseñado para resolver el problema de la **"Amnesia de Contexto"** y la falta de verificación determinista en los agentes de codificación con IA.
 
-Cuando trabajas con asistentes de IA como Cursor, Claude o Copilot, a menudo olvidan tus reglas de negocio, tu stack tecnológico o tus protocolos de seguridad. Rapid OS soluciona esto inyectando una **"Constitución de Proyecto"** estandarizada que la IA debe obedecer antes de escribir una sola línea de código.
+Cuando trabajas con asistentes de IA como Cursor, Claude, Antigravity, VS Code o Codex, Rapid OS no solo inyecta una **"Constitución de Proyecto"** estandarizada, sino que gobierna el ciclo completo de ingeniería: inteligencia del repositorio (`rapid scan`), especificaciones inmutables (`rapid spec`), compilación selectiva de contexto (`rapid context`), contratos y políticas de ejecución (`rapid policy` / `rapid run`), perfiles y compatibilidad de capacidades del harness (`rapid harness`), evidencia inmutable (`rapid evidence`) y evaluación conductual determinista (`rapid eval`).
+
+**Documentación de Referencia (`v3.0.0`)**:
+- [Getting Started Guide](docs/getting-started.md)
+- [Governance Loop & Product Boundaries](docs/governance-loop.md)
+- [CLI Command & Diagnostic Reference](docs/cli.md)
+- [Rapid OS v3 Architecture](docs/architecture/rapid-os-v3.md)
+- [Release Notes v3.0.0](docs/release-v3.0.0.md) · [Changelog](CHANGELOG.md)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Rapid OS v2 Status <a name="rapid-os-v2-status"></a>
+## Rapid OS v3.0.0 Status <a name="rapid-os-v3-status"></a> <a name="rapid-os-v2-status"></a>
 
-Rapid OS v2 is complete. The repository now has the v2 architecture, CLI compatibility layer, agent adapter boundary, Codex support, structured scope artifacts, validation and diagnostics, project scanner, MCP abstraction, and automated test workflow in place.
+Rapid OS `v3.0.0` is complete and preserves full backward compatibility with all v2 commands and generated file locations.
 
-Future work is tracked as post-v2 enhancement work. The v2 baseline keeps the existing command behavior and generated file locations stable.
-
-| Workstream | Status | Included in v2 / v3 |
+| Workstream | Status | Included in v3.0.0 |
 | :-- | :-- | :-- |
-| Core package refactor | Complete | `rapid_os.cli`, `rapid_os.core`, and domain modules with `rapid.py` compatibility. |
+| Core package & PEP 517 packaging | Complete | `rapid_os` package, `rapid` console script, `rapid.py` compatibility entrypoint, and `rapid --version`. |
 | Agent adapter architecture | Complete | Cursor, Claude, Antigravity, VS Code, and Codex adapters behind a registry. |
 | First-class Codex support | Complete | Opt-in `AGENTS.md` generation through the adapter system. |
 | Structured scope generation | Complete | `SPECS.md`, `TASKS.md`, and `ACCEPTANCE.md` from `rapid scope`. |
-| Validation and diagnostics | Complete | `rapid validate`, `rapid doctor`, and `rapid inspect-context` (including `RAPID6xx` snapshot and `RAPID8xx` spec registry checks). |
+| Validation and diagnostics | Complete | `rapid validate`, `rapid doctor`, and `rapid inspect-context` across all v2 and v3 registries. |
 | Project Intelligence (v3 Phase 1) | Complete | Deterministic `ProjectModel`, `ProjectFact`, `Evidence` provenance, `rapid scan` (`--json`, `--write`, `--verbose`), and optional `.rapid-os/project.json` snapshot. |
 | Context Compiler (v3 Phase 2) | Complete | Task-aware `ContextCompiler`, `ContextResolver`, `ContextManifest`, budget enforcement, conflict detection, `RAPID7xx` diagnostics, and read-only `rapid context` (`--mode`, `--harness`, `--objective`, `--spec`, `--spec-revision`, `--max-chars`, `--manifest`, `--json`). |
 | Spec Registry (v3 Phase 3) | Complete | Canonical `SpecRecord` & `SpecRevision`, immutable revisions under `.rapid-os/specs/<id>/`, `rapid spec` (`create`, `list`, `show`, `revise`, `status`, `export-legacy`), `RAPID8xx` validation, and `rapid context --spec` integration. |
 | Execution Policy Engine & Run Contract (v3 Phase 4) | Complete | Deterministic `ExecutionPolicy`, `PolicyDecision`, `ExecutionContract`, immutable `RunRecord` & `RunState` ledger under `.rapid-os/runs/<run-id>/`, `rapid policy` (`show`, `init`), `rapid run` (`create`, `list`, `show`, `status`, `task`, `gate`), and `RAPID1000–RAPID1014` validation. |
 | Harness Capability Registry (v3 Phase 5) | Complete | Canonical capability catalog, conservative builtin & project `HarnessProfile` overrides (`.rapid-os/harnesses/<id>.json`), deterministic `CapabilityRequirementResolver` & `CapabilityResolver`, `.rapid-os/capabilities.lock`, `rapid harness` (`list`, `show`, `init`, `lock`, `resolve`), and `RAPID1100–RAPID1112` validation. |
-| Evidence Engine & Behavioral Evals (v3 Phase 6) | Current | Immutable `RunEvidence` records & copied SHA-256-verified artifacts (`.rapid-os/evidence/<run-id>/`), deterministic `BehavioralEvaluator` & append-only `EvaluationReport` ledger (`.rapid-os/evals/<run-id>/`), `rapid evidence` (`list`, `show`, `add`, `verify`), `rapid eval` (`run`, `list`, `show`), and `RAPID1200–RAPID1229` validation. |
+| Evidence Engine & Behavioral Evals (v3 Phase 6) | Complete | Immutable `RunEvidence` records & copied SHA-256-verified artifacts (`.rapid-os/evidence/<run-id>/`), deterministic `BehavioralEvaluator` & append-only `EvaluationReport` ledger (`.rapid-os/evals/<run-id>/`), `rapid evidence` (`list`, `show`, `add`, `verify`), `rapid eval` (`run`, `list`, `show`), and `RAPID1200–RAPID1229` validation. |
 | MCP abstraction | Complete | Structured MCP model with editor-specific rendering and package metadata. |
-| Testing and CI hardening | Complete | GitHub Actions plus `python -m unittest discover` and CLI smoke checks. |
+| Testing and CI hardening | Complete | GitHub Actions on Python 3.10 & 3.12 running `unittest`, CLI smoke checks, and clean wheel installation tests. |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -190,19 +195,28 @@ Asegúrate de tener instalado:
 
 ### Install <a name="install"></a>
 
-#### Opción A: Linux, macOS o WSL
+#### Opción A: Instalación estándar de paquete Python (`pip` / `venv`)
+
+Desde un clone local del repositorio:
+
+```bash
+python -m pip install .
+rapid --version
+```
+
+#### Opción B: Linux, macOS o WSL
 
 ```bash
 curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.sh | bash
 ```
 
-#### Opción B: Windows (PowerShell Nativo)
+#### Opción C: Windows (PowerShell Nativo)
 
 ```powershell
 irm https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.ps1 | iex
 ```
 
-Reinicia tu terminal después de la instalación para cargar el comando `rapid`.
+Reinicia tu terminal después de la instalación para cargar el comando `rapid` y verifica con `rapid --version` (`Rapid OS 3.0.0`).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -453,6 +467,8 @@ Tabla completa de comandos disponibles en Rapid OS y sus resultados.
 | `rapid validate`             | **Validación de Proyecto**. Revisa templates, estándares, config, snapshots, specs, policy, runs, harnesses, capabilities.lock, evidence, evals, herramientas y contexto. | No escribe archivos. Sale con `0` si no hay errores y `1` si encuentra errores de validación.     |
 | `rapid doctor`               | **Diagnóstico Local**. Revisa rutas resueltas, templates, Node/npx opcional y proyecto actual.  | No escribe archivos. Usa advertencias para capacidades opcionales como Node/npx.                  |
 | `rapid inspect-context`      | **Inspección de Contexto**. Ensambla y previsualiza el contexto final antes de generar archivos. | No escribe archivos. Muestra secciones incluidas, herramientas seleccionadas y preview final.     |
+| `rapid guide`                | **Guía del Flujo v3**. Muestra el flujo de gobernanza de 8 pasos de Rapid OS v3 y clasifica comandos read-only vs write. | No escribe archivos. |
+| `rapid prompt`               | **Prompt Rápido (Legacy)**. Imprime un bloque rápido de contexto para copiar al portapapeles. | No escribe archivos. |
 
 ---
 
@@ -647,7 +663,7 @@ rapid eval show --run booking-idempotency-r1-run-001 --revision 1 --json
 ```
 
 - **Esquemas canónicos deterministas**:
-  - `RunEvidence` (`schema_version = 1`): `id`, `run_id`, `contract_digest`, `state_revision`, `state_digest`, `kind`, `producer`, `summary`, `task_ids`, `gate_ids`, `capability_ids`, `payload` (ej. `command_result`: `{"label": "...", "exit_code": 0}`), `artifacts`, `content_digest` (sin `recorded_at`, garantizando digests deterministas).
+  - `RunEvidence` (`schema_version = 1`): `id`, `run_id`, `contract_digest`, `state_revision`, `state_digest`, `kind`, `producer`, `summary`, `task_ids`, `gate_ids`, `capability_ids`, `payload` (ej. `command_result`: `{"label": "...", "exit_code": 0}`), `artifacts`, `content_digest` (sin marcas de tiempo de reloj, garantizando digests deterministas).
   - `EvidenceArtifact`: `path`, `sha256`, `size_bytes`.
   - `EvaluationReport` (`schema_version = 1`): incluye `extra_capability_ids` (validados contra el catálogo de Fase 5, ordenados, deduplicados e incluidos en `report_digest`) y `EvaluationVerdict` (`pass`, `pass_with_waivers`, `fail`, `unverified`).
   - **Replay semántico obligatorio (`RAPID1223`)**: Todo `EvaluationReport` persistido se reconstruye con `BehavioralEvaluator` a partir de `ExecutionContract + RunState histórico + conjunto exacto de evidencias + BehavioralRuleset + extra_capability_ids`, exigiendo igualdad exacta de `assertions`, `verdict`, `ruleset_digest`, `evidence_set_digest`, `extra_capability_ids` y `report_digest`.
@@ -838,9 +854,9 @@ Target con template incluido actualmente: `aws`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Future v2.1+ Enhancements <a name="future-features"></a>
+## Future v3.1+ Enhancements <a name="future-features"></a>
 
-Rapid OS v2 is complete. These items are optional post-v2 improvements and are not required to use the current CLI:
+Rapid OS v3.0.0 is complete. These items are optional post-v3.0 enhancements and are not required to use the current CLI:
 
 - [ ] **Soporte para JetBrains**: Integración con IntelliJ/PyCharm AI Assistant.
 - [ ] **Configuración avanzada de Codex**: Soporte para `AGENTS.override.md`, configuración global o instrucciones anidadas si el flujo lo requiere.
