@@ -465,10 +465,15 @@ def validate_evidence_registry(
                     Diagnostic(
                         WARNING,
                         "RAPID1209",
-                        f"Orphan evidence artifact directory '{orphan_dir.name}' for run '{target_id}' has no matching record '{orphan_dir.name}.json'.",
+                        (
+                            f"Trailing evidence artifact '{orphan_dir.name}' detected for run '{target_id}' has no matching record '{orphan_dir.name}.json' (orphan directory). "
+                            "The previous evidence write may have been interrupted. "
+                            "Resolve or inspect the orphan before adding new evidence."
+                        ),
                         orphan_dir,
                     )
                 )
+
         except EvidenceError as exc:
             diagnostics.append(
                 Diagnostic(

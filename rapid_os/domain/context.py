@@ -20,14 +20,6 @@ DEFAULT_MAX_CHARS = 24000
 
 CONTEXT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9._#-]*$")
 
-SUPPORTED_HARNESSES = (
-    "codex",
-    "claude",
-    "cursor",
-    "vscode",
-    "antigravity",
-)
-
 
 class ContextBudgetExceededError(ValueError):
     """Raised when required context fragments exceed the configured character budget."""

@@ -4,8 +4,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Iterable, Mapping
 
-from rapid_os.domain.context import SUPPORTED_HARNESSES, CompiledContext
+from rapid_os.domain.context import CompiledContext
 from rapid_os.domain.harnesses import validate_harness_id
+
 from rapid_os.domain.policy import (
     DEFAULT_EXECUTION_POLICY,
     EXECUTION_POLICY_SCHEMA_VERSION,
