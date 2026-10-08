@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#0b1020"/>
+  <rect x="72" y="72" width="1056" height="486" rx="32" fill="#111827" stroke="#4f46e5" stroke-width="3"/>
+  <text x="120" y="245" fill="#a5b4fc" font-family="Arial, Helvetica, sans-serif" font-size="76" font-weight="700">RAPID OS</text>
+  <text x="120" y="330" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="38">Contract-Driven Engineering OS</text>
+  <text x="120" y="392" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="30">Govern context · specs · policy · evidence · evals</text>
+  <text x="120" y="485" fill="#818cf8" font-family="monospace" font-size="28">rapid scan → spec → context → run → evidence → eval</text>
+</svg>
