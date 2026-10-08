@@ -52,6 +52,8 @@ include-package-data = true
 packages = [
     "rapid_os",
     "rapid_os.adapters",
+    "rapid_os.adapters.agents",
+    "rapid_os.adapters.mcp",
     "rapid_os.cli",
     "rapid_os.core",
     "rapid_os.domain",
