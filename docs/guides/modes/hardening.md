@@ -80,39 +80,41 @@ Al asignar riesgo `high`, el contrato de ejecución (`ExecutionContract`) activa
 ### Evidencia de escaneo estático / SAST (`command_result`)
 ```json
 {
-  "scanner": "bandit",
-  "exit_code": 0,
-  "high_severity_issues": 0,
-  "medium_severity_issues": 0,
-  "scanned_files": 34
+  "kind": "command_result",
+  "producer": "bandit-scanner",
+  "summary": "Auditoría de seguridad Bandit sin hallazgos de severidad media o alta",
+  "capability_ids": ["shell.execute"],
+  "payload": {
+    "label": "bandit -r src/xml_parser",
+    "exit_code": 0
+  }
 }
 ```
 
 ```bash
 rapid evidence add \
   --run mitigacion-cve-en-parser-xml-y-sanitizacion-de-inputs-r1-run-001 \
-  --kind command_result \
-  --producer "bandit-scanner" \
-  --summary "Auditoría de seguridad Bandit sin hallazgos de severidad media o alta" \
   --input sast-evidence.json
 ```
 
 ### Evidencia de revisión humana de seguridad (`review`)
 ```json
 {
-  "reviewer": "appsec-team@empresa.com",
-  "review_type": "security_review",
-  "verdict": "approved",
-  "findings_resolved": ["CVE-2026-XXXX"]
+  "kind": "review",
+  "producer": "appsec-portal",
+  "summary": "Aprobación formal del equipo de Application Security",
+  "gate_ids": ["security_review"],
+  "payload": {
+    "review_type": "security",
+    "outcome": "approved",
+    "reviewer": "appsec-team"
+  }
 }
 ```
 
 ```bash
 rapid evidence add \
   --run mitigacion-cve-en-parser-xml-y-sanitizacion-de-inputs-r1-run-001 \
-  --kind review \
-  --producer "appsec-portal" \
-  --summary "Aprobación formal del equipo de Application Security" \
   --input review-evidence.json
 ```
 
