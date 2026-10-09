@@ -92,11 +92,11 @@ Cuando ejecutas `rapid validate`, `rapid scan`, o comandos de gobernanza, RAPID 
 | Código | Severidad | Causa común | Acción de remediación |
 | :--- | :--- | :--- | :--- |
 | `RAPID1100` | INFO | Perfiles de harness y lock íntegros. | Informativo. |
-| `RAPID1101` | ERROR | Identificador de capability no canónico o inválido. | Usar IDs canónicos (ej. `terminal.execute`, `filesystem.write`). |
+| `RAPID1101` | ERROR | Identificador de capability no canónico o inválido. | Usar IDs canónicos (ej. `shell.execute`, `repository.write`). |
 | `RAPID1102` | ERROR | Perfil de harness (`HarnessProfile`) inválido. | Corregir `.rapid-os/harnesses/<id>.json` según el schema v1. |
 | `RAPID1103` | ERROR | Perfil de harness no encontrado. | Inicializar el perfil con `rapid harness init <id>` o usar uno integrado. |
 | `RAPID1104` | ERROR | Formato de harness ID inválido. | Usar nombres alfanuméricos en minúsculas con guiones. |
-| `RAPID1106` | ERROR | Nivel de soporte inválido en perfil. | Usar `supported`, `conditional`, o `unsupported`. |
+| `RAPID1106` | ERROR | Nivel de soporte inválido en perfil. | Usar `supported`, `unsupported`, o `unknown`. |
 | `RAPID1107` | ERROR | Requerimiento de capability malformado en contrato. | Verificar la especificación de capacidades del contrato. |
 | `RAPID1108` | ERROR | Objeto `CapabilityResolution` inválido. | Ejecutar nuevamente `rapid harness resolve --run <id>`. |
 | `RAPID1109` | ERROR | Discrepancia en el digest de resolución. | Asegurarse de que el perfil y el contrato no hayan cambiado. |

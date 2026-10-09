@@ -1,246 +1,347 @@
 ---
 title: Ingesta y Verificación de Evidencia
-description: Cookbook de formatos de evidencia (EvidenceKind), payloads JSON y verificación de integridad en RAPID OS.
+description: Cookbook de formatos de evidencia (EvidenceKind), documentos de autoría JSON y verificación de integridad en RAPID OS.
 ---
 
 # Ingesta y Verificación de Evidencia
 
-El **Evidence Engine** de RAPID OS garantiza que cualquier afirmación sobre la ejecución del trabajo (pruebas pasadas, revisiones aprobadas, archivos editados) esté respaldada por registros inmutables, secuenciales y vinculados matemáticamente al contrato del run.
+El **Evidence Engine** de RAPID OS garantiza que cualquier afirmación sobre la ejecución del trabajo (pruebas ejecutadas, revisiones aprobadas, archivos editados, comandos ejecutados) esté respaldada por registros inmutables, secuenciales y vinculados matemáticamente al contrato y estado activo del run.
 
 ---
 
-## Principios de la Evidencia en RAPID OS
+## Contrato de la Interfaz CLI
 
-1. **Inmutabilidad y Secuencia estricta**: Los registros se guardan como `E001.json`, `E002.json`, ... en `.rapid-os/evidence/<run-id>/`. No se permiten huecos de secuencia ni sobreescrituras.
-2. **Vinculación criptográfica**: Cada registro incluye el digest SHA-256 del contrato (`contract_digest`) y del estado del run (`state_digest`).
-3. **Determinismo libre de tiempo de reloj**: El payload y el cálculo de digest no dependen de la hora del sistema (`wall-clock timestamp`) para asegurar reproducibilidad.
-4. **Artefactos verificados por contenido**: Los archivos pesados adjuntos se copian a la carpeta de evidencia y se verifican por su hash SHA-256 y tamaño en bytes (`size_bytes`).
+La invocación para registrar evidencia en RAPID OS utiliza el subcomando `rapid evidence add`:
+
+```bash
+rapid evidence add --run <run-id> --input <ruta-al-archivo-json> [--json]
+```
+
+> **Product Truth**: `rapid evidence add` **no** acepta banderas directas como `--kind`, `--producer` o `--summary`. La metadata de autoría, las referencias a tareas/compuertas y el payload específico de cada tipo de evidencia se declaran **dentro del documento JSON de entrada** provisto a `--input`.
+
+Comandos complementarios del Evidence Engine:
+```bash
+# Listar registros E001..E00N y el digest consolidado del run
+rapid evidence list --run <run-id> [--json]
+
+# Inspeccionar el detalle y bindings de una evidencia específica
+rapid evidence show --run <run-id> <evidence-id> [--json]
+
+# Verificar la secuencia ordinal, integridad de artefactos y hashes
+rapid evidence verify --run <run-id> [--json]
+```
+
+---
+
+## Estructura del Documento JSON de Autoría (`Authoring JSON`)
+
+El archivo JSON provisto mediante `--input` debe contener la siguiente estructura canónica:
+
+```jsonc
+{
+  "kind": "<EvidenceKind>",
+  "producer": "<identificador-del-productor>",
+  "summary": "<resumen-descriptivo-del-registro>",
+  "payload": {
+    /* Campos requeridos estrictos según el kind */
+  },
+  "task_ids": ["T1"],
+  "gate_ids": ["gate.tests"],
+  "capability_ids": ["tests.execute"],
+  "artifacts": ["reports/summary.txt"]
+}
+```
+
+### Campos del documento de autoría:
+
+| Campo | Obligatorio | Descripción | Restricciones |
+| :--- | :--- | :--- | :--- |
+| `kind` | **Sí** | Tipo canónico de evidencia | Uno de los 9 valores de [`EvidenceKind`](#los-9-tipos-de-evidencia-evidencekind). |
+| `producer` | **Sí** | Identificador del sistema o herramienta que produjo la evidencia | Alfanumérico portable. Si incluye prefijo con dos puntos (`:`), debe coincidir con el harness del contrato (ej. `harness:codex`) o formato permitido. |
+| `summary` | **Sí** | Resumen conciso de la evidencia | Texto portable no vacío. |
+| `payload` | **Sí** | Diccionario de datos específicos del tipo | Debe contener **única y estrictamente** los campos requeridos por el tipo. Campos inesperados provocan rechazo inmediato (`RAPID1206`). |
+| `task_ids` | No | Lista de identificadores de tareas vinculadas | Deben existir en el `ExecutionContract` del run. |
+| `gate_ids` | No | Lista de compuertas de calidad vinculadas | Deben coincidir con los IDs del catálogo canónico presentes en el contrato (`gate.tests`, `gate.baseline`, `gate.review`, etc.). |
+| `capability_ids` | No | Capabilities del harness acreditadas | Deben pertenecer al catálogo canónico de capabilities. |
+| `artifacts` | No | Archivos fuente a copiar y verificar con SHA-256 | Rutas relativas POSIX existentes. Obligatorio si `kind == "artifact"`. |
 
 ---
 
 ## Los 9 tipos de Evidencia (`EvidenceKind`)
 
-A continuación se presentan ejemplos reales y validados para cada clase de evidencia soportada:
+A continuación se presentan los documentos JSON completos y válidos para cada uno de los 9 tipos soportados, listos para ser utilizados con `rapid evidence add --run <run-id> --input <file>`.
 
-### 1. `test_result` (Resultados de Pruebas)
-Registra la ejecución cuantitativa de pruebas unitarias, de integración o end-to-end:
+### 1. `test_result` (Resultados de Pruebas Automatizadas)
+Registra el resultado cuantitativo de una suite de pruebas.
 
+**Campos requeridos de `payload`**: `suite`, `exit_code`, `passed`, `failed`, `skipped`.
+
+**Archivo `test-evidence.json`**:
 ```json
 {
-  "framework": "pytest",
-  "passed": 42,
-  "failed": 0,
-  "skipped": 2,
-  "exit_code": 0,
-  "duration_seconds": 1.84,
-  "suite": "unit-tests"
+  "kind": "test_result",
+  "producer": "pytest",
+  "summary": "Suite de tests unitarios aprobada al 100%",
+  "gate_ids": ["gate.tests"],
+  "capability_ids": ["tests.execute"],
+  "payload": {
+    "suite": "unit-tests",
+    "exit_code": 0,
+    "passed": 42,
+    "failed": 0,
+    "skipped": 1
+  }
 }
 ```
 
+**Ejecución**:
 ```bash
-rapid evidence add \
-  --run my-run-001 \
-  --kind test_result \
-  --producer "ci-runner" \
-  --summary "42 tests unitarios pasando al 100%" \
-  --input test-payload.json
+rapid evidence add --run feature-auth-r1-run-001 --input test-evidence.json
 ```
 
 ---
 
-### 2. `command_result` (Ejecución de Comandos o Herramientas)
-Registra la salida y el código de retorno de linters, formateadores o scripts:
+### 2. `command_result` (Resultado de Comandos o Herramientas)
+Registra la salida y código de retorno de comandos de terminal, linters o herramientas del sistema.
 
+**Campos requeridos de `payload`**: `label`, `exit_code`.
+
+**Archivo `command-evidence.json`**:
 ```json
 {
-  "command": "ruff check .",
-  "exit_code": 0,
-  "stdout_snippet": "All checks passed!",
-  "stderr_snippet": "",
-  "duration_seconds": 0.45
+  "kind": "command_result",
+  "producer": "ruff",
+  "summary": "Verificación estática de código con Ruff",
+  "capability_ids": ["shell.execute"],
+  "payload": {
+    "label": "ruff check .",
+    "exit_code": 0
+  }
 }
 ```
 
+**Ejecución**:
 ```bash
-rapid evidence add \
-  --run my-run-001 \
-  --kind command_result \
-  --producer "ruff-linter" \
-  --summary "Linter Ruff ejecutado sin violaciones de estilo" \
-  --input ruff-payload.json
+rapid evidence add --run feature-auth-r1-run-001 --input command-evidence.json
 ```
 
 ---
 
-### 3. `file_change` (Modificación de Archivos)
-Registra los módulos alterados durante la tarea:
+### 3. `file_change` (Modificación de Archivos del Repositorio)
+Registra las rutas relativas de los archivos tocados durante la implementación.
 
+**Campos requeridos de `payload`**: `paths` (lista de rutas relativas POSIX no vacía).
+
+**Archivo `file-change-evidence.json`**:
 ```json
 {
-  "modified": ["src/payments/service.py", "src/payments/models.py"],
-  "added": ["tests/unit/test_webhook_retry.py"],
-  "deleted": []
+  "kind": "file_change",
+  "producer": "git-inspector",
+  "summary": "Archivos implementados en el servicio de autenticación",
+  "capability_ids": ["repository.write"],
+  "payload": {
+    "paths": [
+      "src/auth/service.py",
+      "tests/unit/test_auth.py"
+    ]
+  }
 }
 ```
 
+**Ejecución**:
 ```bash
-rapid evidence add \
-  --run my-run-001 \
-  --kind file_change \
-  --producer "git-inspector" \
-  --summary "3 archivos modificados en el módulo payments" \
-  --input files-payload.json
+rapid evidence add --run feature-auth-r1-run-001 --input file-change-evidence.json
 ```
 
 ---
 
-### 4. `git_result` (Operaciones Git y Diffs)
-Registra operaciones del control de versiones:
+### 4. `git_result` (Operaciones del Repositorio Git)
+Registra operaciones del control de versiones.
 
+**Campos requeridos de `payload`**: `operation` (estrictamente `"inspect"` o `"modify"`).
+
+**Archivo `git-evidence.json`**:
 ```json
 {
-  "operation": "diff_summary",
-  "commit_sha": "d4e5f6a1b2c3",
-  "insertions": 145,
-  "deletions": 12,
-  "status": "clean"
+  "kind": "git_result",
+  "producer": "git-cli",
+  "summary": "Inspección de estado y diff limpio del working tree",
+  "capability_ids": ["git.inspect"],
+  "payload": {
+    "operation": "inspect"
+  }
 }
 ```
 
+**Ejecución**:
 ```bash
-rapid evidence add \
-  --run my-run-001 \
-  --kind git_result \
-  --producer "git-agent" \
-  --summary "Diff consolidado del branch de trabajo" \
-  --input git-payload.json
+rapid evidence add --run feature-auth-r1-run-001 --input git-evidence.json
 ```
 
 ---
 
-### 5. `workspace` (Aislamiento de Espacio de Trabajo)
-Acredita el cumplimiento de la compuerta `workspace_isolation`:
+### 5. `workspace` (Modo y Aislamiento del Espacio de Trabajo)
+Acredita el cumplimiento del requisito de espacio de trabajo o la compuerta `gate.workspace-isolation`.
 
+**Campos requeridos de `payload`**: `mode` (estrictamente `"current"` o `"isolated"`).
+
+> **Regla de Gobernanza**: Para satisfacer formalmente la compuerta de gobernanza `gate.workspace-isolation` (`rule.gate.workspace_isolation.v1`), el evaluador exige obligatoriamente evidencia `workspace` con `mode: "isolated"` y capability `workspace.isolated`. Una evidencia con `mode: "current"` acredita ejecución en el entorno de trabajo actual, pero no demuestra cumplimiento del aislamiento requerido por runs con clasificación o riesgo elevado.
+
+**Archivo `workspace-evidence.json`**:
 ```json
 {
-  "workspace_type": "git_worktree",
-  "branch": "feature/webhook-retry",
-  "isolation_mode": "isolated_required",
-  "verified_clean": true
+  "kind": "workspace",
+  "producer": "workspace-manager",
+  "summary": "Entorno de ejecución verificado en rama de trabajo aislada",
+  "gate_ids": ["gate.workspace-isolation"],
+  "capability_ids": ["workspace.isolated"],
+  "payload": {
+    "mode": "isolated"
+  }
 }
 ```
 
+**Ejecución**:
 ```bash
-rapid evidence add \
-  --run my-run-001 \
-  --kind workspace \
-  --producer "workspace-manager" \
-  --summary "Ejecución aislada en worktree independiente verificado" \
-  --input workspace-payload.json
+rapid evidence add --run feature-auth-r1-run-001 --input workspace-evidence.json
 ```
 
 ---
 
-### 6. `review` (Revisiones Humanas por Pares o Seguridad)
-Registra la aprobación formal requerida por compuertas como `peer_review` o `security_review`:
+### 6. `review` (Revisiones Formales por Pares o Seguridad)
+Registra la aprobación formal de compuertas como `gate.review`, `gate.security-review` o `gate.manual-approval`.
 
+**Campos requeridos de `payload`**:
+- `review_type`: estrictamente `"peer"`, `"security"`, `"migration"`, `"manual"`, o `"final"`.
+- `outcome`: estrictamente `"approved"`, `"changes_requested"`, o `"rejected"`.
+- `reviewer`: identificador portable del revisor (sin diagonales `/`).
+
+**Archivo `review-evidence.json`**:
 ```json
 {
-  "reviewer": "senior-engineer@company.com",
-  "review_type": "peer_review",
-  "outcome": "approved",
-  "comments": "Implementación limpia y compatible con versiones anteriores"
+  "kind": "review",
+  "producer": "github-pr",
+  "summary": "Aprobación técnica de revisión por pares",
+  "gate_ids": ["gate.review"],
+  "payload": {
+    "review_type": "peer",
+    "outcome": "approved",
+    "reviewer": "lead-architect"
+  }
 }
 ```
 
+**Ejecución**:
 ```bash
-rapid evidence add \
-  --run my-run-001 \
-  --kind review \
-  --producer "github-pr-review" \
-  --summary "Aprobación formal de revisión por pares" \
-  --input review-payload.json
+rapid evidence add --run feature-auth-r1-run-001 --input review-evidence.json
 ```
 
 ---
 
-### 7. `tool_invocation` (Invocación de Herramientas del Entorno)
-Registra el uso de compiladores, generadores de código o analizadores de tipos:
+### 7. `tool_invocation` (Invocación de Herramientas o Analizadores)
+Registra la ejecución de analizadores de tipos, linters o herramientas de desarrollo.
 
+**Campos requeridos de `payload`**:
+- `tool_id`: identificador de la herramienta (sin diagonales `/`).
+- `outcome`: estrictamente `"success"` o `"failure"`.
+
+**Archivo `tool-evidence.json`**:
 ```json
 {
-  "tool_name": "mypy",
-  "version": "1.10.0",
-  "exit_code": 0,
-  "target_directory": "src/"
+  "kind": "tool_invocation",
+  "producer": "typecheck-runner",
+  "summary": "Análisis de tipos estáticos ejecutado exitosamente",
+  "payload": {
+    "tool_id": "mypy",
+    "outcome": "success"
+  }
 }
 ```
 
+**Ejecución**:
 ```bash
-rapid evidence add \
-  --run my-run-001 \
-  --kind tool_invocation \
-  --producer "typechecker" \
-  --summary "Validación estática de tipos con Mypy estricto" \
-  --input mypy-payload.json
+rapid evidence add --run feature-auth-r1-run-001 --input tool-evidence.json
 ```
 
 ---
 
-### 8. `delegation` (Delegación de Tareas o Aprobaciones)
-Registra la transferencia o aprobación por un sistema externo:
+### 8. `delegation` (Delegación de Subtareas o Servicios Externos)
+Registra la transferencia o delegación a un servicio o subagente.
 
+**Campos requeridos de `payload`**:
+- `target`: identificador del destinatario delegado (sin diagonales `/`).
+- `outcome`: estrictamente `"success"` o `"failure"`.
+
+**Archivo `delegation-evidence.json`**:
 ```json
 {
-  "delegated_to": "compliance-pipeline",
-  "ticket_id": "SEC-8891",
-  "status": "authorized"
+  "kind": "delegation",
+  "producer": "orchestrator",
+  "summary": "Delegación de compilación de assets al pipeline de frontend",
+  "capability_ids": ["subagents.delegate"],
+  "payload": {
+    "target": "frontend-build-worker",
+    "outcome": "success"
+  }
 }
 ```
 
+**Ejecución**:
 ```bash
-rapid evidence add \
-  --run my-run-001 \
-  --kind delegation \
-  --producer "jira-service-desk" \
-  --summary "Autorización de cambio por equipo de compliance" \
-  --input delegation-payload.json
+rapid evidence add --run feature-auth-r1-run-001 --input delegation-evidence.json
 ```
 
 ---
 
-### 9. `artifact` (Archivos Adjuntos Verificados)
-Permite anexar reportes pesados externos (ej. reportes HTML de cobertura, snapshots binarios o logs extensos):
+### 9. `artifact` (Archivos Adjuntos Verificados por Hash)
+Permite adjuntar archivos del proyecto (reportes de cobertura, logs, binarios) que son copiados físicamente a `.rapid-os/evidence/<run-id>/artifacts/<evidence-id>/` y protegidos por digest SHA-256.
 
+**Campos requeridos de `payload`**: `label`.  
+**Campo adicional requerido en el documento de autoría**: `artifacts` (lista de rutas relativas a archivos existentes).
+
+**Archivo `artifact-evidence.json`**:
 ```json
 {
-  "artifact_type": "coverage_report",
-  "format": "json",
-  "line_coverage_pct": 94.5
+  "kind": "artifact",
+  "producer": "coverage-agent",
+  "summary": "Reporte consolidado de cobertura de código",
+  "artifacts": [
+    "reports/coverage.json"
+  ],
+  "payload": {
+    "label": "coverage-report"
+  }
 }
 ```
 
+**Ejecución**:
 ```bash
-rapid evidence add \
-  --run my-run-001 \
-  --kind artifact \
-  --producer "coverage-tool" \
-  --summary "Reporte estructurado de cobertura de código" \
-  --input coverage-summary.json
+rapid evidence add --run feature-auth-r1-run-001 --input artifact-evidence.json
 ```
 
 ---
 
-## 3. Verificación de Integridad (`rapid evidence verify`)
+## Gestión y Comportamiento de Artefactos (`Artifacts`)
 
-Para asegurar que ningún archivo de evidencia fue alterado manualmente, eliminado o dañado en el disco:
+Cuando un documento de autoría incluye el arreglo `"artifacts"`:
+1. **Copia Segura**: RAPID OS lee el archivo de origen (ej. `reports/coverage.json`), verifica que no sea un enlace simbólico y lo copia a `.rapid-os/evidence/<run-id>/artifacts/<evidence-id>/reports/coverage.json`.
+2. **Cálculo de Digest y Tamaño**: Calcula de forma determinista el hash SHA-256 y el tamaño en bytes (`size_bytes`), registrándolos en el registro `RunEvidence`.
+3. **Integridad Inmutable**: Si el archivo copiado en `.rapid-os/evidence/` es posteriormente alterado o eliminado, `rapid evidence verify` detecta la manipulación y emite el diagnóstico `RAPID1205` (`EvidenceArtifactIntegrityError`).
+
+> **Product Truth sobre Autenticidad**: El cálculo del hash SHA-256 verifica la **integridad física local** del archivo copiado frente al registro inmutable. No constituye una atestación criptográfica externa ni garantiza la veracidad o fiabilidad del productor que generó el contenido.
+
+---
+
+## Verificación de Integridad (`rapid evidence verify`)
+
+Para comprobar la continuidad de la secuencia y la consistencia matemática de todas las evidencias de un run:
 
 ```bash
-rapid evidence verify --run my-run-001
+rapid evidence verify --run feature-auth-r1-run-001
 ```
 
 Este comando verifica:
-- Continuidad estricta de la numeración (`E001`, `E002`, ...).
-- Correspondencia exacta del `content_digest` calculado.
-- Consistencia del hash SHA-256 de los artefactos copiados en disco.
-- Coincidencia del `contract_digest` con el contrato del run.
+- **Secuencia continua**: No existen huecos en la numeración (`E001`, `E002`, `E003` sin omisiones).
+- **Binding de Estado y Contrato**: Los digests `contract_digest` y `state_digest` de cada evidencia corresponden exactamente al contrato y estado activo del run.
+- **Integridad de Artefactos**: Cada archivo en la carpeta de artefactos coincide en bytes y hash SHA-256 con su declaración en el registro JSON.
+- **Hash de Conjunto (`evidence_set_digest`)**: Computa el digest canónico global del conjunto ordenado de evidencias, el cual es insumo para la evaluación de comportamiento con `rapid eval run`.

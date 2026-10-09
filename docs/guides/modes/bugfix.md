@@ -82,19 +82,22 @@ Registra que el defecto fue reproducido fehacientemente antes del fix:
 
 ```json
 {
-  "step": "reproduction",
-  "test_target": "tests/integration/test_reconciliation.py::test_concurrent_reconciliation",
-  "exit_code": 1,
-  "error_message": "DeadlockDetected: Transaction 402 blocked on lock"
+  "kind": "test_result",
+  "producer": "pytest-reproduction",
+  "summary": "Falla de concurrencia reproducida en test de integración",
+  "payload": {
+    "suite": "reconciliation-deadlock-repro",
+    "exit_code": 1,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0
+  }
 }
 ```
 
 ```bash
 rapid evidence add \
   --run fix-timeout-en-reconciliacion-de-balance-r1-run-001 \
-  --kind test_result \
-  --producer "pytest-reproduction" \
-  --summary "Falla de concurrencia reproducida en test de integración" \
   --input reproduction-evidence.json
 ```
 
@@ -103,21 +106,23 @@ Una vez aplicado el cambio en el código y aprobadas todas las pruebas:
 
 ```json
 {
-  "step": "resolution",
-  "suite": "all_tests",
-  "passed": 48,
-  "failed": 0,
-  "regression_test_passed": true,
-  "exit_code": 0
+  "kind": "test_result",
+  "producer": "pytest-full-suite",
+  "summary": "Suite completa verde incluyendo nuevo test de regresión",
+  "gate_ids": ["implementation_tests"],
+  "payload": {
+    "suite": "all-tests",
+    "exit_code": 0,
+    "passed": 48,
+    "failed": 0,
+    "skipped": 0
+  }
 }
 ```
 
 ```bash
 rapid evidence add \
   --run fix-timeout-en-reconciliacion-de-balance-r1-run-001 \
-  --kind test_result \
-  --producer "pytest-full-suite" \
-  --summary "Suite completa verde incluyendo nuevo test de regresión" \
   --input resolution-evidence.json
 ```
 
