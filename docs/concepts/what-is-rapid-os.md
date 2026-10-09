@@ -62,14 +62,14 @@ Rapid OS puede:
 
 ## Qué no hace
 
-Rapid OS no:
+Rapid OS:
 
-- invoca automáticamente LLMs o coding agents;
-- ejecuta comandos arbitrarios del repositorio durante un run;
-- crea branches o worktrees automáticamente;
-- considera un gate `acknowledged` como evidencia;
-- considera una capability declarada como prueba de que fue utilizada;
-- garantiza que un `PASS` significa ausencia total de bugs o seguridad perfecta.
+- no invoca automáticamente LLMs o coding agents;
+- no ejecuta comandos arbitrarios del repositorio durante un run;
+- no crea branches o worktrees automáticamente;
+- no considera un gate `acknowledged` como evidencia;
+- no considera una capability declarada como prueba de que fue utilizada;
+- no garantiza que un `PASS` significa ausencia total de bugs o seguridad perfecta.
 
 ## Compatibilidad
 

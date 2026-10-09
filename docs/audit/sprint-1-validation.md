@@ -46,8 +46,8 @@ Consolidar el portal Docusaurus sin alterar las capacidades del núcleo Python d
 - [x] Workflow dedicado a typecheck y build.
 - [x] Detección de enlaces internos rotos configurada.
 - [x] Pruebas estáticas de contrato documental añadidas al repositorio.
-- [ ] `website/package-lock.json` generado y validado por npm.
-- [ ] CI con instalación reproducible `npm ci`.
-- [ ] Validación final de la revisión más reciente de PR #34.
+- [x] `website/package-lock.json` generado y validado por npm.
+- [x] CI con instalación reproducible `npm ci`.
+- [x] Validación final de la revisión más reciente de PR #34.
 
 **Criterio de cierre:** no declarar Sprint 1 terminado hasta que todas las casillas estén verificadas en CI y el PR permanezca libre de regresiones.

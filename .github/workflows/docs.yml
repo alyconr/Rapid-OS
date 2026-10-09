@@ -32,9 +32,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: npm
+          cache-dependency-path: website/package-lock.json
 
       - name: Install documentation dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci
 
       - name: Typecheck documentation site
         run: npm run typecheck

@@ -13,7 +13,7 @@ This avoids maintaining two copies of the same technical documentation.
 
 ```bash
 cd website
-npm install
+npm ci
 npm run start
 ```
 
@@ -21,7 +21,8 @@ npm run start
 
 ```bash
 cd website
-npm install
+npm ci
+npm run typecheck
 npm run build
 ```
 
