@@ -110,16 +110,21 @@ Durante la ejecución:
 Una vez finalizada la implementación y ejecutadas las pruebas por las herramientas del entorno, registra la evidencia verificable:
 
 ### Evidencia de pruebas ejecutadas (`test_result`)
-Crea un archivo temporal de payload de pruebas (por ejemplo `test-evidence.json`):
+Crea un archivo de autoría de evidencia (por ejemplo `test-evidence.json`):
 
 ```json
 {
-  "test_framework": "pytest",
-  "passed": 12,
-  "failed": 0,
-  "skipped": 0,
-  "exit_code": 0,
-  "duration_seconds": 2.45
+  "kind": "test_result",
+  "producer": "pytest",
+  "summary": "12 tests unitarios y de integración aprobados",
+  "gate_ids": ["implementation_tests"],
+  "payload": {
+    "suite": "feature-tests",
+    "exit_code": 0,
+    "passed": 12,
+    "failed": 0,
+    "skipped": 0
+  }
 }
 ```
 
@@ -128,30 +133,26 @@ Regístralo en el run:
 ```bash
 rapid evidence add \
   --run notificaciones-por-webhook-r1-run-001 \
-  --kind test_result \
-  --producer "ci-pytest" \
-  --summary "12 tests unitarios y de integración aprobados" \
   --input test-evidence.json
 ```
 
-### Evidencia de cambios en git (`git_result`)
-Registra la evidencia de los archivos modificados:
+### Evidencia de operaciones en git (`git_result`)
+Registra la evidencia de la inspección o modificación en git:
 
 ```json
 {
-  "operation": "diff_summary",
-  "files_changed": 4,
-  "insertions": 180,
-  "deletions": 12
+  "kind": "git_result",
+  "producer": "git-cli",
+  "summary": "Modificación y adición de archivos verificada en git",
+  "payload": {
+    "operation": "modify"
+  }
 }
 ```
 
 ```bash
 rapid evidence add \
   --run notificaciones-por-webhook-r1-run-001 \
-  --kind git_result \
-  --producer "git-diff" \
-  --summary "4 archivos agregados en domain y tests" \
   --input git-evidence.json
 ```
 

@@ -67,20 +67,23 @@ Ejecuta la suite completa sobre el código original y añade la evidencia:
 
 ```json
 {
-  "phase": "baseline",
-  "total_tests": 150,
-  "passed": 150,
-  "failed": 0,
-  "commit_sha": "a1b2c3d4e5f6"
+  "kind": "test_result",
+  "producer": "pytest-baseline",
+  "summary": "Baseline de 150 tests aprobados en código original",
+  "gate_ids": ["baseline_check"],
+  "payload": {
+    "suite": "all-tests-baseline",
+    "exit_code": 0,
+    "passed": 150,
+    "failed": 0,
+    "skipped": 0
+  }
 }
 ```
 
 ```bash
 rapid evidence add \
   --run desacoplar-capa-de-persistencia-en-pagos-r1-run-001 \
-  --kind test_result \
-  --producer "pytest-baseline" \
-  --summary "Baseline de 150 tests aprobados en código original" \
   --input baseline-evidence.json
 ```
 
@@ -107,38 +110,44 @@ Entrega las instrucciones a tu agente o asistente de código asegurando que no t
 ### Evidencia de paridad de pruebas
 ```json
 {
-  "phase": "post_refactor",
-  "total_tests": 150,
-  "passed": 150,
-  "failed": 0,
-  "commit_sha": "f6e5d4c3b2a1"
+  "kind": "test_result",
+  "producer": "pytest-post-refactor",
+  "summary": "150 tests aprobados post-refactor con cero fallos",
+  "gate_ids": ["implementation_tests"],
+  "payload": {
+    "suite": "all-tests-post-refactor",
+    "exit_code": 0,
+    "passed": 150,
+    "failed": 0,
+    "skipped": 0
+  }
 }
 ```
 
 ```bash
 rapid evidence add \
   --run desacoplar-capa-de-persistencia-en-pagos-r1-run-001 \
-  --kind test_result \
-  --producer "pytest-post-refactor" \
-  --summary "150 tests aprobados post-refactor con cero fallos" \
   --input post-evidence.json
 ```
 
 ### Evidencia de cambios de archivos (`file_change`)
 ```json
 {
-  "refactored_modules": ["payments/service.py", "payments/repositories.py"],
-  "test_modifications": 0,
-  "breaking_changes": false
+  "kind": "file_change",
+  "producer": "git-inspector",
+  "summary": "Reestructuración confinada al módulo payments sin tocar tests",
+  "payload": {
+    "paths": [
+      "payments/service.py",
+      "payments/repositories.py"
+    ]
+  }
 }
 ```
 
 ```bash
 rapid evidence add \
   --run desacoplar-capa-de-persistencia-en-pagos-r1-run-001 \
-  --kind file_change \
-  --producer "git-inspector" \
-  --summary "Reestructuración confinada al módulo payments sin tocar tests" \
   --input files-evidence.json
 ```
 

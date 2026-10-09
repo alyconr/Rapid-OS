@@ -77,16 +77,19 @@ Al ser un spike de riesgo bajo, la política por defecto minimiza las compuertas
 
 ## 4. Capturar Evidencia del Hallazgo (`artifact`)
 
-Crea el reporte o resumen de resultados (por ejemplo `benchmark-summary.json`):
+Genera el archivo del informe (por ejemplo `reports/benchmark.json`) y crea el documento de autoría de la evidencia (`benchmark-evidence.json`):
 
 ```json
 {
-  "type": "benchmark_report",
-  "tested_libraries": ["standard_json", "orjson", "msgspec"],
-  "winner": "msgspec",
-  "p99_latency_improvement": "4.2x",
-  "memory_footprint_reduction": "38%",
-  "recommendation": "Avanzar a spec de refactor para migrar serializers del pipeline crítico"
+  "kind": "artifact",
+  "producer": "bench-harness",
+  "summary": "Reporte cuantitativo de benchmarking comparativo",
+  "artifacts": [
+    "reports/benchmark.json"
+  ],
+  "payload": {
+    "label": "benchmark-summary"
+  }
 }
 ```
 
@@ -95,10 +98,7 @@ Registra la evidencia en el run:
 ```bash
 rapid evidence add \
   --run spike-comparativo-de-serializadores-json-r1-run-001 \
-  --kind artifact \
-  --producer "bench-harness" \
-  --summary "Reporte cuantitativo de benchmarking comparativo" \
-  --input benchmark-summary.json
+  --input benchmark-evidence.json
 ```
 
 ---

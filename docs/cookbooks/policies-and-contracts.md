@@ -35,17 +35,59 @@ Un archivo `.rapid-os/policy.json` sigue el esquema canónico versión 1:
 ```json
 {
   "schema_version": 1,
-  "default_risk": "medium",
-  "gates_by_risk": {
-    "low": ["implementation_tests"],
-    "medium": ["baseline_check", "implementation_tests", "peer_review"],
-    "high": ["baseline_check", "implementation_tests", "peer_review", "security_review", "workspace_isolation"],
-    "critical": ["baseline_check", "implementation_tests", "peer_review", "security_review", "migration_review", "manual_approval", "workspace_isolation", "final_verification"]
-  },
-  "waivable_gates": [
-    "baseline_check",
-    "peer_review",
-    "migration_review"
+  "minimum_classification": "spike",
+  "minimum_risk": "low",
+  "architectural_tags": [
+    "architectural",
+    "architecture",
+    "auth",
+    "authentication",
+    "authorization",
+    "ci",
+    "database-migration",
+    "database-schema",
+    "deployment",
+    "infra",
+    "infrastructure",
+    "migration",
+    "migrations",
+    "schema",
+    "security"
+  ],
+  "architectural_path_prefixes": [
+    ".github/workflows/",
+    "alembic/",
+    "auth/",
+    "deploy/",
+    "infra/",
+    "migrations/",
+    "prisma/",
+    "security/",
+    "supabase/migrations/",
+    "terraform/"
+  ],
+  "high_risk_tags": [
+    "architecture",
+    "auth",
+    "authentication",
+    "ci",
+    "database-migration",
+    "database-schema",
+    "deployment",
+    "infra",
+    "infrastructure",
+    "migration",
+    "migrations",
+    "security"
+  ],
+  "critical_risk_tags": [
+    "auth-migration",
+    "breaking-change",
+    "critical",
+    "destructive-migration",
+    "production-auth",
+    "production-migration",
+    "security-critical"
   ],
   "workspace_by_risk": {
     "low": "current_allowed",
@@ -53,14 +95,11 @@ Un archivo `.rapid-os/policy.json` sigue el esquema canónico versión 1:
     "high": "isolated_required",
     "critical": "isolated_required"
   },
-  "architectural_path_prefixes": [
-    "src/core/",
-    "domain/",
-    "migrations/",
-    ".rapid-os/"
+  "waivable_gate_ids": [
+    "gate.review",
+    "gate.tests"
   ],
-  "high_risk_tags": ["auth", "payments", "crypto", "security"],
-  "critical_risk_tags": ["database-schema", "data-loss", "kernel"]
+  "extra_required_gate_ids": []
 }
 ```
 
@@ -69,26 +108,30 @@ Un archivo `.rapid-os/policy.json` sigue el esquema canónico versión 1:
 | Campo | Propósito | Valores permitidos |
 | :--- | :--- | :--- |
 | `schema_version` | Versión del schema de políticas | Entero positivo (`1`) |
-| `gates_by_risk` | Compuertas mínimas exigidas por cada nivel de riesgo | Lista ordenada de [`GateKind`](#compuertas-disponibles) |
-| `waivable_gates` | Subconjunto de compuertas que un humano puede eximir explícitamente con motivo justificado | Subconjunto de compuertas |
-| `workspace_by_risk` | Requisito de aislamiento de entorno de trabajo | `current_allowed` o `isolated_required` |
+| `minimum_classification` | Clasificación mínima impuesta para cualquier run | `"spike"`, `"bounded"`, `"architectural"` |
+| `minimum_risk` | Nivel mínimo de riesgo asignado a cualquier run | `"low"`, `"medium"`, `"high"`, `"critical"` |
+| `workspace_by_risk` | Requisito de aislamiento de entorno de trabajo por nivel de riesgo | Objeto con claves `low`, `medium`, `high`, `critical` y valores `"current_allowed"` o `"isolated_required"` |
+| `waivable_gate_ids` | Subconjunto de compuertas que un humano puede eximir explícitamente con motivo justificado | Subconjunto de `["gate.review", "gate.tests"]` |
+| `extra_required_gate_ids` | Compuertas adicionales requeridas incondicionalmente | Subconjunto de IDs del catálogo canónico de gates |
 | `architectural_path_prefixes` | Prefijos de ruta que automáticamente elevan la clasificación a `architectural` si se modifican | Rutas relativas POSIX |
 | `high_risk_tags` / `critical_risk_tags` | Etiquetas en specs que elevan el nivel de riesgo a `high` o `critical` | Lista de strings identificadores |
 
 ---
 
-## 3. Compuertas disponibles (`GateKind`) {#compuertas-disponibles}
+## 3. Catálogo Canónico de Compuertas (`CANONICAL_GATE_CATALOG`) {#compuertas-disponibles}
 
-| Identificador | Significado | Evidencia mínima esperada |
-| :--- | :--- | :--- |
-| `baseline_check` | Comprobación del estado de pruebas y compilación antes del cambio | `test_result` o `command_result` |
-| `implementation_tests` | Pruebas de unidad o integración del nuevo código | `test_result` exitoso |
-| `peer_review` | Revisión de código por pares | `review` con veredicto aprobado |
-| `security_review` | Revisión o análisis estático de seguridad | `review` o `command_result` (SAST) |
-| `migration_review` | Revisión de scripts de migración de base de datos | `review` especializado en esquema |
-| `workspace_isolation` | Verificación de ejecución en branch o worktree aislado | `workspace` |
-| `manual_approval` | Firma o aprobación explícita de un líder técnico | `review` o `delegation` |
-| `final_verification` | Ejecución final de la suite completa end-to-end | `test_result` completo |
+En los contratos de ejecución generados por RAPID OS, las compuertas se identifican mediante identificadores canónicos prefijados por `gate.`:
+
+| Identificador canónico | `GateKind` subyacente | Fase | Significado y Evidencia esperada |
+| :--- | :--- | :--- | :--- |
+| `gate.workspace-isolation` | `workspace_isolation` | `pre_execution` | Verificación de ejecución en espacio aislado. Requiere evidencia `workspace`. |
+| `gate.baseline` | `baseline_check` | `pre_execution` | Comprobación de salud antes de cambios. Requiere evidencia `test_result` o `command_result`. |
+| `gate.manual-approval` | `manual_approval` | `pre_execution` | Aprobación pre-ejecución en riesgo crítico. Requiere evidencia `review` o `delegation`. |
+| `gate.tests` | `implementation_tests` | `post_execution` | Pruebas de unidad o integración. Requiere evidencia `test_result` exitoso. |
+| `gate.review` | `peer_review` | `post_execution` | Revisión arquitectónica o por pares. Requiere evidencia `review` aprobada. |
+| `gate.security-review` | `security_review` | `post_execution` | Análisis o revisión de seguridad. Requiere evidencia `review` o `command_result`. |
+| `gate.migration-review` | `migration_review` | `post_execution` | Revisión de scripts de migración. Requiere evidencia `review` especializada. |
+| `gate.final-verification` | `final_verification` | `post_execution` | Verificación contractual de cierre de ciclo. Requiere evaluación completa del run. |
 
 ---
 
@@ -124,7 +167,7 @@ rapid run status mi-run-001 active --reason "Inicio de implementación"
 rapid run task mi-run-001 T1 done --reason "Endpoints implementados con tests"
 
 # 3. Reconocer compuerta con evidencia
-rapid run gate mi-run-001 baseline_check acknowledged --reason "Baseline verde confirmado"
+rapid run gate mi-run-001 gate.baseline acknowledged --reason "Baseline verde confirmado"
 
 # 4. Finalizar ejecución del run
 rapid run status mi-run-001 finished --reason "Tareas concluidas y pruebas pasando"
@@ -134,14 +177,14 @@ rapid run status mi-run-001 finished --reason "Tareas concluidas y pruebas pasan
 
 ## 5. Exenciones Justificadas (Waivers)
 
-Si una compuerta está declarada en `waivable_gates` dentro de la política, se puede otorgar una exención cuando las circunstancias lo justifiquen:
+Si una compuerta está declarada en `waivable_gate_ids` dentro de la política (`gate.review`, `gate.tests`), se puede otorgar una exención cuando las circunstancias lo justifiquen:
 
 ```bash
 rapid run gate \
   mi-run-001 \
-  peer_review \
+  gate.review \
   waived \
   --reason "Exención autorizada por hotfix de emergencia en producción (incidente #992)"
 ```
 
-> **Regla de integridad**: Si intentas eximir una compuerta que **no** está en `waivable_gates`, RAPID OS rechazará la operación con el diagnóstico `RAPID1013`. Además, al evaluar el run (`rapid eval run`), el reporte marcará la compuerta como exenta y el veredicto pasará como `pass_with_waivers`.
+> **Regla de integridad**: Si intentas eximir una compuerta que **no** está en `waivable_gate_ids`, RAPID OS rechazará la operación con el diagnóstico `RAPID1013`. Además, al evaluar el run (`rapid eval run`), el reporte marcará la compuerta como exenta y el veredicto pasará como `pass_with_waivers`.
