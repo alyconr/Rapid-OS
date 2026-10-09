@@ -46,18 +46,44 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Modos de ingeniería',
+      collapsed: false,
+      link: {type: 'doc', id: 'guides/modes/index'},
+      items: [
+        'guides/modes/feature',
+        'guides/modes/bugfix',
+        'guides/modes/refactor',
+        'guides/modes/hardening',
+        'guides/modes/research',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Cookbooks de Gobernanza',
+      collapsed: false,
+      items: [
+        'cookbooks/policies-and-contracts',
+        'cookbooks/harness-profiles',
+        'cookbooks/evidence-engine',
+        'cookbooks/behavioral-evaluations',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Cómo funciona',
       collapsed: false,
       items: [
         'governance-loop',
         'guides/permissions-capabilities',
         'guides/project-layout',
+        'guides/ci-cd-integration',
       ],
     },
     {
       type: 'category',
-      label: 'Referencia',
+      label: 'Diagnósticos y Referencia',
       items: [
+        'troubleshooting/diagnostics',
         'cli',
         'architecture/rapid-os-v3',
       ],
@@ -71,6 +97,7 @@ const sidebars: SidebarsConfig = {
         'audit/documentation-scope',
         'audit/sprint-1-validation',
         'audit/sprint-2-validation',
+        'audit/sprint-3-validation',
         'contributing/documentation',
       ],
     },

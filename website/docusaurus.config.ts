@@ -44,6 +44,8 @@ const config: Config = {
         {to: '/', label: 'Inicio', position: 'left'},
         {to: '/installation', label: 'Instalación', position: 'left'},
         {to: '/getting-started', label: 'Primeros pasos', position: 'left'},
+        {to: '/guides/modes', label: 'Modos', position: 'left'},
+        {to: '/cookbooks/policies-and-contracts', label: 'Cookbooks', position: 'left'},
         {to: '/governance-loop', label: 'Gobernanza v3', position: 'left'},
         {to: '/cli', label: 'CLI', position: 'left'},
         {
@@ -63,14 +65,25 @@ const config: Config = {
             {label: 'Por qué Rapid OS', to: '/concepts/why-rapid-os'},
             {label: 'Instalación', to: '/installation'},
             {label: 'Primeros pasos', to: '/getting-started'},
+            {label: 'Modos de ingeniería', to: '/guides/modes'},
             {label: 'Casos de uso', to: '/guides/use-cases'},
-            {label: 'Capabilities y permisos', to: '/guides/permissions-capabilities'},
+          ],
+        },
+        {
+          title: 'Gobernanza y Práctica',
+          items: [
+            {label: 'Políticas y Contratos', to: '/cookbooks/policies-and-contracts'},
+            {label: 'Capabilities y Perfiles', to: '/cookbooks/harness-profiles'},
+            {label: 'Evidence Engine', to: '/cookbooks/evidence-engine'},
+            {label: 'Behavioral Evals', to: '/cookbooks/behavioral-evaluations'},
+            {label: 'Integración CI/CD', to: '/guides/ci-cd-integration'},
           ],
         },
         {
           title: 'Referencia',
           items: [
             {label: 'CLI', to: '/cli'},
+            {label: 'Diagnósticos RAPIDxxx', to: '/troubleshooting/diagnostics'},
             {label: 'Arquitectura v3', to: '/architecture/rapid-os-v3'},
             {label: 'Release v3.0.0', to: '/release-v3.0.0'},
           ],
@@ -88,7 +101,7 @@ const config: Config = {
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
-      additionalLanguages: ['bash', 'powershell', 'json', 'toml'],
+      additionalLanguages: ['bash', 'powershell', 'json', 'toml', 'yaml'],
     },
   } satisfies Preset.ThemeConfig,
 };
