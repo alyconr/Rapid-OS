@@ -71,11 +71,14 @@ Rapid OS **no ejecuta de forma autónoma un LLM**, no crea worktrees por sí sol
 
 ## Empieza por aquí
 
-- [Qué es Rapid OS y para quién sirve](./concepts/what-is-rapid-os)
-- [Instalación y primer flujo](./getting-started)
-- [Casos de uso](./guides/use-cases)
-- [Ciclo de gobernanza v3](./governance-loop)
-- [Capabilities y permisos](./guides/permissions-capabilities)
-- [Estructura de archivos](./guides/project-layout)
-- [Referencia completa de CLI](./cli)
-- [Arquitectura técnica v3](./architecture/rapid-os-v3)
+- [Qué es Rapid OS y para quién sirve](./concepts/what-is-rapid-os.md)
+- [Por qué Rapid OS y problemas que resuelve](./concepts/why-rapid-os.md)
+- [Requisitos e instalación](./installation/index.md)
+- [Tu primer proyecto gobernado (Quickstart)](./getting-started/first-project.md)
+- [Gobernar un proyecto existente](./getting-started/existing-project.md)
+- [Casos de uso](./guides/use-cases.md)
+- [Ciclo de gobernanza v3](./governance-loop.md)
+- [Capabilities y permisos](./guides/permissions-capabilities.md)
+- [Estructura de archivos](./guides/project-layout.md)
+- [Referencia completa de CLI](./cli.md)
+- [Arquitectura técnica v3](./architecture/rapid-os-v3.md)

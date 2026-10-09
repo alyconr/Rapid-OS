@@ -42,7 +42,8 @@ const config: Config = {
       title: 'Rapid OS',
       items: [
         {to: '/', label: 'Inicio', position: 'left'},
-        {to: '/getting-started', label: 'Instalación', position: 'left'},
+        {to: '/installation', label: 'Instalación', position: 'left'},
+        {to: '/getting-started', label: 'Primeros pasos', position: 'left'},
         {to: '/governance-loop', label: 'Gobernanza v3', position: 'left'},
         {to: '/cli', label: 'CLI', position: 'left'},
         {
@@ -59,6 +60,9 @@ const config: Config = {
           title: 'Aprender',
           items: [
             {label: 'Qué es Rapid OS', to: '/concepts/what-is-rapid-os'},
+            {label: 'Por qué Rapid OS', to: '/concepts/why-rapid-os'},
+            {label: 'Instalación', to: '/installation'},
+            {label: 'Primeros pasos', to: '/getting-started'},
             {label: 'Casos de uso', to: '/guides/use-cases'},
             {label: 'Capabilities y permisos', to: '/guides/permissions-capabilities'},
           ],
