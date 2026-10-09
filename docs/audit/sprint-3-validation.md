@@ -94,17 +94,18 @@ Tras la integración del Sprint 3 en `main` (PR #38), una auditoría posterior i
 
 ### 5.2 Pruebas de Contrato Automatizadas Añadidas
 
-Se incorporó `tests/test_sprint3_remediation_contract.py` (10 pruebas automatizadas) validando:
+Se incorporó `tests/test_sprint3_remediation_contract.py` (11 pruebas automatizadas rigurosas) validando:
 - Inexistencia de flags inválidos en el parser CLI de `rapid evidence add`.
-- Validación de esquemas de autoría para los 9 tipos de evidencia contra `PAYLOAD_REQUIRED_KEYS`.
+- Validación estricta sin omisiones silenciosas de los 9 bloques JSON del cookbook contra `PAYLOAD_REQUIRED_KEYS`.
 - Rechazo estricto (`RAPID1206`) de campos desconocidos en payloads de evidencia.
 - Validación de deserialización y serialización de `HarnessProfile` con lista de `CapabilitySupportDeclaration`.
 - Rechazo de estados no canónicos (como `conditional`) en perfiles de harness.
 - Coherencia del catálogo de 11 capabilities en documentación contra `CANONICAL_CAPABILITY_IDS`.
-- Ingesta end-to-end real mediante CLI (`init`, `scan`, `spec create`, `run create`, 9x `evidence add`, `evidence verify`).
+- Semántica de gobernanza de aislamiento: prueba explícita que confirma que `mode: "current"` produce `FAIL` para la compuerta `gate.workspace-isolation` (`rule.gate.workspace_isolation.v1`), exigiendo `mode: "isolated"`.
+- Conexión directa docs-to-fixtures: la prueba end-to-end ingesta directamente los 9 bloques JSON extraídos de `evidence-engine.md` sin intermediarios ni duplicación, validando la ingesta y verificación de los 9 tipos vía CLI (`rapid evidence verify`).
 
 ### 5.3 Verificación de Quality Gates
 
-- **Python Tests**: 315/315 pruebas exitosas (`discover tests`).
+- **Python Tests**: 316/316 pruebas exitosas (`discover tests`).
 - **Docusaurus TypeScript**: 0 errores de tipo (`npm run typecheck`).
 - **Docusaurus Build**: Compilación limpia, 0 enlaces rotos (`npm run build`).

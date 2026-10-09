@@ -83,64 +83,70 @@ class Sprint3RemediationContractTests(unittest.TestCase):
                     self.assertNotIn("--summary", cmd_line, f"Forbidden flag --summary in {md_path.name}: {cmd_line}")
 
     def test_all_nine_evidence_cookbooks_json_blocks_are_valid(self):
-        """All authoring JSON snippets in evidence-engine.md validate against domain payload rules."""
+        """All authoring JSON snippets in evidence-engine.md validate against domain payload rules.
+        
+        Strictness: No silent try/except json.JSONDecodeError pass-through. Every ```json
+        codeblock in evidence-engine.md MUST be valid JSON, avoiding unparseable or illustrative
+        pseudocode marked as json.
+        """
         doc_text = (DOCS / "cookbooks" / "evidence-engine.md").read_text(encoding="utf-8")
         json_blocks = re.findall(r"```json\s*\n(.*?)\n```", doc_text, re.DOTALL)
         
-        authoring_blocks_found = 0
+        self.assertEqual(len(json_blocks), 9, f"Expected exactly 9 valid JSON blocks in evidence cookbook, got {len(json_blocks)}")
+        
         kinds_tested = set()
-        for block in json_blocks:
-            try:
-                data = json.loads(block)
-            except json.JSONDecodeError:
-                continue
+        for idx, block in enumerate(json_blocks, start=1):
+            # Strict parse: will raise JSONDecodeError if invalid JSON is presented
+            data = json.loads(block)
+            self.assertIsInstance(data, dict, f"Block {idx} must be a JSON object")
+            self.assertIn("kind", data, f"Block {idx} missing 'kind'")
+            self.assertIn("payload", data, f"Block {idx} missing 'payload'")
             
-            if isinstance(data, dict) and "kind" in data and "payload" in data:
-                authoring_blocks_found += 1
-                kind_str = data["kind"]
-                payload = data["payload"]
-                kinds_tested.add(kind_str)
-                with self.subTest(kind=kind_str):
-                    validated = validate_evidence_payload(kind_str, payload)
-                    self.assertIsInstance(validated, dict)
-                    self.assertEqual(validated.keys(), PAYLOAD_REQUIRED_KEYS[EvidenceKind.coerce(kind_str)])
+            kind_str = data["kind"]
+            payload = data["payload"]
+            kinds_tested.add(kind_str)
+            with self.subTest(kind=kind_str):
+                validated = validate_evidence_payload(kind_str, payload)
+                self.assertIsInstance(validated, dict)
+                self.assertEqual(validated.keys(), PAYLOAD_REQUIRED_KEYS[EvidenceKind.coerce(kind_str)])
 
-        self.assertGreaterEqual(authoring_blocks_found, 9, "Expected at least 9 authoring JSON blocks in evidence cookbook")
         self.assertEqual(len(kinds_tested), 9, f"All 9 EvidenceKinds must be covered, got: {kinds_tested}")
 
     def test_harness_profiles_cookbook_json_validates_strictly(self):
-        """The HarnessProfile JSON example in harness-profiles.md validates via HarnessProfile."""
+        """The HarnessProfile JSON example in harness-profiles.md validates via HarnessProfile.
+        
+        Strictness: Every ```json block in harness-profiles.md must parse as valid JSON.
+        """
         doc_text = (DOCS / "cookbooks" / "harness-profiles.md").read_text(encoding="utf-8")
         json_blocks = re.findall(r"```json\s*\n(.*?)\n```", doc_text, re.DOTALL)
         
-        profiles_found = 0
-        for block in json_blocks:
-            try:
-                data = json.loads(block)
-            except json.JSONDecodeError:
-                continue
+        self.assertGreaterEqual(len(json_blocks), 1, "Expected at least 1 JSON block in harness cookbook")
+        
+        for idx, block in enumerate(json_blocks, start=1):
+            data = json.loads(block)
+            self.assertIsInstance(data, dict, f"Block {idx} must be a JSON object")
+            self.assertEqual(data.get("schema_version"), 1)
+            self.assertIn("id", data)
+            self.assertIn("capabilities", data)
+            self.assertIsInstance(data["capabilities"], list)
             
-            if isinstance(data, dict) and "schema_version" in data and "capabilities" in data and isinstance(data["capabilities"], list):
-                profiles_found += 1
-                profile = HarnessProfile(
-                    schema_version=data["schema_version"],
-                    id=data["id"],
-                    capabilities=tuple(
-                        CapabilitySupport(
-                            capability_id=c["capability_id"],
-                            status=CapabilitySupportStatus.coerce(c["status"]),
-                            reason=c["reason"],
-                        )
-                        for c in data["capabilities"]
-                    ),
-                )
-                self.assertEqual(profile.schema_version, 1)
-                self.assertEqual(profile.id, data["id"])
-                for cap in profile.capabilities:
-                    self.assertIn(cap.capability_id, CANONICAL_CAPABILITY_IDS)
-                    self.assertIn(cap.status, (CapabilitySupportStatus.SUPPORTED, CapabilitySupportStatus.UNSUPPORTED, CapabilitySupportStatus.UNKNOWN))
-
-        self.assertGreaterEqual(profiles_found, 1, "Expected at least 1 valid HarnessProfile JSON block in harness cookbook")
+            profile = HarnessProfile(
+                schema_version=data["schema_version"],
+                id=data["id"],
+                capabilities=tuple(
+                    CapabilitySupport(
+                        capability_id=c["capability_id"],
+                        status=CapabilitySupportStatus.coerce(c["status"]),
+                        reason=c["reason"],
+                    )
+                    for c in data["capabilities"]
+                ),
+            )
+            self.assertEqual(profile.schema_version, 1)
+            self.assertEqual(profile.id, data["id"])
+            for cap in profile.capabilities:
+                self.assertIn(cap.capability_id, CANONICAL_CAPABILITY_IDS)
+                self.assertIn(cap.status, (CapabilitySupportStatus.SUPPORTED, CapabilitySupportStatus.UNSUPPORTED, CapabilitySupportStatus.UNKNOWN))
 
     def test_no_conditional_status_in_documentation(self):
         """Strictly forbid 'conditional' being documented as a capability support status."""
@@ -185,8 +191,170 @@ class Sprint3RemediationContractTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.parser.parse_args(["evidence", "add", "--run", "r1", "--kind", "test_result", "--input", "file.json"])
 
+    def test_workspace_isolation_fails_with_current_mode(self):
+        """Semantic verification: mode: current evidence must NOT satisfy gate.workspace-isolation.
+        
+        rule.gate.workspace_isolation.v1 explicitly requires ACKNOWLEDGED disposition
+        plus WORKSPACE evidence with mode == 'isolated'. mode == 'current' produces FAIL.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            rapid_cli = [sys.executable, str(ROOT / "rapid.py")]
+            env = os.environ.copy()
+            env["PYTHONUTF8"] = "1"
+            env["PYTHONIOENCODING"] = "utf-8"
+
+            (tmp_path / "app.py").write_text("def hello(): return 'world'\n", encoding="utf-8")
+            init_input = "1\n1\n\nn\n\nn\n"
+            subprocess.run(
+                rapid_cli + ["init", "--stack", "docs-modern", "--archetype", "mvp", "--no-scan"],
+                cwd=tmpdir,
+                input=init_input,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                env=env,
+                check=True,
+            )
+            subprocess.run(
+                rapid_cli + ["scan", "--write"],
+                cwd=tmpdir,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                env=env,
+                check=True,
+            )
+            # Create high risk spec which requires gate.workspace-isolation
+            res = subprocess.run(
+                rapid_cli + [
+                    "spec", "create",
+                    "--title", "High Risk Spec",
+                    "--mode", "feature",
+                    "--objective", "Verify workspace isolation",
+                    "--problem", "Security isolation requirement",
+                    "--scope", "src/",
+                    "--acceptance", "Passed",
+                    "--task", "Task 1",
+                    "--tag", "architecture",
+                    "--status", "ready",
+                ],
+                cwd=tmpdir,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                env=env,
+            )
+            self.assertEqual(res.returncode, 0, f"spec create failed: {res.stderr}")
+
+            res = subprocess.run(
+                rapid_cli + [
+                    "run", "create",
+                    "--spec", "high-risk-spec",
+                    "--harness", "codex",
+                    "--classification", "architectural",
+                    "--risk", "high",
+                ],
+                cwd=tmpdir,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                env=env,
+            )
+            self.assertEqual(res.returncode, 0, f"run create failed: {res.stderr}")
+            run_id = "high-risk-spec-r1-run-001"
+
+            # Ingest evidence with mode: current linked to gate.workspace-isolation
+            bad_ws_ev = {
+                "kind": "workspace",
+                "producer": "workspace-manager",
+                "summary": "Workspace checked in current mode",
+                "gate_ids": ["gate.workspace-isolation"],
+                "capability_ids": ["workspace.current"],
+                "payload": {"mode": "current"},
+            }
+            ev_file = tmp_path / "bad_ws.json"
+            ev_file.write_text(json.dumps(bad_ws_ev), encoding="utf-8")
+            subprocess.run(
+                rapid_cli + ["evidence", "add", "--run", run_id, "--input", str(ev_file)],
+                cwd=tmpdir,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                env=env,
+                check=True,
+            )
+
+            # Acknowledge PRE_EXECUTION gates before transitioning to active
+            subprocess.run(
+                rapid_cli + ["run", "gate", run_id, "gate.workspace-isolation", "acknowledged", "--reason", "Acknowledged with current mode evidence"],
+                cwd=tmpdir,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                env=env,
+                check=True,
+            )
+            subprocess.run(
+                rapid_cli + ["run", "gate", run_id, "gate.baseline", "acknowledged", "--reason", "Baseline verified for test"],
+                cwd=tmpdir,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                env=env,
+                check=True,
+            )
+
+            # Transition to active
+            subprocess.run(
+                rapid_cli + ["run", "status", run_id, "active", "--reason", "Testing"],
+                cwd=tmpdir,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                env=env,
+                check=True,
+            )
+
+            # Evaluate run while active (evaluating gates)
+            eval_res = subprocess.run(
+                rapid_cli + ["eval", "run", "--run", run_id, "--json"],
+                cwd=tmpdir,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                env=env,
+            )
+            self.assertEqual(eval_res.returncode, 0, f"eval run failed: {eval_res.stderr}")
+            eval_data = json.loads(eval_res.stdout)
+            
+            # Find the assertion for gate.workspace-isolation
+            ws_assertion = next(
+                (a for a in eval_data["assertions"] if a["id"] == "gate.gate.workspace-isolation.evidence"),
+                None,
+            )
+            self.assertIsNotNone(ws_assertion, "Missing assertion for gate.workspace-isolation")
+            self.assertEqual(
+                ws_assertion["status"],
+                "fail",
+                f"mode: current MUST produce fail for gate.workspace-isolation, got: {ws_assertion['status']}",
+            )
+            self.assertEqual(eval_data["verdict"], "fail")
+
     def test_end_to_end_evidence_ingestion_all_nine_kinds(self):
-        """Functional E2E test verifying real CLI ingests all 9 EvidenceKind inputs cleanly."""
+        """Functional E2E test verifying real CLI ingests all 9 EvidenceKind inputs cleanly.
+        
+        Direct Connection: The fixtures ingested are extracted directly from the 9 ```json
+        codeblocks in docs/cookbooks/evidence-engine.md, guaranteeing zero divergence between
+        documentation and executable verification.
+        """
+        # Extract the 9 authoring documents directly from docs
+        doc_text = (DOCS / "cookbooks" / "evidence-engine.md").read_text(encoding="utf-8")
+        docs_json_blocks = re.findall(r"```json\s*\n(.*?)\n```", doc_text, re.DOTALL)
+        self.assertEqual(len(docs_json_blocks), 9, "Expected exactly 9 json blocks in evidence-engine.md")
+        
+        extracted_evidence_docs = [json.loads(b) for b in docs_json_blocks]
+
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
             rapid_cli = [sys.executable, str(ROOT / "rapid.py")]
@@ -250,14 +418,14 @@ class Sprint3RemediationContractTests(unittest.TestCase):
             )
             self.assertEqual(res.returncode, 0, f"spec create failed: {res.stderr}")
 
-            # 5. Create Run
+            # 5. Create Run with high risk to include all gates referenced by docs (gate.tests, gate.review, gate.workspace-isolation)
             res = subprocess.run(
                 rapid_cli + [
                     "run", "create",
                     "--spec", "audit-feature",
                     "--harness", "codex",
                     "--classification", "bounded",
-                    "--risk", "medium",
+                    "--risk", "high",
                 ],
                 cwd=tmpdir,
                 stdin=subprocess.DEVNULL,
@@ -271,96 +439,15 @@ class Sprint3RemediationContractTests(unittest.TestCase):
             self.assertEqual(res.returncode, 0, f"run create failed: {res.stderr}")
             run_id = "audit-feature-r1-run-001"
 
-            # Prepare artifact dummy file
-            sample_artifact = tmp_path / "sample_report.txt"
-            sample_artifact.write_text("Integrity report contents", encoding="utf-8")
+            # 6. For artifact kinds, ensure referenced files exist in tmpdir
+            for ev_doc in extracted_evidence_docs:
+                for art_path in ev_doc.get("artifacts", []):
+                    full_art_path = tmp_path / art_path
+                    full_art_path.parent.mkdir(parents=True, exist_ok=True)
+                    full_art_path.write_text("Dummy artifact content", encoding="utf-8")
 
-            # 6. Define authoring documents for all 9 kinds
-            evidence_inputs = [
-                # 1. command_result
-                {
-                    "kind": "command_result",
-                    "producer": "pytest",
-                    "summary": "Executed linting checks",
-                    "capability_ids": ["shell.execute"],
-                    "payload": {"label": "ruff check", "exit_code": 0},
-                },
-                # 2. test_result
-                {
-                    "kind": "test_result",
-                    "producer": "pytest",
-                    "summary": "Executed test suite",
-                    "gate_ids": ["gate.tests"],
-                    "capability_ids": ["tests.execute"],
-                    "payload": {
-                        "suite": "unit-tests",
-                        "exit_code": 0,
-                        "passed": 10,
-                        "failed": 0,
-                        "skipped": 0,
-                    },
-                },
-                # 3. file_change
-                {
-                    "kind": "file_change",
-                    "producer": "git-cli",
-                    "summary": "Created service module",
-                    "capability_ids": ["repository.write"],
-                    "payload": {"paths": ["src/service.py"]},
-                },
-                # 4. git_result
-                {
-                    "kind": "git_result",
-                    "producer": "git-cli",
-                    "summary": "Inspected status",
-                    "capability_ids": ["git.inspect"],
-                    "payload": {"operation": "inspect"},
-                },
-                # 5. workspace
-                {
-                    "kind": "workspace",
-                    "producer": "system",
-                    "summary": "Workspace checked",
-                    "capability_ids": ["workspace.current"],
-                    "payload": {"mode": "current"},
-                },
-                # 6. review
-                {
-                    "kind": "review",
-                    "producer": "reviewer",
-                    "summary": "Peer review approved",
-                    "payload": {
-                        "review_type": "peer",
-                        "outcome": "approved",
-                        "reviewer": "lead-dev",
-                    },
-                },
-                # 7. tool_invocation
-                {
-                    "kind": "tool_invocation",
-                    "producer": "tool-runner",
-                    "summary": "Mypy typecheck",
-                    "payload": {"tool_id": "mypy", "outcome": "success"},
-                },
-                # 8. delegation
-                {
-                    "kind": "delegation",
-                    "producer": "orchestrator",
-                    "summary": "Delegated subtask",
-                    "capability_ids": ["subagents.delegate"],
-                    "payload": {"target": "subagent-worker", "outcome": "success"},
-                },
-                # 9. artifact
-                {
-                    "kind": "artifact",
-                    "producer": "reporter",
-                    "summary": "Attached sample report",
-                    "artifacts": ["sample_report.txt"],
-                    "payload": {"label": "sample-report"},
-                },
-            ]
-
-            for idx, ev_doc in enumerate(evidence_inputs, start=1):
+            # 7. Ingest all 9 extracted documents via real CLI
+            for idx, ev_doc in enumerate(extracted_evidence_docs, start=1):
                 input_file = tmp_path / f"ev_input_{idx}.json"
                 input_file.write_text(json.dumps(ev_doc, indent=2), encoding="utf-8")
 
@@ -382,16 +469,16 @@ class Sprint3RemediationContractTests(unittest.TestCase):
                 self.assertEqual(
                     res.returncode,
                     0,
-                    f"rapid evidence add failed for kind '{ev_doc['kind']}': {res.stderr}",
+                    f"rapid evidence add failed for documented kind '{ev_doc['kind']}': {res.stderr}",
                 )
 
-            # 7. Verify evidence records E001..E009 exist on disk
+            # 8. Verify evidence records E001..E009 exist on disk
             records_dir = tmp_path / ".rapid-os" / "evidence" / run_id / "records"
             for i in range(1, 10):
                 ev_id = f"E{i:03d}"
                 self.assertTrue((records_dir / f"{ev_id}.json").is_file(), f"Missing record {ev_id}.json")
 
-            # 8. Verify with real CLI
+            # 9. Verify with real CLI
             res = subprocess.run(
                 rapid_cli + ["evidence", "verify", "--run", run_id],
                 cwd=tmpdir,

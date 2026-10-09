@@ -37,7 +37,7 @@ rapid evidence verify --run <run-id> [--json]
 
 El archivo JSON provisto mediante `--input` debe contener la siguiente estructura canónica:
 
-```json
+```jsonc
 {
   "kind": "<EvidenceKind>",
   "producer": "<identificador-del-productor>",
@@ -181,20 +181,22 @@ rapid evidence add --run feature-auth-r1-run-001 --input git-evidence.json
 ---
 
 ### 5. `workspace` (Modo y Aislamiento del Espacio de Trabajo)
-Acredita el cumplimiento del requisito de espacio de trabajo o la compuerta `workspace_isolation`.
+Acredita el cumplimiento del requisito de espacio de trabajo o la compuerta `gate.workspace-isolation`.
 
 **Campos requeridos de `payload`**: `mode` (estrictamente `"current"` o `"isolated"`).
+
+> **Regla de Gobernanza**: Para satisfacer formalmente la compuerta de gobernanza `gate.workspace-isolation` (`rule.gate.workspace_isolation.v1`), el evaluador exige obligatoriamente evidencia `workspace` con `mode: "isolated"` y capability `workspace.isolated`. Una evidencia con `mode: "current"` acredita ejecución en el entorno de trabajo actual, pero no demuestra cumplimiento del aislamiento requerido por runs con clasificación o riesgo elevado.
 
 **Archivo `workspace-evidence.json`**:
 ```json
 {
   "kind": "workspace",
   "producer": "workspace-manager",
-  "summary": "Entorno de ejecución verificado en rama de trabajo",
+  "summary": "Entorno de ejecución verificado en rama de trabajo aislada",
   "gate_ids": ["gate.workspace-isolation"],
-  "capability_ids": ["workspace.current"],
+  "capability_ids": ["workspace.isolated"],
   "payload": {
-    "mode": "current"
+    "mode": "isolated"
   }
 }
 ```
