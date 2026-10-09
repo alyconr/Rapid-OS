@@ -1,0 +1,91 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rapid-os"
+dynamic = ["version"]
+description = "Contract-Driven Engineering OS for AI Coding Harnesses"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Rapid OS Contributors" },
+]
+keywords = [
+    "ai-coding",
+    "context-engineering",
+    "spec-driven-development",
+    "execution-governance",
+    "behavioral-evals",
+    "cli",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/alyconr/Rapid-OS"
+Repository = "https://github.com/alyconr/Rapid-OS"
+Documentation = "https://github.com/alyconr/Rapid-OS/tree/main/docs"
+Changelog = "https://github.com/alyconr/Rapid-OS/blob/main/CHANGELOG.md"
+
+[project.scripts]
+rapid = "rapid_os.cli.main:main"
+
+[tool.setuptools]
+py-modules = ["rapid"]
+include-package-data = true
+packages = [
+    "rapid_os",
+    "rapid_os.adapters",
+    "rapid_os.adapters.agents",
+    "rapid_os.adapters.mcp",
+    "rapid_os.cli",
+    "rapid_os.core",
+    "rapid_os.domain",
+    "rapid_os.templates",
+    "rapid_os.templates.archetypes",
+    "rapid_os.templates.archetypes.corporate",
+    "rapid_os.templates.archetypes.mvp",
+    "rapid_os.templates.deploy",
+    "rapid_os.templates.mcp",
+    "rapid_os.templates.stacks",
+    "rapid_os.templates.topologies",
+]
+
+[tool.setuptools.dynamic]
+version = { attr = "rapid_os.__version__" }
+
+[tool.setuptools.package-dir]
+"rapid_os.templates" = "templates"
+"rapid_os.templates.archetypes" = "templates/archetypes"
+"rapid_os.templates.archetypes.corporate" = "templates/archetypes/corporate"
+"rapid_os.templates.archetypes.mvp" = "templates/archetypes/mvp"
+"rapid_os.templates.deploy" = "templates/deploy"
+"rapid_os.templates.mcp" = "templates/mcp"
+"rapid_os.templates.stacks" = "templates/stacks"
+"rapid_os.templates.topologies" = "templates/topologies"
+
+[tool.setuptools.package-data]
+"rapid_os.templates" = ["*.md", "*.json"]
+"rapid_os.templates.archetypes" = ["*.md", "*.json"]
+"rapid_os.templates.archetypes.corporate" = ["*.md", "*.json"]
+"rapid_os.templates.archetypes.mvp" = ["*.md", "*.json"]
+"rapid_os.templates.deploy" = ["*.md", "*.json"]
+"rapid_os.templates.mcp" = ["*.md", "*.json"]
+"rapid_os.templates.stacks" = ["*.md", "*.json"]
+"rapid_os.templates.topologies" = ["*.md", "*.json"]

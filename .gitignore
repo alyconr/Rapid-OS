@@ -9,5 +9,9 @@ __pycache__/
 
 # Rapid OS local backups
 *.bak
-node_modules/
+
+# Python packaging build artifacts
 build/
+dist/
+*.egg-info/
+

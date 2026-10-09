@@ -5,7 +5,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+from rapid_os import __version__
 from rapid_os.adapters.agents import DEFAULT_AGENT_REGISTRY
+
 from rapid_os.adapters.mcp import (
     render_mcp_install_content,
     resolve_mcp_install_target,
@@ -46,10 +48,70 @@ from rapid_os.core.paths import (
     SCRIPT_DIR,
     TEMPLATES_DIR,
 )
+from rapid_os.adapters.capability_lock import (
+    load_capability_lock,
+    write_capability_lock,
+)
+from rapid_os.adapters.context_sources import ContextSourceLoader
+from rapid_os.adapters.eval_registry import EvalRegistry
+from rapid_os.adapters.evidence_registry import EvidenceRegistry
+from rapid_os.adapters.execution_policy import (
+    load_execution_policy,
+    write_default_execution_policy,
+)
+from rapid_os.adapters.harness_registry import HarnessRegistry
 from rapid_os.adapters.project_snapshot import write_project_snapshot
+from rapid_os.adapters.run_registry import RunRegistry
+from rapid_os.adapters.spec_registry import SpecRegistry
 from rapid_os.core.process import run_npx_skills_add
 from rapid_os.core.text import read_text_best_effort
 from rapid_os.domain.agents import generate_agent_contexts
+from rapid_os.domain.capabilities import (
+    HARNESS_PROFILE_SCHEMA_VERSION,
+    CapabilityResolver,
+    CompatibilityStatus,
+)
+from rapid_os.domain.context import (
+    ContextBudgetExceededError,
+    ContextCompiler,
+    ContextManifest,
+    ContextRequest,
+    ContextRequiredSourceMissingError,
+)
+from rapid_os.domain.evals import (
+    EVALUATION_REPORT_SCHEMA_VERSION,
+    EvaluationError,
+    EvaluationFailedError,
+    EvaluationReport,
+    EvaluationUnverifiedError,
+    EvaluationVerdict,
+    InvalidEvaluationReportError,
+)
+from rapid_os.domain.evidence import (
+    RUN_EVIDENCE_SCHEMA_VERSION,
+    EvidenceError,
+    InvalidRunEvidenceError,
+    RunEvidence,
+    compute_evidence_set_digest,
+)
+from rapid_os.domain.execution import (
+    EXECUTION_POLICY_SCHEMA_VERSION,
+    RUN_SCHEMA_VERSION,
+    ExecutionError,
+    InvalidExecutionPolicyError,
+    InvalidGateTransitionError,
+    InvalidRunRecordError,
+    InvalidSpecBindingError,
+    InvalidTaskTransitionError,
+    RunStatus,
+    TaskStatus,
+)
+from rapid_os.domain.harnesses import (
+    CapabilityLockError,
+    HarnessCapabilityError,
+    IncompatibleHarnessError,
+    InvalidCapabilityResolutionError,
+)
 from rapid_os.domain.mcp import build_mcp_config
 from rapid_os.domain.scanner import (
     build_project_model,
@@ -62,6 +124,15 @@ from rapid_os.domain.scope import (
     parse_list,
     write_scope_artifacts,
 )
+from rapid_os.domain.specs import (
+    SPEC_SCHEMA_VERSION,
+    InvalidRevisionManifestError,
+    SpecMode,
+    SpecRegistryError,
+    SpecRevision,
+    SpecStatus,
+    spec_revision_from_scope,
+)
 from rapid_os.domain.validation import (
     ERROR,
     INFO,
@@ -69,11 +140,18 @@ from rapid_os.domain.validation import (
     Diagnostic,
     ValidationReport,
     inspect_project_context,
+    validate_capability_lock,
     validate_composed_context,
+    validate_eval_registry,
+    validate_evidence_registry,
+    validate_execution_policy,
+    validate_harness_registry,
     validate_project,
     validate_project_config,
     validate_project_intelligence,
     validate_project_standards,
+    validate_run_registry,
+    validate_spec_registry,
     validate_stack_topology,
     validate_templates,
 )
@@ -834,6 +912,33 @@ def scope_feature(args):
     for target in write_scope_artifacts(spec, CURRENT_DIR):
         print_success(f"{target.name} creado")
 
+    if getattr(args, "register", False):
+        try:
+            registry = SpecRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+            explicit_spec_id = getattr(args, "spec_id", None)
+            rev_input = spec_revision_from_scope(
+                spec,
+                spec_id=explicit_spec_id,
+                revision=1,
+            )
+            created_record = registry.create(rev_input)
+            requested_status = getattr(args, "status", None)
+            if requested_status == "ready":
+                created_record = registry.set_status(
+                    created_record.id,
+                    SpecStatus.READY,
+                )
+            print_success(
+                f"Spec '{created_record.id}' registrada (r{created_record.current_revision}, status={created_record.status.value})"
+            )
+        except SpecRegistryError as exc:
+            print(f"{exc.code} {exc}", file=sys.stderr)
+            sys.exit(1)
+        except ValueError as exc:
+            print(f"RAPID801 {exc}", file=sys.stderr)
+            sys.exit(1)
+    return 0
+
 
 def deploy_assistant(args):
     raw_target = args.target or input("Target (e.g. aws): ").strip()
@@ -1048,6 +1153,13 @@ def doctor_command(args):
             validate_stack_topology(PROJECT_RAPID_DIR),
             validate_composed_context(PROJECT_RAPID_DIR, CURRENT_DIR),
             validate_project_intelligence(PROJECT_RAPID_DIR, CURRENT_DIR),
+            validate_spec_registry(PROJECT_RAPID_DIR, CURRENT_DIR),
+            validate_execution_policy(PROJECT_RAPID_DIR, CURRENT_DIR),
+            validate_run_registry(PROJECT_RAPID_DIR, CURRENT_DIR),
+            validate_harness_registry(PROJECT_RAPID_DIR, CURRENT_DIR),
+            validate_capability_lock(PROJECT_RAPID_DIR, CURRENT_DIR),
+            validate_evidence_registry(PROJECT_RAPID_DIR, CURRENT_DIR),
+            validate_eval_registry(PROJECT_RAPID_DIR, CURRENT_DIR),
         )
     else:
         report = report.extend(
@@ -1183,63 +1295,2013 @@ def scan_command(args):
     return 0
 
 
+def render_context_manifest(manifest: ContextManifest) -> str:
+    lines = [
+        "Rapid OS Context Manifest",
+        "",
+        f"Mode: {manifest.mode}",
+        f"Harness: {manifest.harness or 'default'}",
+        f"Budget: {manifest.compiled_chars} / {manifest.budget_max_chars} chars",
+        "",
+        "SELECTED",
+    ]
+    if manifest.selected:
+        for entry in manifest.selected:
+            chars_label = f"{entry.chars} chars"
+            lines.append(
+                f"  {entry.source_id:<22} {entry.priority_label:<9} {chars_label:<12} {entry.reason}"
+            )
+    else:
+        lines.append("  none")
+
+    lines.append("")
+    lines.append("SKIPPED")
+    if manifest.skipped:
+        for entry in manifest.skipped:
+            chars_label = f"{entry.chars} chars"
+            lines.append(
+                f"  {entry.source_id:<22} {entry.priority_label:<9} {chars_label:<12} {entry.reason}"
+            )
+    else:
+        lines.append("  none")
+
+    lines.append("")
+    lines.append("CONFLICTS")
+    if manifest.conflicts:
+        for conflict in manifest.conflicts:
+            lines.append(
+                f"  {conflict.category:<21} {', '.join(conflict.sources)} -> winner: {conflict.winner} ({conflict.reason})"
+            )
+    else:
+        lines.append("  none")
+
+    return "\n".join(lines)
+
+
+def context_command(args):
+    """Compile task-specific context (read-only: never writes files, never prompts)."""
+    try:
+        request_kwargs = {
+            "mode": getattr(args, "mode", None) or "general",
+            "objective": getattr(args, "objective", None) or "",
+            "tags": tuple(getattr(args, "tag", None) or ()),
+            "affected_paths": tuple(getattr(args, "path", None) or ()),
+            "constraints": tuple(getattr(args, "constraint", None) or ()),
+            "max_chars": getattr(args, "max_chars", None),
+            "spec_id": getattr(args, "spec", None),
+            "spec_revision": getattr(args, "spec_revision", None),
+        }
+        if getattr(args, "harness", None):
+            request_kwargs["harness"] = args.harness
+        request = ContextRequest(**request_kwargs)
+    except ValueError as exc:
+        code = getattr(exc, "code", None) or "RAPID705"
+        print(
+            f"{code} Solicitud de contexto invalida: {exc}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    discovery = ContextSourceLoader().load(
+        CURRENT_DIR, PROJECT_RAPID_DIR, request=request
+    )
+    if discovery.load_errors:
+        for err in discovery.load_errors:
+            err_code = getattr(err, "code", None) or "RAPID704"
+            print(
+                f"{err_code} No se pudo leer la fuente de contexto {err.source_id} ({err.path}): {err.message}",
+                file=sys.stderr,
+            )
+        sys.exit(1)
+
+    try:
+        compiled = ContextCompiler().compile(
+            request=request,
+            sources=discovery.sources,
+            project_model=discovery.project_model,
+        )
+    except ContextRequiredSourceMissingError as exc:
+        if exc.manifest is not None:
+            for entry in exc.manifest.skipped:
+                if entry.required:
+                    print(
+                        f"RAPID701 {entry.source_id}: {entry.reason}",
+                        file=sys.stderr,
+                    )
+        else:
+            print(f"RAPID701 {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ContextBudgetExceededError as exc:
+        print(f"RAPID702 {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        print(f"RAPID705 {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    # Diagnostics go to stderr so stdout stays machine-readable in --json mode.
+    for conflict in compiled.manifest.conflicts:
+        print(
+            f"RAPID703 Conflicto de contexto en '{conflict.category}': "
+            f"{', '.join(conflict.sources)} (prevalece {conflict.winner})",
+            file=sys.stderr,
+        )
+
+    if getattr(args, "json", False):
+        print(compiled.to_json(indent=2))
+        return 0
+    if getattr(args, "manifest", False):
+        print(render_context_manifest(compiled.manifest))
+        return 0
+
+    print(compiled.content, end="")
+    return 0
+
+
+def _prompt_with_default(prompt_label: str, default_value: str = "") -> str:
+    try:
+        raw = input(prompt_label).strip()
+    except (EOFError, StopIteration):
+        raw = ""
+    return raw if raw else default_value
+
+
+def _prompt_list_with_default(
+    prompt_label: str,
+    default_items: tuple[str, ...] = (),
+) -> tuple[str, ...]:
+    try:
+        raw = input(prompt_label).strip()
+    except (EOFError, StopIteration):
+        raw = ""
+    if not raw:
+        return tuple(default_items)
+    return tuple(parse_list(raw))
+
+
+SPEC_AUTHORING_SCALAR_FIELDS = (
+    "title",
+    "mode",
+    "business_objective",
+    "problem_statement",
+    "data_impact",
+)
+
+SPEC_AUTHORING_LIST_FIELDS = (
+    "scope",
+    "out_of_scope",
+    "actors_users",
+    "main_flow",
+    "edge_cases",
+    "business_rules",
+    "technical_constraints",
+    "affected_paths",
+    "acceptance_criteria",
+    "testing_strategy",
+    "implementation_tasks",
+    "tags",
+)
+
+
+def _extract_non_interactive_spec_fields(args) -> dict[str, object]:
+    """Extract explicitly supplied CLI authoring flags without prompting."""
+    fields: dict[str, object] = {}
+    for scalar_name in SPEC_AUTHORING_SCALAR_FIELDS:
+        val = getattr(args, scalar_name, None)
+        if val is not None:
+            fields[scalar_name] = val
+    for list_name in SPEC_AUTHORING_LIST_FIELDS:
+        val = getattr(args, list_name, None)
+        if val is not None:
+            fields[list_name] = tuple(val)
+    return fields
+
+
+def _has_non_interactive_spec_flags(args, *, is_create: bool = False) -> bool:
+    for name in SPEC_AUTHORING_SCALAR_FIELDS + SPEC_AUTHORING_LIST_FIELDS:
+        if getattr(args, name, None) is not None:
+            return True
+    if is_create:
+        if getattr(args, "status", None) is not None:
+            return True
+        if getattr(args, "export_legacy", False):
+            return True
+    if getattr(args, "json", False):
+        return True
+    return False
+
+
+def _collect_spec_wizard_fields(
+    *,
+    explicit_id: str | None = None,
+    base_revision: SpecRevision | None = None,
+) -> dict[str, object]:
+    is_revise = base_revision is not None
+    header = "✏️  SPEC REVISE WIZARD" if is_revise else "📐 SPEC WIZARD (v3 Registry)"
+    print(f"\n{header}")
+    print("Modo:")
+    print(" 1) feature")
+    print(" 2) refactor")
+    print(" 3) bugfix")
+    print(" 4) hardening")
+    print(" 5) research")
+    print("Tip: usa comas o punto y coma para respuestas tipo lista.")
+
+    resolved_id = explicit_id
+    if not is_revise and not resolved_id:
+        raw_id = _prompt_with_default("Spec ID (Enter para derivar del nombre): ", "")
+        if raw_id:
+            resolved_id = raw_id
+
+    default_title = base_revision.title if base_revision else ""
+    default_mode = base_revision.mode.value if base_revision else SpecMode.FEATURE.value
+    title = _prompt_with_default("Nombre iniciativa: ", default_title)
+    mode_input = _prompt_with_default("Modo [1]: ", default_mode)
+    mode = SpecMode.coerce(mode_input) if mode_input else SpecMode.FEATURE
+
+    business_objective = _prompt_with_default(
+        "Objetivo de negocio: ",
+        base_revision.business_objective if base_revision else "",
+    )
+    problem_statement = _prompt_with_default(
+        "Problema a resolver: ",
+        base_revision.problem_statement if base_revision else "",
+    )
+    scope = _prompt_list_with_default(
+        "Alcance: ",
+        base_revision.scope if base_revision else (),
+    )
+    out_of_scope = _prompt_list_with_default(
+        "Fuera de alcance: ",
+        base_revision.out_of_scope if base_revision else (),
+    )
+    actors_users = _prompt_list_with_default(
+        "Actores/usuarios: ",
+        base_revision.actors_users if base_revision else (),
+    )
+    main_flow = _prompt_list_with_default(
+        "Flujo principal: ",
+        base_revision.main_flow if base_revision else (),
+    )
+    edge_cases = _prompt_list_with_default(
+        "Casos borde: ",
+        base_revision.edge_cases if base_revision else (),
+    )
+    business_rules = _prompt_list_with_default(
+        "Reglas de negocio: ",
+        base_revision.business_rules if base_revision else (),
+    )
+    technical_constraints = _prompt_list_with_default(
+        "Restricciones técnicas: ",
+        base_revision.technical_constraints if base_revision else (),
+    )
+    affected_paths = _prompt_list_with_default(
+        "Archivos/módulos afectados si se conocen: ",
+        base_revision.affected_paths if base_revision else (),
+    )
+    data_impact = _prompt_with_default(
+        "Impacto en datos: ",
+        base_revision.data_impact if base_revision else "",
+    )
+    acceptance_criteria = _prompt_list_with_default(
+        "Criterios de aceptación: ",
+        base_revision.acceptance_criteria if base_revision else (),
+    )
+    testing_strategy = _prompt_list_with_default(
+        "Estrategia de pruebas: ",
+        base_revision.testing_strategy if base_revision else (),
+    )
+    implementation_tasks = _prompt_list_with_default(
+        "Tareas de implementación: ",
+        base_revision.implementation_tasks if base_revision else (),
+    )
+    tags = _prompt_list_with_default(
+        "Tags: ",
+        base_revision.tags if base_revision else (),
+    )
+
+    payload: dict[str, object] = {
+        "title": title,
+        "mode": mode,
+        "business_objective": business_objective,
+        "problem_statement": problem_statement,
+        "scope": scope,
+        "out_of_scope": out_of_scope,
+        "actors_users": actors_users,
+        "main_flow": main_flow,
+        "edge_cases": edge_cases,
+        "business_rules": business_rules,
+        "technical_constraints": technical_constraints,
+        "affected_paths": affected_paths,
+        "data_impact": data_impact,
+        "acceptance_criteria": acceptance_criteria,
+        "testing_strategy": testing_strategy,
+        "implementation_tasks": implementation_tasks,
+        "tags": tags,
+    }
+    if resolved_id is not None:
+        payload["spec_id"] = resolved_id
+    return payload
+
+
+def render_spec_show_text(
+    record,
+    revision: SpecRevision,
+    artifact_paths: dict[str, str],
+) -> str:
+    scope_summary = ", ".join(revision.scope) if revision.scope else "none"
+    paths_summary = (
+        ", ".join(revision.affected_paths) if revision.affected_paths else "none"
+    )
+    tags_summary = ", ".join(revision.tags) if revision.tags else "none"
+    lines = [
+        f"ID:               {record.id}",
+        f"Status:           {record.status.value}",
+        f"Current Revision: r{record.current_revision}",
+        f"Revision:         r{revision.revision}",
+        f"Title:            {revision.title}",
+        f"Mode:             {revision.mode.value}",
+        f"Business Obj:     {revision.business_objective or 'none'}",
+        f"Problem:          {revision.problem_statement or 'none'}",
+        f"Scope:            {scope_summary}",
+        f"Affected Paths:   {paths_summary}",
+        f"Tags:             {tags_summary}",
+        "Artifacts:",
+    ]
+    for name in ("requirements.md", "tasks.md", "acceptance.md"):
+        if name in artifact_paths:
+            lines.append(f"  - {artifact_paths[name]}")
+    return "\n".join(lines)
+
+
+def spec_command(args):
+    """Execute `rapid spec` subcommands (`create`, `list`, `show`, `revise`, `status`, `export-legacy`)."""
+    action = getattr(args, "spec_action", None) or getattr(args, "action", None)
+    try:
+        registry = SpecRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+
+        if action == "list":
+            records = registry.list_specs()
+            status_filter = getattr(args, "status", None)
+            if status_filter is not None:
+                coerced_filter = SpecStatus.coerce(status_filter)
+                records = tuple(
+                    rec for rec in records if rec.status == coerced_filter
+                )
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": SPEC_SCHEMA_VERSION,
+                    "specs": [rec.to_dict() for rec in records],
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            if not records:
+                print("No specs registered.")
+                return 0
+            for rec in records:
+                print(
+                    f"{rec.id:<25} {rec.status.value:<10} r{rec.current_revision}"
+                )
+            return 0
+
+        if action == "show":
+            spec_id = getattr(args, "spec_id", None) or getattr(args, "id", None)
+            rev_arg = getattr(args, "revision", None)
+            record = registry.get(spec_id)
+            revision = registry.get_revision(spec_id, revision=rev_arg)
+            artifact_paths = registry.get_artifact_paths(
+                spec_id,
+                revision=revision.revision,
+            )
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": SPEC_SCHEMA_VERSION,
+                    "id": record.id,
+                    "status": record.status.value,
+                    "current_revision": record.current_revision,
+                    "spec": record.to_dict(),
+                    "record": record.to_dict(),
+                    "revision": revision.to_dict(),
+                    "artifacts": artifact_paths,
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print(render_spec_show_text(record, revision, artifact_paths))
+            return 0
+
+        if action == "create":
+            explicit_id = getattr(args, "spec_id", None) or getattr(
+                args, "id", None
+            )
+            if _has_non_interactive_spec_flags(args, is_create=True):
+                fields = _extract_non_interactive_spec_fields(args)
+                raw_title = str(fields.get("title") or "").strip()
+                if not raw_title:
+                    raise InvalidRevisionManifestError(
+                        "Spec 'title' (--title) is required in non-interactive mode."
+                    )
+                if explicit_id is not None:
+                    fields["spec_id"] = explicit_id
+            else:
+                fields = _collect_spec_wizard_fields(explicit_id=explicit_id)
+
+            created_record = registry.create(**fields)
+            requested_status = getattr(args, "status", None)
+            if requested_status == "ready":
+                created_record = registry.set_status(
+                    created_record.id,
+                    SpecStatus.READY,
+                )
+            elif requested_status is not None and requested_status != "draft":
+                raise InvalidRevisionManifestError(
+                    f"Invalid initial spec status '{requested_status}': only 'draft' or 'ready' are allowed on create."
+                )
+
+            written_legacy = ()
+            if getattr(args, "export_legacy", False):
+                written_legacy = registry.export_legacy(
+                    created_record.id,
+                    CURRENT_DIR,
+                    revision=created_record.current_revision,
+                )
+
+            if getattr(args, "json", False):
+                created_rev = registry.get_revision(
+                    created_record.id,
+                    revision=created_record.current_revision,
+                )
+                payload = {
+                    **created_record.to_dict(),
+                    "spec": created_record.to_dict(),
+                    "revision": created_rev.to_dict(),
+                }
+                if written_legacy:
+                    payload["legacy_exports"] = [
+                        target.name for target in written_legacy
+                    ]
+                print(json.dumps(payload, indent=2))
+                return 0
+
+            print_success(
+                f"Spec '{created_record.id}' creada (r{created_record.current_revision}, status={created_record.status.value})"
+            )
+            for target in written_legacy:
+                print_success(f"{target.name} exportado")
+            return 0
+
+        if action == "revise":
+            spec_id = getattr(args, "spec_id", None) or getattr(args, "id", None)
+            record = registry.get(spec_id)
+            current_rev = registry.get_revision(spec_id, record.current_revision)
+            if _has_non_interactive_spec_flags(args, is_create=False):
+                fields = _extract_non_interactive_spec_fields(args)
+            else:
+                fields = _collect_spec_wizard_fields(
+                    explicit_id=record.id,
+                    base_revision=current_rev,
+                )
+                fields.pop("spec_id", None)
+
+            updated_record = registry.revise(spec_id, **fields)
+            if getattr(args, "json", False):
+                updated_rev = registry.get_revision(
+                    updated_record.id,
+                    revision=updated_record.current_revision,
+                )
+                payload = {
+                    **updated_record.to_dict(),
+                    "spec": updated_record.to_dict(),
+                    "revision": updated_rev.to_dict(),
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+
+            print_success(
+                f"Spec '{updated_record.id}' actualizada a r{updated_record.current_revision} (status={updated_record.status.value})"
+            )
+            return 0
+
+        if action == "status":
+            spec_id = getattr(args, "spec_id", None) or getattr(args, "id", None)
+            target_status = getattr(args, "status", None)
+            updated_record = registry.set_status(spec_id, target_status)
+            if getattr(args, "json", False):
+                print(updated_record.to_json(indent=2))
+                return 0
+            print_success(
+                f"Spec '{updated_record.id}' status -> {updated_record.status.value} (r{updated_record.current_revision})"
+            )
+            return 0
+
+        if action == "export-legacy":
+            spec_id = getattr(args, "spec_id", None) or getattr(args, "id", None)
+            rev_arg = getattr(args, "revision", None)
+            written = registry.export_legacy(
+                spec_id,
+                CURRENT_DIR,
+                revision=rev_arg,
+            )
+            for target in written:
+                print_success(f"{target.name} exportado")
+            return 0
+
+        print("RAPID801 Subcomando 'rapid spec' requerido.", file=sys.stderr)
+        sys.exit(1)
+    except SpecRegistryError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        print(f"RAPID801 {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def render_policy_show_text(policy, source: str) -> str:
+    waivable_str = (
+        ", ".join(policy.waivable_gate_ids)
+        if policy.waivable_gate_ids
+        else "none"
+    )
+    extra_gates_str = (
+        ", ".join(policy.extra_required_gate_ids)
+        if policy.extra_required_gate_ids
+        else "none"
+    )
+    workspace_str = ", ".join(
+        f"{k}={v}" for k, v in policy.workspace_by_risk.items()
+    )
+    return "\n".join(
+        [
+            "Rapid OS Execution Policy",
+            f"Source:                 {source}",
+            f"Schema Version:         {policy.schema_version}",
+            f"Minimum Classification: {policy.minimum_classification.value}",
+            f"Minimum Risk:           {policy.minimum_risk.label}",
+            f"Workspace by Risk:      {workspace_str}",
+            f"Waivable Gate IDs:      {waivable_str}",
+            f"Extra Required Gates:   {extra_gates_str}",
+            f"Policy Digest:          {policy.digest}",
+        ]
+    )
+
+
+def policy_command(args):
+    """Execute `rapid policy` subcommands (`show`, `init`)."""
+    action = getattr(args, "policy_action", None) or getattr(
+        args, "action", None
+    )
+    try:
+        if action == "show":
+            policy, source = load_execution_policy(
+                CURRENT_DIR,
+                PROJECT_RAPID_DIR,
+            )
+            if getattr(args, "json", False):
+                payload = {
+                    **policy.to_dict(),
+                    "source": source,
+                    "policy_digest": policy.content_digest(),
+                    "policy": policy.to_dict(),
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print(render_policy_show_text(policy, source))
+            return 0
+
+        if action == "init":
+            written_path = write_default_execution_policy(
+                CURRENT_DIR,
+                PROJECT_RAPID_DIR,
+            )
+            policy, source = load_execution_policy(
+                CURRENT_DIR,
+                PROJECT_RAPID_DIR,
+            )
+            if getattr(args, "json", False):
+                payload = {
+                    **policy.to_dict(),
+                    "source": source,
+                    "path": written_path.relative_to(CURRENT_DIR).as_posix(),
+                    "policy_digest": policy.content_digest(),
+                    "policy": policy.to_dict(),
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print_success(f"Execution policy inicializada en: {written_path}")
+            return 0
+
+        print("RAPID1005 Subcomando 'rapid policy' requerido.", file=sys.stderr)
+        sys.exit(1)
+    except ExecutionError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        print(f"RAPID1005 {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def render_run_show_text(
+    record,
+    contract,
+    state,
+    artifact_paths: dict[str, str],
+) -> str:
+    done_or_skipped = sum(1 for t in state.tasks if t.status.is_terminal)
+    total_tasks = len(state.tasks)
+    lines = [
+        f"ID:                    {record.id}",
+        f"Status:                {state.status.value} (s{state.revision})",
+        f"Spec:                  {record.spec_id} (r{record.spec_revision})",
+        f"Spec Content Digest:   {contract.spec_content_digest}",
+        f"Harness:               {contract.harness}",
+        f"Classification:        {contract.classification.value}",
+        f"Risk:                  {contract.risk.label}",
+        f"Workspace Requirement: {contract.workspace.value}",
+        f"Policy Source:         {contract.policy_source}",
+        f"Policy Digest:         {contract.policy_digest}",
+        f"Project Model Digest:  {contract.project_model_digest}",
+        f"Context Digest:        {contract.context_digest}",
+        f"Contract Digest:       {contract.contract_digest}",
+        "Reasons:",
+    ]
+    if contract.decision.reasons:
+        for reason in contract.decision.reasons:
+            lines.append(f"  - {reason}")
+    else:
+        lines.append("  - none")
+
+    lines.append("Risk Signals:")
+    if contract.risk_signals:
+        for sig in contract.risk_signals:
+            lines.append(
+                f"  - {sig.id} ({sig.level.label}, source={sig.source}): {sig.reason}"
+            )
+    else:
+        lines.append("  - none")
+
+    lines.append(f"Tasks ({done_or_skipped}/{total_tasks} terminal):")
+    if state.tasks:
+        for task in state.tasks:
+            task_line = f"  - {task.id} [{task.status.value}] {task.description}"
+            if task.reason:
+                task_line += f" (reason: {task.reason})"
+            lines.append(task_line)
+    else:
+        lines.append("  - none")
+
+    lines.append("Required Gates:")
+    if state.gates:
+        contract_gates_by_id = {g.id: g for g in contract.gates}
+        for gate in state.gates:
+            c_gate = contract_gates_by_id.get(gate.id)
+            gate_reason = gate.reason or (c_gate.reason if c_gate else "")
+            lines.append(
+                f"  - {gate.id} ({gate.kind.value}, {gate.phase.value}, waivable={str(gate.waivable).lower()}) -> {gate.disposition.value}"
+            )
+            if gate_reason:
+                lines.append(f"    reason: {gate_reason}")
+    else:
+        lines.append("  - none")
+
+    lines.append("Artifacts:")
+    for name in (
+        "run.json",
+        "contract.json",
+        "context.md",
+        "context-manifest.json",
+        "state.json",
+    ):
+        if name in artifact_paths:
+            lines.append(f"  - {artifact_paths[name]}")
+    return "\n".join(lines)
+
+
+def run_command(args):
+    """Execute `rapid run` subcommands (`create`, `list`, `show`, `status`, `task`, `gate`)."""
+    action = getattr(args, "run_action", None) or getattr(args, "action", None)
+    try:
+        registry = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+
+        if action == "list":
+            status_filter = getattr(args, "status", None)
+            records = registry.list_runs(status=status_filter)
+            run_items = []
+            for rec in records:
+                contract = registry.get_contract(rec.id)
+                state = registry.get_state(rec.id)
+                run_items.append((rec, contract, state))
+
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": RUN_SCHEMA_VERSION,
+                    "runs": [
+                        {
+                            **rec.to_dict(),
+                            "status": state.status.value,
+                            "classification": contract.classification.value,
+                            "risk": contract.risk.label,
+                            "workspace": contract.workspace.value,
+                            "harness": contract.harness,
+                            "spec_content_digest": contract.spec_content_digest,
+                        }
+                        for rec, contract, state in run_items
+                    ],
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+
+            if not run_items:
+                print("No runs registered.")
+                return 0
+
+            for rec, contract, state in run_items:
+                print(
+                    f"{rec.id:<32} {state.status.value:<10} {contract.classification.value:<14} {contract.risk.label:<9} r{rec.spec_revision} s{rec.current_state_revision}"
+                )
+            return 0
+
+        if action == "show":
+            run_id = getattr(args, "run_id", None) or getattr(args, "id", None)
+            state_rev = getattr(args, "state_revision", None)
+            record = registry.get(run_id)
+            contract = registry.get_contract(run_id)
+            state = registry.get_state(run_id, revision=state_rev)
+            artifact_paths = registry.get_artifact_paths(
+                run_id,
+                state_revision=state.revision,
+            )
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": RUN_SCHEMA_VERSION,
+                    **record.to_dict(),
+                    "status": state.status.value,
+                    "classification": contract.classification.value,
+                    "risk": contract.risk.label,
+                    "workspace": contract.workspace.value,
+                    "harness": contract.harness,
+                    "spec_content_digest": contract.spec_content_digest,
+                    "policy_source": contract.policy_source,
+                    "policy_digest": contract.policy_digest,
+                    "project_model_digest": contract.project_model_digest,
+                    "context_digest": contract.context_digest,
+                    "context_manifest_digest": contract.context_manifest_digest,
+                    "reasons": list(contract.decision.reasons),
+                    "risk_signals": [s.to_dict() for s in contract.risk_signals],
+                    "tasks": [t.to_dict() for t in state.tasks],
+                    "gates": [g.to_dict() for g in state.gates],
+                    "run": record.to_dict(),
+                    "record": record.to_dict(),
+                    "contract": contract.to_dict(),
+                    "state": state.to_dict(),
+                    "artifacts": artifact_paths,
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print(render_run_show_text(record, contract, state, artifact_paths))
+            return 0
+
+        if action == "create":
+            spec_id = getattr(args, "spec", None)
+            if not spec_id or not str(spec_id).strip():
+                raise InvalidSpecBindingError(
+                    "Option '--spec' is required to create a run."
+                )
+            record = registry.create(
+                spec_id=spec_id,
+                spec_revision=getattr(args, "spec_revision", None),
+                run_id=getattr(args, "run_id", None),
+                harness=getattr(args, "harness", None) or "cursor",
+                classification=getattr(args, "classification", None),
+                risk=getattr(args, "risk", None),
+            )
+            contract = registry.get_contract(record.id)
+            state = registry.get_state(record.id)
+            artifact_paths = registry.get_artifact_paths(record.id)
+            if getattr(args, "json", False):
+                payload = {
+                    **record.to_dict(),
+                    "status": state.status.value,
+                    "classification": contract.classification.value,
+                    "risk": contract.risk.label,
+                    "workspace": contract.workspace.value,
+                    "harness": contract.harness,
+                    "spec_content_digest": contract.spec_content_digest,
+                    "run": record.to_dict(),
+                    "contract": contract.to_dict(),
+                    "state": state.to_dict(),
+                    "artifacts": artifact_paths,
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print_success(
+                f"Run '{record.id}' creado (spec={record.spec_id}@r{record.spec_revision}, status={state.status.value}, class={contract.classification.value}, risk={contract.risk.label})"
+            )
+            return 0
+
+        if action == "status":
+            run_id = getattr(args, "run_id", None) or getattr(args, "id", None)
+            target_status = getattr(args, "status", None)
+            reason = getattr(args, "reason", None) or ""
+            next_state = registry.transition_status(
+                run_id,
+                target_status,
+                reason=reason,
+            )
+            updated_record = registry.get(run_id)
+            if getattr(args, "json", False):
+                payload = {
+                    **updated_record.to_dict(),
+                    "status": next_state.status.value,
+                    "run": updated_record.to_dict(),
+                    "state": next_state.to_dict(),
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print_success(
+                f"Run '{updated_record.id}' status -> {next_state.status.value} (s{next_state.revision})"
+            )
+            return 0
+
+        if action == "task":
+            run_id = getattr(args, "run_id", None) or getattr(args, "id", None)
+            task_id = getattr(args, "task_id", None)
+            target_status = getattr(args, "status", None)
+            reason = getattr(args, "reason", None) or ""
+            next_state = registry.transition_task(
+                run_id,
+                task_id,
+                target_status,
+                reason=reason,
+            )
+            updated_record = registry.get(run_id)
+            if getattr(args, "json", False):
+                payload = {
+                    **updated_record.to_dict(),
+                    "status": next_state.status.value,
+                    "run": updated_record.to_dict(),
+                    "state": next_state.to_dict(),
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print_success(
+                f"Run '{updated_record.id}' task '{task_id}' -> {target_status} (s{next_state.revision})"
+            )
+            return 0
+
+        if action == "gate":
+            run_id = getattr(args, "run_id", None) or getattr(args, "id", None)
+            gate_id = getattr(args, "gate_id", None)
+            disposition = getattr(args, "disposition", None)
+            reason = getattr(args, "reason", None) or ""
+            next_state = registry.transition_gate(
+                run_id,
+                gate_id,
+                disposition,
+                reason=reason,
+            )
+            updated_record = registry.get(run_id)
+            if getattr(args, "json", False):
+                payload = {
+                    **updated_record.to_dict(),
+                    "status": next_state.status.value,
+                    "run": updated_record.to_dict(),
+                    "state": next_state.to_dict(),
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print_success(
+                f"Run '{updated_record.id}' gate '{gate_id}' -> {disposition} (s{next_state.revision})"
+            )
+            return 0
+
+        print("RAPID1001 Subcomando 'rapid run' requerido.", file=sys.stderr)
+        sys.exit(1)
+    except ExecutionError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except SpecRegistryError as exc:
+        print(f"RAPID1003 {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        print(f"RAPID1001 {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def render_harness_show_text(resolved) -> str:
+    profile = resolved.profile
+    lines = [
+        f"ID:             {resolved.id}",
+        f"Source:         {resolved.source}",
+        f"Profile Digest: {resolved.profile_digest}",
+        "Capabilities:",
+    ]
+    if profile.capabilities:
+        for cap in profile.capabilities:
+            lines.append(
+                f"  - {cap.capability_id:<22} {cap.status.value:<12} ({cap.reason})"
+            )
+    else:
+        lines.append("  - none")
+    return "\n".join(lines)
+
+
+def render_capability_resolution_text(resolution, *, run_id: str = "") -> str:
+    lines = []
+    if run_id:
+        lines.append(f"Run:               {run_id}")
+    lines.extend(
+        [
+            f"Harness:           {resolution.harness_id}",
+            f"Profile Source:    {resolution.profile_source}",
+            f"Profile Digest:    {resolution.profile_digest}",
+            f"Contract Digest:   {resolution.contract_digest}",
+            f"Resolution Digest: {resolution.resolution_digest}",
+            f"Compatibility:     {resolution.status.value.upper()} ({resolution.status.value})",
+            "",
+            "Required:",
+        ]
+    )
+    if resolution.requirements:
+        for req in resolution.requirements:
+            lines.append(
+                f"  {req.capability_id} (source={req.source}, reason={req.reason})"
+            )
+    else:
+        lines.append("  none")
+
+    lines.append("")
+    lines.append("Satisfied:")
+    if resolution.satisfied:
+        for cap_id in resolution.satisfied:
+            lines.append(f"  {cap_id}")
+    else:
+        lines.append("  none")
+
+    lines.append("")
+    lines.append("Missing:")
+    if resolution.missing:
+        for cap_id in resolution.missing:
+            lines.append(f"  {cap_id}")
+    else:
+        lines.append("  none")
+
+    lines.append("")
+    lines.append("Unknown:")
+    if resolution.unknown:
+        for cap_id in resolution.unknown:
+            lines.append(f"  {cap_id}")
+    else:
+        lines.append("  none")
+
+    return "\n".join(lines)
+
+
+def harness_command(args):
+    """Execute `rapid harness` subcommands (`list`, `show`, `init`, `lock`, `resolve`)."""
+    action = getattr(args, "harness_action", None) or getattr(args, "action", None)
+    try:
+        registry = HarnessRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+
+        if action == "list":
+            profiles = registry.list_profiles()
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": HARNESS_PROFILE_SCHEMA_VERSION,
+                    "profiles": [
+                        {
+                            "id": item.id,
+                            "source": item.source,
+                            "profile_digest": item.profile_digest,
+                            "content_digest": item.profile_digest,
+                            "capabilities": [
+                                cap.to_dict() for cap in item.profile.capabilities
+                            ],
+                            "profile": item.profile.to_dict(),
+                        }
+                        for item in profiles
+                    ],
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+
+            for item in profiles:
+                print(
+                    f"{item.id:<20} {item.source:<36} {item.profile_digest[:12]}"
+                )
+            return 0
+
+        if action == "show":
+            harness_id = getattr(args, "harness_id", None) or getattr(args, "id", None)
+            resolved = registry.resolve_active_profile(harness_id)
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": HARNESS_PROFILE_SCHEMA_VERSION,
+                    "id": resolved.id,
+                    "source": resolved.source,
+                    "profile_digest": resolved.profile_digest,
+                    "content_digest": resolved.profile_digest,
+                    "capabilities": [
+                        cap.to_dict() for cap in resolved.profile.capabilities
+                    ],
+                    "profile": resolved.profile.to_dict(),
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print(render_harness_show_text(resolved))
+            return 0
+
+        if action == "init":
+            harness_id = getattr(args, "harness_id", None) or getattr(args, "id", None)
+            path = registry.initialize_project_profile(harness_id)
+            resolved = registry.resolve_active_profile(harness_id)
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": HARNESS_PROFILE_SCHEMA_VERSION,
+                    "id": resolved.id,
+                    "source": resolved.source,
+                    "path": resolved.source,
+                    "profile_digest": resolved.profile_digest,
+                    "content_digest": resolved.profile_digest,
+                    "capabilities": [
+                        cap.to_dict() for cap in resolved.profile.capabilities
+                    ],
+                    "profile": resolved.profile.to_dict(),
+                }
+                print(json.dumps(payload, indent=2))
+                return 0
+            print_success(f"Harness profile '{resolved.id}' escrito en: {path}")
+            return 0
+
+        if action == "lock":
+            lock_obj, lock_path = write_capability_lock(
+                CURRENT_DIR,
+                PROJECT_RAPID_DIR,
+                registry=registry,
+            )
+            if getattr(args, "json", False):
+                print(lock_obj.to_json(indent=2))
+                return 0
+            print_success(
+                f"Capabilities lock escrito en: {lock_path} ({len(lock_obj.profiles)} profiles)"
+            )
+            return 0
+
+        if action == "resolve":
+            run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
+            if not run_id or not str(run_id).strip():
+                raise InvalidCapabilityResolutionError(
+                    "Option '--run' is required to resolve harness capabilities."
+                )
+            run_registry = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+            record = run_registry.get(run_id)
+            contract = run_registry.get_contract(record.id)
+
+            if getattr(args, "locked", False):
+                lock_obj = load_capability_lock(CURRENT_DIR, PROJECT_RAPID_DIR)
+                locked_entry = lock_obj.get_profile(contract.harness)
+                target_profile = locked_entry.profile
+                target_source = locked_entry.source
+            else:
+                resolved = registry.resolve_active_profile(contract.harness)
+                target_profile = resolved.profile
+                target_source = resolved.source
+
+            extra_reqs = tuple(getattr(args, "require", None) or ())
+            resolution = CapabilityResolver().resolve(
+                contract,
+                target_profile,
+                profile_source=target_source,
+                extra_requirements=extra_reqs,
+            )
+
+            if getattr(args, "json", False):
+                print(resolution.to_json(indent=2))
+            else:
+                print(render_capability_resolution_text(resolution, run_id=record.id))
+
+            if (
+                getattr(args, "require_compatible", False)
+                and resolution.status != CompatibilityStatus.COMPATIBLE
+            ):
+                raise IncompatibleHarnessError(
+                    f"Harness '{resolution.harness_id}' is not compatible with run '{record.id}' (status={resolution.status.value}). "
+                    "Declare or verify required capabilities in '.rapid-os/harnesses/' or select a compatible harness."
+                )
+            return 0
+
+        print(
+            "RAPID1102 Subcomando 'rapid harness' requerido (use: list, show, init, lock, resolve).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    except HarnessCapabilityError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ExecutionError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        code = getattr(exc, "code", None) or "RAPID1102"
+        print(f"{code} {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def render_evidence_show_text(evidence: RunEvidence) -> str:
+    lines = [
+        f"Evidence: {evidence.id}",
+        f"Run: {evidence.run_id}",
+        f"Kind: {evidence.kind.value}",
+        f"Producer: {evidence.producer}",
+        f"Summary: {evidence.summary}",
+        f"Contract Digest: {evidence.contract_digest}",
+        f"State Revision: s{evidence.state_revision} ({evidence.state_digest})",
+        f"Content Digest: {evidence.content_digest}",
+        f"Tasks: {', '.join(evidence.task_ids) if evidence.task_ids else 'none'}",
+        f"Gates: {', '.join(evidence.gate_ids) if evidence.gate_ids else 'none'}",
+        f"Capabilities: {', '.join(evidence.capability_ids) if evidence.capability_ids else 'none'}",
+        "",
+        "Payload:",
+    ]
+    for key, val in sorted(evidence.payload.items()):
+        lines.append(f"  {key}: {json.dumps(val, ensure_ascii=False)}")
+
+    lines.append("")
+    lines.append("Artifacts:")
+    if evidence.artifacts:
+        for art in evidence.artifacts:
+            lines.append(
+                f"  {art.path} ({art.size_bytes} bytes, sha256={art.sha256[:12]})"
+            )
+    else:
+        lines.append("  none")
+    return "\n".join(lines)
+
+
+def evidence_command(args):
+    """Execute `rapid evidence` subcommands (`list`, `show`, `add`, `verify`)."""
+    action = getattr(args, "evidence_action", None) or getattr(args, "action", None)
+    try:
+        registry = EvidenceRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+
+        if action == "list":
+            run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
+            if not run_id or not str(run_id).strip():
+                raise InvalidRunEvidenceError(
+                    "Option '--run' is required to list evidence records."
+                )
+            records = registry.list(run_id)
+            set_digest = compute_evidence_set_digest(run_id, records)
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": RUN_EVIDENCE_SCHEMA_VERSION,
+                    "run_id": run_id,
+                    "evidence_set_digest": set_digest,
+                    "records": [rec.to_dict() for rec in records],
+                }
+                print(json.dumps(payload, indent=2, ensure_ascii=False))
+                return 0
+
+            if not records:
+                print(f"No evidence records found for run '{run_id}'.")
+                return 0
+            for rec in records:
+                print(
+                    f"{rec.id:<8} s{rec.state_revision:<4} {rec.kind.value:<18} {rec.producer:<22} {rec.summary}"
+                )
+            return 0
+
+        if action == "show":
+            run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
+            evidence_id = getattr(args, "evidence_id", None) or getattr(
+                args, "id", None
+            )
+            if not run_id or not str(run_id).strip():
+                raise InvalidRunEvidenceError(
+                    "Option '--run' is required to show an evidence record."
+                )
+            if not evidence_id or not str(evidence_id).strip():
+                raise InvalidRunEvidenceError(
+                    "Argument '<evidence-id>' is required to show an evidence record."
+                )
+            record_obj = registry.get(run_id, evidence_id)
+            if getattr(args, "json", False):
+                print(record_obj.to_json(indent=2))
+                return 0
+            print(render_evidence_show_text(record_obj))
+            return 0
+
+        if action == "add":
+            run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
+            input_file = getattr(args, "input", None)
+            if not run_id or not str(run_id).strip():
+                raise InvalidRunEvidenceError(
+                    "Option '--run' is required to add evidence."
+                )
+            if not input_file or not str(input_file).strip():
+                raise InvalidRunEvidenceError(
+                    "Option '--input' is required to add evidence."
+                )
+            input_path = Path(input_file)
+            if not input_path.is_absolute():
+                input_path = CURRENT_DIR / input_path
+            added = registry.add(run_id, input_path)
+            if getattr(args, "json", False):
+                print(added.to_json(indent=2))
+                return 0
+            print_success(
+                f"Evidence '{added.id}' ({added.kind.value}) registrada para run '{added.run_id}'."
+            )
+            return 0
+
+        if action == "verify":
+            run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
+            if not run_id or not str(run_id).strip():
+                raise InvalidRunEvidenceError(
+                    "Option '--run' is required to verify evidence."
+                )
+            records = registry.verify(run_id)
+            orphans = registry.orphan_artifact_dirs(run_id)
+            set_digest = compute_evidence_set_digest(run_id, records)
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": RUN_EVIDENCE_SCHEMA_VERSION,
+                    "ok": True,
+                    "run_id": run_id,
+                    "record_count": len(records),
+                    "evidence_set_digest": set_digest,
+                    "records": [rec.to_dict() for rec in records],
+                    "orphan_artifact_dirs": [p.name for p in orphans],
+                }
+                print(json.dumps(payload, indent=2, ensure_ascii=False))
+                return 0
+
+            print(
+                f"Evidence verified for run '{run_id}': {len(records)} record(s), digest={set_digest}"
+            )
+            for orphan in orphans:
+                print(
+                    f"RAPID1209 Trailing evidence artifact {orphan.name} detected (orphan evidence artifact directory: {orphan.name}). "
+                    "The previous evidence write may have been interrupted. "
+                    "Resolve or inspect the orphan before adding new evidence.",
+                    file=sys.stderr,
+                )
+            return 0
+
+        print(
+            "RAPID1202 Subcomando 'rapid evidence' requerido (use: list, show, add, verify).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    except EvidenceError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ExecutionError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        code = getattr(exc, "code", None) or "RAPID1202"
+        print(f"{code} {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def render_evaluation_report_text(
+    report: EvaluationReport,
+    *,
+    stale: bool = False,
+) -> str:
+    extra_caps_text = (
+        ", ".join(report.extra_capability_ids)
+        if report.extra_capability_ids
+        else "none"
+    )
+    lines = [
+        f"Run: {report.run_id}",
+        f"Contract Digest: {report.contract_digest}",
+        f"State Revision: s{report.state_revision} ({report.state_digest})",
+        f"Evidence Set Digest: {report.evidence_set_digest}",
+        f"Ruleset: v{report.ruleset_version} ({report.ruleset_digest})",
+        f"Extra Capabilities: {extra_caps_text}",
+        f"Report Digest: {report.report_digest}",
+        f"Verdict: {report.verdict.value.upper()}",
+    ]
+    if stale:
+        lines.append("Stale: YES (RAPID1227)")
+
+    lines.append("")
+    lines.append("Assertions:")
+    for item in report.assertions:
+        req_tag = "required" if item.required else "optional"
+        ev_str = (
+            f" [evidence: {', '.join(item.evidence_ids)}]"
+            if item.evidence_ids
+            else ""
+        )
+        lines.append(
+            f"  {item.id:<40} {item.status.value.upper():<16} ({req_tag}) {item.reason}{ev_str}"
+        )
+    return "\n".join(lines)
+
+
+def eval_command(args):
+    """Execute `rapid eval` subcommands (`run`, `list`, `show`)."""
+    action = getattr(args, "eval_action", None) or getattr(args, "action", None)
+    try:
+        registry = EvalRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+
+        if action == "run":
+            run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
+            if not run_id or not str(run_id).strip():
+                raise InvalidEvaluationReportError(
+                    "Option '--run' is required to evaluate a run."
+                )
+            extra_reqs = tuple(getattr(args, "require", None) or ())
+            report = registry.evaluate_run(
+                run_id,
+                extra_capability_requirements=extra_reqs,
+                write=bool(getattr(args, "write", False)),
+            )
+
+            if getattr(args, "json", False):
+                print(report.to_json(indent=2))
+            else:
+                print(render_evaluation_report_text(report))
+
+            if getattr(args, "require_pass", False):
+                if report.verdict == EvaluationVerdict.UNVERIFIED:
+                    raise EvaluationUnverifiedError(
+                        f"Evaluation for run '{report.run_id}' is unverified (verdict={report.verdict.value}). "
+                        "One or more required assertions lack verified evidence; attach qualifying evidence with 'rapid evidence add' and re-run evaluation."
+                    )
+                if report.verdict == EvaluationVerdict.FAIL:
+                    raise EvaluationFailedError(
+                        f"Evaluation for run '{report.run_id}' failed (verdict={report.verdict.value}). "
+                        "Inspect failing assertions in the evaluation report and resolve the underlying failures."
+                    )
+            return 0
+
+        if action == "list":
+            run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
+            if not run_id or not str(run_id).strip():
+                raise InvalidEvaluationReportError(
+                    "Option '--run' is required to list evaluation reports."
+                )
+            entries = registry.list_report_entries(run_id)
+            if getattr(args, "json", False):
+                payload = {
+                    "schema_version": EVALUATION_REPORT_SCHEMA_VERSION,
+                    "run_id": run_id,
+                    "reports": [
+                        {
+                            "revision": rev_num,
+                            "file": rep_path.name,
+                            "verdict": rep_obj.verdict.value,
+                            "state_revision": rep_obj.state_revision,
+                            "state_digest": rep_obj.state_digest,
+                            "evidence_set_digest": rep_obj.evidence_set_digest,
+                            "ruleset_version": rep_obj.ruleset_version,
+                            "ruleset_digest": rep_obj.ruleset_digest,
+                            "extra_capability_ids": list(
+                                rep_obj.extra_capability_ids
+                            ),
+                            "report_digest": rep_obj.report_digest,
+                            "stale": is_stale,
+                        }
+                        for rev_num, rep_path, rep_obj, is_stale in entries
+                    ],
+                }
+                print(json.dumps(payload, indent=2, ensure_ascii=False))
+                return 0
+
+            if not entries:
+                print(f"No evaluation reports found for run '{run_id}'.")
+                return 0
+            for rev_num, rep_path, rep_obj, is_stale in entries:
+                stale_label = "STALE" if is_stale else "CURRENT"
+                print(
+                    f"{rep_path.name:<12} rev={rev_num:<4} s{rep_obj.state_revision:<4} {rep_obj.verdict.value.upper():<18} {stale_label:<8} {rep_obj.report_digest[:12]}"
+                )
+            return 0
+
+        if action == "show":
+            run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
+            if not run_id or not str(run_id).strip():
+                raise InvalidEvaluationReportError(
+                    "Option '--run' is required to show an evaluation report."
+                )
+            revision = getattr(args, "revision", None)
+            report = registry.get_report(run_id, revision=revision)
+            stale = registry.is_report_stale(report)
+            if getattr(args, "json", False):
+                print(report.to_json(indent=2))
+                return 0
+            print(render_evaluation_report_text(report, stale=stale))
+            return 0
+
+        print(
+            "RAPID1221 Subcomando 'rapid eval' requerido (use: run, list, show).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    except EvaluationError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except EvidenceError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except HarnessCapabilityError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ExecutionError as exc:
+        print(f"{exc.code} {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        code = getattr(exc, "code", None) or "RAPID1221"
+        print(f"{code} {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
 def show_guide():
-    print("📘 RAPID OS - COMANDOS")
-    print(" init    -> Configurar proyecto")
-    print(" scan    -> Inspeccionar inteligencia del proyecto")
-    print(" skill   -> Instalar capacidades (Local/Vercel)")
-    print(" mcp     -> Configurar herramientas BD")
-    print(" vision  -> Agregar referencias visuales")
-    print(" scope   -> Crear specs")
-    print(" prompt  -> Generar prompt para IA")
-    print(" validate -> Validar proyecto Rapid OS")
-    print(" doctor  -> Diagnosticar instalacion local")
-    print(" inspect-context -> Previsualizar contexto ensamblado")
+    print(f"📘 RAPID OS v{__version__} - GOVERNANCE LOOP & CLI GUIDE")
+    print("")
+    print("Recommended v3 Governance Workflow:")
+    print("  1. scan       -> rapid scan [--write] (inspect & snapshot repository facts)")
+    print("  2. spec       -> rapid spec create ... --status ready (author immutable spec revision)")
+    print("  3. context    -> rapid context --spec <spec-id> (compile task-aware budgeted context)")
+    print("  4. policy/run -> rapid policy show | rapid run create --spec <spec-id> (govern execution contract & state)")
+    print("  5. harness    -> rapid harness resolve --run <run-id> (resolve declared harness capability compatibility)")
+    print("  6. evidence   -> rapid evidence add --run <run-id> --input <file> (record SHA-256 verified evidence)")
+    print("  7. eval       -> rapid eval run --run <run-id> [--write] [--require-pass] (evaluate behavioral ruleset)")
+    print("  8. validate   -> rapid validate [--strict] (verify end-to-end project & registry integrity)")
+    print("")
+    print("Core & v3 Governance Commands:")
+    print("  init            -> Initialize project standards and agent rule files [writes state]")
+    print("  scan            -> Inspect project intelligence (read-only; --write persists .rapid-os/project.json)")
+    print("  context         -> Compile task-selective context [read-only]")
+    print("  spec            -> Manage Spec Registry v3 (list/show read-only; create/revise/status/export-legacy write)")
+    print("  policy          -> Manage Execution Policy v3 (show read-only; init writes .rapid-os/policy.json)")
+    print("  run             -> Manage Run Contracts & Lifecycle v3 (list/show read-only; create/status/task/gate write)")
+    print("  harness         -> Manage Harness Capability Registry v3 (list/show/resolve read-only; init/lock write)")
+    print("  evidence        -> Manage Evidence Engine v3 (list/show/verify read-only; add writes append-only records)")
+    print("  eval            -> Run Behavioral Evals v3 (list/show/run read-only; run --write persists report)")
+    print("  validate        -> Validate project standards, config, and v3 registries [read-only]")
+    print("  doctor          -> Diagnose local installation and project health [read-only]")
+    print("  inspect-context -> Preview assembled v2 project context [read-only]")
+    print("")
+    print("Project & Legacy Compatibility Commands:")
+    print("  skill           -> List or install local/remote agent skills (list read-only; install/add write)")
+    print("  mcp             -> Generate editor-specific MCP server configuration [writes state]")
+    print("  vision          -> Add visual reference image to references/ [writes state]")
+    print("  deploy          -> Generate DEPLOY.md from local deployment template [writes state]")
+    print("  refine          -> Print AI refinement prompt for a standards file [read-only]")
+    print("  scope           -> Legacy singleton SPECS.md/TASKS.md/ACCEPTANCE.md wizard (--register adds to v3 specs)")
+    print("  prompt          -> Generate starter/refactor prompt from standards (legacy compatibility) [read-only]")
+
+
+def _add_spec_authoring_arguments(subparser, *, is_create: bool = False):
+    if is_create:
+        subparser.add_argument("--id", dest="spec_id", help="Explicit spec slug ID (derived from --title if omitted).")
+    subparser.add_argument("--title", help="Human-readable spec title.")
+    subparser.add_argument("--mode", help="Spec mode: feature, bugfix, refactor, hardening, or research.")
+    subparser.add_argument(
+        "--objective",
+        "--business-objective",
+        dest="business_objective",
+        help="Business objective for the spec.",
+    )
+    subparser.add_argument(
+        "--problem",
+        "--problem-statement",
+        dest="problem_statement",
+        help="Problem statement addressed by the spec.",
+    )
+    subparser.add_argument("--scope", action="append", help="In-scope item (repeatable).")
+    subparser.add_argument(
+        "--out-of-scope",
+        dest="out_of_scope",
+        action="append",
+        help="Out-of-scope item (repeatable).",
+    )
+    subparser.add_argument(
+        "--actor",
+        "--actors-users",
+        dest="actors_users",
+        action="append",
+        help="Actor or user role (repeatable).",
+    )
+    subparser.add_argument(
+        "--main-flow",
+        "--flow",
+        dest="main_flow",
+        action="append",
+        help="Main flow step (repeatable).",
+    )
+    subparser.add_argument(
+        "--edge-case",
+        dest="edge_cases",
+        action="append",
+        help="Edge case to handle (repeatable).",
+    )
+    subparser.add_argument(
+        "--business-rule",
+        "--rule",
+        dest="business_rules",
+        action="append",
+        help="Business rule (repeatable).",
+    )
+    subparser.add_argument(
+        "--technical-constraint",
+        "--constraint",
+        dest="technical_constraints",
+        action="append",
+        help="Technical constraint (repeatable).",
+    )
+    subparser.add_argument(
+        "--affected-path",
+        dest="affected_paths",
+        action="append",
+        help="Repository-relative affected path (repeatable).",
+    )
+    subparser.add_argument("--data-impact", dest="data_impact", help="Data or schema impact description.")
+    subparser.add_argument(
+        "--acceptance",
+        "--acceptance-criteria",
+        dest="acceptance_criteria",
+        action="append",
+        help="Verifiable acceptance criterion (repeatable).",
+    )
+    subparser.add_argument(
+        "--testing",
+        "--testing-strategy",
+        dest="testing_strategy",
+        action="append",
+        help="Testing strategy item (repeatable).",
+    )
+    subparser.add_argument(
+        "--task",
+        "--implementation-task",
+        dest="implementation_tasks",
+        action="append",
+        help="Implementation task (repeatable; becomes T001, T002, ... in Run contracts).",
+    )
+    subparser.add_argument("--tag", dest="tags", action="append", help="Spec classification tag (repeatable).")
+    if is_create:
+        subparser.add_argument(
+            "--status",
+            choices=["draft", "ready"],
+            help="Initial authoring status (default: draft).",
+        )
+        subparser.add_argument(
+            "--export-legacy",
+            dest="export_legacy",
+            action="store_true",
+            help="Also export root SPECS.md, TASKS.md, and ACCEPTANCE.md.",
+        )
+    subparser.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
 
 
 def create_parser():
-    parser = argparse.ArgumentParser(description="Rapid OS")
+    parser = argparse.ArgumentParser(
+        prog="rapid",
+        description=(
+            f"Rapid OS {__version__} — Deterministic project intelligence, task-aware context compilation, "
+            "spec governance, execution contracts, harness capabilities, and behavioral evaluations."
+        ),
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"Rapid OS {__version__}",
+        help="Print the Rapid OS version and exit.",
+    )
     subparsers = parser.add_subparsers(dest="command")
 
-    init = subparsers.add_parser("init")
-    init.add_argument("--stack")
+    init = subparsers.add_parser(
+        "init",
+        help="Initialize .rapid-os/ standards and agent context files (writes state).",
+        description="Initialize .rapid-os/ standards, config.json, and agent instruction files in the current directory (writes state with .bak backups).",
+    )
+    init.add_argument("--stack", help="Explicit stack template name (overrides scanner suggestion).")
     init.add_argument(
         "--archetype",
         type=str.lower,
         choices=list(SUPPORTED_ARCHETYPES),
+        help="Engineering archetype: mvp or corporate.",
     )
-    init.add_argument("--no-scan", action="store_true")
+    init.add_argument("--no-scan", action="store_true", help="Skip local project scanner during initialization.")
 
-    scan = subparsers.add_parser("scan")
-    scan.add_argument("--json", action="store_true")
-    scan.add_argument("--write", action="store_true")
-    scan.add_argument("--verbose", action="store_true")
+    scan = subparsers.add_parser(
+        "scan",
+        help="Scan repository and build deterministic ProjectModel (read-only unless --write).",
+        description="Scan the current repository and emit normalized ProjectFact records. Read-only unless --write is passed to persist .rapid-os/project.json.",
+    )
+    scan.add_argument("--json", action="store_true", help="Emit pure ProjectModel JSON on stdout.")
+    scan.add_argument("--write", action="store_true", help="Persist .rapid-os/project.json snapshot (with backup).")
+    scan.add_argument("--verbose", action="store_true", help="Include per-fact evidence provenance in text output.")
 
-    skill = subparsers.add_parser("skill")
-    skill.add_argument("action", choices=["list", "install", "add"], nargs="?")
-    skill.add_argument("name", nargs="?")
+    context = subparsers.add_parser(
+        "context",
+        help="Compile task-specific, budgeted context with provenance (read-only).",
+        description="Compile task-relevant context from ProjectModel, standards, and ready specs. Always read-only (never writes files).",
+    )
+    context.add_argument("action", choices=["compile"], nargs="?", help="Optional explicit 'compile' action.")
+    context.add_argument("--mode", default="general", help="Task mode: feature, bugfix, refactor, hardening, research, or general.")
+    context.add_argument("--harness", help="Target harness identifier (e.g. codex, claude, cursor, vscode, antigravity).")
+    context.add_argument("--objective", help="Task objective for relevance ranking.")
+    context.add_argument("--max-chars", type=int, help="Maximum character budget for compiled Markdown.")
+    context.add_argument("--constraint", action="append", help="Explicit task constraint (repeatable).")
+    context.add_argument("--tag", action="append", help="Task tag for source selection (repeatable).")
+    context.add_argument("--path", action="append", help="Affected relative path (repeatable).")
+    context.add_argument("--spec", help="Ready spec ID from .rapid-os/specs/<id>/ to include.")
+    context.add_argument("--spec-revision", type=int, help="Pinned spec revision number.")
+    context.add_argument("--json", action="store_true", help="Emit pure CompiledContext JSON on stdout.")
+    context.add_argument("--manifest", action="store_true", help="Print human-readable ContextManifest summary.")
 
-    subparsers.add_parser("scope")
-    deploy = subparsers.add_parser("deploy")
-    deploy.add_argument("target", nargs="?")
-    vision = subparsers.add_parser("vision")
-    vision.add_argument("path", nargs="?")
-    mcp = subparsers.add_parser("mcp")
-    mcp.add_argument("--ide", choices=["codex", "claude", "cursor", "vscode", "antigravity"])
-    mcp.add_argument("--scope", choices=["project", "global"])
-    refine = subparsers.add_parser("refine")
-    refine.add_argument("file")
-    subparsers.add_parser("prompt")
-    validate = subparsers.add_parser("validate")
-    validate.add_argument("--json", action="store_true")
-    validate.add_argument("--strict", action="store_true")
-    doctor = subparsers.add_parser("doctor")
-    doctor.add_argument("--json", action="store_true")
-    doctor.add_argument("--strict", action="store_true")
-    inspect_context = subparsers.add_parser("inspect-context")
-    inspect_context.add_argument("--json", action="store_true")
-    inspect_context.add_argument("--summary", action="store_true")
-    subparsers.add_parser("guide")
+    spec = subparsers.add_parser(
+        "spec",
+        help="Manage Spec Registry v3 in .rapid-os/specs/ (list/show read-only; create/revise/status/export-legacy write).",
+        description=(
+            "Manage immutable multi-spec revisions under .rapid-os/specs/<spec-id>/. "
+            "Read-only actions: list, show. State-writing actions: create, revise, status, export-legacy."
+        ),
+    )
+    spec_subparsers = spec.add_subparsers(dest="spec_action")
+
+    spec_create = spec_subparsers.add_parser(
+        "create",
+        help="Create a new spec and revision r1 (writes .rapid-os/specs/<id>/).",
+        description="Create a new spec record and immutable revision 0001 under .rapid-os/specs/<spec-id>/ (writes state).",
+    )
+    _add_spec_authoring_arguments(spec_create, is_create=True)
+
+    spec_list = spec_subparsers.add_parser(
+        "list",
+        help="List registered specs in deterministic ID order (read-only).",
+        description="List registered specs from .rapid-os/specs/ in deterministic ID order (read-only).",
+    )
+    spec_list.add_argument(
+        "--status",
+        choices=["draft", "ready", "archived"],
+        help="Filter specs by authoring status.",
+    )
+    spec_list.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    spec_show = spec_subparsers.add_parser(
+        "show",
+        help="Show a spec and its current or pinned revision (read-only).",
+        description="Display a spec record and revision details without modifying any files (read-only).",
+    )
+    spec_show.add_argument("spec_id", help="Spec identifier.")
+    spec_show.add_argument("--revision", type=int, help="Specific revision number (defaults to current_revision).")
+    spec_show.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    spec_revise = spec_subparsers.add_parser(
+        "revise",
+        help="Create next immutable spec revision and reset status to draft (writes state).",
+        description="Create immutable revision current_revision + 1 and reset spec status to draft (writes state).",
+    )
+    spec_revise.add_argument("spec_id", help="Spec identifier to revise.")
+    _add_spec_authoring_arguments(spec_revise, is_create=False)
+
+    spec_status = spec_subparsers.add_parser(
+        "status",
+        help="Transition spec authoring status: draft, ready, or archived (writes state).",
+        description="Transition a spec's authoring lifecycle status in .rapid-os/specs/<id>/spec.json (writes state).",
+    )
+    spec_status.add_argument("spec_id", help="Spec identifier.")
+    spec_status.add_argument("status", help="Target status: draft, ready, or archived.")
+    spec_status.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    spec_export = spec_subparsers.add_parser(
+        "export-legacy",
+        help="Export a spec revision to root SPECS.md, TASKS.md, and ACCEPTANCE.md (writes state).",
+        description="Export a spec revision to legacy root SPECS.md, TASKS.md, and ACCEPTANCE.md files with .bak backups (writes state).",
+    )
+    spec_export.add_argument("spec_id", help="Spec identifier to export.")
+    spec_export.add_argument("--revision", type=int, help="Specific revision number to export.")
+
+    policy = subparsers.add_parser(
+        "policy",
+        help="Inspect or initialize Execution Policy in .rapid-os/policy.json (show read-only; init writes).",
+        description=(
+            "Inspect the active execution policy or initialize .rapid-os/policy.json. "
+            "Read-only actions: show. State-writing actions: init."
+        ),
+    )
+    policy_subparsers = policy.add_subparsers(dest="policy_action")
+
+    policy_show = policy_subparsers.add_parser(
+        "show",
+        help="Show effective execution policy and digest (read-only).",
+        description="Display the active execution policy (default or .rapid-os/policy.json) without modifying files (read-only).",
+    )
+    policy_show.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    policy_init = policy_subparsers.add_parser(
+        "init",
+        help="Write default .rapid-os/policy.json without overwriting existing files (writes state).",
+        description="Initialize .rapid-os/policy.json with default execution policy rules (writes state; never overwrites).",
+    )
+    policy_init.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    run = subparsers.add_parser(
+        "run",
+        help="Manage Execution Contracts & Run State Ledger in .rapid-os/runs/ (list/show read-only; create/status/task/gate write).",
+        description=(
+            "Create immutable ExecutionContract snapshots and append-only RunState revisions under .rapid-os/runs/<run-id>/. "
+            "Read-only actions: list, show. State-writing actions: create, status, task, gate."
+        ),
+    )
+    run_subparsers = run.add_subparsers(dest="run_action")
+
+    run_create = run_subparsers.add_parser(
+        "create",
+        help="Create a governed Run bound to a ready Spec revision (writes .rapid-os/runs/<run-id>/).",
+        description="Evaluate policy, compile context, and persist an immutable ExecutionContract and initial RunState s1 (writes state).",
+    )
+    run_create.add_argument("--spec", help="Ready spec identifier to bind.")
+    run_create.add_argument("--spec-revision", dest="spec_revision", type=int, help="Pinned spec revision number.")
+    run_create.add_argument("--id", dest="run_id", help="Explicit run identifier (defaults to <spec>-r<rev>-run-<NNN>).")
+    run_create.add_argument(
+        "--harness",
+        default="cursor",
+        help="Target harness identifier bound to the contract (default: cursor).",
+    )
+    run_create.add_argument("--classification", help="Optional classification override (cannot downgrade policy).")
+    run_create.add_argument("--risk", help="Optional risk level override (cannot downgrade policy).")
+    run_create.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    run_list = run_subparsers.add_parser(
+        "list",
+        help="List registered runs in deterministic ID order (read-only).",
+        description="List runs from .rapid-os/runs/ in deterministic ID order without modifying files (read-only).",
+    )
+    run_list.add_argument("--status", help="Filter runs by current RunStatus.")
+    run_list.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    run_show = run_subparsers.add_parser(
+        "show",
+        help="Show a run's contract, tasks, gates, and state (read-only).",
+        description="Display a run record, immutable contract, and current or historical state revision (read-only).",
+    )
+    run_show.add_argument("run_id", help="Run identifier.")
+    run_show.add_argument("--state-revision", dest="state_revision", type=int, help="Historical state revision to inspect.")
+    run_show.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    run_status = run_subparsers.add_parser(
+        "status",
+        help="Append a new state revision transitioning run lifecycle status (writes state).",
+        description="Append a new RunState snapshot transitioning run status (active, blocked, finished, failed, cancelled) (writes state).",
+    )
+    run_status.add_argument("run_id", help="Run identifier.")
+    run_status.add_argument("status", help="Target run status: active, blocked, finished, failed, or cancelled.")
+    run_status.add_argument("--reason", help="Optional reason for the transition.")
+    run_status.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    run_task = run_subparsers.add_parser(
+        "task",
+        help="Append a new state revision transitioning a task status (writes state).",
+        description="Append a new RunState snapshot transitioning a task (T001, ...) while the run is active (writes state).",
+    )
+    run_task.add_argument("run_id", help="Run identifier.")
+    run_task.add_argument("task_id", help="Task identifier (e.g. T001).")
+    run_task.add_argument("status", help="Target task status: in_progress, done, blocked, or skipped.")
+    run_task.add_argument("--reason", help="Optional reason for the task transition.")
+    run_task.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    run_gate = run_subparsers.add_parser(
+        "gate",
+        help="Append a new state revision acknowledging or waiving a gate (writes state).",
+        description="Append a new RunState snapshot acknowledging or waiving a required gate (writes state).",
+    )
+    run_gate.add_argument("run_id", help="Run identifier.")
+    run_gate.add_argument("gate_id", help="Gate identifier (e.g. gate.baseline, gate.tests).")
+    run_gate.add_argument("disposition", help="Target gate disposition: acknowledged or waived.")
+    run_gate.add_argument("--reason", help="Reason (required when waiving a gate).")
+    run_gate.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    harness = subparsers.add_parser(
+        "harness",
+        help="Manage Harness Capability Registry & Lock (list/show/resolve read-only; init/lock write).",
+        description=(
+            "Inspect harness capability profiles, initialize project profile overrides in .rapid-os/harnesses/, "
+            "write .rapid-os/capabilities.lock, and resolve contract compatibility. "
+            "Read-only actions: list, show, resolve. State-writing actions: init, lock."
+        ),
+    )
+    harness_subparsers = harness.add_subparsers(dest="harness_action")
+
+    harness_list = harness_subparsers.add_parser(
+        "list",
+        help="List active harness profiles in deterministic ID order (read-only).",
+        description="List built-in and project-overridden harness capability profiles (read-only).",
+    )
+    harness_list.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    harness_show = harness_subparsers.add_parser(
+        "show",
+        help="Show an active harness profile and capability declarations (read-only).",
+        description="Display a resolved HarnessProfile, its source provenance, and capability statuses (read-only).",
+    )
+    harness_show.add_argument("harness_id", help="Harness identifier (e.g. codex, claude, cursor).")
+    harness_show.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    harness_init = harness_subparsers.add_parser(
+        "init",
+        help="Materialize a built-in harness profile to .rapid-os/harnesses/<id>.json (writes state).",
+        description="Write a customizable project harness profile to .rapid-os/harnesses/<id>.json without overwriting existing files (writes state).",
+    )
+    harness_init.add_argument("harness_id", help="Built-in harness identifier to copy.")
+    harness_init.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    harness_lock = harness_subparsers.add_parser(
+        "lock",
+        help="Write deterministic .rapid-os/capabilities.lock snapshot (writes state).",
+        description="Persist a deterministic .rapid-os/capabilities.lock snapshot of all active harness profiles (writes state).",
+    )
+    harness_lock.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    harness_resolve = harness_subparsers.add_parser(
+        "resolve",
+        help="Resolve an ExecutionContract's required capabilities against its harness profile (read-only).",
+        description="Evaluate a run's ExecutionContract against the active or locked HarnessProfile without mutating the run (read-only).",
+    )
+    harness_resolve.add_argument("--run", dest="run", help="Run identifier whose ExecutionContract is evaluated.")
+    harness_resolve.add_argument("--locked", action="store_true", help="Resolve against .rapid-os/capabilities.lock.")
+    harness_resolve.add_argument("--require", action="append", help="Extra additive canonical capability ID (repeatable).")
+    harness_resolve.add_argument(
+        "--require-compatible",
+        dest="require_compatible",
+        action="store_true",
+        help="Exit non-zero (RAPID1110) unless compatibility status is 'compatible'.",
+    )
+    harness_resolve.add_argument("--json", action="store_true", help="Emit pure CapabilityResolution JSON on stdout.")
+
+    evidence = subparsers.add_parser(
+        "evidence",
+        help="Manage immutable RunEvidence & SHA-256 artifacts (list/show/verify read-only; add writes).",
+        description=(
+            "Ingest, inspect, and verify append-only RunEvidence records and copied artifacts under .rapid-os/evidence/<run-id>/. "
+            "Read-only actions: list, show, verify. State-writing actions: add."
+        ),
+    )
+    evidence_subparsers = evidence.add_subparsers(dest="evidence_action")
+
+    evidence_list = evidence_subparsers.add_parser(
+        "list",
+        help="List verified evidence records for a run (read-only).",
+        description="List recorded RunEvidence items (E001..E00N) and evidence_set_digest for a run (read-only).",
+    )
+    evidence_list.add_argument("--run", dest="run", required=True, help="Target run identifier.")
+    evidence_list.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    evidence_show = evidence_subparsers.add_parser(
+        "show",
+        help="Show a single verified evidence record and its artifacts (read-only).",
+        description="Display a RunEvidence record, bindings, payload, and copied artifacts (read-only).",
+    )
+    evidence_show.add_argument("--run", dest="run", required=True, help="Target run identifier.")
+    evidence_show.add_argument("evidence_id", help="Evidence identifier (e.g. E001).")
+    evidence_show.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    evidence_add = evidence_subparsers.add_parser(
+        "add",
+        help="Ingest a new append-only RunEvidence record and copy artifacts (writes state).",
+        description="Validate and append a new RunEvidence record and SHA-256 verified artifacts under .rapid-os/evidence/<run-id>/ (writes state).",
+    )
+    evidence_add.add_argument("--run", dest="run", required=True, help="Target run identifier.")
+    evidence_add.add_argument("--input", dest="input", required=True, help="Path to authoring evidence JSON file.")
+    evidence_add.add_argument("--json", action="store_true", help="Emit pure RunEvidence JSON on stdout.")
+
+    evidence_verify = evidence_subparsers.add_parser(
+        "verify",
+        help="Verify all evidence records, bindings, sequence continuity, and artifact digests (read-only).",
+        description="Verify integrity of all RunEvidence records and copied artifacts for a run (read-only).",
+    )
+    evidence_verify.add_argument("--run", dest="run", required=True, help="Target run identifier.")
+    evidence_verify.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    eval_parser = subparsers.add_parser(
+        "eval",
+        help="Run deterministic Behavioral Evals (list/show and default run are read-only; run --write persists).",
+        description=(
+            "Evaluate a run's ExecutionContract, RunState, and verified RunEvidence set against the BehavioralRuleset. "
+            "Read-only actions: list, show, and 'run' without --write. State-writing action: 'run --write'."
+        ),
+    )
+    eval_subparsers = eval_parser.add_subparsers(dest="eval_action")
+
+    eval_run = eval_subparsers.add_parser(
+        "run",
+        help="Evaluate a run deterministically (read-only unless --write is passed).",
+        description="Evaluate a run's lifecycle, tasks, gates, and observable capabilities. Read-only unless --write is passed.",
+    )
+    eval_run.add_argument("--run", dest="run", required=True, help="Target run identifier.")
+    eval_run.add_argument("--require", action="append", help="Extra additive canonical capability ID to evaluate (repeatable).")
+    eval_run.add_argument("--write", action="store_true", help="Persist append-only EvaluationReport under .rapid-os/evals/<run-id>/reports/.")
+    eval_run.add_argument(
+        "--require-pass",
+        dest="require_pass",
+        action="store_true",
+        help="Exit non-zero (RAPID1225 on unverified, RAPID1226 on fail) unless verdict is pass or pass_with_waivers.",
+    )
+    eval_run.add_argument("--json", action="store_true", help="Emit pure EvaluationReport JSON on stdout.")
+
+    eval_list = eval_subparsers.add_parser(
+        "list",
+        help="List persisted EvaluationReport snapshots for a run (read-only).",
+        description="List persisted EvaluationReport files (0001.json, ...) for a run with staleness status (read-only).",
+    )
+    eval_list.add_argument("--run", dest="run", required=True, help="Target run identifier.")
+    eval_list.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
+
+    eval_show = eval_subparsers.add_parser(
+        "show",
+        help="Show the latest or pinned persisted EvaluationReport (read-only).",
+        description="Load, replay-verify, and display a persisted EvaluationReport for a run (read-only).",
+    )
+    eval_show.add_argument("--run", dest="run", required=True, help="Target run identifier.")
+    eval_show.add_argument("--revision", type=int, help="Specific report revision number (defaults to latest).")
+    eval_show.add_argument("--json", action="store_true", help="Emit pure EvaluationReport JSON on stdout.")
+
+    skill = subparsers.add_parser(
+        "skill",
+        help="List or install local/remote agent skills (list read-only; install/add write).",
+        description="Manage local skill templates or remote community skills via npx.",
+    )
+    skill.add_argument("action", choices=["list", "install", "add"], nargs="?", help="Action: list, install, or add.")
+    skill.add_argument("name", nargs="?", help="Template name or remote package reference.")
+
+    scope = subparsers.add_parser(
+        "scope",
+        help="Legacy singleton SPECS.md/TASKS.md/ACCEPTANCE.md wizard (--register adds to v3 Spec Registry).",
+        description="Interactive legacy scope wizard that writes SPECS.md, TASKS.md, and ACCEPTANCE.md (and optionally registers in .rapid-os/specs/).",
+    )
+    scope.add_argument("--register", action="store_true", help="Also register the authored spec in .rapid-os/specs/.")
+    scope.add_argument("--spec-id", dest="spec_id", help="Explicit spec ID when --register is used.")
+    scope.add_argument("--status", choices=["draft", "ready"], help="Initial status when --register is used.")
+
+    deploy = subparsers.add_parser(
+        "deploy",
+        help="Generate DEPLOY.md from local deployment template (writes state).",
+        description="Generate DEPLOY.md in the project root from templates/deploy/<target>.md (writes state with backup).",
+    )
+    deploy.add_argument("target", nargs="?", help="Deployment target identifier (e.g. aws).")
+
+    vision = subparsers.add_parser(
+        "vision",
+        help="Copy a visual reference image to references/ and update VISION_CONTEXT.md (writes state).",
+        description="Copy an image into references/, append its description to references/VISION_CONTEXT.md, and regenerate agent contexts.",
+    )
+    vision.add_argument("path", nargs="?", help="Path to reference image file.")
+
+    mcp = subparsers.add_parser(
+        "mcp",
+        help="Generate editor-specific MCP configuration file (writes state).",
+        description="Render and write editor-specific MCP server configuration with backup protection.",
+    )
+    mcp.add_argument("--ide", choices=["codex", "claude", "cursor", "vscode", "antigravity"], help="Target IDE/harness.")
+    mcp.add_argument("--scope", choices=["project", "global"], help="Target configuration scope.")
+
+    refine = subparsers.add_parser(
+        "refine",
+        help="Print an AI refinement prompt for a standards file (read-only).",
+        description="Read a markdown/text file and print a structured refinement prompt to stdout (read-only).",
+    )
+    refine.add_argument("file", help="Path to the file to refine.")
+
+    subparsers.add_parser(
+        "prompt",
+        help="Generate a starter/refactor prompt from project standards (legacy read-only workflow).",
+        description="Generate a copyable starter or refactor system prompt from .rapid-os/standards/ (read-only).",
+    )
+
+    validate = subparsers.add_parser(
+        "validate",
+        help="Validate project standards, config, and all v3 registries (read-only).",
+        description="Validate templates, standards, config.json, and all Rapid OS v3 registries without modifying files (read-only).",
+    )
+    validate.add_argument("--json", action="store_true", help="Emit pure ValidationReport JSON on stdout.")
+    validate.add_argument("--strict", action="store_true", help="Treat warnings as non-zero exit errors.")
+
+    doctor = subparsers.add_parser(
+        "doctor",
+        help="Diagnose local Rapid OS installation, paths, and current project health (read-only).",
+        description="Inspect resolved paths, template availability, optional Node/npx, and current project state (read-only).",
+    )
+    doctor.add_argument("--json", action="store_true", help="Emit pure ValidationReport JSON on stdout.")
+    doctor.add_argument("--strict", action="store_true", help="Treat warnings as non-zero exit errors.")
+
+    inspect_context = subparsers.add_parser(
+        "inspect-context",
+        help="Preview assembled v2 project context and included sections (read-only).",
+        description="Assemble and preview v2 project standards context without writing agent files (read-only).",
+    )
+    inspect_context.add_argument("--json", action="store_true", help="Emit pure ContextInspection JSON on stdout.")
+    inspect_context.add_argument("--summary", action="store_true", help="Omit full context preview text.")
+
+    subparsers.add_parser(
+        "guide",
+        help="Show Rapid OS v3 governance workflow and command overview (read-only).",
+        description="Print the recommended Rapid OS v3 governance loop and command reference (read-only).",
+    )
     return parser
 
 
@@ -1252,6 +3314,20 @@ def main(argv=None):
         init_project(args)
     elif args.command == "scan":
         scan_command(args)
+    elif args.command == "context":
+        context_command(args)
+    elif args.command == "spec":
+        spec_command(args)
+    elif args.command == "policy":
+        policy_command(args)
+    elif args.command == "run":
+        run_command(args)
+    elif args.command == "harness":
+        harness_command(args)
+    elif args.command == "evidence":
+        evidence_command(args)
+    elif args.command == "eval":
+        eval_command(args)
     elif args.command == "skill":
         manage_skills(args)
     elif args.command == "mcp":
@@ -1276,3 +3352,6 @@ def main(argv=None):
         show_guide()
     else:
         parser.print_help()
+    return 0
+
+

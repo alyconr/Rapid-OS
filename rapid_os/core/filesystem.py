@@ -121,10 +121,13 @@ def safe_write_text(
     encoding: str = "utf-8",
     backup: bool = False,
     create_parents: bool = True,
+    allow_overwrite: bool = True,
     timestamp=None,
 ) -> Path:
-    """Atomically write UTF-8 text to `file_path` with optional backup and parent creation."""
+    """Atomically write UTF-8 text to `file_path` with optional overwrite protection, backup, and parent creation."""
     target = Path(file_path)
+    if not allow_overwrite and (target.exists() or target.is_symlink()):
+        raise FileExistsError(f"Refusing to overwrite existing file: {target}")
     if create_parents:
         target.parent.mkdir(parents=True, exist_ok=True)
 
@@ -142,6 +145,58 @@ def safe_write_text(
             tmp_file.write(content)
             tmp_file.flush()
             os.fsync(tmp_file.fileno())
+
+        if not allow_overwrite and (target.exists() or target.is_symlink()):
+            raise FileExistsError(f"Refusing to overwrite existing file: {target}")
+
+        if backup and target.exists():
+            create_backup(target, timestamp=timestamp)
+
+        os.replace(temp_path, target)
+        temp_path = None
+        return target
+    finally:
+        if temp_path is not None and temp_path.exists():
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+
+
+def safe_write_bytes(
+    file_path,
+    content: bytes,
+    *,
+    backup: bool = False,
+    create_parents: bool = True,
+    allow_overwrite: bool = True,
+    timestamp=None,
+) -> Path:
+    """Atomically write bytes to `file_path` with optional overwrite protection, backup, and parent creation."""
+    if not isinstance(content, (bytes, bytearray)):
+        raise TypeError("safe_write_bytes requires bytes content.")
+    target = Path(file_path)
+    if not allow_overwrite and (target.exists() or target.is_symlink()):
+        raise FileExistsError(f"Refusing to overwrite existing file: {target}")
+    if create_parents:
+        target.parent.mkdir(parents=True, exist_ok=True)
+
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=target.parent,
+            prefix=f".{target.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp_file:
+            temp_path = Path(tmp_file.name)
+            tmp_file.write(bytes(content))
+            tmp_file.flush()
+            os.fsync(tmp_file.fileno())
+
+        if not allow_overwrite and (target.exists() or target.is_symlink()):
+            raise FileExistsError(f"Refusing to overwrite existing file: {target}")
 
         if backup and target.exists():
             create_backup(target, timestamp=timestamp)

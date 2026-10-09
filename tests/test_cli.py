@@ -31,12 +31,19 @@ class CliSmokeTests(unittest.TestCase):
                 "init",
                 "skill",
                 "scope",
+                "spec",
+                "policy",
+                "run",
+                "harness",
+                "evidence",
+                "eval",
                 "deploy",
                 "vision",
                 "mcp",
                 "refine",
                 "prompt",
                 "scan",
+                "context",
                 "validate",
                 "doctor",
                 "inspect-context",
@@ -127,7 +134,7 @@ class CliSmokeTests(unittest.TestCase):
         env = os.environ.copy()
         env["PYTHONDONTWRITEBYTECODE"] = "1"
 
-        for command in ("validate", "doctor", "inspect-context"):
+        for command in ("validate", "doctor", "inspect-context", "evidence", "eval"):
             result = subprocess.run(
                 [sys.executable, "rapid.py", command, "--help"],
                 cwd=repo_root,
@@ -639,7 +646,312 @@ class CliProjectIntelligenceScanTests(unittest.TestCase):
             self.assertEqual(stdout_text, file_text)
             self.assertEqual(json.loads(stdout_text)["schema_version"], 1)
 
+    def test_context_command_default_json_manifest_mode_and_harness(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            project = Path(temp_dir) / "project"
+            standards = project / ".rapid-os" / "standards"
+            standards.mkdir(parents=True)
+            (project / "pyproject.toml").write_text(
+                'dependencies = ["fastapi", "pytest"]', encoding="utf-8"
+            )
+            (standards / "security.md").write_text(
+                "# Security\nValidate all inputs.", encoding="utf-8"
+            )
+            (standards / "tech-stack.md").write_text(
+                "# Tech Stack\nPython 3.12 + FastAPI", encoding="utf-8"
+            )
+            (project / "SPECS.md").write_text(
+                "# Specs\nImplement order endpoint.", encoding="utf-8"
+            )
+
+            files_before = sorted(p.relative_to(project).as_posix() for p in project.rglob("*"))
+
+            # 1. Default output (`rapid context`)
+            out_default = io.StringIO()
+            args_default = create_parser().parse_args(["context"])
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), contextlib.redirect_stdout(out_default):
+                code_default = cli_main.context_command(args_default)
+
+            self.assertEqual(code_default, 0)
+            self.assertIn("# Rapid OS Compiled Context", out_default.getvalue())
+            self.assertIn("Validate all inputs.", out_default.getvalue())
+
+            # 2. JSON output (`rapid context --json`)
+            out_json = io.StringIO()
+            args_json = create_parser().parse_args(
+                ["context", "--mode", "bugfix", "--harness", "codex", "--json"]
+            )
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), contextlib.redirect_stdout(out_json):
+                code_json = cli_main.context_command(args_json)
+
+            self.assertEqual(code_json, 0)
+            payload = json.loads(out_json.getvalue())
+            self.assertEqual(payload["schema_version"], 1)
+            self.assertEqual(payload["manifest"]["mode"], "bugfix")
+            self.assertEqual(payload["manifest"]["harness"], "codex")
+            self.assertIn("# Rapid OS Compiled Context", payload["content"])
+
+            # 3. Manifest output (`rapid context --manifest`)
+            out_manifest = io.StringIO()
+            args_manifest = create_parser().parse_args(
+                ["context", "compile", "--mode", "feature", "--harness", "codex", "--manifest"]
+            )
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), contextlib.redirect_stdout(out_manifest):
+                code_manifest = cli_main.context_command(args_manifest)
+
+            self.assertEqual(code_manifest, 0)
+            manifest_text = out_manifest.getvalue()
+            self.assertIn("Rapid OS Context Manifest", manifest_text)
+            self.assertIn("Mode: feature", manifest_text)
+            self.assertIn("Harness: codex", manifest_text)
+            self.assertIn("SELECTED", manifest_text)
+            self.assertIn("standard.security", manifest_text)
+            self.assertIn("SKIPPED", manifest_text)
+            self.assertIn("CONFLICTS", manifest_text)
+
+            # Read-only guarantee: no files created or modified
+            files_after = sorted(p.relative_to(project).as_posix() for p in project.rglob("*"))
+            self.assertEqual(files_before, files_after)
+
+    def test_context_command_fails_on_missing_required_source_and_corrupt_snapshot(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            project = Path(temp_dir) / "project"
+            standards = project / ".rapid-os" / "standards"
+            standards.mkdir(parents=True)
+            (standards / "tech-stack.md").write_text(
+                "# Tech Stack\nPython 3.12", encoding="utf-8"
+            )
+
+            # 1. Missing security.md in hardening mode (text output) -> exit 1, RAPID701 on stderr, empty stdout
+            out_text = io.StringIO()
+            err_text = io.StringIO()
+            args_hardening = create_parser().parse_args(["context", "--mode", "hardening"])
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), contextlib.redirect_stdout(out_text), contextlib.redirect_stderr(err_text):
+                with self.assertRaises(SystemExit) as cm_text:
+                    cli_main.context_command(args_hardening)
+
+            self.assertEqual(cm_text.exception.code, 1)
+            self.assertEqual(out_text.getvalue(), "")
+            self.assertIn("RAPID701", err_text.getvalue())
+
+            # 2. Missing security.md in hardening mode (--json) -> exit 1, RAPID701 on stderr, empty stdout
+            out_json = io.StringIO()
+            err_json = io.StringIO()
+            args_hardening_json = create_parser().parse_args(
+                ["context", "--mode", "hardening", "--json"]
+            )
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), contextlib.redirect_stdout(out_json), contextlib.redirect_stderr(err_json):
+                with self.assertRaises(SystemExit) as cm_json:
+                    cli_main.context_command(args_hardening_json)
+
+            self.assertEqual(cm_json.exception.code, 1)
+            self.assertEqual(out_json.getvalue(), "")
+            self.assertIn("RAPID701", err_json.getvalue())
+
+            # 3. Corrupt .rapid-os/project.json -> exit 1, RAPID704 on stderr, empty stdout
+            (project / ".rapid-os" / "project.json").write_text(
+                "{corrupt-snapshot", encoding="utf-8"
+            )
+            out_corrupt = io.StringIO()
+            err_corrupt = io.StringIO()
+            args_feature = create_parser().parse_args(["context", "--mode", "feature", "--json"])
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
+            ), contextlib.redirect_stdout(out_corrupt), contextlib.redirect_stderr(err_corrupt):
+                with self.assertRaises(SystemExit) as cm_corrupt:
+                    cli_main.context_command(args_feature)
+
+            self.assertEqual(cm_corrupt.exception.code, 1)
+            self.assertEqual(out_corrupt.getvalue(), "")
+            self.assertIn("RAPID704", err_corrupt.getvalue())
+
+
+class CliSpecRegistryTests(unittest.TestCase):
+    def test_spec_cli_list_show_status_revision_and_export_legacy(self):
+        from rapid_os.adapters.spec_registry import SpecRegistry
+
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
+            project = Path(temp_dir) / "project"
+            project.mkdir()
+            rapid_dir = project / ".rapid-os"
+            registry = SpecRegistry(project, rapid_dir)
+
+            registry.create(
+                spec_id="context-compiler-budget",
+                title="Context Compiler Budget",
+                mode="feature",
+                business_objective="Keep context under limit",
+            )
+            registry.create(
+                spec_id="booking-idempotency",
+                title="Booking Idempotency",
+                mode="bugfix",
+                business_objective="No duplicate bookings v1",
+                scope=("Check key",),
+                affected_paths=("rapid_os/domain/specs.py",),
+            )
+            registry.revise(
+                "booking-idempotency",
+                business_objective="No duplicate bookings v2",
+            )
+            registry.set_status("booking-idempotency", "ready")
+
+            # 1. rapid spec list (sorted ASC by spec id)
+            out_list = io.StringIO()
+            args_list = create_parser().parse_args(["spec", "list"])
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", rapid_dir
+            ), contextlib.redirect_stdout(out_list):
+                code = cli_main.spec_command(args_list)
+            self.assertEqual(code, 0)
+            lines = [
+                line.strip()
+                for line in out_list.getvalue().strip().splitlines()
+                if line.strip()
+            ]
+            self.assertEqual(len(lines), 2)
+            self.assertTrue(lines[0].startswith("booking-idempotency"))
+            self.assertIn("ready", lines[0])
+            self.assertIn("r2", lines[0])
+            self.assertTrue(lines[1].startswith("context-compiler-budget"))
+            self.assertIn("draft", lines[1])
+            self.assertIn("r1", lines[1])
+
+            # 2. rapid spec list --json (pure JSON, no banners)
+            out_list_json = io.StringIO()
+            args_list_json = create_parser().parse_args(["spec", "list", "--json"])
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", rapid_dir
+            ), contextlib.redirect_stdout(out_list_json):
+                code = cli_main.spec_command(args_list_json)
+            self.assertEqual(code, 0)
+            list_payload = json.loads(out_list_json.getvalue())
+            self.assertEqual(
+                list_payload,
+                {
+                    "schema_version": 1,
+                    "specs": [
+                        {
+                            "schema_version": 1,
+                            "id": "booking-idempotency",
+                            "status": "ready",
+                            "current_revision": 2,
+                        },
+                        {
+                            "schema_version": 1,
+                            "id": "context-compiler-budget",
+                            "status": "draft",
+                            "current_revision": 1,
+                        },
+                    ],
+                },
+            )
+
+            # 3. rapid spec show <id>
+            out_show = io.StringIO()
+            args_show = create_parser().parse_args(
+                ["spec", "show", "booking-idempotency"]
+            )
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", rapid_dir
+            ), contextlib.redirect_stdout(out_show):
+                code = cli_main.spec_command(args_show)
+            self.assertEqual(code, 0)
+            show_text = out_show.getvalue()
+            self.assertIn("booking-idempotency", show_text)
+            self.assertIn("ready", show_text)
+            self.assertIn("r2", show_text)
+            self.assertIn("Booking Idempotency", show_text)
+            self.assertIn("bugfix", show_text)
+            self.assertIn("rapid_os/domain/specs.py", show_text)
+
+            # 4. rapid spec show <id> --json (no absolute paths)
+            out_show_json = io.StringIO()
+            args_show_json = create_parser().parse_args(
+                ["spec", "show", "booking-idempotency", "--json"]
+            )
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", rapid_dir
+            ), contextlib.redirect_stdout(out_show_json):
+                code = cli_main.spec_command(args_show_json)
+            self.assertEqual(code, 0)
+            raw_show_json = out_show_json.getvalue()
+            show_payload = json.loads(raw_show_json)
+            self.assertEqual(show_payload["spec"]["id"], "booking-idempotency")
+            self.assertEqual(show_payload["revision"]["revision"], 2)
+            self.assertEqual(
+                show_payload["revision"]["business_objective"],
+                "No duplicate bookings v2",
+            )
+            self.assertNotIn(str(project), raw_show_json)
+
+            # 5. rapid spec show <id> --revision 1 (does not mutate state)
+            out_show_r1 = io.StringIO()
+            args_show_r1 = create_parser().parse_args(
+                [
+                    "spec",
+                    "show",
+                    "booking-idempotency",
+                    "--revision",
+                    "1",
+                    "--json",
+                ]
+            )
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", rapid_dir
+            ), contextlib.redirect_stdout(out_show_r1):
+                code = cli_main.spec_command(args_show_r1)
+            self.assertEqual(code, 0)
+            r1_payload = json.loads(out_show_r1.getvalue())
+            self.assertEqual(r1_payload["revision"]["revision"], 1)
+            self.assertEqual(
+                r1_payload["revision"]["business_objective"],
+                "No duplicate bookings v1",
+            )
+            self.assertEqual(registry.get("booking-idempotency").current_revision, 2)
+
+            # 6. rapid spec status <id> ready & invalid transition from archived
+            args_status = create_parser().parse_args(
+                ["spec", "status", "context-compiler-budget", "ready"]
+            )
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", rapid_dir
+            ), contextlib.redirect_stdout(io.StringIO()):
+                code = cli_main.spec_command(args_status)
+            self.assertEqual(code, 0)
+            self.assertEqual(
+                registry.get("context-compiler-budget").status.value,
+                "ready",
+            )
+
+            # 7. rapid spec export-legacy <id>
+            args_export = create_parser().parse_args(
+                ["spec", "export-legacy", "booking-idempotency"]
+            )
+            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
+                cli_main, "PROJECT_RAPID_DIR", rapid_dir
+            ), contextlib.redirect_stdout(io.StringIO()):
+                code = cli_main.spec_command(args_export)
+            self.assertEqual(code, 0)
+            self.assertTrue((project / "SPECS.md").is_file())
+            self.assertTrue((project / "TASKS.md").is_file())
+            self.assertTrue((project / "ACCEPTANCE.md").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

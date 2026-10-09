@@ -1,10 +1,12 @@
-# Rapid OS v2 Architecture
+# Rapid OS v2 Architecture (Historical Reference)
+
+> **Historical Architecture Document**: This document describes the **Rapid OS v2** architecture baseline (`v2.0.0`), which remains backward-compatible inside Rapid OS v3. For the current **Rapid OS v3 (`v3.0.0`)** architecture—including Project Intelligence, Context Compiler, Spec Registry, Execution Policy & Runs, Harness Capability Registry, and Evidence Engine & Behavioral Evals—see [rapid-os-v3.md](rapid-os-v3.md).
 
 ## Summary
 
-Rapid OS v2 is the current completed architecture baseline. It keeps the existing CLI commands, project config, generated file outputs, and `rapid.py` compatibility entrypoint while moving reusable behavior behind package, domain, adapter, scanner, validation, MCP, and testing boundaries.
+Rapid OS v2 established the modular package baseline. It keeps the legacy CLI commands, project config, generated file outputs, and `rapid.py` compatibility entrypoint while moving reusable behavior behind package, domain, adapter, scanner, validation, MCP, and testing boundaries.
 
-`rapid.py` remains the compatibility entrypoint because the existing install scripts and user aliases execute it directly. It now delegates to the package CLI and re-exports compatibility constants/functions for existing import users.
+`rapid.py` remains the compatibility entrypoint alongside the `rapid` console script (`rapid_os.cli.main:main`). It delegates to the package CLI and re-exports compatibility constants/functions for existing import users.
 
 ## Completed v2 Scope
 
