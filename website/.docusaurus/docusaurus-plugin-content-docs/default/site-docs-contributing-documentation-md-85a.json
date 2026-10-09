@@ -1,0 +1,25 @@
+{
+  "id": "contributing/documentation",
+  "title": "Mantener la documentación",
+  "description": "Arquitectura de la documentación de Rapid OS y reglas para evitar drift entre producto, CLI y sitio.",
+  "source": "@site/../docs/contributing/documentation.md",
+  "sourceDirName": "contributing",
+  "slug": "/contributing/documentation",
+  "permalink": "/Rapid-OS/contributing/documentation",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/alyconr/Rapid-OS/edit/main/docs/../docs/contributing/documentation.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Jeysson Aly Contreras",
+  "lastUpdatedAt": 1791502013000,
+  "frontMatter": {
+    "title": "Mantener la documentación",
+    "description": "Arquitectura de la documentación de Rapid OS y reglas para evitar drift entre producto, CLI y sitio."
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Sprint 1 — Validación de la base documental",
+    "permalink": "/Rapid-OS/audit/sprint-1-validation"
+  }
+}

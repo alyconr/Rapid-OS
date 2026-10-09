@@ -1,0 +1,26 @@
+{
+  "id": "release-v3.0.0",
+  "title": "Rapid OS v3.0.0 Release Notes",
+  "description": "Release Version: 3.0.0",
+  "source": "@site/../docs/release-v3.0.0.md",
+  "sourceDirName": ".",
+  "slug": "/release-v3.0.0",
+  "permalink": "/Rapid-OS/release-v3.0.0",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/alyconr/Rapid-OS/edit/main/docs/../docs/release-v3.0.0.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "alyconr",
+  "lastUpdatedAt": 1791498440000,
+  "frontMatter": {},
+  "sidebar": "docs",
+  "previous": {
+    "title": "Rapid OS v3 Architecture",
+    "permalink": "/Rapid-OS/architecture/rapid-os-v3"
+  },
+  "next": {
+    "title": "Rapid OS v3.0.0 Release Checklist",
+    "permalink": "/Rapid-OS/release-checklist"
+  }
+}

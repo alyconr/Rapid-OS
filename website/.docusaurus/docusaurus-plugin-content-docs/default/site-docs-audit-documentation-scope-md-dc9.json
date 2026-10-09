@@ -1,0 +1,29 @@
+{
+  "id": "audit/documentation-scope",
+  "title": "Auditoría de cobertura documental",
+  "description": "Cobertura inicial de la documentación frente a las capacidades implementadas en Rapid OS v3.",
+  "source": "@site/../docs/audit/documentation-scope.md",
+  "sourceDirName": "audit",
+  "slug": "/audit/documentation-scope",
+  "permalink": "/Rapid-OS/audit/documentation-scope",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/alyconr/Rapid-OS/edit/main/docs/../docs/audit/documentation-scope.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Jeysson Aly Contreras",
+  "lastUpdatedAt": 1791502046000,
+  "frontMatter": {
+    "title": "Auditoría de cobertura documental",
+    "description": "Cobertura inicial de la documentación frente a las capacidades implementadas en Rapid OS v3."
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Rapid OS v3.0.0 Release Checklist",
+    "permalink": "/Rapid-OS/release-checklist"
+  },
+  "next": {
+    "title": "Sprint 1 — Validación de la base documental",
+    "permalink": "/Rapid-OS/audit/sprint-1-validation"
+  }
+}

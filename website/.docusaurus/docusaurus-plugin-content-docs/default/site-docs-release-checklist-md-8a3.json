@@ -1,0 +1,26 @@
+{
+  "id": "release-checklist",
+  "title": "Rapid OS v3.0.0 Release Checklist",
+  "description": "This checklist documents the exact verification and release procedure for cutting the v3.0.0 release once the release-readiness Pull Request is merged into main.",
+  "source": "@site/../docs/release-checklist.md",
+  "sourceDirName": ".",
+  "slug": "/release-checklist",
+  "permalink": "/Rapid-OS/release-checklist",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/alyconr/Rapid-OS/edit/main/docs/../docs/release-checklist.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "alyconr",
+  "lastUpdatedAt": 1791498440000,
+  "frontMatter": {},
+  "sidebar": "docs",
+  "previous": {
+    "title": "Rapid OS v3.0.0 Release Notes",
+    "permalink": "/Rapid-OS/release-v3.0.0"
+  },
+  "next": {
+    "title": "Auditoría de cobertura documental",
+    "permalink": "/Rapid-OS/audit/documentation-scope"
+  }
+}

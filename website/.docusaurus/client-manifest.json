@@ -1,0 +1,331 @@
+{
+  "entrypoints": [
+    "main"
+  ],
+  "origins": {
+    "237": [
+      237
+    ],
+    "436": [
+      436
+    ],
+    "17896441": [
+      869,
+      401
+    ],
+    "main": [
+      354,
+      869,
+      792
+    ],
+    "runtime~main": [
+      792,
+      869,
+      354
+    ],
+    "03a88bad": [
+      78
+    ],
+    "4b63a7a0": [
+      579
+    ],
+    "5e95c892": [
+      647
+    ],
+    "5f336c00": [
+      209
+    ],
+    "6d827482": [
+      640
+    ],
+    "7a45dec2": [
+      8
+    ],
+    "85a74db3": [
+      871
+    ],
+    "8a370440": [
+      380
+    ],
+    "8d0344ba": [
+      599
+    ],
+    "98a5b7bb": [
+      915
+    ],
+    "a7bd4aaa": [
+      98
+    ],
+    "a94703ab": [
+      869,
+      48
+    ],
+    "a9a2e533": [
+      644
+    ],
+    "aba21aa0": [
+      742
+    ],
+    "b892d3f0": [
+      145
+    ],
+    "bb17b08c": [
+      474
+    ],
+    "d5a1440a": [
+      657
+    ],
+    "dc93492b": [
+      637
+    ],
+    "e0e05d5a": [
+      578
+    ],
+    "fe9cbaf4": [
+      697
+    ],
+    "styles": [
+      48,
+      354,
+      401,
+      792,
+      869
+    ]
+  },
+  "assets": {
+    "8": {
+      "js": [
+        {
+          "file": "assets/js/7a45dec2.676b6bc4.js",
+          "hash": "b84937a9bd84315d",
+          "publicPath": "/Rapid-OS/assets/js/7a45dec2.676b6bc4.js"
+        }
+      ]
+    },
+    "48": {
+      "js": [
+        {
+          "file": "assets/js/a94703ab.fc6f2c72.js",
+          "hash": "92b192a835aff3df",
+          "publicPath": "/Rapid-OS/assets/js/a94703ab.fc6f2c72.js"
+        }
+      ]
+    },
+    "78": {
+      "js": [
+        {
+          "file": "assets/js/03a88bad.a3197415.js",
+          "hash": "654940af773da5dc",
+          "publicPath": "/Rapid-OS/assets/js/03a88bad.a3197415.js"
+        }
+      ]
+    },
+    "98": {
+      "js": [
+        {
+          "file": "assets/js/a7bd4aaa.7a5578d3.js",
+          "hash": "0dda8ca78af0c635",
+          "publicPath": "/Rapid-OS/assets/js/a7bd4aaa.7a5578d3.js"
+        }
+      ]
+    },
+    "145": {
+      "js": [
+        {
+          "file": "assets/js/b892d3f0.72daac2f.js",
+          "hash": "d3722a8508078c50",
+          "publicPath": "/Rapid-OS/assets/js/b892d3f0.72daac2f.js"
+        }
+      ]
+    },
+    "209": {
+      "js": [
+        {
+          "file": "assets/js/5f336c00.a54c980e.js",
+          "hash": "0e523437ec0be0e6",
+          "publicPath": "/Rapid-OS/assets/js/5f336c00.a54c980e.js"
+        }
+      ]
+    },
+    "237": {
+      "js": [
+        {
+          "file": "assets/js/237.838467da.js",
+          "hash": "0f7bf9dba5489747",
+          "publicPath": "/Rapid-OS/assets/js/237.838467da.js"
+        }
+      ]
+    },
+    "354": {
+      "js": [
+        {
+          "file": "assets/js/runtime~main.6e4c6603.js",
+          "hash": "bae36b67405c21e7",
+          "publicPath": "/Rapid-OS/assets/js/runtime~main.6e4c6603.js"
+        }
+      ]
+    },
+    "380": {
+      "js": [
+        {
+          "file": "assets/js/8a370440.5d8f763d.js",
+          "hash": "b6b32cdb7627ee01",
+          "publicPath": "/Rapid-OS/assets/js/8a370440.5d8f763d.js"
+        }
+      ]
+    },
+    "401": {
+      "js": [
+        {
+          "file": "assets/js/17896441.d006a28d.js",
+          "hash": "908ebe40a7d47639",
+          "publicPath": "/Rapid-OS/assets/js/17896441.d006a28d.js"
+        }
+      ]
+    },
+    "436": {
+      "js": [
+        {
+          "file": "assets/js/436.95e24557.js",
+          "hash": "bb69dabdc5308f4b",
+          "publicPath": "/Rapid-OS/assets/js/436.95e24557.js"
+        }
+      ]
+    },
+    "474": {
+      "js": [
+        {
+          "file": "assets/js/bb17b08c.d42b41ab.js",
+          "hash": "3ab97339031e677e",
+          "publicPath": "/Rapid-OS/assets/js/bb17b08c.d42b41ab.js"
+        }
+      ]
+    },
+    "578": {
+      "js": [
+        {
+          "file": "assets/js/e0e05d5a.04f2484c.js",
+          "hash": "5d63f45208c786a4",
+          "publicPath": "/Rapid-OS/assets/js/e0e05d5a.04f2484c.js"
+        }
+      ]
+    },
+    "579": {
+      "js": [
+        {
+          "file": "assets/js/4b63a7a0.4c9d864f.js",
+          "hash": "3206521e9d126ee5",
+          "publicPath": "/Rapid-OS/assets/js/4b63a7a0.4c9d864f.js"
+        }
+      ]
+    },
+    "599": {
+      "js": [
+        {
+          "file": "assets/js/8d0344ba.5a9c7590.js",
+          "hash": "c5edc1f7ce53c14e",
+          "publicPath": "/Rapid-OS/assets/js/8d0344ba.5a9c7590.js"
+        }
+      ]
+    },
+    "637": {
+      "js": [
+        {
+          "file": "assets/js/dc93492b.7bb136b5.js",
+          "hash": "628ec006d737b693",
+          "publicPath": "/Rapid-OS/assets/js/dc93492b.7bb136b5.js"
+        }
+      ]
+    },
+    "640": {
+      "js": [
+        {
+          "file": "assets/js/6d827482.6fd60182.js",
+          "hash": "8ebb5a154125ba55",
+          "publicPath": "/Rapid-OS/assets/js/6d827482.6fd60182.js"
+        }
+      ]
+    },
+    "644": {
+      "js": [
+        {
+          "file": "assets/js/a9a2e533.94bb8550.js",
+          "hash": "8e394c8f3945a74a",
+          "publicPath": "/Rapid-OS/assets/js/a9a2e533.94bb8550.js"
+        }
+      ]
+    },
+    "647": {
+      "js": [
+        {
+          "file": "assets/js/5e95c892.4c2f4b6c.js",
+          "hash": "089d60f9ca4afd35",
+          "publicPath": "/Rapid-OS/assets/js/5e95c892.4c2f4b6c.js"
+        }
+      ]
+    },
+    "657": {
+      "js": [
+        {
+          "file": "assets/js/d5a1440a.34d2f3f6.js",
+          "hash": "e2a8ab559bd73922",
+          "publicPath": "/Rapid-OS/assets/js/d5a1440a.34d2f3f6.js"
+        }
+      ]
+    },
+    "697": {
+      "js": [
+        {
+          "file": "assets/js/fe9cbaf4.f3781dd7.js",
+          "hash": "e039b3a3e3d451a2",
+          "publicPath": "/Rapid-OS/assets/js/fe9cbaf4.f3781dd7.js"
+        }
+      ]
+    },
+    "742": {
+      "js": [
+        {
+          "file": "assets/js/aba21aa0.b4d8a33c.js",
+          "hash": "d0c8431d763a7d8e",
+          "publicPath": "/Rapid-OS/assets/js/aba21aa0.b4d8a33c.js"
+        }
+      ]
+    },
+    "792": {
+      "js": [
+        {
+          "file": "assets/js/main.1016df43.js",
+          "hash": "5491163b96d08ac9",
+          "publicPath": "/Rapid-OS/assets/js/main.1016df43.js"
+        }
+      ]
+    },
+    "869": {
+      "css": [
+        {
+          "file": "assets/css/styles.e25d256d.css",
+          "hash": "ada15ffd85743302",
+          "publicPath": "/Rapid-OS/assets/css/styles.e25d256d.css"
+        }
+      ]
+    },
+    "871": {
+      "js": [
+        {
+          "file": "assets/js/85a74db3.09e23a66.js",
+          "hash": "101dc010f86a7d73",
+          "publicPath": "/Rapid-OS/assets/js/85a74db3.09e23a66.js"
+        }
+      ]
+    },
+    "915": {
+      "js": [
+        {
+          "file": "assets/js/98a5b7bb.b350cf4b.js",
+          "hash": "7da5a24b582453d0",
+          "publicPath": "/Rapid-OS/assets/js/98a5b7bb.b350cf4b.js"
+        }
+      ]
+    }
+  }
+}

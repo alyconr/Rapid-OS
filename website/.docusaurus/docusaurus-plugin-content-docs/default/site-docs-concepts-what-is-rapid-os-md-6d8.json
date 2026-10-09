@@ -1,0 +1,29 @@
+{
+  "id": "concepts/what-is-rapid-os",
+  "title": "Qué es Rapid OS",
+  "description": "Objetivo, alcance, usuarios y modelo mental de Rapid OS v3.",
+  "source": "@site/../docs/concepts/what-is-rapid-os.md",
+  "sourceDirName": "concepts",
+  "slug": "/concepts/what-is-rapid-os",
+  "permalink": "/Rapid-OS/concepts/what-is-rapid-os",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/alyconr/Rapid-OS/edit/main/docs/../docs/concepts/what-is-rapid-os.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Jeysson Aly Contreras",
+  "lastUpdatedAt": 1791502006000,
+  "frontMatter": {
+    "title": "Qué es Rapid OS",
+    "description": "Objetivo, alcance, usuarios y modelo mental de Rapid OS v3."
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Rapid OS",
+    "permalink": "/Rapid-OS/"
+  },
+  "next": {
+    "title": "Getting Started with Rapid OS v3.0.0",
+    "permalink": "/Rapid-OS/getting-started"
+  }
+}

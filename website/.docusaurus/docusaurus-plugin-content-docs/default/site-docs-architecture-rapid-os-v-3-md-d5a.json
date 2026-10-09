@@ -1,0 +1,26 @@
+{
+  "id": "architecture/rapid-os-v3",
+  "title": "Rapid OS v3 Architecture",
+  "description": "Roadmap Overview",
+  "source": "@site/../docs/architecture/rapid-os-v3.md",
+  "sourceDirName": "architecture",
+  "slug": "/architecture/rapid-os-v3",
+  "permalink": "/Rapid-OS/architecture/rapid-os-v3",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/alyconr/Rapid-OS/edit/main/docs/../docs/architecture/rapid-os-v3.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "alyconr",
+  "lastUpdatedAt": 1791496992000,
+  "frontMatter": {},
+  "sidebar": "docs",
+  "previous": {
+    "title": "Rapid OS CLI Reference",
+    "permalink": "/Rapid-OS/cli"
+  },
+  "next": {
+    "title": "Rapid OS v3.0.0 Release Notes",
+    "permalink": "/Rapid-OS/release-v3.0.0"
+  }
+}

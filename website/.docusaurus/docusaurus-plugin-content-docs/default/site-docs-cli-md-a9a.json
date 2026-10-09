@@ -1,0 +1,26 @@
+{
+  "id": "cli",
+  "title": "Rapid OS CLI Reference",
+  "description": "Rapid OS provides a deterministic, standard-library-only command-line interface (rapid or python rapid.py) for project intelligence, task-aware context compilation, spec authoring, execution policy & runs, harness capability resolution, immutable run evidence ingestion, and deterministic behavioral evaluations.",
+  "source": "@site/../docs/cli.md",
+  "sourceDirName": ".",
+  "slug": "/cli",
+  "permalink": "/Rapid-OS/cli",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/alyconr/Rapid-OS/edit/main/docs/../docs/cli.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "alyconr",
+  "lastUpdatedAt": 1791496992000,
+  "frontMatter": {},
+  "sidebar": "docs",
+  "previous": {
+    "title": "Estructura de archivos",
+    "permalink": "/Rapid-OS/guides/project-layout"
+  },
+  "next": {
+    "title": "Rapid OS v3 Architecture",
+    "permalink": "/Rapid-OS/architecture/rapid-os-v3"
+  }
+}
