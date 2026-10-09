@@ -289,6 +289,53 @@ class DocumentationContractTests(unittest.TestCase):
             )
             self.assertEqual(res.returncode, 0, f"rapid validate failed: {res.stderr}")
 
+    def test_sprint_3_mandatory_documents_exist(self):
+        """Verify presence of all mandatory Sprint 3 documents."""
+        sprint_3_docs = [
+            "guides/modes/index.md",
+            "guides/modes/feature.md",
+            "guides/modes/bugfix.md",
+            "guides/modes/refactor.md",
+            "guides/modes/hardening.md",
+            "guides/modes/research.md",
+            "cookbooks/policies-and-contracts.md",
+            "cookbooks/harness-profiles.md",
+            "cookbooks/evidence-engine.md",
+            "cookbooks/behavioral-evaluations.md",
+            "troubleshooting/diagnostics.md",
+            "guides/ci-cd-integration.md",
+            "audit/sprint-3-validation.md",
+        ]
+        for rel_path in sprint_3_docs:
+            with self.subTest(document=rel_path):
+                self.assertTrue((DOCS / rel_path).is_file(), f"Missing required Sprint 3 document: {rel_path}")
+
+    def test_all_canonical_evidence_kinds_documented(self):
+        """Verify all 9 EvidenceKind enum values are documented in evidence-engine cookbook."""
+        from rapid_os.domain.evidence import EvidenceKind
+        cookbook = (DOCS / "cookbooks" / "evidence-engine.md").read_text(encoding="utf-8")
+        for kind in EvidenceKind:
+            with self.subTest(evidence_kind=kind.value):
+                self.assertIn(f"`{kind.value}`", cookbook, f"Evidence kind {kind.value} not documented")
+
+    def test_all_engineering_modes_documented(self):
+        """Verify all 5 execution modes are documented in modes index."""
+        from rapid_os.domain.context import ContextMode
+        modes_doc = (DOCS / "guides" / "modes" / "index.md").read_text(encoding="utf-8")
+        for mode in ContextMode:
+            if mode.value == "general":
+                continue
+            with self.subTest(mode=mode.value):
+                self.assertIn(f"`{mode.value}`", modes_doc, f"Mode {mode.value} not documented in modes index")
+
+    def test_diagnostics_catalog_covers_canonical_ranges(self):
+        """Verify diagnostics catalog covers all major RAPIDxxx code ranges."""
+        diagnostics = (DOCS / "troubleshooting" / "diagnostics.md").read_text(encoding="utf-8")
+        ranges = ["RAPID100", "RAPID600", "RAPID700", "RAPID800", "RAPID1000", "RAPID1100", "RAPID1200", "RAPID1220"]
+        for prefix in ranges:
+            with self.subTest(prefix=prefix):
+                self.assertIn(prefix, diagnostics, f"Diagnostic range {prefix} missing from catalog")
+
 
 if __name__ == "__main__":
     unittest.main()
