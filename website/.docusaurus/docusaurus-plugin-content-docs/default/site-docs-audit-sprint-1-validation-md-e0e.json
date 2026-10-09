@@ -1,0 +1,29 @@
+{
+  "id": "audit/sprint-1-validation",
+  "title": "Sprint 1 — Validación de la base documental",
+  "description": "Registro de auditoría y requisitos para cerrar el primer sprint de Docusaurus.",
+  "source": "@site/../docs/audit/sprint-1-validation.md",
+  "sourceDirName": "audit",
+  "slug": "/audit/sprint-1-validation",
+  "permalink": "/Rapid-OS/audit/sprint-1-validation",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/alyconr/Rapid-OS/edit/main/docs/../docs/audit/sprint-1-validation.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Jeysson Aly Contreras",
+  "lastUpdatedAt": 1791503398000,
+  "frontMatter": {
+    "title": "Sprint 1 — Validación de la base documental",
+    "description": "Registro de auditoría y requisitos para cerrar el primer sprint de Docusaurus."
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Auditoría de cobertura documental",
+    "permalink": "/Rapid-OS/audit/documentation-scope"
+  },
+  "next": {
+    "title": "Mantener la documentación",
+    "permalink": "/Rapid-OS/contributing/documentation"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "index",
+  "title": "Rapid OS",
+  "description": "Documentación oficial de Rapid OS v3, un Contract-Driven Engineering OS para gobernar el trabajo de coding harnesses y agentes de IA.",
+  "source": "@site/../docs/index.md",
+  "sourceDirName": ".",
+  "slug": "/",
+  "permalink": "/Rapid-OS/",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/alyconr/Rapid-OS/edit/main/docs/../docs/index.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Jeysson Aly Contreras",
+  "lastUpdatedAt": 1791502004000,
+  "frontMatter": {
+    "id": "index",
+    "slug": "/",
+    "title": "Rapid OS",
+    "description": "Documentación oficial de Rapid OS v3, un Contract-Driven Engineering OS para gobernar el trabajo de coding harnesses y agentes de IA."
+  },
+  "sidebar": "docs",
+  "next": {
+    "title": "Qué es Rapid OS",
+    "permalink": "/Rapid-OS/concepts/what-is-rapid-os"
+  }
+}

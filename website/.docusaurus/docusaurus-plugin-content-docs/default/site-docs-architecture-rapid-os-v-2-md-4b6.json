@@ -1,0 +1,17 @@
+{
+  "id": "architecture/rapid-os-v2",
+  "title": "Rapid OS v2 Architecture (Historical Reference)",
+  "description": "Historical Architecture Document: This document describes the Rapid OS v2 architecture baseline (v2.0.0), which remains backward-compatible inside Rapid OS v3. For the current Rapid OS v3 (v3.0.0) architecture—including Project Intelligence, Context Compiler, Spec Registry, Execution Policy & Runs, Harness Capability Registry, and Evidence Engine & Behavioral Evals—see rapid-os-v3.md.",
+  "source": "@site/../docs/architecture/rapid-os-v2.md",
+  "sourceDirName": "architecture",
+  "slug": "/architecture/rapid-os-v2",
+  "permalink": "/Rapid-OS/architecture/rapid-os-v2",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/alyconr/Rapid-OS/edit/main/docs/../docs/architecture/rapid-os-v2.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "alyconr",
+  "lastUpdatedAt": 1791496992000,
+  "frontMatter": {}
+}

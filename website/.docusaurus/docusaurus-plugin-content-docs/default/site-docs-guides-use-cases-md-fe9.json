@@ -1,0 +1,29 @@
+{
+  "id": "guides/use-cases",
+  "title": "Casos de uso",
+  "description": "Escenarios prácticos en los que Rapid OS aporta contexto, gobernanza y evidencia.",
+  "source": "@site/../docs/guides/use-cases.md",
+  "sourceDirName": "guides",
+  "slug": "/guides/use-cases",
+  "permalink": "/Rapid-OS/guides/use-cases",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/alyconr/Rapid-OS/edit/main/docs/../docs/guides/use-cases.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Jeysson Aly Contreras",
+  "lastUpdatedAt": 1791502007000,
+  "frontMatter": {
+    "title": "Casos de uso",
+    "description": "Escenarios prácticos en los que Rapid OS aporta contexto, gobernanza y evidencia."
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Getting Started with Rapid OS v3.0.0",
+    "permalink": "/Rapid-OS/getting-started"
+  },
+  "next": {
+    "title": "Rapid OS v3 Governance Loop",
+    "permalink": "/Rapid-OS/governance-loop"
+  }
+}

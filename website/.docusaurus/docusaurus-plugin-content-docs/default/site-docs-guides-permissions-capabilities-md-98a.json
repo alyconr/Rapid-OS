@@ -1,0 +1,29 @@
+{
+  "id": "guides/permissions-capabilities",
+  "title": "Capabilities y permisos",
+  "description": "Cómo Rapid OS modela lo que un coding harness declara poder hacer y cómo se relaciona con riesgo, workspace y evidencia.",
+  "source": "@site/../docs/guides/permissions-capabilities.md",
+  "sourceDirName": "guides",
+  "slug": "/guides/permissions-capabilities",
+  "permalink": "/Rapid-OS/guides/permissions-capabilities",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/alyconr/Rapid-OS/edit/main/docs/../docs/guides/permissions-capabilities.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Jeysson Aly Contreras",
+  "lastUpdatedAt": 1791502009000,
+  "frontMatter": {
+    "title": "Capabilities y permisos",
+    "description": "Cómo Rapid OS modela lo que un coding harness declara poder hacer y cómo se relaciona con riesgo, workspace y evidencia."
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Rapid OS v3 Governance Loop",
+    "permalink": "/Rapid-OS/governance-loop"
+  },
+  "next": {
+    "title": "Estructura de archivos",
+    "permalink": "/Rapid-OS/guides/project-layout"
+  }
+}

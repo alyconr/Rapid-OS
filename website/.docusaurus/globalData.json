@@ -1,0 +1,102 @@
+{
+  "docusaurus-plugin-content-docs": {
+    "default": {
+      "path": "/Rapid-OS/",
+      "versions": [
+        {
+          "name": "current",
+          "label": "Next",
+          "isLast": true,
+          "path": "/Rapid-OS/",
+          "mainDocId": "index",
+          "docs": [
+            {
+              "id": "architecture/rapid-os-v2",
+              "path": "/Rapid-OS/architecture/rapid-os-v2"
+            },
+            {
+              "id": "architecture/rapid-os-v3",
+              "path": "/Rapid-OS/architecture/rapid-os-v3",
+              "sidebar": "docs"
+            },
+            {
+              "id": "audit/documentation-scope",
+              "path": "/Rapid-OS/audit/documentation-scope",
+              "sidebar": "docs"
+            },
+            {
+              "id": "audit/sprint-1-validation",
+              "path": "/Rapid-OS/audit/sprint-1-validation",
+              "sidebar": "docs"
+            },
+            {
+              "id": "cli",
+              "path": "/Rapid-OS/cli",
+              "sidebar": "docs"
+            },
+            {
+              "id": "concepts/what-is-rapid-os",
+              "path": "/Rapid-OS/concepts/what-is-rapid-os",
+              "sidebar": "docs"
+            },
+            {
+              "id": "contributing/documentation",
+              "path": "/Rapid-OS/contributing/documentation",
+              "sidebar": "docs"
+            },
+            {
+              "id": "getting-started",
+              "path": "/Rapid-OS/getting-started",
+              "sidebar": "docs"
+            },
+            {
+              "id": "governance-loop",
+              "path": "/Rapid-OS/governance-loop",
+              "sidebar": "docs"
+            },
+            {
+              "id": "guides/permissions-capabilities",
+              "path": "/Rapid-OS/guides/permissions-capabilities",
+              "sidebar": "docs"
+            },
+            {
+              "id": "guides/project-layout",
+              "path": "/Rapid-OS/guides/project-layout",
+              "sidebar": "docs"
+            },
+            {
+              "id": "guides/use-cases",
+              "path": "/Rapid-OS/guides/use-cases",
+              "sidebar": "docs"
+            },
+            {
+              "id": "index",
+              "path": "/Rapid-OS/",
+              "sidebar": "docs"
+            },
+            {
+              "id": "release-checklist",
+              "path": "/Rapid-OS/release-checklist",
+              "sidebar": "docs"
+            },
+            {
+              "id": "release-v3.0.0",
+              "path": "/Rapid-OS/release-v3.0.0",
+              "sidebar": "docs"
+            }
+          ],
+          "draftIds": [],
+          "sidebars": {
+            "docs": {
+              "link": {
+                "path": "/Rapid-OS/",
+                "label": "index"
+              }
+            }
+          }
+        }
+      ],
+      "breadcrumbs": true
+    }
+  }
+}

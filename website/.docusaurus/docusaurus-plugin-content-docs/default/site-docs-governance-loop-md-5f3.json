@@ -1,0 +1,26 @@
+{
+  "id": "governance-loop",
+  "title": "Rapid OS v3 Governance Loop",
+  "description": "Rapid OS v3 governs AI-assisted software engineering through a deterministic, offline, 8-step governance loop. Every artifact is content-addressed with SHA-256 digests and free of wall-clock timestamps, random UUIDs, or host-specific absolute paths.",
+  "source": "@site/../docs/governance-loop.md",
+  "sourceDirName": ".",
+  "slug": "/governance-loop",
+  "permalink": "/Rapid-OS/governance-loop",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/alyconr/Rapid-OS/edit/main/docs/../docs/governance-loop.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "alyconr",
+  "lastUpdatedAt": 1791496992000,
+  "frontMatter": {},
+  "sidebar": "docs",
+  "previous": {
+    "title": "Casos de uso",
+    "permalink": "/Rapid-OS/guides/use-cases"
+  },
+  "next": {
+    "title": "Capabilities y permisos",
+    "permalink": "/Rapid-OS/guides/permissions-capabilities"
+  }
+}

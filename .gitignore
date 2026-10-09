@@ -9,3 +9,5 @@ __pycache__/
 
 # Rapid OS local backups
 *.bak
+node_modules/
+build/

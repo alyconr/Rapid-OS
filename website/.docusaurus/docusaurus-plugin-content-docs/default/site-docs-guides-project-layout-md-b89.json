@@ -1,0 +1,29 @@
+{
+  "id": "guides/project-layout",
+  "title": "Estructura de archivos",
+  "description": "Qué archivos crea Rapid OS, cuáles son inmutables y qué comandos son de solo lectura o escritura.",
+  "source": "@site/../docs/guides/project-layout.md",
+  "sourceDirName": "guides",
+  "slug": "/guides/project-layout",
+  "permalink": "/Rapid-OS/guides/project-layout",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/alyconr/Rapid-OS/edit/main/docs/../docs/guides/project-layout.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Jeysson Aly Contreras",
+  "lastUpdatedAt": 1791502011000,
+  "frontMatter": {
+    "title": "Estructura de archivos",
+    "description": "Qué archivos crea Rapid OS, cuáles son inmutables y qué comandos son de solo lectura o escritura."
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Capabilities y permisos",
+    "permalink": "/Rapid-OS/guides/permissions-capabilities"
+  },
+  "next": {
+    "title": "Rapid OS CLI Reference",
+    "permalink": "/Rapid-OS/cli"
+  }
+}
