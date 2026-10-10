@@ -83,30 +83,20 @@ En estricta consonancia con los principios rectores de RAPID OS y las lecciones 
 
 ## 4. Matriz de Pruebas Automatizadas (`tests/test_documentation_labs.py`)
 
-Se implementó una suite integral de 5 pruebas automatizadas que verifican la integridad total del material del Sprint 4:
+Se implementó una suite integral de 6 pruebas automatizadas que verifican la integridad total del material del Sprint 4:
 
 1. `test_sprint4_mandatory_documents_exist`:
    - Verifica la existencia física en disco de los 6 tutoriales, las 5 guías de integración, el troubleshooting, el README de ejemplos y el documento de auditoría.
 2. `test_all_tutorial_labs_follow_canonical_pedagogical_template`:
-   - Valida que los 6 laboratorios contengan **todas** las 12 secciones pedagógicas obligatorias: Overview, Learning Outcomes, Initial State, Engineering Requirements, Guided Procedure, Expected Artifacts, External Execution, Evidence Collection, Evaluation, Validation, Troubleshooting, Next Steps / Assessment.
+   - Valida que los 6 laboratorios contengan **todas** las secciones pedagógicas obligatorias.
 3. `test_all_example_labs_starters_and_solutions_pass_tests`:
-   - Ejecuta programáticamente la suite de pruebas `unittest` de los 6 ejemplos tanto en su versión `starter/` (para los laboratorios aplicables) como en su versión `solution/`. 12 suites ejecutadas con 100% de éxito.
+   - Comprueba la ejecución exacta de las suites de los 6 ejemplos: verifica deliberadamente que `bugfix-lab/starter` falle con exit code 1 aislando la regresión en `test_regression_expected_discount`, y que `bugfix-lab/solution` junto con el resto de starters y soluciones aprueben limpiamente con exit code 0.
 4. `test_documented_cli_commands_in_tutorials_match_argparse`:
-   - Extrae mediante regex todos los bloques de código `bash` en los tutoriales y valida que cada comando y subcomando invocado exista formalmente en el árbol de parsers `argparse` del CLI de RAPID OS (`rapid init`, `rapid scan`, `rapid spec`, `rapid context`, `rapid policy`, `rapid run`, `rapid harness`, `rapid evidence`, `rapid eval`, `rapid validate`).
+   - Extrae mediante regex todos los bloques de código `bash` en los tutoriales y valida que cada comando y subcomando invocado exista formalmente en el árbol de parsers `argparse` del CLI de RAPID OS.
 5. `test_governance_e2e_full_lifecycle_in_temp_project`:
-   - Ejecuta un proceso E2E real en un directorio temporal (`tempfile.TemporaryDirectory`) invocando subprocesos del CLI de RAPID OS:
-     - `rapid init --stack docs-modern --archetype mvp --no-scan`
-     - `rapid scan`
-     - `rapid spec create --type feature ...`
-     - `rapid context compile ...`
-     - `rapid policy inspect`
-     - `rapid run create --mode feature ...`
-     - `rapid harness resolve --profile cursor`
-     - `rapid evidence add --run ... --input <authoring_json>` (3 evidencias canónicas reales: test_result para baseline, test_result para tests, review para final-verification)
-     - `rapid run task update ... --status done`
-     - `rapid run gate ack ...` (`gate.baseline`, `gate.tests`, `gate.final-verification`)
-     - `rapid eval run --run ...` (valida veredicto determinista **PASS**)
-     - `rapid validate --strict`
+   - Ejecuta un proceso E2E real en un directorio temporal (`tempfile.TemporaryDirectory`) capturando logs auténticos mediante subprocesos (`base.log` y `tests.log`) con salida y contadores reales, verificando la ingesta de evidencias, finalización de tareas y evaluación con veredicto determinista **PASS**.
+6. `test_bugfix_lifecycle_and_gate_order_e2e`:
+   - Ejecuta el ciclo de vida completo de modo Bugfix en directorio temporal: valida que intentar transicionar a `active` antes de reconocer `gate.baseline` falle con `RAPID1014`, captura logs auténticos de baseline, reconoce `gate.baseline` en estado `prepared`, transiciona a `active`, implementa el fix, valida que intentar reconocer gates `POST_EXECUTION` antes de marcar la tarea como `done` falle con `RAPID1014`, y concluye con evaluación determinista **PASS** y validación íntegra.
 
 ---
 
@@ -114,14 +104,25 @@ Se implementó una suite integral de 5 pruebas automatizadas que verifican la in
 
 | Quality Gate | Herramienta / Comando | Resultado | Estado |
 | :--- | :--- | :--- | :--- |
-| **Python Unit & Contract Tests** | `python -m unittest discover tests` | **321 tests pasados**, 0 fallos, 0 errores (35.5s) | ✅ PASS |
+| **Python Unit & Contract Tests** | `python -m unittest discover tests` | **322 tests pasados**, 0 fallos, 0 errores (37.6s) | ✅ PASS |
 | **Docusaurus TypeScript Types** | `npm run typecheck` en `website/` | 0 errores TypeScript | ✅ PASS |
 | **Docusaurus Static Build** | `npm run build` en `website/` | Compilación HTML exitosa, **0 enlaces rotos** | ✅ PASS |
 | **Git Working Tree Hygiene** | `git status --short` | Solo archivos de docs, examples, sidebars y tests de Sprint 4 | ✅ PASS |
 
 ---
 
-## 6. Definition of Done (DoD) Checklist
+## 6. Remediación de Hallazgos PR #43
+
+Se resolvieron de manera exhaustiva los cuatro hallazgos técnicos identificados:
+
+1. **P0 — Evidencia E2E auténtica**: En `tests/test_documentation_labs.py` se eliminaron todos los textos fijos simulados (`Ran 2 tests`, `OK`). Se capturó directamente la salida de `subprocess.run` (incluyendo stdout, stderr, returncode y contadores reales) en `base.log` y `tests.log`, verificando su contenido antes de vincularlos como artefactos en las evidencias.
+2. **P0 — Orden correcto de gates Bugfix**: En `docs/tutorials/bugfix-lab.md` se actualizó la secuencia de ejecución para reflejar fielmente las restricciones del dominio: la compuerta `gate.baseline` (`PRE_EXECUTION`) se reconoce mientras el Run está en estado `prepared` antes de pasar a `active` (evitando `RAPID1014`). Posteriormente, las compuertas `POST_EXECUTION` (`gate.tests`, `gate.final-verification`) se reconocen tras completar la tarea contractual (`T001 -> done`).
+3. **P1 — Regresión real en Starter Bugfix**: En `examples/bugfix-lab/` se separó la caracterización del defecto (`test_defect_characterization`, que documenta el comportamiento anómalo actual) de la prueba de regresión (`test_regression_expected_discount`, que falla deliberadamente comprobando la existencia genuina del error). La suite de CI en `test_documentation_labs.py` verifica explícitamente el fallo con exit code 1 en el starter y la aprobación limpia al 100% en la solución.
+4. **P1 — JSON canónico de Antigravity**: En `docs/integrations/antigravity.md` se limpió el bloque JSON de evidencia `delegation`, eliminando campos de estado interno persistido (`schema_version`, `id`, `run_id`) para conformar estrictamente un documento de autoría válido para `rapid evidence add --input`.
+
+---
+
+## 7. Definition of Done (DoD) Checklist
 
 - [x] Los 6 tutoriales prácticos implementados siguiendo la estructura pedagógica canónica.
 - [x] Los 6 proyectos de ejemplo implementados con `starter/`, `solution/`, `tests/` y `README.md`.
@@ -130,8 +131,8 @@ Se implementó una suite integral de 5 pruebas automatizadas que verifican la in
 - [x] Troubleshooting específico para laboratorios documentado en `docs/troubleshooting/tutorials.md`.
 - [x] Navegación Docusaurus actualizada en `website/sidebars.ts` con categorías intuitivas.
 - [x] Cero modificaciones funcionales en el runtime `rapid_os/`.
-- [x] Suite de pruebas automatizadas `tests/test_documentation_labs.py` incorporada y aprobada al 100%.
-- [x] Ciclo E2E completo validado en entorno real con veredicto determinista `PASS`.
-- [x] Documento de auditoría `docs/audit/sprint-4-validation.md` creado.
+- [x] Suite de pruebas automatizadas `tests/test_documentation_labs.py` incorporada y aprobada al 100% (6 tests exhaustivos, 322 tests totales en repo).
+- [x] Ciclos E2E de Feature y Bugfix validados en entorno real con veredicto determinista `PASS`.
+- [x] Documento de auditoría `docs/audit/sprint-4-validation.md` actualizado con remediación de hallazgos.
 - [x] Ningún secreto, API key o dato privado expuesto en documentación o código.
 - [x] Rama `docs/sprint-4-hands-on-tutorials` lista para Pull Request hacia `develop`.

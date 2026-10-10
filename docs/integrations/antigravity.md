@@ -51,11 +51,8 @@ Si Antigravity delega una subtarea en un subagente especializado, se puede regis
 
 ```json
 {
-  "schema_version": 1,
-  "id": "E002",
-  "run_id": "spec-complex-refactor-r1-run-001",
   "kind": "delegation",
-  "producer": "harness:antigravity",
+  "producer": "antigravity-orchestrator",
   "summary": "Delegación de análisis de dependencias al subagente de arquitectura",
   "task_ids": ["T001"],
   "gate_ids": [],
