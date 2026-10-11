@@ -2,6 +2,7 @@
 
 import os
 import pathlib
+import re
 import unittest
 import urllib.request
 import urllib.error
@@ -45,6 +46,33 @@ class TestDocumentationProductionConfig(unittest.TestCase):
     def test_on_broken_links_throws(self):
         content = CONFIG_FILE.read_text(encoding="utf-8")
         self.assertIn("onBrokenLinks: 'throw'", content)
+
+    def test_smoke_test_routes_adhere_to_trailing_slash_false(self):
+        """Regression test: when trailingSlash is false, smoke test subpaths must not end with a trailing slash."""
+        config_content = CONFIG_FILE.read_text(encoding="utf-8")
+        self.assertIn("trailingSlash: false", config_content)
+
+        # Inspect TestLiveDocsSmoke methods to ensure no subpaths end with '/'
+        import inspect
+        smoke_methods = [
+            getattr(TestLiveDocsSmoke, name)
+            for name in dir(TestLiveDocsSmoke)
+            if name.startswith("test_live_") and callable(getattr(TestLiveDocsSmoke, name))
+        ]
+        for method in smoke_methods:
+            source = inspect.getsource(method)
+            for line in source.splitlines():
+                if "_check_url(" in line:
+                    # extract path inside _check_url(...)
+                    # matches _check_url("/...", ...)
+                    match = re.search(r'_check_url\(\s*["\']([^"\']+)["\']', line)
+                    if match:
+                        path = match.group(1)
+                        if path != "/":
+                            self.assertFalse(
+                                path.endswith("/"),
+                                f"Route '{path}' in {method.__name__} violates trailingSlash: false (must not end with '/')"
+                            )
 
 
 class TestDocumentationWorkflows(unittest.TestCase):
@@ -177,7 +205,7 @@ class TestLiveDocsSmoke(unittest.TestCase):
         self.assertIn("CLI", body)
 
     def test_live_tutorials_accessible(self):
-        body = self._check_url("/tutorials/", expected_status=200)
+        body = self._check_url("/tutorials", expected_status=200)
         self.assertIn("Laboratorios", body)
 
     def test_live_sitemap_accessible(self):
