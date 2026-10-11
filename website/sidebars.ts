@@ -118,6 +118,15 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Operaciones de Documentación',
+      items: [
+        'operations/documentation-deployment',
+        'operations/documentation-rollback',
+        'operations/documentation-maintenance',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Operación y release',
       items: [
         'release-v3.0.0',
@@ -126,6 +135,8 @@ const sidebars: SidebarsConfig = {
         'audit/sprint-1-validation',
         'audit/sprint-2-validation',
         'audit/sprint-3-validation',
+        'audit/sprint-4-validation',
+        'audit/sprint-5-validation',
         'contributing/documentation',
       ],
     },
