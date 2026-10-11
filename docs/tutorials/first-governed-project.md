@@ -127,6 +127,11 @@ En la raíz del proyecto, inicializa el entorno de gobernanza seleccionando el s
 rapid init --stack python-ai --archetype mvp --no-scan
 ```
 
+Responde a las preguntas interactivas del asistente con las siguientes opciones:
+- **Topología:** Selecciona `4) fullstack-separated` (`python-ai` no es compatible con `doc-site` ni con `front-end-only`, y `rapid validate` fallaría con `RAPID403` / `RAPID404`).
+- **Agentes:** Presiona `Enter` para aceptar la selección por defecto.
+- **Importar reglas de negocio:** Responde `n` a importar plantilla y `n` a reglas manuales.
+
 Esto crea la estructura `.rapid-os/` con sus estándares y configuración base.
 
 ### Paso 2: Escanear el proyecto
