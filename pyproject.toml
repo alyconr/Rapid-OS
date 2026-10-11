@@ -40,7 +40,7 @@ dependencies = []
 [project.urls]
 Homepage = "https://github.com/alyconr/Rapid-OS"
 Repository = "https://github.com/alyconr/Rapid-OS"
-Documentation = "https://github.com/alyconr/Rapid-OS/tree/main/docs"
+Documentation = "https://alyconr.github.io/Rapid-OS/"
 Changelog = "https://github.com/alyconr/Rapid-OS/blob/main/CHANGELOG.md"
 
 [project.scripts]
