@@ -20,13 +20,15 @@ permissions:
 jobs:
   build-docs:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: website
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -36,10 +38,18 @@ jobs:
           cache-dependency-path: website/package-lock.json
 
       - name: Install documentation dependencies
+        working-directory: website
         run: npm ci
 
       - name: Typecheck documentation site
+        working-directory: website
         run: npm run typecheck
 
       - name: Build documentation
+        working-directory: website
         run: npm run build
+
+      - name: Verify Documentation Static Build Integrity
+        env:
+          RAPID_DOCS_STRICT_BUILD_CHECK: "1"
+        run: python -m unittest tests.test_documentation_deployment.TestDocumentationStaticBuildIntegrity -v

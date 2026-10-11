@@ -59,6 +59,34 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Laboratorios Prácticos',
+      collapsed: false,
+      link: {type: 'doc', id: 'tutorials/index'},
+      items: [
+        'tutorials/first-governed-project',
+        'tutorials/feature-lab',
+        'tutorials/bugfix-lab',
+        'tutorials/refactor-lab',
+        'tutorials/hardening-lab',
+        'tutorials/research-lab',
+        'troubleshooting/tutorials',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Integraciones con Coding Harnesses',
+      collapsed: false,
+      link: {type: 'doc', id: 'integrations/index'},
+      items: [
+        'integrations/codex',
+        'integrations/claude-code',
+        'integrations/cursor',
+        'integrations/vscode',
+        'integrations/antigravity',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Cookbooks de Gobernanza',
       collapsed: false,
       items: [
@@ -90,6 +118,15 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Operaciones de Documentación',
+      items: [
+        'operations/documentation-deployment',
+        'operations/documentation-rollback',
+        'operations/documentation-maintenance',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Operación y release',
       items: [
         'release-v3.0.0',
@@ -98,6 +135,8 @@ const sidebars: SidebarsConfig = {
         'audit/sprint-1-validation',
         'audit/sprint-2-validation',
         'audit/sprint-3-validation',
+        'audit/sprint-4-validation',
+        'audit/sprint-5-validation',
         'contributing/documentation',
       ],
     },

@@ -1,0 +1,100 @@
+name: Deploy Documentation
+run-name: Deploy Documentation (${{ github.ref_name }})
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Documentation Artifact
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck documentation
+        run: npm run typecheck
+
+      - name: Build static site
+        run: npm run build
+
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/build
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  smoke-test:
+    name: Post-Deployment Smoke Tests
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate deployed URL and run Smoke Tests
+        env:
+          RAPID_OS_LIVE_DOCS_URL: ${{ needs.deploy.outputs.page_url }}
+        run: |
+          if [ -z "$RAPID_OS_LIVE_DOCS_URL" ]; then
+            echo "Error: Deployed page URL is empty. Cannot verify live deployment."
+            exit 1
+          fi
+          echo "Testing live deployment at: ${RAPID_OS_LIVE_DOCS_URL}"
+          for i in {1..6}; do
+            echo "Attempt $i/6: Running live smoke tests..."
+            if python -m unittest tests.test_documentation_deployment.TestLiveDocsSmoke -v; then
+              echo "Smoke tests passed successfully on attempt $i."
+              exit 0
+            fi
+            echo "Smoke test attempt $i failed. Waiting 10s for CDN propagation..."
+            sleep 10
+          done
+          echo "Smoke tests failed after 6 attempts."
+          exit 1

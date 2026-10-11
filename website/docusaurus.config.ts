@@ -10,6 +10,8 @@ const config: Config = {
   organizationName: 'alyconr',
   projectName: 'Rapid-OS',
   onBrokenLinks: 'throw',
+  trailingSlash: false,
+  favicon: 'img/rapid-os-social-card.svg',
 
   i18n: {
     defaultLocale: 'es',
@@ -38,6 +40,16 @@ const config: Config = {
 
   themeConfig: {
     image: 'img/rapid-os-social-card.svg',
+    metadata: [
+      {name: 'description', content: 'Documentación oficial de RAPID OS v3: plataforma de gobernanza determinista para procesos de ingeniería asistidos por agentes de IA y coding harnesses.'},
+      {name: 'keywords', content: 'rapid-os, ai-coding-harness, software-engineering, deterministic-governance, prompt-engineering, specification-driven, qa-automation'},
+      {property: 'og:title', content: 'Rapid OS — Contract-Driven Engineering OS for AI Coding Harnesses'},
+      {property: 'og:description', content: 'Gobernanza determinista, contratos de ejecución, evidence engine y evaluaciones conductuales para coding harnesses.'},
+      {property: 'og:type', content: 'website'},
+      {name: 'twitter:card', content: 'summary_large_image'},
+      {name: 'twitter:title', content: 'Rapid OS — Contract-Driven Engineering OS for AI Coding Harnesses'},
+      {name: 'twitter:description', content: 'Gobernanza determinista, contratos de ejecución, evidence engine y evaluaciones conductuales para coding harnesses.'},
+    ],
     navbar: {
       title: 'Rapid OS',
       items: [
