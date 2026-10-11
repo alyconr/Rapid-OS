@@ -53,6 +53,8 @@ jobs:
     permissions:
       pages: write
       id-token: write
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -76,10 +78,14 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Wait for Pages propagation and run Smoke Tests
+      - name: Validate deployed URL and run Smoke Tests
         env:
-          RAPID_OS_LIVE_DOCS_URL: ${{ needs.deploy.outputs.page_url || 'https://alyconr.github.io/Rapid-OS' }}
+          RAPID_OS_LIVE_DOCS_URL: ${{ needs.deploy.outputs.page_url }}
         run: |
+          if [ -z "$RAPID_OS_LIVE_DOCS_URL" ]; then
+            echo "Error: Deployed page URL is empty. Cannot verify live deployment."
+            exit 1
+          fi
           echo "Testing live deployment at: ${RAPID_OS_LIVE_DOCS_URL}"
           for i in {1..6}; do
             echo "Attempt $i/6: Running live smoke tests..."

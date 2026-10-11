@@ -77,8 +77,11 @@ class TestDocumentationWorkflows(unittest.TestCase):
 
     def test_deploy_workflow_has_post_deploy_smoke_tests(self):
         content = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("outputs:\n      page_url: ${{ steps.deployment.outputs.page_url }}", content)
         self.assertIn("smoke-test:", content)
         self.assertIn("needs: deploy", content)
+        self.assertIn("RAPID_OS_LIVE_DOCS_URL: ${{ needs.deploy.outputs.page_url }}", content)
+        self.assertIn('[ -z "$RAPID_OS_LIVE_DOCS_URL" ]', content)
         self.assertIn("tests.test_documentation_deployment.TestLiveDocsSmoke", content)
 
     def test_deploy_workflow_uses_official_actions(self):
