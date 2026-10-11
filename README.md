@@ -53,12 +53,40 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity, VS Code y Codex) en Ingeni
 
 Cuando trabajas con asistentes de IA como Cursor, Claude, Antigravity, VS Code o Codex, Rapid OS no solo inyecta una **"Constitución de Proyecto"** estandarizada, sino que gobierna el ciclo completo de ingeniería: inteligencia del repositorio (`rapid scan`), especificaciones inmutables (`rapid spec`), compilación selectiva de contexto (`rapid context`), contratos y políticas de ejecución (`rapid policy` / `rapid run`), perfiles y compatibilidad de capacidades del harness (`rapid harness`), evidencia inmutable (`rapid evidence`) y evaluación conductual determinista (`rapid eval`).
 
-**Documentación de Referencia (`v3.0.0`)**:
-- [Getting Started Guide](docs/getting-started.md)
-- [Governance Loop & Product Boundaries](docs/governance-loop.md)
-- [CLI Command & Diagnostic Reference](docs/cli.md)
-- [Rapid OS v3 Architecture](docs/architecture/rapid-os-v3.md)
-- [Release Notes v3.0.0](docs/release-v3.0.0.md) · [Changelog](CHANGELOG.md)
+**🌐 Portal Oficial de Documentación**: [https://alyconr.github.io/Rapid-OS/](https://alyconr.github.io/Rapid-OS/)
+
+### 📚 Suite Canónica de Documentación (`v3.0.0`)
+
+El portal público incluye la documentación completa, estructurada en las siguientes áreas:
+
+- **Aprender e Iniciar**:
+  - [Qué es Rapid OS](https://alyconr.github.io/Rapid-OS/concepts/what-is-rapid-os) · [Por qué Rapid OS](https://alyconr.github.io/Rapid-OS/concepts/why-rapid-os)
+  - [Guía de Instalación](https://alyconr.github.io/Rapid-OS/installation) · [Primeros Pasos](https://alyconr.github.io/Rapid-OS/getting-started)
+  - [Modos de Ingeniería (Feature, Bugfix, Refactor, Hardening, Research)](https://alyconr.github.io/Rapid-OS/guides/modes)
+  - [Casos de Uso Reales](https://alyconr.github.io/Rapid-OS/guides/use-cases)
+- **Laboratorios Prácticos Reproducibles (Hands-on Tutorials)**:
+  - [Catálogo de Laboratorios](https://alyconr.github.io/Rapid-OS/tutorials)
+  - [Primer Proyecto Gobernado](https://alyconr.github.io/Rapid-OS/tutorials/first-governed-project)
+  - [Feature Lab](https://alyconr.github.io/Rapid-OS/tutorials/feature-lab)
+  - [Bugfix Lab](https://alyconr.github.io/Rapid-OS/tutorials/bugfix-lab)
+  - [Refactor Lab](https://alyconr.github.io/Rapid-OS/tutorials/refactor-lab)
+  - [Hardening Lab](https://alyconr.github.io/Rapid-OS/tutorials/hardening-lab)
+  - [Research Lab](https://alyconr.github.io/Rapid-OS/tutorials/research-lab)
+- **Integraciones con Coding Harnesses**:
+  - [Codex](https://alyconr.github.io/Rapid-OS/integrations/codex) · [Claude Code](https://alyconr.github.io/Rapid-OS/integrations/claude-code)
+  - [Cursor](https://alyconr.github.io/Rapid-OS/integrations/cursor) · [VS Code](https://alyconr.github.io/Rapid-OS/integrations/vscode) · [Google Antigravity](https://alyconr.github.io/Rapid-OS/integrations/antigravity)
+- **Gobernanza y Cookbooks**:
+  - [Políticas y Contratos de Ejecución](https://alyconr.github.io/Rapid-OS/cookbooks/policies-and-contracts)
+  - [Perfiles y Capabilities de Harnesses](https://alyconr.github.io/Rapid-OS/cookbooks/harness-profiles)
+  - [Evidence Engine](https://alyconr.github.io/Rapid-OS/cookbooks/evidence-engine)
+  - [Evaluaciones Conductuales Deterministas](https://alyconr.github.io/Rapid-OS/cookbooks/behavioral-evaluations)
+  - [Integración con CI/CD](https://alyconr.github.io/Rapid-OS/guides/ci-cd-integration)
+- **Operaciones, Release y Auditoría**:
+  - [Procedimiento de Despliegue](https://alyconr.github.io/Rapid-OS/operations/documentation-deployment)
+  - [Procedimiento de Rollback](https://alyconr.github.io/Rapid-OS/operations/documentation-rollback)
+  - [Mantenimiento y Versionamiento](https://alyconr.github.io/Rapid-OS/operations/documentation-maintenance)
+  - [Diagnósticos RAPIDxxx](https://alyconr.github.io/Rapid-OS/troubleshooting/diagnostics) · [Referencia de CLI](https://alyconr.github.io/Rapid-OS/cli)
+  - [Arquitectura v3](https://alyconr.github.io/Rapid-OS/architecture/rapid-os-v3) · [Release v3.0.0](https://alyconr.github.io/Rapid-OS/release-v3.0.0) · [Changelog](CHANGELOG.md)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
