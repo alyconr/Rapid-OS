@@ -41,32 +41,42 @@ Perfil declarativo:
 
 1. **Crear Spec y Run en RAPID OS:**
 ```bash
-rapid spec create --id spec-feature --title "Nueva funcionalidad" --mode feature --status ready
+rapid spec create --id spec-feature --title "Nueva funcionalidad" --mode feature --task "T001: Implementar funcionalidad" --status ready
 rapid context --manifest
 rapid run create --spec spec-feature --harness claude
 ```
 
-2. **Instruir a Claude Code:**
-Pide a Claude Code en la terminal:
-> *"Lee la especificación en `.rapid-os/specs/spec-feature/spec.json` y el contrato en `.rapid-os/contracts/<run-id>.json`. Implementa los cambios necesarios y corre la suite de pruebas."*
+2. **Verificar y Registrar Baseline:**
+Ejecuta la suite base de pruebas, registra la evidencia de baseline y reconoce la compuerta antes de iniciar el trabajo:
+```bash
+python -m unittest discover -s tests -t .
+rapid evidence add --run <run-id> --input evidence_baseline.json
+rapid run gate <run-id> gate.baseline acknowledged
+```
 
-3. **Ejecución Externa:**
+3. **Instruir a Claude Code:**
+Pide a Claude Code en la terminal:
+> *"Lee la especificación en `.rapid-os/specs/spec-feature/spec.json` y el contrato en `.rapid-os/runs/<run-id>/contract.json`. Implementa los cambios necesarios y corre la suite de pruebas."*
+
+4. **Ejecución Externa:**
 Claude Code edita los archivos y corre `python -m unittest`.
 
-4. **Captura e Ingesta de Evidencias:**
+5. **Captura e Ingesta de Evidencias:**
 El desarrollador o el propio Claude Code invoca el CLI de RAPID OS para registrar el avance:
 ```bash
 rapid run status <run-id> active
 rapid run task <run-id> T001 in_progress
 rapid evidence add --run <run-id> --input evidence_files.json
 rapid evidence add --run <run-id> --input evidence_tests.json
+rapid evidence add --run <run-id> --input evidence_workspace.json
+rapid evidence add --run <run-id> --input evidence_review.json
 rapid run gate <run-id> gate.tests acknowledged
 rapid run gate <run-id> gate.final-verification acknowledged
 rapid run task <run-id> T001 done
 rapid run status <run-id> finished
 ```
 
-5. **Evaluación:**
+6. **Evaluación:**
 ```bash
 rapid eval run --run <run-id> --write --require-pass
 ```

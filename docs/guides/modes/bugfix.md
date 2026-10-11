@@ -77,29 +77,15 @@ rapid run create \
 
 ## 4. Capturar Evidencia de Reproducción y Resolución
 
-### Paso A: Evidencia del fallo inicial
-Registra que el defecto fue reproducido fehacientemente antes del fix:
-
-```json
-{
-  "kind": "test_result",
-  "producer": "pytest-reproduction",
-  "summary": "Falla de concurrencia reproducida en test de integración",
-  "payload": {
-    "suite": "reconciliation-deadlock-repro",
-    "exit_code": 1,
-    "passed": 0,
-    "failed": 1,
-    "skipped": 0
-  }
-}
-```
+### Paso A: Evidencia del fallo inicial (Reproducción local)
+Captura la traza y resultado del fallo como artefacto de reproducción local sin registrarlo todavía como `test_result` ligado a tareas o compuertas del run (ya que el evaluador actual clasificaría cualquier `test_result` con `exit_code != 0` o `failed > 0` como fallo irreversible del run):
 
 ```bash
-rapid evidence add \
-  --run fix-timeout-en-reconciliacion-de-balance-r1-run-001 \
-  --input reproduction-evidence.json
+# Ejecutar test de reproducción y almacenar el log rojo como artefacto local
+pytest -k test_reconciliation_deadlock > reproduction.log 2>&1 || true
 ```
+
+> **Nota de Gobernanza (Roadmap):** El PR 2.1 introducirá soporte formal de contratos con `expectation: fail` para pruebas de reproducción previa. Hasta entonces, conserva el log de falla como artefacto local de diagnóstico (`reproduction.log`) y no lo vincules como evidencia de compuertas ni tareas.
 
 ### Paso B: Evidencia de la corrección y no-regresión
 Una vez aplicado el cambio en el código y aprobadas todas las pruebas:

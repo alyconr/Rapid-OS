@@ -45,19 +45,36 @@ En la terminal integrada:
 rapid run create --spec <spec-id> --harness vscode
 ```
 
-2. **Asistencia con Copilot Chat:**
-En Copilot Chat, usa `#file:.rapid-os/contracts/<run-id>.json` para enfocar al modelo en los objetivos y restricciones de la tarea.
-
-3. **Ejecución de Pruebas:**
-Ejecuta la suite de pruebas desde la terminal o mediante el panel de testing de VS Code.
-
-4. **Registro de Evidencias:**
-Usa el CLI de RAPID OS en la terminal para registrar el progreso:
+2. **Verificar Baseline:**
+Ejecuta las pruebas iniciales y registra la evidencia de baseline antes de activar el run:
 ```bash
-rapid evidence add --run <run-id> --input evidence_test_result.json
+python -m unittest discover -s tests -t .
+rapid evidence add --run <run-id> --input evidence_baseline.json
+rapid run gate <run-id> gate.baseline acknowledged
+rapid run status <run-id> active
+rapid run task <run-id> T001 in_progress
 ```
 
-5. **Evaluación Final:**
+3. **Asistencia con Copilot Chat:**
+En Copilot Chat, usa `#file:.rapid-os/runs/<run-id>/contract.json` para enfocar al modelo en los objetivos y restricciones de la tarea.
+
+4. **Ejecución de Pruebas:**
+Ejecuta la suite de pruebas desde la terminal o mediante el panel de testing de VS Code.
+
+5. **Registro de Evidencias:**
+Usa el CLI de RAPID OS en la terminal para registrar el progreso:
+```bash
+rapid evidence add --run <run-id> --input evidence_files.json
+rapid evidence add --run <run-id> --input evidence_test_result.json
+rapid evidence add --run <run-id> --input evidence_workspace.json
+rapid evidence add --run <run-id> --input evidence_review.json
+rapid run gate <run-id> gate.tests acknowledged
+rapid run gate <run-id> gate.final-verification acknowledged
+rapid run task <run-id> T001 done
+rapid run status <run-id> finished
+```
+
+6. **Evaluación Final:**
 ```bash
 rapid eval run --run <run-id> --write --require-pass
 ```

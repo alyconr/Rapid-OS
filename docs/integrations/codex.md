@@ -50,7 +50,7 @@ rapid context --manifest
 Entrega a la herramienta:
 - La especificación activa (`.rapid-os/specs/<spec-id>/spec.json`).
 - El manifiesto de contexto compilado (`.rapid-os/context/manifest.json`).
-- Las instrucciones del contrato de ejecución (`.rapid-os/contracts/<run-id>.json`).
+- Las instrucciones del contrato de ejecución (`.rapid-os/runs/<run-id>/contract.json`).
 
 ---
 
@@ -60,6 +60,15 @@ El harness debe ceñirse a:
 - La lista de tareas inmutables (`T001`, `T002`, ...).
 - Los archivos autorizados en el alcance (`paths`).
 - Las compuertas declaradas en la política.
+
+Antes de comenzar la ejecución externa, captura el log de baseline y reconoce `gate.baseline`:
+```bash
+python -m unittest discover -s tests -t .
+rapid evidence add --run <run-id> --input evidence_baseline.json
+rapid run gate <run-id> gate.baseline acknowledged
+rapid run status <run-id> active
+rapid run task <run-id> T001 in_progress
+```
 
 ---
 
@@ -77,9 +86,16 @@ rapid evidence add --run <run-id> --input evidence_files.json
 rapid evidence add --run <run-id> --input evidence_tests.json
 ```
 
-3. Actualizar el estado del run:
+3. Ingerir evidencia de espacio de trabajo y revisión final:
+```bash
+rapid evidence add --run <run-id> --input evidence_workspace.json
+rapid evidence add --run <run-id> --input evidence_review.json
+```
+
+4. Actualizar el estado del run:
 ```bash
 rapid run gate <run-id> gate.tests acknowledged
+rapid run gate <run-id> gate.final-verification acknowledged
 rapid run task <run-id> T001 done
 rapid run status <run-id> finished
 ```

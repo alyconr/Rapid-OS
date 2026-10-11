@@ -46,17 +46,37 @@ Para que el modelo en Cursor respete automáticamente las reglas de RAPID OS, ag
 rapid run create --spec <spec-id> --harness cursor
 ```
 
-2. **Inyectar Contexto en Composer:**
-En la ventana de Composer de Cursor, referencia el archivo generado:
-> `@.rapid-os/contracts/<run-id>.json implementa la tarea T001 y corre las pruebas.`
+2. **Verificar Baseline:**
+Ejecuta las pruebas base, registra la evidencia de baseline y reconoce `gate.baseline` antes de activar el run:
+```bash
+python -m unittest discover -s tests -t .
+rapid evidence add --run <run-id> --input evidence_baseline.json
+rapid run gate <run-id> gate.baseline acknowledged
+rapid run status <run-id> active
+rapid run task <run-id> T001 in_progress
+```
 
-3. **Verificar Pruebas en Terminal:**
+3. **Inyectar Contexto en Composer:**
+En la ventana de Composer de Cursor, referencia el archivo generado:
+> `@.rapid-os/runs/<run-id>/contract.json implementa la tarea T001 y corre las pruebas.`
+
+4. **Verificar Pruebas en Terminal:**
 Comprueba que los tests pasen en la terminal integrada de Cursor.
 
-4. **Registrar Evidencia:**
-Ingiere los resultados mediante `rapid evidence add`.
+5. **Registrar Evidencia:**
+Ingiere los resultados mediante `rapid evidence add`:
+```bash
+rapid evidence add --run <run-id> --input evidence_files.json
+rapid evidence add --run <run-id> --input evidence_tests.json
+rapid evidence add --run <run-id> --input evidence_workspace.json
+rapid evidence add --run <run-id> --input evidence_review.json
+rapid run gate <run-id> gate.tests acknowledged
+rapid run gate <run-id> gate.final-verification acknowledged
+rapid run task <run-id> T001 done
+rapid run status <run-id> finished
+```
 
-5. **Evaluar:**
+6. **Evaluar:**
 ```bash
 rapid eval run --run <run-id> --write --require-pass
 ```
