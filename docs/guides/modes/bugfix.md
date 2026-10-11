@@ -23,7 +23,7 @@ El modo **Bugfix** prioriza la reproducci처n verificable del error, la contenci�
 flowchart TD
     Bug["1. Defecto reportado"] --> Spec["2. rapid spec create --mode bugfix"]
     Spec --> TestFail["3. Escribir test de regresi처n (rojo)"]
-    TestFail --> EvFail["4. Registrar evidencia de falla (reproducci처n)"]
+    TestFail --> EvFail["4. Guardar log de reproducci처n local"]
     EvFail --> Fix["5. Harness aplica la correcci처n"]
     Fix --> TestPass["6. Test de regresi처n y suite general pasan (verde)"]
     TestPass --> EvPass["7. Registrar evidencia de resoluci처n (test_result)"]

@@ -28,11 +28,8 @@ class TestTutorialExecutable(unittest.TestCase):
         content = TUTORIAL_PATH.read_text(encoding="utf-8")
 
         # Find code blocks in order with preceding context:
-        # We capture:
-        # - Any markdown text preceding the fence
-        # - The fence info string (bash, json, python)
-        # - The fence body
-        pattern = re.compile(r"```([a-zA-Z0-9_-]+)?\s*\n(.*?)\n```", re.DOTALL)
+        # Regex accepts optional language identifier and empty blocks
+        pattern = re.compile(r"```([\w-]*)\n(.*?)```", re.DOTALL)
         matches = list(pattern.finditer(content))
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -79,7 +76,13 @@ class TestTutorialExecutable(unittest.TestCase):
                     # If command is interactive rapid init, pass non-interactive input
                     input_text = None
                     if len(tokens) > 1 and tokens[1] == "init":
-                        input_text = "1\n1\n\nn\n\nn\n"
+                        # Input answers:
+                        # 4 = fullstack-separated topology (compatible with python-ai, avoids RAPID403/404)
+                        # 1 = mvp archetype
+                        # empty = default agents
+                        # n = no business template import
+                        # n = no manual business rules
+                        input_text = "4\n1\n\nn\n\nn\n"
                     return subprocess.run(
                         cmd,
                         cwd=str(tmp_path),
@@ -163,12 +166,22 @@ class TestTutorialExecutable(unittest.TestCase):
                             f"Command '{line}' failed with exit code {res.returncode}:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}",
                         )
 
+            # Verify tutorial contains a rapid eval run with --require-pass
+            require_pass_match = re.search(
+                r"rapid\s+eval\s+run\s+.*--require-pass",
+                content,
+            )
+            self.assertIsNotNone(
+                require_pass_match,
+                "Tutorial must contain a 'rapid eval run' command with '--require-pass'",
+            )
+
             # Assert that the evaluation report was written and verdict is pass
             runs_dir = tmp_path / ".rapid-os" / "runs"
             self.assertTrue(runs_dir.is_dir(), ".rapid-os/runs directory was not created")
             evals_dir = tmp_path / ".rapid-os" / "evals"
             self.assertTrue(evals_dir.is_dir(), ".rapid-os/evals directory was not created")
-            report_files = list(evals_dir.rglob("*.json"))
+            report_files = sorted(evals_dir.rglob("*.json"))
             self.assertTrue(len(report_files) >= 1, "No evaluation reports found in .rapid-os/evals")
             latest_report = json.loads(report_files[-1].read_text(encoding="utf-8"))
             self.assertEqual(latest_report["verdict"], "pass")

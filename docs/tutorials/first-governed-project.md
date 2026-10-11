@@ -121,10 +121,10 @@ En este estado inicial, `TaskTracker.add_task(title)` solo acepta el título de 
 
 ### Paso 1: Inicializar RAPID OS
 
-En la raíz del proyecto, inicializa el entorno de gobernanza seleccionando el stack y arquetipo deseados (o de modo desatendido):
+En la raíz del proyecto, inicializa el entorno de gobernanza seleccionando el stack y arquetipo deseados:
 
 ```bash
-rapid init --stack docs-modern --archetype mvp --no-scan
+rapid init --stack python-ai --archetype mvp --no-scan
 ```
 
 Esto crea la estructura `.rapid-os/` con sus estándares y configuración base.

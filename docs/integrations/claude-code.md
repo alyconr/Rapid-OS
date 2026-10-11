@@ -47,9 +47,9 @@ rapid run create --spec spec-feature --harness claude
 ```
 
 2. **Verificar y Registrar Baseline:**
-Ejecuta la suite base de pruebas, registra la evidencia de baseline y reconoce la compuerta antes de iniciar el trabajo:
+Ejecuta la suite base de pruebas guardando el log auténtico como artefacto (`base.log`), registra la evidencia de baseline (conforme a la estructura de [`evidence_baseline.json`](../tutorials/first-governed-project.md#1-registrar-evidencia-de-baseline-y-acreditar-gatebaseline)) y reconoce la compuerta antes de activar el run:
 ```bash
-python -m unittest discover -s tests -t .
+python -m unittest discover -s tests -t . > base.log 2>&1
 rapid evidence add --run <run-id> --input evidence_baseline.json
 rapid run gate <run-id> gate.baseline acknowledged
 ```
@@ -62,7 +62,12 @@ Pide a Claude Code en la terminal:
 Claude Code edita los archivos y corre `python -m unittest`.
 
 5. **Captura e Ingesta de Evidencias:**
-El desarrollador o el propio Claude Code invoca el CLI de RAPID OS para registrar el avance:
+El desarrollador o el propio Claude Code invoca el CLI de RAPID OS para registrar el avance (ver la estructura canónica de cada archivo en el [Tutorial del Primer Proyecto Gobernado](../tutorials/first-governed-project.md#7-evidence-collection)):
+- [`evidence_files.json`](../tutorials/first-governed-project.md#3-registrar-evidencia-de-cambios-en-el-código-file_change): evidencia de modificación de archivos (`file_change`).
+- [`evidence_tests.json`](../tutorials/first-governed-project.md#4-registrar-evidencia-de-pruebas-aprobadas-test_result): resultados de pruebas aprobadas con su archivo de log adjunto (`test_result`).
+- [`evidence_workspace.json`](../tutorials/first-governed-project.md#5-registrar-evidencia-de-espacio-de-trabajo-workspace): verificación de espacio de trabajo actual (`workspace`).
+- [`evidence_review.json`](../tutorials/first-governed-project.md#6-registrar-evidencia-de-revisión-final-review): revisión contractual aprobada (`review`).
+
 ```bash
 rapid run status <run-id> active
 rapid run task <run-id> T001 in_progress
