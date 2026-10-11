@@ -41,32 +41,47 @@ Perfil declarativo:
 
 1. **Crear Spec y Run en RAPID OS:**
 ```bash
-rapid spec create --id spec-feature --title "Nueva funcionalidad" --mode feature --status ready
+rapid spec create --id spec-feature --title "Nueva funcionalidad" --mode feature --task "T001: Implementar funcionalidad" --status ready
 rapid context --manifest
 rapid run create --spec spec-feature --harness claude
 ```
 
-2. **Instruir a Claude Code:**
-Pide a Claude Code en la terminal:
-> *"Lee la especificación en `.rapid-os/specs/spec-feature/spec.json` y el contrato en `.rapid-os/contracts/<run-id>.json`. Implementa los cambios necesarios y corre la suite de pruebas."*
+2. **Verificar y Registrar Baseline:**
+Ejecuta la suite base de pruebas guardando el log auténtico como artefacto (`base.log`), registra la evidencia de baseline (conforme a la estructura de [`evidence_baseline.json`](../tutorials/first-governed-project.md#1-registrar-evidencia-de-baseline-y-acreditar-gatebaseline)) y reconoce la compuerta antes de activar el run:
+```bash
+python -m unittest discover -s tests -t . > base.log 2>&1
+rapid evidence add --run <run-id> --input evidence_baseline.json
+rapid run gate <run-id> gate.baseline acknowledged
+```
 
-3. **Ejecución Externa:**
+3. **Instruir a Claude Code:**
+Pide a Claude Code en la terminal:
+> *"Lee la especificación en `.rapid-os/specs/spec-feature/spec.json` y el contrato en `.rapid-os/runs/<run-id>/contract.json`. Implementa los cambios necesarios y corre la suite de pruebas."*
+
+4. **Ejecución Externa:**
 Claude Code edita los archivos y corre `python -m unittest`.
 
-4. **Captura e Ingesta de Evidencias:**
-El desarrollador o el propio Claude Code invoca el CLI de RAPID OS para registrar el avance:
+5. **Captura e Ingesta de Evidencias:**
+El desarrollador o el propio Claude Code invoca el CLI de RAPID OS para registrar el avance (ver la estructura canónica de cada archivo en el [Tutorial del Primer Proyecto Gobernado](../tutorials/first-governed-project.md#7-evidence-collection)):
+- [`evidence_files.json`](../tutorials/first-governed-project.md#3-registrar-evidencia-de-cambios-en-el-código-file_change): evidencia de modificación de archivos (`file_change`).
+- [`evidence_tests.json`](../tutorials/first-governed-project.md#4-registrar-evidencia-de-pruebas-aprobadas-test_result): resultados de pruebas aprobadas con su archivo de log adjunto (`test_result`).
+- [`evidence_workspace.json`](../tutorials/first-governed-project.md#5-registrar-evidencia-de-espacio-de-trabajo-workspace): verificación de espacio de trabajo actual (`workspace`).
+- [`evidence_review.json`](../tutorials/first-governed-project.md#6-registrar-evidencia-de-revisión-final-review): revisión contractual aprobada (`review`).
+
 ```bash
 rapid run status <run-id> active
 rapid run task <run-id> T001 in_progress
 rapid evidence add --run <run-id> --input evidence_files.json
 rapid evidence add --run <run-id> --input evidence_tests.json
+rapid evidence add --run <run-id> --input evidence_workspace.json
+rapid evidence add --run <run-id> --input evidence_review.json
 rapid run gate <run-id> gate.tests acknowledged
 rapid run gate <run-id> gate.final-verification acknowledged
 rapid run task <run-id> T001 done
 rapid run status <run-id> finished
 ```
 
-5. **Evaluación:**
+6. **Evaluación:**
 ```bash
 rapid eval run --run <run-id> --write --require-pass
 ```

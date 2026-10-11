@@ -46,17 +46,42 @@ Para que el modelo en Cursor respete automáticamente las reglas de RAPID OS, ag
 rapid run create --spec <spec-id> --harness cursor
 ```
 
-2. **Inyectar Contexto en Composer:**
-En la ventana de Composer de Cursor, referencia el archivo generado:
-> `@.rapid-os/contracts/<run-id>.json implementa la tarea T001 y corre las pruebas.`
+2. **Verificar Baseline:**
+Ejecuta las pruebas base guardando el log auténtico como artefacto (`base.log`), registra la evidencia de baseline (conforme a [`evidence_baseline.json`](../tutorials/first-governed-project.md#1-registrar-evidencia-de-baseline-y-acreditar-gatebaseline)) y reconoce `gate.baseline` antes de activar el run:
+```bash
+python -m unittest discover -s tests -t . > base.log 2>&1
+rapid evidence add --run <run-id> --input evidence_baseline.json
+rapid run gate <run-id> gate.baseline acknowledged
+rapid run status <run-id> active
+rapid run task <run-id> T001 in_progress
+```
 
-3. **Verificar Pruebas en Terminal:**
+3. **Inyectar Contexto en Composer:**
+En la ventana de Composer de Cursor, referencia el archivo generado:
+> `@.rapid-os/runs/<run-id>/contract.json implementa la tarea T001 y corre las pruebas.`
+
+4. **Verificar Pruebas en Terminal:**
 Comprueba que los tests pasen en la terminal integrada de Cursor.
 
-4. **Registrar Evidencia:**
-Ingiere los resultados mediante `rapid evidence add`.
+5. **Registrar Evidencia:**
+Ingiere los resultados mediante `rapid evidence add` (ver estructuras en el [Tutorial del Primer Proyecto Gobernado](../tutorials/first-governed-project.md#7-evidence-collection)):
+- [`evidence_files.json`](../tutorials/first-governed-project.md#3-registrar-evidencia-de-cambios-en-el-código-file_change): evidencia de modificación de archivos.
+- [`evidence_tests.json`](../tutorials/first-governed-project.md#4-registrar-evidencia-de-pruebas-aprobadas-test_result): resultado de pruebas con log adjunto.
+- [`evidence_workspace.json`](../tutorials/first-governed-project.md#5-registrar-evidencia-de-espacio-de-trabajo-workspace): espacio de trabajo actual (`workspace.current`).
+- [`evidence_review.json`](../tutorials/first-governed-project.md#6-registrar-evidencia-de-revisión-final-review): revisión contractual aprobada.
 
-5. **Evaluar:**
+```bash
+rapid evidence add --run <run-id> --input evidence_files.json
+rapid evidence add --run <run-id> --input evidence_tests.json
+rapid evidence add --run <run-id> --input evidence_workspace.json
+rapid evidence add --run <run-id> --input evidence_review.json
+rapid run gate <run-id> gate.tests acknowledged
+rapid run gate <run-id> gate.final-verification acknowledged
+rapid run task <run-id> T001 done
+rapid run status <run-id> finished
+```
+
+6. **Evaluar:**
 ```bash
 rapid eval run --run <run-id> --write --require-pass
 ```

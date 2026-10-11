@@ -45,19 +45,41 @@ En la terminal integrada:
 rapid run create --spec <spec-id> --harness vscode
 ```
 
-2. **Asistencia con Copilot Chat:**
-En Copilot Chat, usa `#file:.rapid-os/contracts/<run-id>.json` para enfocar al modelo en los objetivos y restricciones de la tarea.
-
-3. **Ejecución de Pruebas:**
-Ejecuta la suite de pruebas desde la terminal o mediante el panel de testing de VS Code.
-
-4. **Registro de Evidencias:**
-Usa el CLI de RAPID OS en la terminal para registrar el progreso:
+2. **Verificar Baseline:**
+Ejecuta las pruebas iniciales guardando el log auténtico como artefacto (`base.log`), registra la evidencia de baseline (conforme a [`evidence_baseline.json`](../tutorials/first-governed-project.md#1-registrar-evidencia-de-baseline-y-acreditar-gatebaseline)) y reconoce `gate.baseline` antes de activar el run:
 ```bash
-rapid evidence add --run <run-id> --input evidence_test_result.json
+python -m unittest discover -s tests -t . > base.log 2>&1
+rapid evidence add --run <run-id> --input evidence_baseline.json
+rapid run gate <run-id> gate.baseline acknowledged
+rapid run status <run-id> active
+rapid run task <run-id> T001 in_progress
 ```
 
-5. **Evaluación Final:**
+3. **Asistencia con Copilot Chat:**
+En Copilot Chat, usa `#file:.rapid-os/runs/<run-id>/contract.json` para enfocar al modelo en los objetivos y restricciones de la tarea.
+
+4. **Ejecución de Pruebas:**
+Ejecuta la suite de pruebas desde la terminal o mediante el panel de testing de VS Code.
+
+5. **Registro de Evidencias:**
+Usa el CLI de RAPID OS en la terminal para registrar el progreso (ver detalles y esquemas en el [Tutorial del Primer Proyecto Gobernado](../tutorials/first-governed-project.md#7-evidence-collection)):
+- [`evidence_files.json`](../tutorials/first-governed-project.md#3-registrar-evidencia-de-cambios-en-el-código-file_change): modificación de archivos (`file_change`).
+- [`evidence_test_result.json`](../tutorials/first-governed-project.md#4-registrar-evidencia-de-pruebas-aprobadas-test_result): resultado de pruebas con artefacto de log (`test_result`).
+- [`evidence_workspace.json`](../tutorials/first-governed-project.md#5-registrar-evidencia-de-espacio-de-trabajo-workspace): espacio de trabajo actual (`workspace.current`).
+- [`evidence_review.json`](../tutorials/first-governed-project.md#6-registrar-evidencia-de-revisión-final-review): revisión final contractual aprobada (`review`).
+
+```bash
+rapid evidence add --run <run-id> --input evidence_files.json
+rapid evidence add --run <run-id> --input evidence_test_result.json
+rapid evidence add --run <run-id> --input evidence_workspace.json
+rapid evidence add --run <run-id> --input evidence_review.json
+rapid run gate <run-id> gate.tests acknowledged
+rapid run gate <run-id> gate.final-verification acknowledged
+rapid run task <run-id> T001 done
+rapid run status <run-id> finished
+```
+
+6. **Evaluación Final:**
 ```bash
 rapid eval run --run <run-id> --write --require-pass
 ```

@@ -50,7 +50,7 @@ rapid context --manifest
 Entrega a la herramienta:
 - La especificación activa (`.rapid-os/specs/<spec-id>/spec.json`).
 - El manifiesto de contexto compilado (`.rapid-os/context/manifest.json`).
-- Las instrucciones del contrato de ejecución (`.rapid-os/contracts/<run-id>.json`).
+- Las instrucciones del contrato de ejecución (`.rapid-os/runs/<run-id>/contract.json`).
 
 ---
 
@@ -61,25 +61,41 @@ El harness debe ceñirse a:
 - Los archivos autorizados en el alcance (`paths`).
 - Las compuertas declaradas en la política.
 
+Antes de comenzar la ejecución externa, captura el log de baseline como artefacto (`base.log`), registra la evidencia de baseline (conforme a [`evidence_baseline.json`](../tutorials/first-governed-project.md#1-registrar-evidencia-de-baseline-y-acreditar-gatebaseline)) y reconoce `gate.baseline`:
+```bash
+python -m unittest discover -s tests -t . > base.log 2>&1
+rapid evidence add --run <run-id> --input evidence_baseline.json
+rapid run gate <run-id> gate.baseline acknowledged
+rapid run status <run-id> active
+rapid run task <run-id> T001 in_progress
+```
+
 ---
 
 ## 6. Registro de Resultados y Evidencia
 
-Una vez que Codex aplique los cambios y ejecute las pruebas en la terminal externa:
+Una vez que Codex aplique los cambios y ejecute las pruebas en la terminal externa (consulta la definición canónica de cada evidencia en el [Tutorial del Primer Proyecto Gobernado](../tutorials/first-governed-project.md#7-evidence-collection)):
 
-1. Ingerir evidencia de los archivos modificados (`file_change`):
+1. Ingerir evidencia de los archivos modificados ([`evidence_files.json`](../tutorials/first-governed-project.md#3-registrar-evidencia-de-cambios-en-el-código-file_change)):
 ```bash
 rapid evidence add --run <run-id> --input evidence_files.json
 ```
 
-2. Ingerir evidencia del resultado de las pruebas (`test_result`):
+2. Ingerir evidencia del resultado de las pruebas con log adjunto ([`evidence_tests.json`](../tutorials/first-governed-project.md#4-registrar-evidencia-de-pruebas-aprobadas-test_result)):
 ```bash
 rapid evidence add --run <run-id> --input evidence_tests.json
 ```
 
-3. Actualizar el estado del run:
+3. Ingerir evidencia de espacio de trabajo ([`evidence_workspace.json`](../tutorials/first-governed-project.md#5-registrar-evidencia-de-espacio-de-trabajo-workspace)) y revisión final ([`evidence_review.json`](../tutorials/first-governed-project.md#6-registrar-evidencia-de-revisión-final-review)):
+```bash
+rapid evidence add --run <run-id> --input evidence_workspace.json
+rapid evidence add --run <run-id> --input evidence_review.json
+```
+
+4. Actualizar el estado del run:
 ```bash
 rapid run gate <run-id> gate.tests acknowledged
+rapid run gate <run-id> gate.final-verification acknowledged
 rapid run task <run-id> T001 done
 rapid run status <run-id> finished
 ```
