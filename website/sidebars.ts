@@ -59,6 +59,34 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Laboratorios Prácticos',
+      collapsed: false,
+      link: {type: 'doc', id: 'tutorials/index'},
+      items: [
+        'tutorials/first-governed-project',
+        'tutorials/feature-lab',
+        'tutorials/bugfix-lab',
+        'tutorials/refactor-lab',
+        'tutorials/hardening-lab',
+        'tutorials/research-lab',
+        'troubleshooting/tutorials',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Integraciones con Coding Harnesses',
+      collapsed: false,
+      link: {type: 'doc', id: 'integrations/index'},
+      items: [
+        'integrations/codex',
+        'integrations/claude-code',
+        'integrations/cursor',
+        'integrations/vscode',
+        'integrations/antigravity',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Cookbooks de Gobernanza',
       collapsed: false,
       items: [
