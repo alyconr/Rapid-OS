@@ -3,18 +3,6 @@ run-name: Deploy Documentation (${{ github.ref_name }})
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - "docs/**"
-      - "website/**"
-      - ".github/workflows/docs-deploy.yml"
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: "pages"
@@ -23,7 +11,10 @@ concurrency:
 jobs:
   build:
     name: Build Documentation Artifact
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: website
@@ -59,6 +50,9 @@ jobs:
     name: Deploy to GitHub Pages
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -66,3 +60,35 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  smoke-test:
+    name: Post-Deployment Smoke Tests
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Wait for Pages propagation and run Smoke Tests
+        env:
+          RAPID_OS_LIVE_DOCS_URL: ${{ needs.deploy.outputs.page_url || 'https://alyconr.github.io/Rapid-OS' }}
+        run: |
+          echo "Testing live deployment at: ${RAPID_OS_LIVE_DOCS_URL}"
+          for i in {1..6}; do
+            echo "Attempt $i/6: Running live smoke tests..."
+            if python -m unittest tests.test_documentation_deployment.TestLiveDocsSmoke -v; then
+              echo "Smoke tests passed successfully on attempt $i."
+              exit 0
+            fi
+            echo "Smoke test attempt $i failed. Waiting 10s for CDN propagation..."
+            sleep 10
+          done
+          echo "Smoke tests failed after 6 attempts."
+          exit 1

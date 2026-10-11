@@ -55,19 +55,19 @@ Antes de autorizar o ejecutar un despliegue, el equipo debe verificar:
 
 ---
 
-## 4. Ejecución del Despliegue
+## 4. Ejecución del Despliegue Manual Controlado (`workflow_dispatch`)
 
-### Opción A: Despliegue Manual Controlado (`workflow_dispatch`)
+El despliegue a producción es estrictamente manual y requiere que el código se encuentre en la rama `main`:
 
 1. Navegar a **Actions** en el repositorio GitHub.
 2. Seleccionar el workflow **Deploy Documentation**.
 3. Hacer clic en **Run workflow**.
-4. Seleccionar la rama `main` o tag de release aprobado.
+4. Seleccionar la rama `main`.
 5. Confirmar la ejecución.
-
-### Opción B: Despliegue Automático por Push a `main`
-
-1. Tras la aprobación formal y merge del PR de release a `main`, el workflow se iniciará automáticamente si se detectan cambios en `docs/**`, `website/**` o en el propio workflow.
+6. El workflow ejecutará secuencialmente:
+   - `build`: Compilación y verificación estática con permisos `contents: read`.
+   - `deploy`: Despliegue en GitHub Pages con permisos `pages: write` e `id-token: write`.
+   - `smoke-test`: Validación automática post-despliegue mediante pruebas HTTP en vivo.
 
 ---
 

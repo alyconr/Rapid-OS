@@ -58,17 +58,28 @@ class TestDocumentationWorkflows(unittest.TestCase):
         self.assertNotIn("pages: write", content)
         self.assertNotIn("id-token: write", content)
 
+    def test_docs_workflow_runs_artifact_validation(self):
+        content = DOCS_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("tests.test_documentation_deployment.TestDocumentationStaticBuildIntegrity", content)
+
     def test_deploy_workflow_permissions_and_triggers(self):
         self.assertTrue(DEPLOY_WORKFLOW.exists(), "Missing docs-deploy.yml")
         content = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("workflow_dispatch:", content)
-        self.assertIn("permissions:", content)
-        self.assertIn("pages: write", content)
-        self.assertIn("id-token: write", content)
-        self.assertIn("contents: read", content)
-        self.assertIn("environment:\n      name: github-pages", content)
+        # Ensure no automatic push trigger exists
+        self.assertNotIn("push:", content, "Deployment workflow must never trigger automatically on push")
         self.assertNotIn("pull_request:", content, "Deployment workflow must never trigger on pull_request")
         self.assertNotIn("pull_request_target:", content, "Deployment workflow must never use pull_request_target")
+        # Ensure build job restricted to main branch
+        self.assertIn("github.ref == 'refs/heads/main'", content)
+        # Ensure least-privilege job-level permissions
+        self.assertIn("environment:\n      name: github-pages", content)
+
+    def test_deploy_workflow_has_post_deploy_smoke_tests(self):
+        content = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("smoke-test:", content)
+        self.assertIn("needs: deploy", content)
+        self.assertIn("tests.test_documentation_deployment.TestLiveDocsSmoke", content)
 
     def test_deploy_workflow_uses_official_actions(self):
         content = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
@@ -102,22 +113,25 @@ class TestDocumentationOperationsRunbooks(unittest.TestCase):
 
 
 class TestDocumentationStaticBuildIntegrity(unittest.TestCase):
-    """Verifies production static build integrity if build directory is present."""
+    """Verifies production static build integrity strictly without skipping."""
 
-    def setUp(self):
-        if not BUILD_DIR.exists():
-            self.skipTest("Static build directory website/build does not exist yet. Run 'npm run build' first.")
+    def test_build_directory_exists(self):
+        self.assertTrue(BUILD_DIR.exists(), f"Static build directory {BUILD_DIR} does not exist. Run 'npm run build' first.")
+        self.assertTrue(BUILD_DIR.is_dir(), f"{BUILD_DIR} is not a directory.")
 
     def test_essential_static_files_exist(self):
+        self.assertTrue(BUILD_DIR.exists(), "Build directory must exist to verify essential static files.")
         self.assertTrue((BUILD_DIR / "index.html").exists(), "Missing index.html")
         self.assertTrue((BUILD_DIR / "404.html").exists(), "Missing 404.html")
         self.assertTrue((BUILD_DIR / "sitemap.xml").exists(), "Missing sitemap.xml")
 
     def test_sitemap_contains_canonical_base_url(self):
+        self.assertTrue(BUILD_DIR.exists(), "Build directory must exist to verify sitemap.")
         sitemap_content = (BUILD_DIR / "sitemap.xml").read_text(encoding="utf-8")
         self.assertIn("https://alyconr.github.io/Rapid-OS/", sitemap_content)
 
     def test_no_localhost_in_index(self):
+        self.assertTrue(BUILD_DIR.exists(), "Build directory must exist to verify index.html.")
         index_content = (BUILD_DIR / "index.html").read_text(encoding="utf-8")
         self.assertNotIn("http://localhost", index_content)
         self.assertNotIn("file:///", index_content)
