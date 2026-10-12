@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "mode": "feature",
+  "spec_template": {
+    "title": "Título descriptivo de la funcionalidad",
+    "business_objective": "¿Por qué se construye esto y qué valor aporta?",
+    "problem_statement": "¿Qué problema resuelve?",
+    "scope": ["Elemento en alcance 1", "Elemento en alcance 2"],
+    "out_of_scope": ["Elemento fuera de alcance"],
+    "actors_users": ["Desarrollador", "Usuario final"],
+    "main_flow": ["Paso 1 del flujo principal", "Paso 2 del flujo principal"],
+    "edge_cases": ["Caso borde a considerar"],
+    "business_rules": ["Regla de negocio 1"],
+    "technical_constraints": ["Sin nuevas dependencias", "Python stdlib 3.10-3.13"],
+    "affected_paths": ["rapid_os/orchestration/"],
+    "acceptance_criteria": ["Criterio verificable 1"],
+    "testing_strategy": ["Pruebas unitarias en tests/"],
+    "implementation_tasks": [
+      "T001: Definir modelos y dataclasses",
+      "T002: Implementar lógica de conductor",
+      "T003: Añadir tests exhaustivos"
+    ]
+  },
+  "instructions": {
+    "author_spec": "Redacta la especificación usando rapid spec create con título, modo feature y tareas atómicas.",
+    "run_baseline": "Ejecuta la verificación de baseline para registrar el estado saludable del repositorio antes de iniciar cambios.",
+    "activate": "El baseline fue verificado satisfactoriamente. Activa el run para comenzar la ejecución de tareas.",
+    "implement_task": "Implementa solo la tarea indicada. Corre los tests con rapid check.",
+    "verify": "Ejecuta las verificaciones automáticas de machine gates o capacidades requeridas.",
+    "await_human_approval": "Compuertas de revisión humana pendientes. Espera la aprobación del revisor.",
+    "finish": "Todas las tareas y compuertas han sido completadas satisfactoriamente. Finaliza el run.",
+    "done": "El ciclo de ejecución ha concluido.",
+    "blocked": "La ejecución está bloqueada. Revisa la razón o tarea bloqueada y resuelve el impedimento."
+  }
+}
