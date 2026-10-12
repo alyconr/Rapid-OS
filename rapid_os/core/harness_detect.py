@@ -32,14 +32,8 @@ def detect_harness(
     1. Explicit CLI argument (--harness <id>)
     2. Environment variable RAPID_HARNESS
     3. Official harness environment markers:
-       - CLAUDE_PROJECT_DIR -> 'claude' (Claude Code official documentation: set to project root)
-         URL: https://docs.anthropic.com/en/docs/agents-and-tools/claude-code
-       - CURSOR_AGENT -> 'cursor' (Cursor official documentation: set by Cursor in agent/terminal sessions)
-         URL: https://docs.cursor.com/
-       - TERM_PROGRAM == 'vscode' -> 'vscode' (VS Code official documentation: integrated terminal identity)
-         URL: https://code.visualstudio.com/docs/terminal/basics
-       - CODEX_THREAD_ID -> 'codex' (OpenAI Codex official documentation: thread execution session id)
-         URL: https://github.com/openai/codex
+       - CLAUDE_CODE_CHILD_SESSION == "1" -> 'claude' (Claude Code official documentation:
+         exported to Bash tool commands and hooks; see https://code.claude.com/docs/en/env-vars)
     4. Project config 'default_harness' from .rapid-os/config.json
     5. Fallback 'cursor' with WARNING RAPID1300
     """
@@ -55,35 +49,12 @@ def detect_harness(
         return HarnessDetection(harness_id=resolved_id, source="env")
 
     # 3. Environment markers
-    # Marker 1: Claude Code (CLAUDE_PROJECT_DIR)
-    # Ref: Claude Code docs define CLAUDE_PROJECT_DIR as the active project directory in tool executions.
-    if env.get("CLAUDE_PROJECT_DIR"):
+    # Marker: Claude Code (CLAUDE_CODE_CHILD_SESSION == "1")
+    # Reference: https://code.claude.com/docs/en/env-vars
+    # Claude Code exports CLAUDE_CODE_CHILD_SESSION="1" to Bash tool commands and hooks.
+    if env.get("CLAUDE_CODE_CHILD_SESSION") == "1":
         return HarnessDetection(
             harness_id=validate_harness_id("claude"),
-            source="marker",
-        )
-
-    # Marker 2: Cursor (CURSOR_AGENT)
-    # Ref: Cursor docs define CURSOR_AGENT in terminal/shell sessions executed by Cursor.
-    if env.get("CURSOR_AGENT"):
-        return HarnessDetection(
-            harness_id=validate_harness_id("cursor"),
-            source="marker",
-        )
-
-    # Marker 3: VS Code (TERM_PROGRAM == 'vscode')
-    # Ref: VS Code sets TERM_PROGRAM=vscode in its integrated terminal.
-    if env.get("TERM_PROGRAM") == "vscode":
-        return HarnessDetection(
-            harness_id=validate_harness_id("vscode"),
-            source="marker",
-        )
-
-    # Marker 4: Codex (CODEX_THREAD_ID)
-    # Ref: OpenAI Codex injects CODEX_THREAD_ID during active thread execution.
-    if env.get("CODEX_THREAD_ID"):
-        return HarnessDetection(
-            harness_id=validate_harness_id("codex"),
             source="marker",
         )
 

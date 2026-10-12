@@ -22,11 +22,18 @@ def _run_cli(args: list[str], cwd: Path | None = None, env: dict[str, str] | Non
     rapid_dir = project_root / ".rapid-os"
     config_file = rapid_dir / "config.json"
     exit_code = 0
+    clean_base_env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("RAPID_HARNESS", "CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION")
+    }
+    if env is not None:
+        clean_base_env.update(env)
     with (
         patch.object(cli_main, "CURRENT_DIR", project_root),
         patch.object(cli_main, "PROJECT_RAPID_DIR", rapid_dir),
         patch.object(cli_main, "CONFIG_FILE", config_file),
-        patch.dict(os.environ, env or {}, clear=False),
+        patch.dict(os.environ, clean_base_env, clear=True),
         contextlib.redirect_stdout(stdout),
         contextlib.redirect_stderr(stderr),
     ):
@@ -78,7 +85,7 @@ class IntentHarnessAndTestCommandTests(unittest.TestCase):
             _create_ready_spec(root)
 
             # Ensure clean env without markers or RAPID_HARNESS
-            clean_env = {k: v for k, v in os.environ.items() if k not in ("RAPID_HARNESS", "CURSOR_AGENT", "CLAUDE_PROJECT_DIR", "TERM_PROGRAM", "CODEX_THREAD_ID")}
+            clean_env = {k: v for k, v in os.environ.items() if k not in ("RAPID_HARNESS", "CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION")}
             code, out, err = _run_cli(
                 ["run", "create", "--spec", "feature-spec"],
                 cwd=root,
@@ -90,6 +97,27 @@ class IntentHarnessAndTestCommandTests(unittest.TestCase):
             run_dirs = list((root / ".rapid-os" / "runs").iterdir())
             contract_data = json.loads((run_dirs[0] / "contract.json").read_text(encoding="utf-8"))
             self.assertEqual(contract_data["harness"], "cursor")
+
+    def test_run_create_with_claude_code_marker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            code, out, err = _run_cli(
+                ["init", "--stack", "web-modern", "--topology", "front-end-only", "--archetype", "mvp", "--yes", "--no-scan"],
+                cwd=root,
+            )
+            self.assertEqual(code, 0)
+            _create_ready_spec(root)
+
+            code, out, err = _run_cli(
+                ["run", "create", "--spec", "feature-spec", "--json"],
+                cwd=root,
+                env={"CLAUDE_CODE_CHILD_SESSION": "1"},
+            )
+            self.assertEqual(code, 0, err)
+            data = json.loads(out)
+            self.assertEqual(data["harness"], "claude")
+            self.assertEqual(data["harness_source"], "marker")
+            self.assertNotIn("RAPID1300", err)
 
     def test_run_create_with_rapid_harness_env(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -129,7 +157,7 @@ class IntentHarnessAndTestCommandTests(unittest.TestCase):
             cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
 
             # without flag -> config used
-            clean_env = {k: v for k, v in os.environ.items() if k not in ("RAPID_HARNESS", "CURSOR_AGENT", "CLAUDE_PROJECT_DIR", "TERM_PROGRAM", "CODEX_THREAD_ID")}
+            clean_env = {k: v for k, v in os.environ.items() if k not in ("RAPID_HARNESS", "CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION")}
             code, out, err = _run_cli(
                 ["run", "create", "--spec", "feature-spec", "--json"],
                 cwd=root,

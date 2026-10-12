@@ -58,7 +58,7 @@ Options:
 - `--archetype {mvp,corporate}`: Select archetype directly without interactive prompt.
 - `--topology <id>`: Select topology template directly (`templates/topologies/<id>.md`).
 - `--agents <lista>`: Comma-separated list of agent IDs or numbers (e.g. `cursor,claude`).
-- `-y`, `--yes`: Non-interactive mode accepting defaults and skipping business rules prompts.
+- `-y`, `--yes`: Non-interactive mode accepting defaults and skipping business rules prompts. Con `--yes --no-scan` no se propone `test_command` y hay que pasar `--test-command`.
 - `--test-command <cmd>`: Explicit test command string to store in `.rapid-os/config.json`.
 - `--no-scan`: Skip automatic project intelligence scan suggestions during initialization.
 
