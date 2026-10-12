@@ -1,12 +1,15 @@
 import argparse
 import json
 import shutil
+import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
 
 from rapid_os import __version__
 from rapid_os.adapters.agents import DEFAULT_AGENT_REGISTRY
+from rapid_os.core.harness_detect import detect_harness
 
 from rapid_os.adapters.mcp import (
     render_mcp_install_content,
@@ -300,18 +303,24 @@ def parse_agent_selection(agent_sel):
     if not agent_sel or not agent_sel.strip():
         return ["cursor"]
 
-    parts = [part.strip() for part in agent_sel.split(",")]
-    if "1" in parts:
-        selected_tools.append("cursor")
-    if "2" in parts:
-        selected_tools.append("claude")
-    if "3" in parts:
-        selected_tools.append("antigravity")
-    if "4" in parts:
-        selected_tools.append("vscode")
-    if "5" in parts:
-        selected_tools.append("codex")
-    return selected_tools
+    name_map = {
+        "1": "cursor",
+        "cursor": "cursor",
+        "2": "claude",
+        "claude": "claude",
+        "3": "antigravity",
+        "antigravity": "antigravity",
+        "4": "vscode",
+        "vscode": "vscode",
+        "5": "codex",
+        "codex": "codex",
+    }
+    parts = [part.strip().lower() for part in agent_sel.split(",")]
+    for part in parts:
+        tool_name = name_map.get(part)
+        if tool_name and tool_name not in selected_tools:
+            selected_tools.append(tool_name)
+    return selected_tools or ["cursor"]
 
 
 def _load_config_with_warning(config_file=CONFIG_FILE):
@@ -416,8 +425,47 @@ def create_optional_docs_scaffold(input_fn=None):
     return written
 
 
+def _propose_test_command(scan) -> list[str] | None:
+    if scan is None:
+        return None
+    model = scan.to_model() if hasattr(scan, "to_model") else scan
+    facts = getattr(model, "facts", ())
+    testing_values = [f.value for f in facts if f.category == "testing"]
+    if "pytest" in testing_values:
+        return ["python", "-m", "pytest"]
+    if "tests-directory" in testing_values:
+        return ["python", "-m", "unittest", "discover"]
+    root = getattr(model, "root", CURRENT_DIR)
+    package_json = root / "package.json"
+    if package_json.exists():
+        try:
+            pkg_data = json.loads(package_json.read_text(encoding="utf-8"))
+            if isinstance(pkg_data, dict) and "scripts" in pkg_data and isinstance(pkg_data["scripts"], dict):
+                if "test" in pkg_data["scripts"]:
+                    return ["npm", "test"]
+        except Exception:
+            pass
+    return None
+
+
 def init_project(args):
     print_step("Inicializando Rapid OS...")
+
+    def safe_prompt(prompt_msg: str, default: str = "", flag_hint: str = "") -> str:
+        try:
+            val = input(prompt_msg)
+            return val.strip()
+        except (EOFError, StopIteration):
+            if getattr(args, "yes", False):
+                return default
+            if not sys.stdin.isatty():
+                print_error(
+                    f"RAPID1302 Entrada interactiva requerida pero stdin no es una terminal. "
+                    f"Usa {flag_hint or '--yes'} para ejecutar 'rapid init' de forma desatendida."
+                )
+                sys.exit(1)
+            return default
+
     scan = None
     suggestions = None
     use_suggestions = False
@@ -426,7 +474,10 @@ def init_project(args):
         scan = scan_project(CURRENT_DIR)
         suggestions = suggest_init_choices(scan)
         if suggestions.has_any():
-            use_suggestions = confirm_scan_suggestions(scan, suggestions, args.stack)
+            if getattr(args, "yes", False):
+                use_suggestions = True
+            else:
+                use_suggestions = confirm_scan_suggestions(scan, suggestions, args.stack)
         else:
             print_scan_summary(scan, suggestions, args.stack)
 
@@ -439,24 +490,25 @@ def init_project(args):
         stack_name = args.stack
     elif use_suggestions and suggested_stack:
         stack_name = suggested_stack
+    elif getattr(args, "yes", False):
+        stack_name = suggested_stack or "web-modern"
     else:
         stacks_path = TEMPLATES_DIR / "stacks"
         if not stacks_path.exists():
             print_error(f"Templates no encontrados en {stacks_path}")
             return
-        print(f"DEBUG: Buscando templates en {stacks_path}")
         stacks = sorted([f.stem for f in stacks_path.glob("*.md")])
         if not stacks:
             print_error(f"No se encontraron templates de stack en {stacks_path}")
             return
-        print(f"DEBUG: Encontrados: {stacks}")
         print("\n🛠  SELECCIONA TECH STACK:")
         for i, s in enumerate(stacks, 1):
             print(f" {i}) {s}")
+        val = safe_prompt("Opción: ", default="1", flag_hint="--stack <name>")
         try:
-            idx = int(input("Opción: ").strip()) - 1
+            idx = int(val) - 1
             stack_name = stacks[idx] if 0 <= idx < len(stacks) else stacks[0]
-        except (ValueError, IndexError, EOFError):
+        except (ValueError, IndexError):
             stack_name = stacks[0]
 
     try:
@@ -478,20 +530,29 @@ def init_project(args):
         topologies_path.mkdir(parents=True, exist_ok=True)
     topos = sorted([f.stem for f in topologies_path.glob("*.md")])
     topo_name = None
-    suggested_topology = (
-        suggestions.topology.value if suggestions and suggestions.topology else None
-    )
-    if use_suggestions and suggested_topology in topos:
-        topo_name = suggested_topology
-    if topos and topo_name is None:
-        print("\n🏗️  SELECCIONA TOPOLOGÍA:")
-        for i, t in enumerate(topos, 1):
-            print(f" {i}) {t}")
-        try:
-            idx = int(input("Opción: ").strip()) - 1
-            topo_name = topos[idx] if 0 <= idx < len(topos) else topos[0]
-        except (ValueError, IndexError, EOFError):
-            topo_name = topos[0]
+    explicit_topology = getattr(args, "topology", None)
+
+    if explicit_topology:
+        topo_name = explicit_topology
+    else:
+        suggested_topology = (
+            suggestions.topology.value if suggestions and suggestions.topology else None
+        )
+        if use_suggestions and suggested_topology in topos:
+            topo_name = suggested_topology
+        elif getattr(args, "yes", False):
+            topo_name = suggested_topology or (topos[0] if topos else None)
+        elif topos:
+            print("\n🏗️  SELECCIONA TOPOLOGÍA:")
+            for i, t in enumerate(topos, 1):
+                print(f" {i}) {t}")
+            val = safe_prompt("Opción: ", default="1", flag_hint="--topology <id>")
+            try:
+                idx = int(val) - 1
+                topo_name = topos[idx] if 0 <= idx < len(topos) else topos[0]
+            except (ValueError, IndexError):
+                topo_name = topos[0]
+
     if topo_name:
         try:
             topo_name = validate_identifier(topo_name, "topology")
@@ -516,11 +577,13 @@ def init_project(args):
                 f"Arquetipo no soportado: '{archetype}'. Usa 'mvp' o 'corporate'."
             )
             return
+    elif getattr(args, "yes", False):
+        archetype = "mvp"
     else:
         print("\n📊 SELECCIONA ARQUETIPO:")
         print(" 1) mvp        (Velocidad)")
         print(" 2) corporate  (Seguridad)")
-        sel = input("Opción [1]: ").strip()
+        sel = safe_prompt("Opción [1]: ", default="1", flag_hint="--archetype {mvp,corporate}")
         archetype = "corporate" if sel == "2" else "mvp"
 
     try:
@@ -547,130 +610,157 @@ def init_project(args):
         return
 
     # 4. Agentes
-    print("\n🤖 SELECCIONA TUS AGENTES (Separados por coma):")
-    print(" 1) Cursor (.cursorrules)")
-    print(" 2) Claude Code (CLAUDE.md)")
-    print(" 3) Google Antigravity (.agent/rules)")
-    print(" 4) VS Code / Copilot (INSTRUCTIONS.md)")
-    print(" 5) Codex (AGENTS.md)")
-    agent_sel = input("Opción [1]: ").strip()
-    selected_tools = parse_agent_selection(agent_sel)
+    explicit_agents = getattr(args, "agents", None)
+    if explicit_agents:
+        selected_tools = parse_agent_selection(explicit_agents)
+    elif getattr(args, "yes", False):
+        selected_tools = ["cursor"]
+    else:
+        print("\n🤖 SELECCIONA TUS AGENTES (Separados por coma):")
+        print(" 1) Cursor (.cursorrules)")
+        print(" 2) Claude Code (CLAUDE.md)")
+        print(" 3) Google Antigravity (.agent/rules)")
+        print(" 4) VS Code / Copilot (INSTRUCTIONS.md)")
+        print(" 5) Codex (AGENTS.md)")
+        agent_sel = safe_prompt("Opción [1]: ", default="1", flag_hint="--agents <lista>")
+        selected_tools = parse_agent_selection(agent_sel)
 
     # 5. Herramientas de Investigación (Research)
-    print("\n🔍 CAPACIDADES DE INVESTIGACIÓN (Opcional):")
-    print(" 1) Context7 (Documentación actualizada de librerías)")
-    print(" 2) Firecrawl (Rastreo web y extracción de datos)")
-    res_sel = input("Opción (ej. 1,2 o Enter para ninguna): ").strip()
+    if not getattr(args, "yes", False):
+        print("\n🔍 CAPACIDADES DE INVESTIGACIÓN (Opcional):")
+        print(" 1) Context7 (Documentación actualizada de librerías)")
+        print(" 2) Firecrawl (Rastreo web y extracción de datos)")
+        res_sel = safe_prompt("Opción (ej. 1,2 o Enter para ninguna): ", default="", flag_hint="--yes")
 
-    if res_sel:
-        parts = res_sel.split(",")
-        if "1" in parts:
-            selected_tools.append("context7")
-        if "2" in parts:
-            selected_tools.append("firecrawl")
+        if res_sel:
+            parts = res_sel.split(",")
+            if "1" in parts and "context7" not in selected_tools:
+                selected_tools.append("context7")
+            if "2" in parts and "firecrawl" not in selected_tools:
+                selected_tools.append("firecrawl")
 
-    save_project_config({"tools": selected_tools}, PROJECT_RAPID_DIR, CONFIG_FILE)
-
-    # 5. Negocio (Smart Import - Soporte TXT)
-    print("\n--- CONFIGURACIÓN DE NEGOCIO ---")
-    biz_templates_path = TEMPLATES_DIR / "business"
-    if not biz_templates_path.exists():
-        biz_templates_path.mkdir(parents=True, exist_ok=True)
-    biz_files = sorted([f.stem for f in biz_templates_path.glob("*.md")])
-    biz_content = ""
-
-    if not biz_files:
-        print("ℹ️  No hay plantillas guardadas.")
-        # --- AQUÍ ESTÁ EL CAMBIO PARA SOPORTAR TXT ---
-        if input("¿Importar archivo (md/txt)? [Y/n]: ").lower() != "n":
-            path_str = (
-                input("📂 Arrastra el archivo (.md, .txt): ")
-                .strip()
-                .replace("'", "")
-                .replace('"', "")
-            )
-            local_path = Path(path_str)
-            if local_path.exists():
-                try:
-                    biz_content = local_path.read_text(encoding="utf-8")
-                    print_success(f"Leído correctamente: {local_path.name}")
-
-                    if input("¿Guardar como plantilla? [y/N]: ").lower() == "y":
-                        tpl_name = input("Nombre plantilla: ").strip()
-                        safe_tpl_name = validate_identifier(
-                            tpl_name, "business template"
-                        )
-                        tpl_target = resolve_child_path(
-                            biz_templates_path,
-                            f"{safe_tpl_name}.md",
-                            single_segment=True,
-                        )
-                        # Siempre guardamos como .md internamente para mantener formato
-                        safe_write_text(
-                            tpl_target,
-                            biz_content,
-                            encoding="utf-8",
-                            backup=True,
-                        )
-                except (OSError, UnicodeDecodeError, ValueError) as e:
-                    print_error(f"No se pudo procesar la plantilla de negocio: {e}")
-                    return
+    # 6. Test Command
+    configured_test_cmd: list[str] | None = None
+    explicit_test_cmd = getattr(args, "test_command", None)
+    if explicit_test_cmd:
+        configured_test_cmd = shlex.split(explicit_test_cmd)
+    else:
+        proposed_cmd = _propose_test_command(scan)
+        if proposed_cmd is not None:
+            cmd_display = " ".join(proposed_cmd)
+            if getattr(args, "yes", False):
+                configured_test_cmd = proposed_cmd
             else:
-                rules = input("Archivo no existe. Escribe reglas manuales: ")
+                print(f"\n🧪 COMANDO DE TEST DETECTADO: {cmd_display}")
+                ans = safe_prompt(f"¿Usar este comando de test? [{cmd_display}] [Y/n]: ", default="y", flag_hint="--test-command '<cmd>'")
+                if ans.lower() != "n":
+                    configured_test_cmd = proposed_cmd
+                else:
+                    custom_input = safe_prompt("Escribe el comando de test (o Enter para omitir): ", default="", flag_hint="--test-command '<cmd>'")
+                    if custom_input:
+                        configured_test_cmd = shlex.split(custom_input)
+
+    config_data: dict[str, object] = {"tools": selected_tools}
+    if configured_test_cmd is not None:
+        config_data["test_command"] = configured_test_cmd
+    save_project_config(config_data, PROJECT_RAPID_DIR, CONFIG_FILE)
+
+    # 7. Negocio (Smart Import)
+    biz_content = ""
+    if not getattr(args, "yes", False):
+        print("\n--- CONFIGURACIÓN DE NEGOCIO ---")
+        biz_templates_path = TEMPLATES_DIR / "business"
+        if not biz_templates_path.exists():
+            biz_templates_path.mkdir(parents=True, exist_ok=True)
+        biz_files = sorted([f.stem for f in biz_templates_path.glob("*.md")])
+
+        if not biz_files:
+            print("ℹ️  No hay plantillas guardadas.")
+            if safe_prompt("¿Importar archivo (md/txt)? [Y/n]: ", default="n", flag_hint="--yes").lower() != "n":
+                path_str = (
+                    safe_prompt("📂 Arrastra el archivo (.md, .txt): ", default="", flag_hint="--yes")
+                    .replace("'", "")
+                    .replace('"', "")
+                )
+                local_path = Path(path_str)
+                if local_path.exists():
+                    try:
+                        biz_content = local_path.read_text(encoding="utf-8")
+                        print_success(f"Leído correctamente: {local_path.name}")
+
+                        if safe_prompt("¿Guardar como plantilla? [y/N]: ", default="n", flag_hint="--yes").lower() == "y":
+                            tpl_name = safe_prompt("Nombre plantilla: ", default="", flag_hint="--yes")
+                            safe_tpl_name = validate_identifier(
+                                tpl_name, "business template"
+                            )
+                            tpl_target = resolve_child_path(
+                                biz_templates_path,
+                                f"{safe_tpl_name}.md",
+                                single_segment=True,
+                            )
+                            safe_write_text(
+                                tpl_target,
+                                biz_content,
+                                encoding="utf-8",
+                                backup=True,
+                            )
+                    except (OSError, UnicodeDecodeError, ValueError) as e:
+                        print_error(f"No se pudo procesar la plantilla de negocio: {e}")
+                        sys.exit(1)
+                else:
+                    rules = safe_prompt("Archivo no existe. Escribe reglas manuales: ", default="", flag_hint="--yes")
+                    if rules:
+                        biz_content = f"# BUSINESS RULES\n{rules}"
+            else:
+                rules = safe_prompt("Escribe reglas manuales: ", default="", flag_hint="--yes")
                 if rules:
                     biz_content = f"# BUSINESS RULES\n{rules}"
         else:
-            rules = input("Escribe reglas manuales: ")
-            if rules:
-                biz_content = f"# BUSINESS RULES\n{rules}"
-    else:
-        print(" 1) Escribir manual")
-        print(" 2) Importar archivo local (.md, .txt)")
-        for i, b in enumerate(biz_files, 1):
-            print(f" {i + 2}) {b}")
-        opcion = input("Opción [1]: ").strip()
+            print(" 1) Escribir manual")
+            print(" 2) Importar archivo local (.md, .txt)")
+            for i, b in enumerate(biz_files, 1):
+                print(f" {i + 2}) {b}")
+            opcion = safe_prompt("Opción [1]: ", default="1", flag_hint="--yes")
 
-        if opcion == "2":
-            path_str = (
-                input("📂 Arrastra el archivo (.md, .txt): ")
-                .strip()
-                .replace("'", "")
-                .replace('"', "")
-            )
-            local_path = Path(path_str)
-            if local_path.exists():
-                try:
-                    biz_content = local_path.read_text(encoding="utf-8")
-                    print_success(f"Leído correctamente: {local_path.name}")
-                except (OSError, UnicodeDecodeError) as e:
-                    print_error(f"Error leyendo archivo: {e}")
-                    return
+            if opcion == "2":
+                path_str = (
+                    safe_prompt("📂 Arrastra el archivo (.md, .txt): ", default="", flag_hint="--yes")
+                    .replace("'", "")
+                    .replace('"', "")
+                )
+                local_path = Path(path_str)
+                if local_path.exists():
+                    try:
+                        biz_content = local_path.read_text(encoding="utf-8")
+                        print_success(f"Leído correctamente: {local_path.name}")
+                    except (OSError, UnicodeDecodeError) as e:
+                        print_error(f"Error leyendo archivo: {e}")
+                        return
+            elif opcion.isdigit() and int(opcion) > 2:
+                idx = int(opcion) - 3
+                if 0 <= idx < len(biz_files):
+                    try:
+                        selected_biz = validate_identifier(
+                            biz_files[idx], "business template"
+                        )
+                        biz_path = resolve_child_path(
+                            biz_templates_path,
+                            f"{selected_biz}.md",
+                            single_segment=True,
+                        )
+                        biz_content = biz_path.read_text(encoding="utf-8")
+                    except (OSError, UnicodeDecodeError, ValueError) as e:
+                        print_error(f"Error leyendo plantilla de negocio: {e}")
+                        return
 
-        elif opcion.isdigit() and int(opcion) > 2:
-            idx = int(opcion) - 3
-            if 0 <= idx < len(biz_files):
-                try:
-                    selected_biz = validate_identifier(
-                        biz_files[idx], "business template"
-                    )
-                    biz_path = resolve_child_path(
-                        biz_templates_path,
-                        f"{selected_biz}.md",
-                        single_segment=True,
-                    )
-                    biz_content = biz_path.read_text(encoding="utf-8")
-                except (OSError, UnicodeDecodeError, ValueError) as e:
-                    print_error(f"Error leyendo plantilla de negocio: {e}")
-                    return
-
-        if (
-            not biz_content
-            and opcion != "2"
-            and not (opcion.isdigit() and int(opcion) > 2)
-        ):
-            rules = input("Reglas manuales: ")
-            if rules:
-                biz_content = f"# BUSINESS RULES\n{rules}"
+            if (
+                not biz_content
+                and opcion != "2"
+                and not (opcion.isdigit() and int(opcion) > 2)
+            ):
+                rules = safe_prompt("Reglas manuales: ", default="", flag_hint="--yes")
+                if rules:
+                    biz_content = f"# BUSINESS RULES\n{rules}"
 
     if biz_content:
         safe_write_text(
@@ -680,7 +770,8 @@ def init_project(args):
             backup=True,
         )
 
-    create_optional_docs_scaffold()
+    if not getattr(args, "yes", False):
+        create_optional_docs_scaffold()
     regenerate_context()
     print("\n🚀 ¡Rapid OS activo!")
 
@@ -1134,6 +1225,19 @@ def doctor_command(args):
         ),
         Diagnostic(INFO, "RAPID905", f"Config file: {CONFIG_FILE}", CONFIG_FILE),
     ]
+
+    if CONFIG_FILE.exists():
+        loaded_cfg = _load_config_with_warning(CONFIG_FILE)
+        def_harness = loaded_cfg.get("default_harness")
+        t_cmd = loaded_cfg.get("test_command")
+        harness_str = def_harness if def_harness else "(not set; fallback: cursor)"
+        test_cmd_str = json.dumps(t_cmd) if t_cmd else "(not set)"
+        diagnostics.append(
+            Diagnostic(INFO, "RAPID908", f"Default harness: {harness_str}", CONFIG_FILE)
+        )
+        diagnostics.append(
+            Diagnostic(INFO, "RAPID909", f"Test command: {test_cmd_str}", CONFIG_FILE)
+        )
 
     if not check_node_installed():
         diagnostics.append(
@@ -2064,11 +2168,20 @@ def run_command(args):
                 raise InvalidSpecBindingError(
                     "Option '--spec' is required to create a run."
                 )
+            config = _load_config_with_warning(CONFIG_FILE)
+            detection = detect_harness(
+                getattr(args, "harness", None),
+                os.environ,
+                config,
+            )
+            if detection.source == "fallback" and detection.warning:
+                print(detection.warning, file=sys.stderr)
+
             record = registry.create(
                 spec_id=spec_id,
                 spec_revision=getattr(args, "spec_revision", None),
                 run_id=getattr(args, "run_id", None),
-                harness=getattr(args, "harness", None) or "cursor",
+                harness=detection.harness_id,
                 classification=getattr(args, "classification", None),
                 risk=getattr(args, "risk", None),
             )
@@ -2083,6 +2196,7 @@ def run_command(args):
                     "risk": contract.risk.label,
                     "workspace": contract.workspace.value,
                     "harness": contract.harness,
+                    "harness_source": detection.source,
                     "spec_content_digest": contract.spec_content_digest,
                     "run": record.to_dict(),
                     "contract": contract.to_dict(),
@@ -2885,6 +2999,16 @@ def create_parser():
         choices=list(SUPPORTED_ARCHETYPES),
         help="Engineering archetype: mvp or corporate.",
     )
+    init.add_argument("--topology", help="Explicit topology template name (e.g. fullstack-separated, microservices).")
+    init.add_argument("--agents", help="Comma-separated agent names or numeric options (e.g. cursor,claude or 1,2).")
+    init.add_argument(
+        "-y",
+        "--yes",
+        dest="yes",
+        action="store_true",
+        help="Accept default values without interactive prompting and skip business rules import.",
+    )
+    init.add_argument("--test-command", dest="test_command", help="Explicit test command string to store in config (e.g. 'python -m pytest').")
     init.add_argument("--no-scan", action="store_true", help="Skip local project scanner during initialization.")
 
     scan = subparsers.add_parser(
@@ -3021,8 +3145,8 @@ def create_parser():
     run_create.add_argument("--id", dest="run_id", help="Explicit run identifier (defaults to <spec>-r<rev>-run-<NNN>).")
     run_create.add_argument(
         "--harness",
-        default="cursor",
-        help="Target harness identifier bound to the contract (default: cursor).",
+        default=None,
+        help="Target harness identifier bound to the contract (default: auto-detected, fallback cursor).",
     )
     run_create.add_argument("--classification", help="Optional classification override (cannot downgrade policy).")
     run_create.add_argument("--risk", help="Optional risk level override (cannot downgrade policy).")
