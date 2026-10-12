@@ -101,8 +101,38 @@ def inspect_project_config_file(config_file=CONFIG_FILE) -> ProjectConfigLoadRes
             error="Tool ids in project config must be strings.",
         )
 
+    default_harness = payload.get("default_harness")
+    if default_harness is not None and not isinstance(default_harness, str):
+        return ProjectConfigLoadResult(
+            status=CONFIG_STATUS_INVALID_SCHEMA,
+            config={"tools": [item for item in tools if isinstance(item, str)]},
+            path=path,
+            error="Project config field 'default_harness' must be a string.",
+        )
+
+    test_command = payload.get("test_command")
+    if test_command is not None:
+        if not isinstance(test_command, list):
+            return ProjectConfigLoadResult(
+                status=CONFIG_STATUS_INVALID_SCHEMA,
+                config={"tools": [item for item in tools if isinstance(item, str)]},
+                path=path,
+                error="Project config field 'test_command' must be a list of strings.",
+            )
+        if any(not isinstance(item, str) for item in test_command):
+            return ProjectConfigLoadResult(
+                status=CONFIG_STATUS_INVALID_SCHEMA,
+                config={"tools": [item for item in tools if isinstance(item, str)]},
+                path=path,
+                error="Items in 'test_command' must be strings.",
+            )
+
     normalized = dict(payload)
     normalized["tools"] = list(tools)
+    if default_harness is not None:
+        normalized["default_harness"] = str(default_harness).strip()
+    if test_command is not None:
+        normalized["test_command"] = list(test_command)
     return ProjectConfigLoadResult(
         status=CONFIG_STATUS_VALID,
         config=normalized,

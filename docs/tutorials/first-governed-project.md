@@ -121,18 +121,13 @@ En este estado inicial, `TaskTracker.add_task(title)` solo acepta el título de 
 
 ### Paso 1: Inicializar RAPID OS
 
-En la raíz del proyecto, inicializa el entorno de gobernanza seleccionando el stack y arquetipo deseados:
+En la raíz del proyecto, inicializa el entorno de gobernanza especificando stack, topología, arquetipo y comando de pruebas de forma no interactiva:
 
 ```bash
-rapid init --stack python-ai --archetype mvp --no-scan
+rapid init --stack python-ai --topology fullstack-separated --archetype mvp --agents cursor --test-command "python -m unittest discover -s tests -t ." --yes --no-scan
 ```
 
-Responde a las preguntas interactivas del asistente con las siguientes opciones:
-- **Topología:** Selecciona `4) fullstack-separated` (`python-ai` no es compatible con `doc-site` ni con `front-end-only`, y `rapid validate` fallaría con `RAPID403` / `RAPID404`).
-- **Agentes:** Presiona `Enter` para aceptar la selección por defecto.
-- **Importar reglas de negocio:** Responde `n` a importar plantilla y `n` a reglas manuales.
-
-Esto crea la estructura `.rapid-os/` con sus estándares y configuración base.
+Esto crea la estructura `.rapid-os/` con sus estándares y configuración base sin requerir intervención interactiva.
 
 ### Paso 2: Escanear el proyecto
 

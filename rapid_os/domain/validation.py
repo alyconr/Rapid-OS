@@ -257,6 +257,19 @@ def validate_project(
     template_report = validate_templates(templates_dir)
     standards_report = validate_project_standards(project_rapid_dir)
     config_report = validate_project_config(config_file, registry)
+    config_result = inspect_project_config_file(config_file)
+    if config_result.is_valid and not config_result.config.get("test_command"):
+        config_report = config_report.extend(
+            (
+                Diagnostic(
+                    WARNING,
+                    "RAPID1301",
+                    "No 'test_command' configured in project config (.rapid-os/config.json).",
+                    config_file,
+                    hint="Configure 'test_command' as an argv list in .rapid-os/config.json or rerun 'rapid init --test-command <cmd>' to enable automatic baseline test execution.",
+                ),
+            )
+        )
     compatibility_report = validate_stack_topology(project_rapid_dir)
     context_report = validate_composed_context(project_rapid_dir, current_dir)
     intelligence_report = validate_project_intelligence(project_rapid_dir, current_dir)

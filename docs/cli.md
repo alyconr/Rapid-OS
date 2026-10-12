@@ -56,6 +56,10 @@ rapid init --no-scan
 Options:
 - `--stack <name>`: Select stack template directly (`templates/stacks/<name>.md`).
 - `--archetype {mvp,corporate}`: Select archetype directly without interactive prompt.
+- `--topology <id>`: Select topology template directly (`templates/topologies/<id>.md`).
+- `--agents <lista>`: Comma-separated list of agent IDs or numbers (e.g. `cursor,claude`).
+- `-y`, `--yes`: Non-interactive mode accepting defaults and skipping business rules prompts.
+- `--test-command <cmd>`: Explicit test command string to store in `.rapid-os/config.json`.
 - `--no-scan`: Skip automatic project intelligence scan suggestions during initialization.
 
 ### `rapid guide`

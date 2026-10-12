@@ -139,3 +139,12 @@ Cuando ejecutas `rapid validate`, `rapid scan`, o comandos de gobernanza, RAPID 
 | `RAPID1227` | WARNING | El reporte almacenado precede al estado o evidencias más recientes. | Ejecutar `rapid eval run --write` para generar una nueva revisión de reporte. |
 | `RAPID1228` | ERROR | Reporte de evaluación referenciado no encontrado. | Ejecutar `rapid eval run --write` para crearlo. |
 | `RAPID1229` | ERROR | Intento de sobreescribir una revisión existente de reporte. | Las revisiones son append-only (`eval_report_0001.json`, `eval_report_0002.json`). |
+
+---
+
+## 9. Capa de Intención y Configuración (`RAPID1300–RAPID1339`)
+
+| Código | Severidad | Causa común | Acción de remediación |
+| :--- | :--- | :--- | :--- |
+| `RAPID1300` | WARNING | No se especificó ni detectó un harness en el entorno/configuración. Se aplicó fallback a `cursor`. | Especificar `--harness <id>`, fijar `RAPID_HARNESS=<id>` o configurar `"default_harness"` en `.rapid-os/config.json`. |
+| `RAPID1301` | WARNING | Comando de prueba (`test_command`) ausente o vacío en `.rapid-os/config.json`. | Configurar `"test_command": ["python", "-m", "pytest"]` (como lista argv) en `.rapid-os/config.json` o inicializar con `rapid init --test-command "<cmd>"`. |

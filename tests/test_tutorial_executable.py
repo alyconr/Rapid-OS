@@ -73,20 +73,9 @@ class TestTutorialExecutable(unittest.TestCase):
 
                 if tokens[0] == "rapid":
                     cmd = [sys.executable, str(ROOT / "rapid.py")] + tokens[1:]
-                    # If command is interactive rapid init, pass non-interactive input
-                    input_text = None
-                    if len(tokens) > 1 and tokens[1] == "init":
-                        # Input answers:
-                        # 4 = fullstack-separated topology (compatible with python-ai, avoids RAPID403/404)
-                        # 1 = mvp archetype
-                        # empty = default agents
-                        # n = no business template import
-                        # n = no manual business rules
-                        input_text = "4\n1\n\nn\n\nn\n"
                     return subprocess.run(
                         cmd,
                         cwd=str(tmp_path),
-                        input=input_text,
                         capture_output=True,
                         text=True,
                         encoding="utf-8",
