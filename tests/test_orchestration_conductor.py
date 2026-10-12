@@ -507,6 +507,52 @@ class OrchestrationConductorTests(unittest.TestCase):
         self.assertIsNone(action_verify.command)
         self.assertIn("RAPID1301", action_verify.instructions)
 
+    def test_unverified_tests_execute_capability_proposes_rapid_check_test_command(self):
+        record = self.run_registry.create(spec_id=self.spec.id, spec_revision=1)
+        contract = self.run_registry.get_contract(record.id)
+        self.run_registry.transition_gate(record.id, "gate.baseline", GateDisposition.ACKNOWLEDGED, reason="Base OK")
+        self.run_registry.transition_status(record.id, target_status=RunStatus.ACTIVE, reason="Start")
+        self.run_registry.transition_task(record.id, "T001", TaskStatus.IN_PROGRESS, reason="Start")
+        self.run_registry.transition_task(record.id, "T001", TaskStatus.DONE, reason="Done")
+        self.run_registry.transition_task(record.id, "T002", TaskStatus.IN_PROGRESS, reason="Start")
+        self.run_registry.transition_task(record.id, "T002", TaskStatus.DONE, reason="Done")
+
+        # Provide evidence for tasks and workspace and gates, but NOT tests.execute capability
+        (self.root / "flow.log").write_text("OK\n", encoding="utf-8")
+        self.evidence_registry.add(
+            record.id,
+            {
+                "kind": "command_result",
+                "producer": "rapid:check",
+                "summary": "Task evidence",
+                "task_ids": ["T001", "T002"],
+                "gate_ids": ["gate.tests"],
+                "payload": {"label": "build", "exit_code": 0},
+                "artifacts": ["flow.log"],
+            },
+        )
+        self.evidence_registry.add(
+            record.id,
+            {
+                "kind": "workspace",
+                "producer": "harness:cursor",
+                "summary": "Workspace observation",
+                "capability_ids": ["workspace.current"],
+                "payload": {"mode": "current"},
+            },
+        )
+        self.run_registry.transition_gate(record.id, "gate.tests", GateDisposition.ACKNOWLEDGED, reason="Tests acknowledged")
+        evidence = self.evidence_registry.list(record.id)
+        state = self.run_registry.get_state(record.id)
+
+        action = next_action(
+            contract, state, evidence, self.playbook,
+            evaluator=self.evaluator,
+            test_command=["pytest", "-v"],
+        )
+        self.assertEqual(action.kind, ActionKind.VERIFY)
+        self.assertEqual(action.command, ["rapid", "check", "--", "pytest", "-v"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -299,6 +299,40 @@ rapid eval show --run <run-id> [--revision <n>] [--json]
 
 ---
 
+## Check & Verification (`rapid check`)
+
+Execute direct argv commands without shell, capture combined output into `.rapid-os/scratch/checks/<run-id>/<n>.log`, parse test outcomes (unittest/pytest), and register append-only `RunEvidence` on success (`exit_code == 0`).
+
+```bash
+rapid check [--task <task-id>] [--gate <gate-id>] [--kind {test,command}] [--json] -- <argv...>
+```
+
+Options:
+- `--task <task-id>`: Bind recorded evidence to a task (e.g. `T001`).
+- `--gate <gate-id>`: Bind recorded evidence to a gate (e.g. `gate.baseline`, `gate.tests`).
+- `--kind {test,command}`: Explicitly choose `test_result` or `command_result` evidence kind (inferred from argv if omitted).
+- `--json`: Output execution and recorded evidence details as JSON.
+- `-- <argv...>`: Vector of command arguments to run directly without shell.
+
+---
+
+## Task Lifecycle Management (`rapid task`)
+
+Manage and transition tasks for the active run session (`.rapid-os/session.json`).
+
+```bash
+rapid task start [<task-id>] [--reason <text>] [--json]
+rapid task done [<task-id>] [--reason <text>] [--no-check] [--json]
+rapid task skip <task-id> --reason <text> [--json]
+```
+
+Subcommands:
+- `start`: Mark a task as `in_progress`. If `<task-id>` is omitted, transitions the first `pending` task.
+- `done`: Mark a task as `done`. Runs verification tests (`test_command`) and records evidence unless `--no-check` is provided. If `<task-id>` is omitted, resolves the current `in_progress` task (`RAPID1306` if none or ambiguous).
+- `skip`: Skip a task with a mandatory `--reason` (`RAPID1306` if reason omitted).
+
+---
+
 ## Complete Diagnostic Code Reference (`RAPIDxxx`)
 
 | Code Range | Domain | Summary |

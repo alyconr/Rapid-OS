@@ -224,7 +224,7 @@ def validate_relative_posix_path(
 
 
 def validate_evidence_producer(raw_producer: object) -> str:
-    """Validate declared evidence producer (`harness:<id>`, `ci:...`, `user`, `external:...`)."""
+    """Validate declared evidence producer (`harness:<id>`, `ci:...`, `user`, `external:...`, `rapid:check`, `rapid:start`, `rapid:finish`)."""
     producer = _validate_portable_text(
         raw_producer,
         "RunEvidence.producer",
@@ -235,6 +235,8 @@ def validate_evidence_producer(raw_producer: object) -> str:
         raise InvalidRunEvidenceError(
             f"RunEvidence.producer '{producer}' cannot contain whitespace."
         )
+    if producer in {"rapid:check", "rapid:start", "rapid:finish"}:
+        return producer
     if producer.startswith("harness:"):
         harness_part = producer[len("harness:") :]
         try:
