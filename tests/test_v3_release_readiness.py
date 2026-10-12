@@ -574,6 +574,12 @@ class V3ReleaseReadinessTests(unittest.TestCase):
             "prompt",
             "check",
             "task",
+            "start",
+            "next",
+            "finish",
+            "approve",
+            "status",
+            "abort",
         }
         self.assertEqual(registered_commands, expected_commands)
 

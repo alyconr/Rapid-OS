@@ -50,6 +50,12 @@ class CliSmokeTests(unittest.TestCase):
                 "guide",
                 "check",
                 "task",
+                "start",
+                "next",
+                "finish",
+                "approve",
+                "status",
+                "abort",
             },
         )
 

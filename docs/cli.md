@@ -333,6 +333,54 @@ Subcommands:
 
 ---
 
+## Intent & Workflow Layer (`rapid start`, `rapid next`, `rapid finish`, `rapid approve`, `rapid status`, `rapid abort`)
+
+Manage end-to-end intent porcelain sessions (`.rapid-os/session.json`).
+
+### `rapid start`
+Initialize or resume a governed intent workflow session.
+
+```bash
+rapid start {feature,bugfix,refactor,hardening,research} [<objective>] [--spec-file <path>|-] [--spec <id>] [--harness <harness-id>] [--resume] [--json]
+```
+
+### `rapid next`
+Query the deterministic next workflow action without mutating state.
+
+```bash
+rapid next [--json]
+```
+
+### `rapid finish`
+Collect repository changes, evaluate machine gates, and close the run.
+
+```bash
+rapid finish [--json]
+```
+
+### `rapid approve`
+Interactively review and approve or reject a human gate. Requires an interactive terminal (TTY).
+
+```bash
+rapid approve <gate-id> [--reviewer <name>] [--reject] [--reason <text>]
+```
+
+### `rapid status`
+Display active session, run state, tasks, gates, and last evaluation verdict.
+
+```bash
+rapid status [--json]
+```
+
+### `rapid abort`
+Cancel the active run and remove the session file.
+
+```bash
+rapid abort [--reason <text>]
+```
+
+---
+
 ## Complete Diagnostic Code Reference (`RAPIDxxx`)
 
 | Code Range | Domain | Summary |

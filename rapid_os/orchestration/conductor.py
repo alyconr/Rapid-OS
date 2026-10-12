@@ -85,6 +85,7 @@ def next_action_without_run(mode: str, playbook: Playbook) -> NextAction:
         tasks_done=0,
         tasks_total=0,
         outcome=None,
+        spec_template=dict(playbook.spec_template) if playbook.spec_template else None,
     )
 
 
