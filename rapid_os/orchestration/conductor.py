@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+from dataclasses import replace
 from typing import Iterable, Sequence
 
 from rapid_os.domain.evals import (
@@ -36,6 +35,39 @@ MACHINE_GATE_KINDS = frozenset(
         GateKind.WORKSPACE_ISOLATION,
     }
 )
+
+
+def gate_satisfied(
+    contract: ExecutionContract,
+    state: RunState,
+    evidence: Iterable[RunEvidence],
+    gate_id: str,
+    *,
+    evaluator: BehavioralEvaluator,
+) -> bool:
+    """Hypothetically evaluate whether `gate_id` achieves a PASS assertion if acknowledged."""
+    raw_evidence = tuple(evidence)
+    gate_state = next((g for g in state.gates if g.id == gate_id), None)
+    if not gate_state:
+        return False
+
+    hypothetical_gate = replace(gate_state, disposition=GateDisposition.ACKNOWLEDGED)
+    hypothetical_gates = tuple(
+        hypothetical_gate if g.id == gate_id else g for g in state.gates
+    )
+    hypothetical_state = replace(
+        state,
+        gates=hypothetical_gates,
+        content_digest="",
+    )
+
+    hypothetical_report = evaluator.evaluate(
+        contract, hypothetical_state, raw_evidence
+    )
+    for assertion in hypothetical_report.assertions:
+        if assertion.category == "gate" and assertion.subject_id == gate_id:
+            return assertion.status == EvalAssertionStatus.PASS
+    return False
 
 
 def next_action_without_run(mode: str, playbook: Playbook) -> NextAction:
@@ -158,37 +190,79 @@ def next_action(
             state_gate_by_id.get(baseline_gate.id) if baseline_gate else None
         )
 
-        baseline_assertion = (
-            next(
-                (
-                    a
-                    for a in report.assertions
-                    if a.category == "gate" and a.subject_id == baseline_gate.id
-                ),
-                None,
-            )
-            if baseline_gate
-            else None
-        )
-
-        # Baseline gate exists and is unverified (pending or unverified assertion)
-        if (
-            baseline_gate
-            and baseline_state
-            and baseline_state.disposition == GateDisposition.PENDING
-            and (baseline_assertion is None or baseline_assertion.status != EvalAssertionStatus.PASS)
-        ):
-            cmd = ["rapid", "check", "--gate", baseline_gate.id]
-            if test_command:
-                cmd.extend(["--", *test_command])
+        if baseline_gate and baseline_state:
+            if baseline_state.disposition == GateDisposition.PENDING:
+                if gate_satisfied(
+                    contract,
+                    state,
+                    raw_evidence,
+                    baseline_gate.id,
+                    evaluator=evaluator,
+                ):
+                    return NextAction(
+                        schema_version=1,
+                        run_id=contract.run_id,
+                        mode=mode,
+                        kind=ActionKind.ACTIVATE,
+                        instructions=playbook.get_instruction(ActionKind.ACTIVATE),
+                        command=("rapid", "start", "--resume"),
+                        after=None,
+                        awaiting_human=pending_human_ids,
+                        missing=missing,
+                        tasks_done=tasks_done,
+                        tasks_total=tasks_total,
+                        outcome=None,
+                    )
+                else:
+                    if test_command:
+                        cmd = ("rapid", "check", "--gate", baseline_gate.id, "--", *test_command)
+                        instr = playbook.get_instruction(ActionKind.RUN_BASELINE)
+                    else:
+                        cmd = None
+                        instr = (
+                            f"{playbook.get_instruction(ActionKind.RUN_BASELINE)} "
+                            "No test_command configured (RAPID1301). Please configure test_command in .rapid-os/config.json or pass --test-command."
+                        )
+                    return NextAction(
+                        schema_version=1,
+                        run_id=contract.run_id,
+                        mode=mode,
+                        kind=ActionKind.RUN_BASELINE,
+                        gate_ids=(baseline_gate.id,),
+                        instructions=instr,
+                        command=cmd,
+                        after=None,
+                        awaiting_human=pending_human_ids,
+                        missing=missing,
+                        tasks_done=tasks_done,
+                        tasks_total=tasks_total,
+                        outcome=None,
+                    )
+            else:
+                # baseline disposition already acknowledged or waived
+                return NextAction(
+                    schema_version=1,
+                    run_id=contract.run_id,
+                    mode=mode,
+                    kind=ActionKind.ACTIVATE,
+                    instructions=playbook.get_instruction(ActionKind.ACTIVATE),
+                    command=("rapid", "start", "--resume"),
+                    after=None,
+                    awaiting_human=pending_human_ids,
+                    missing=missing,
+                    tasks_done=tasks_done,
+                    tasks_total=tasks_total,
+                    outcome=None,
+                )
+        else:
+            # No baseline gate required
             return NextAction(
                 schema_version=1,
                 run_id=contract.run_id,
                 mode=mode,
-                kind=ActionKind.RUN_BASELINE,
-                gate_ids=(baseline_gate.id,),
-                instructions=playbook.get_instruction(ActionKind.RUN_BASELINE),
-                command=tuple(cmd),
+                kind=ActionKind.ACTIVATE,
+                instructions=playbook.get_instruction(ActionKind.ACTIVATE),
+                command=("rapid", "start", "--resume"),
                 after=None,
                 awaiting_human=pending_human_ids,
                 missing=missing,
@@ -196,22 +270,6 @@ def next_action(
                 tasks_total=tasks_total,
                 outcome=None,
             )
-
-        # Baseline is passed/addressed (or no baseline required) -> activate
-        return NextAction(
-            schema_version=1,
-            run_id=contract.run_id,
-            mode=mode,
-            kind=ActionKind.ACTIVATE,
-            instructions=playbook.get_instruction(ActionKind.ACTIVATE),
-            command=("rapid", "start", "--resume"),
-            after=None,
-            awaiting_human=pending_human_ids,
-            missing=missing,
-            tasks_done=tasks_done,
-            tasks_total=tasks_total,
-            outcome=None,
-        )
 
     # d. active con tareas no terminales
     non_terminal_tasks = [t for t in state.tasks if not t.status.is_terminal]
@@ -266,7 +324,7 @@ def next_action(
             )
 
     # e. Todas las tareas terminales:
-    # 1) Any assertion FAIL -> blocked
+    # 1) Aserción FAIL -> blocked con la razón
     fail_assertion = next(
         (a for a in report.assertions if a.status == EvalAssertionStatus.FAIL), None
     )
@@ -287,30 +345,143 @@ def next_action(
             outcome=None,
         )
 
-    # 2) Machine gates or capabilities UNVERIFIED -> verify
-    unverified_machine_gates = []
-    for a in report.assertions:
-        if a.status == EvalAssertionStatus.UNVERIFIED and a.category == "gate":
-            gate_req = gate_by_id.get(a.subject_id)
-            if gate_req and gate_req.kind in MACHINE_GATE_KINDS:
-                unverified_machine_gates.append(gate_req)
-
-    if unverified_machine_gates:
-        first_mg = unverified_machine_gates[0]
-        cmd = ["rapid", "check", "--gate", first_mg.id]
-        if test_command and first_mg.kind in (
-            GateKind.BASELINE_CHECK,
-            GateKind.IMPLEMENTATION_TESTS,
-        ):
-            cmd.extend(["--", *test_command])
+    # 2) Tarea con aserción UNVERIFIED -> verify con ["rapid", "check", "--task", "T00N", "--", *test_command]
+    unverified_task_assertion = next(
+        (
+            a
+            for a in report.assertions
+            if a.status == EvalAssertionStatus.UNVERIFIED and a.category == "task"
+        ),
+        None,
+    )
+    if unverified_task_assertion is not None:
+        target_task_id = unverified_task_assertion.subject_id
+        if test_command:
+            cmd = ("rapid", "check", "--task", target_task_id, "--", *test_command)
+            instr = playbook.get_instruction(ActionKind.VERIFY)
+        else:
+            cmd = None
+            instr = (
+                f"{playbook.get_instruction(ActionKind.VERIFY)} "
+                "No test_command configured (RAPID1301). Please configure test_command in .rapid-os/config.json or pass --test-command."
+            )
         return NextAction(
             schema_version=1,
             run_id=contract.run_id,
             mode=mode,
             kind=ActionKind.VERIFY,
-            gate_ids=tuple(g.id for g in unverified_machine_gates),
-            instructions=playbook.get_instruction(ActionKind.VERIFY),
-            command=tuple(cmd),
+            task_id=target_task_id,
+            instructions=instr,
+            command=cmd,
+            after=None,
+            awaiting_human=pending_human_ids,
+            missing=missing,
+            tasks_done=tasks_done,
+            tasks_total=tasks_total,
+            outcome=None,
+        )
+
+    # 3) Gate de máquina pendiente que NO cumple gate_satisfied -> verify con su comando
+    pending_machine_gates = [
+        g
+        for g in state.gates
+        if gate_by_id.get(g.id)
+        and gate_by_id[g.id].kind in MACHINE_GATE_KINDS
+        and g.disposition == GateDisposition.PENDING
+    ]
+    unsatisfied_machine_gates = [
+        g
+        for g in pending_machine_gates
+        if not gate_satisfied(
+            contract, state, raw_evidence, g.id, evaluator=evaluator
+        )
+    ]
+    if unsatisfied_machine_gates:
+        first_mg = unsatisfied_machine_gates[0]
+        gate_kind = gate_by_id[first_mg.id].kind
+        if gate_kind in (GateKind.BASELINE_CHECK, GateKind.IMPLEMENTATION_TESTS):
+            if test_command:
+                cmd = ("rapid", "check", "--gate", first_mg.id, "--", *test_command)
+                instr = playbook.get_instruction(ActionKind.VERIFY)
+            else:
+                cmd = None
+                instr = (
+                    f"{playbook.get_instruction(ActionKind.VERIFY)} "
+                    "No test_command configured (RAPID1301). Please configure test_command in .rapid-os/config.json or pass --test-command."
+                )
+        else:
+            cmd = ("rapid", "check", "--gate", first_mg.id)
+            instr = playbook.get_instruction(ActionKind.VERIFY)
+
+        return NextAction(
+            schema_version=1,
+            run_id=contract.run_id,
+            mode=mode,
+            kind=ActionKind.VERIFY,
+            gate_ids=tuple(g.id for g in unsatisfied_machine_gates),
+            instructions=instr,
+            command=cmd,
+            after=None,
+            awaiting_human=pending_human_ids,
+            missing=missing,
+            tasks_done=tasks_done,
+            tasks_total=tasks_total,
+            outcome=None,
+        )
+
+    # 4) Capacidad UNVERIFIED: repository.write no cuenta (la registra finish);
+    #    workspace.* -> blocked con la razón (la registra start); cualquier otra -> verify.
+    unverified_caps = [
+        a
+        for a in report.assertions
+        if a.status == EvalAssertionStatus.UNVERIFIED
+        and a.category == "capability"
+        and a.subject_id != "repository.write"
+    ]
+    if unverified_caps:
+        workspace_cap = next(
+            (c for c in unverified_caps if c.subject_id.startswith("workspace.")),
+            None,
+        )
+        if workspace_cap is not None:
+            return NextAction(
+                schema_version=1,
+                run_id=contract.run_id,
+                mode=mode,
+                kind=ActionKind.BLOCKED,
+                instructions=workspace_cap.reason
+                or playbook.get_instruction(ActionKind.BLOCKED),
+                command=None,
+                after=None,
+                awaiting_human=pending_human_ids,
+                missing=missing,
+                tasks_done=tasks_done,
+                tasks_total=tasks_total,
+                outcome=None,
+            )
+
+        first_cap = unverified_caps[0]
+        if first_cap.subject_id == "tests.execute":
+            if test_command:
+                cmd = ("rapid", "check", "--capability", first_cap.subject_id, "--", *test_command)
+                instr = playbook.get_instruction(ActionKind.VERIFY)
+            else:
+                cmd = None
+                instr = (
+                    f"{playbook.get_instruction(ActionKind.VERIFY)} "
+                    "No test_command configured (RAPID1301). Please configure test_command in .rapid-os/config.json or pass --test-command."
+                )
+        else:
+            cmd = ("rapid", "check", "--capability", first_cap.subject_id)
+            instr = playbook.get_instruction(ActionKind.VERIFY)
+
+        return NextAction(
+            schema_version=1,
+            run_id=contract.run_id,
+            mode=mode,
+            kind=ActionKind.VERIFY,
+            instructions=instr,
+            command=cmd,
             after=None,
             awaiting_human=pending_human_ids,
             missing=missing,

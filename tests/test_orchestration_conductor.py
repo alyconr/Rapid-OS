@@ -20,7 +20,11 @@ from rapid_os.domain.execution import (
     TaskStatus,
 )
 from rapid_os.orchestration.actions import ActionKind, NextAction
-from rapid_os.orchestration.conductor import next_action, next_action_without_run
+from rapid_os.orchestration.conductor import (
+    gate_satisfied,
+    next_action,
+    next_action_without_run,
+)
 from rapid_os.orchestration.playbooks import Playbook, PlaybookError, load_playbook
 
 
@@ -215,17 +219,17 @@ class OrchestrationConductorTests(unittest.TestCase):
         state = self.run_registry.get_state(record.id)
 
         evidence_base = self.evidence_registry.list(record.id)
-        # Rule e: tasks terminal, baseline verified, but implementation tests unverified -> verify
-        action_verify = next_action(
+        # Rule e.2: tasks terminal but without task execution evidence -> verify task T001
+        action_verify_task = next_action(
             contract, state, evidence_base, self.playbook,
             evaluator=self.evaluator,
             test_command=["python", "-m", "pytest"]
         )
-        self.assertEqual(action_verify.kind, ActionKind.VERIFY)
-        self.assertIn("gate.tests", action_verify.gate_ids)
-        self.assertEqual(action_verify.command, ["rapid", "check", "--gate", "gate.tests", "--", "python", "-m", "pytest"])
+        self.assertEqual(action_verify_task.kind, ActionKind.VERIFY)
+        self.assertEqual(action_verify_task.task_id, "T001")
+        self.assertEqual(action_verify_task.command, ["rapid", "check", "--task", "T001", "--", "python", "-m", "pytest"])
 
-        # Record test evidence and acknowledge machine gates
+        # Record test evidence linked to tasks
         (self.root / "test.log").write_text("Tests OK\n", encoding="utf-8")
         self.evidence_registry.add(
             record.id,
@@ -243,6 +247,16 @@ class OrchestrationConductorTests(unittest.TestCase):
                     "skipped": 0,
                 },
                 "artifacts": ["test.log"],
+            },
+        )
+        self.evidence_registry.add(
+            record.id,
+            {
+                "kind": "workspace",
+                "producer": "harness:cursor",
+                "summary": "Current workspace observation",
+                "capability_ids": ["workspace.current"],
+                "payload": {"mode": "current"},
             },
         )
         self.run_registry.transition_gate(record.id, "gate.tests", GateDisposition.ACKNOWLEDGED, reason="OK")
@@ -319,6 +333,181 @@ class OrchestrationConductorTests(unittest.TestCase):
         self.assertIn("RAPID1303", str(ctx.exception))
         self.assertEqual(ctx.exception.code, "RAPID1303")
 
+    def test_gate_satisfied_pure_function(self):
+        record = self.run_registry.create(spec_id=self.spec.id, spec_revision=1)
+        contract = self.run_registry.get_contract(record.id)
+        state = self.run_registry.get_state(record.id)
+
+        # Initially with no evidence, gate.baseline is not satisfied
+        self.assertFalse(gate_satisfied(contract, state, (), "gate.baseline", evaluator=self.evaluator))
+
+        # Add qualifying baseline evidence
+        (self.root / "base_sat.log").write_text("OK\n", encoding="utf-8")
+        self.evidence_registry.add(
+            record.id,
+            {
+                "kind": "command_result",
+                "producer": "harness:cursor",
+                "summary": "Baseline check passed",
+                "gate_ids": ["gate.baseline"],
+                "payload": {"label": "pytest", "exit_code": 0},
+                "artifacts": ["base_sat.log"],
+            },
+        )
+        evidence = self.evidence_registry.list(record.id)
+        # Gate state remains PENDING on disk
+        self.assertEqual(state.gates[0].disposition, GateDisposition.PENDING)
+        # gate_satisfied returns True hypothetically without modifying disk
+        self.assertTrue(gate_satisfied(contract, state, evidence, "gate.baseline", evaluator=self.evaluator))
+
+    def test_full_lifecycle_without_manual_machine_gate_transitions(self):
+        # Baseline and machine gates remain PENDING in RunState; conductor recognizes they are satisfied
+        record = self.run_registry.create(spec_id=self.spec.id, spec_revision=1)
+        contract = self.run_registry.get_contract(record.id)
+        state = self.run_registry.get_state(record.id)
+
+        # 1. PREPARED with pending baseline and no evidence -> run_baseline
+        action = next_action(contract, state, (), self.playbook, evaluator=self.evaluator, test_command=["pytest"])
+        self.assertEqual(action.kind, ActionKind.RUN_BASELINE)
+
+        # 2. Add baseline evidence. Gate remains PENDING in state! -> activate
+        (self.root / "base_flow.log").write_text("Baseline OK\n", encoding="utf-8")
+        self.evidence_registry.add(
+            record.id,
+            {
+                "kind": "command_result",
+                "producer": "harness:cursor",
+                "summary": "Baseline OK",
+                "gate_ids": ["gate.baseline"],
+                "payload": {"label": "pytest", "exit_code": 0},
+                "artifacts": ["base_flow.log"],
+            },
+        )
+        evidence = self.evidence_registry.list(record.id)
+        action_act = next_action(contract, state, evidence, self.playbook, evaluator=self.evaluator, test_command=["pytest"])
+        self.assertEqual(action_act.kind, ActionKind.ACTIVATE)
+        self.assertEqual(action_act.command, ["rapid", "start", "--resume"])
+
+        # 3. Transition run to ACTIVE (via gate acknowledgment for precondition) and complete tasks
+        self.run_registry.transition_gate(record.id, "gate.baseline", GateDisposition.ACKNOWLEDGED, reason="Base OK")
+        self.run_registry.transition_status(record.id, target_status=RunStatus.ACTIVE, reason="Start")
+        self.run_registry.transition_task(record.id, "T001", TaskStatus.IN_PROGRESS, reason="Start")
+        self.run_registry.transition_task(record.id, "T001", TaskStatus.DONE, reason="Done")
+        self.run_registry.transition_task(record.id, "T002", TaskStatus.IN_PROGRESS, reason="Start")
+        self.run_registry.transition_task(record.id, "T002", TaskStatus.DONE, reason="Done")
+        state_active = self.run_registry.get_state(record.id)
+        # 4. Tasks done without task evidence -> verify task T001
+        action_verify = next_action(contract, state_active, evidence, self.playbook, evaluator=self.evaluator, test_command=["pytest"])
+        self.assertEqual(action_verify.kind, ActionKind.VERIFY)
+        self.assertEqual(action_verify.task_id, "T001")
+        self.assertEqual(action_verify.command, ["rapid", "check", "--task", "T001", "--", "pytest"])
+
+        # 5. Add qualifying test evidence for T001 and T002. gate.tests remains PENDING in RunState!
+        (self.root / "test_flow.log").write_text("Tests OK\n", encoding="utf-8")
+        self.evidence_registry.add(
+            record.id,
+            {
+                "kind": "test_result",
+                "producer": "harness:cursor",
+                "summary": "Tests OK",
+                "task_ids": ["T001", "T002"],
+                "gate_ids": ["gate.tests"],
+                "payload": {"suite": "pytest", "exit_code": 0, "passed": 2, "failed": 0, "skipped": 0},
+                "artifacts": ["test_flow.log"],
+            },
+        )
+        self.evidence_registry.add(
+            record.id,
+            {
+                "kind": "workspace",
+                "producer": "harness:cursor",
+                "summary": "Workspace observation",
+                "capability_ids": ["workspace.current"],
+                "payload": {"mode": "current"},
+            },
+        )
+        evidence2 = self.evidence_registry.list(record.id)
+
+        # gate.tests is now gate_satisfied! Next action is await_human_approval (for gate.final-verification)
+        action_human = next_action(contract, state_active, evidence2, self.playbook, evaluator=self.evaluator, test_command=["pytest"])
+        self.assertEqual(action_human.kind, ActionKind.AWAIT_HUMAN_APPROVAL)
+        self.assertIn("gate.final-verification", action_human.awaiting_human)
+
+        # 6. Human reviews and acknowledges gate.final-verification
+        self.evidence_registry.add(
+            record.id,
+            {
+                "kind": "review",
+                "producer": "harness:cursor",
+                "summary": "Review approved",
+                "gate_ids": ["gate.final-verification"],
+                "payload": {"review_type": "final", "outcome": "approved", "reviewer": "qa_lead"},
+            },
+        )
+        self.run_registry.transition_gate(record.id, "gate.final-verification", GateDisposition.ACKNOWLEDGED, reason="Approved")
+        state_reviewed = self.run_registry.get_state(record.id)
+        evidence3 = self.evidence_registry.list(record.id)
+
+        # All resolved -> finish (rapid finish will acknowledge gate.tests)
+        action_finish = next_action(contract, state_reviewed, evidence3, self.playbook, evaluator=self.evaluator, test_command=["pytest"])
+        self.assertEqual(action_finish.kind, ActionKind.FINISH)
+        self.assertEqual(action_finish.command, ["rapid", "finish"])
+
+    def test_unverified_task_without_evidence_triggers_verify_task(self):
+        record = self.run_registry.create(spec_id=self.spec.id, spec_revision=1)
+        contract = self.run_registry.get_contract(record.id)
+        self.run_registry.transition_gate(record.id, "gate.baseline", GateDisposition.ACKNOWLEDGED, reason="Base OK")
+        self.run_registry.transition_status(record.id, target_status=RunStatus.ACTIVE, reason="Start")
+        # Mark tasks done without linking any execution evidence to T001
+        self.run_registry.transition_task(record.id, "T001", TaskStatus.IN_PROGRESS, reason="Start")
+        self.run_registry.transition_task(record.id, "T001", TaskStatus.DONE, reason="Done")
+        self.run_registry.transition_task(record.id, "T002", TaskStatus.IN_PROGRESS, reason="Start")
+        self.run_registry.transition_task(record.id, "T002", TaskStatus.DONE, reason="Done")
+        state = self.run_registry.get_state(record.id)
+
+        action = next_action(
+            contract, state, (), self.playbook,
+            evaluator=self.evaluator,
+            test_command=["python", "-m", "pytest"]
+        )
+        self.assertEqual(action.kind, ActionKind.VERIFY)
+        self.assertEqual(action.task_id, "T001")
+        self.assertEqual(action.command, ["rapid", "check", "--task", "T001", "--", "python", "-m", "pytest"])
+
+    def test_no_test_command_returns_command_none_and_rapid1301_instruction(self):
+        record = self.run_registry.create(spec_id=self.spec.id, spec_revision=1)
+        contract = self.run_registry.get_contract(record.id)
+        state = self.run_registry.get_state(record.id)
+
+        # Baseline check without test_command
+        action_base = next_action(
+            contract, state, (), self.playbook,
+            evaluator=self.evaluator,
+            test_command=None
+        )
+        self.assertEqual(action_base.kind, ActionKind.RUN_BASELINE)
+        self.assertIsNone(action_base.command)
+        self.assertIn("RAPID1301", action_base.instructions)
+
+        # Task verification without test_command
+        self.run_registry.transition_gate(record.id, "gate.baseline", GateDisposition.ACKNOWLEDGED, reason="Base OK")
+        self.run_registry.transition_status(record.id, target_status=RunStatus.ACTIVE, reason="Start")
+        self.run_registry.transition_task(record.id, "T001", TaskStatus.IN_PROGRESS, reason="Start")
+        self.run_registry.transition_task(record.id, "T001", TaskStatus.DONE, reason="Done")
+        self.run_registry.transition_task(record.id, "T002", TaskStatus.IN_PROGRESS, reason="Start")
+        self.run_registry.transition_task(record.id, "T002", TaskStatus.DONE, reason="Done")
+        state_done = self.run_registry.get_state(record.id)
+
+        action_verify = next_action(
+            contract, state_done, (), self.playbook,
+            evaluator=self.evaluator,
+            test_command=None
+        )
+        self.assertEqual(action_verify.kind, ActionKind.VERIFY)
+        self.assertIsNone(action_verify.command)
+        self.assertIn("RAPID1301", action_verify.instructions)
+
 
 if __name__ == "__main__":
     unittest.main()
+
