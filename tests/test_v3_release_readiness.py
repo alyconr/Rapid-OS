@@ -572,6 +572,8 @@ class V3ReleaseReadinessTests(unittest.TestCase):
             "deploy",
             "refine",
             "prompt",
+            "check",
+            "task",
         }
         self.assertEqual(registered_commands, expected_commands)
 

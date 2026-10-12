@@ -463,7 +463,7 @@ def next_action(
         first_cap = unverified_caps[0]
         if first_cap.subject_id == "tests.execute":
             if test_command:
-                cmd = ("rapid", "check", "--capability", first_cap.subject_id, "--", *test_command)
+                cmd = ("rapid", "check", "--", *test_command)
                 instr = playbook.get_instruction(ActionKind.VERIFY)
             else:
                 cmd = None
@@ -471,17 +471,30 @@ def next_action(
                     f"{playbook.get_instruction(ActionKind.VERIFY)} "
                     "No test_command configured (RAPID1301). Please configure test_command in .rapid-os/config.json or pass --test-command."
                 )
-        else:
-            cmd = ("rapid", "check", "--capability", first_cap.subject_id)
-            instr = playbook.get_instruction(ActionKind.VERIFY)
+            return NextAction(
+                schema_version=1,
+                run_id=contract.run_id,
+                mode=mode,
+                kind=ActionKind.VERIFY,
+                instructions=instr,
+                command=cmd,
+                after=None,
+                awaiting_human=pending_human_ids,
+                missing=missing,
+                tasks_done=tasks_done,
+                tasks_total=tasks_total,
+                outcome=None,
+            )
 
+        # Cualquier otra capacidad -> blocked con la razón
         return NextAction(
             schema_version=1,
             run_id=contract.run_id,
             mode=mode,
-            kind=ActionKind.VERIFY,
-            instructions=instr,
-            command=cmd,
+            kind=ActionKind.BLOCKED,
+            instructions=first_cap.reason
+            or f"Required capability '{first_cap.subject_id}' is unverified.",
+            command=None,
             after=None,
             awaiting_human=pending_human_ids,
             missing=missing,

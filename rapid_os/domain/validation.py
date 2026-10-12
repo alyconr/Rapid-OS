@@ -286,6 +286,8 @@ def validate_project(
         project_rapid_dir,
         current_dir,
     )
+    from rapid_os.orchestration.session import validate_session
+    session_report = validate_session(project_rapid_dir, current_dir)
     return template_report.merge(
         standards_report,
         config_report,
@@ -299,6 +301,7 @@ def validate_project(
         capability_lock_report,
         evidence_registry_report,
         eval_registry_report,
+        session_report,
     )
 
 

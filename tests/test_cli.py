@@ -48,6 +48,8 @@ class CliSmokeTests(unittest.TestCase):
                 "doctor",
                 "inspect-context",
                 "guide",
+                "check",
+                "task",
             },
         )
 
