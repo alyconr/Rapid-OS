@@ -112,7 +112,8 @@ def run_check(
     task_ids: Sequence[str] = (),
     gate_ids: Sequence[str] = (),
     kind: str | None = None,
-    timeout: float | None = None,
+    test_command: Sequence[str] | None = None,
+    timeout: float = 600.0,
 ) -> CheckResult:
     """Execute argv without shell, write scratch log, and record RunEvidence if successful."""
     clean_argv = tuple(str(a) for a in argv)
@@ -120,13 +121,14 @@ def run_check(
         raise ValueError("Cannot run check with empty argv.")
 
     # Determine kind: test_result or command_result
-    effective_kind = kind
-    if effective_kind is None:
-        cmd_str = " ".join(clean_argv).lower()
-        if "test" in cmd_str or "pytest" in cmd_str or "unittest" in cmd_str:
-            effective_kind = EvidenceKind.TEST_RESULT.value
-        else:
-            effective_kind = EvidenceKind.COMMAND_RESULT.value
+    if kind in ("test", "test_result", EvidenceKind.TEST_RESULT.value):
+        effective_kind = EvidenceKind.TEST_RESULT.value
+    elif kind in ("command", "command_result", EvidenceKind.COMMAND_RESULT.value):
+        effective_kind = EvidenceKind.COMMAND_RESULT.value
+    elif test_command is not None and list(clean_argv) == list(test_command):
+        effective_kind = EvidenceKind.TEST_RESULT.value
+    else:
+        effective_kind = EvidenceKind.COMMAND_RESULT.value
 
     # Prepare log destination: .rapid-os/scratch/checks/<run-id>/<n>.log
     checks_dir = Path(project_rapid_dir) / "scratch" / "checks" / run_id

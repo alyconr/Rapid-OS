@@ -93,6 +93,7 @@ from rapid_os.domain.evals import (
 from rapid_os.domain.evidence import (
     RUN_EVIDENCE_SCHEMA_VERSION,
     EvidenceError,
+    EvidenceKind,
     InvalidRunEvidenceError,
     RunEvidence,
     compute_evidence_set_digest,
@@ -101,6 +102,7 @@ from rapid_os.domain.execution import (
     EXECUTION_POLICY_SCHEMA_VERSION,
     RUN_SCHEMA_VERSION,
     ExecutionError,
+    GateKind,
     InvalidExecutionPolicyError,
     InvalidGateTransitionError,
     InvalidRunRecordError,
@@ -786,8 +788,20 @@ def init_project(args):
             if ".rapid-os/scratch/" not in gi_lines and ".rapid-os/scratch" not in gi_lines:
                 to_append.append(".rapid-os/scratch/")
             if to_append:
-                extra_text = "\n" + "\n".join(to_append) + "\n"
-                safe_append_text(gitignore_path, extra_text, encoding="utf-8")
+                do_update = False
+                if getattr(args, "yes", False):
+                    do_update = True
+                else:
+                    ans = safe_prompt(
+                        "\n¿Añadir archivos de sesión y scratch a .gitignore? [Y/n]: ",
+                        default="y",
+                        flag_hint="--yes",
+                    )
+                    if ans.lower() != "n":
+                        do_update = True
+                if do_update:
+                    extra_text = "\n" + "\n".join(to_append) + "\n"
+                    safe_append_text(gitignore_path, extra_text, encoding="utf-8")
         except Exception:
             pass
 
@@ -1226,6 +1240,9 @@ def validate_command(args):
         TEMPLATES_DIR,
         DEFAULT_AGENT_REGISTRY,
     )
+    from rapid_os.orchestration.session import validate_session
+    session_report = validate_session(PROJECT_RAPID_DIR, CURRENT_DIR)
+    report = report.merge(session_report)
     sys.exit(render_validation_report(report, args.json, args.strict))
 
 
@@ -2207,19 +2224,6 @@ def run_command(args):
             state = registry.get_state(record.id)
             artifact_paths = registry.get_artifact_paths(record.id)
 
-            # Auto-record session for active porcelain workflow
-            try:
-                from rapid_os.orchestration.session import Session, save_session, resolve_git_head
-                start_head = resolve_git_head(CURRENT_DIR)
-                session_obj = Session(
-                    active_run_id=record.id,
-                    mode=getattr(contract, "mode", "spec-driven"),
-                    harness=detection.harness_id,
-                    start_head=start_head,
-                )
-                save_session(PROJECT_RAPID_DIR, session_obj)
-            except Exception:
-                pass
             if getattr(args, "json", False):
                 payload = {
                     **record.to_dict(),
@@ -2866,6 +2870,7 @@ def eval_command(args):
 
 def check_command(args):
     """Execute rapid check command."""
+    import subprocess
     from rapid_os.orchestration.session import load_session
     from rapid_os.orchestration.check import run_check
 
@@ -2874,7 +2879,7 @@ def check_command(args):
     if argv and argv[0] == "--":
         argv = argv[1:]
     if not argv:
-        print("RAPID1301 No argv command provided for rapid check (use -- <argv...>).", file=sys.stderr)
+        print("No command provided for rapid check (use: rapid check -- <argv...>).", file=sys.stderr)
         sys.exit(1)
 
     session = load_session(PROJECT_RAPID_DIR)
@@ -2883,15 +2888,45 @@ def check_command(args):
         sys.exit(1)
 
     run_id = session.active_run_id
+    registry = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+    try:
+        current_state = registry.get_state(run_id)
+        contract = registry.get_contract(run_id)
+    except Exception as exc:
+        print(f"RAPID1304 Run '{run_id}' not found: {exc}", file=sys.stderr)
+        sys.exit(1)
+
     task_arg = getattr(args, "task", None)
     task_ids = [task_arg] if task_arg else []
     gate_arg = getattr(args, "gate", None)
     gate_ids = [gate_arg] if gate_arg else []
+
+    # Default binding when neither --task nor --gate is passed
+    if not task_ids and not gate_ids:
+        if current_state.status == RunStatus.PREPARED:
+            gate_ids = ["gate.baseline"]
+        elif current_state.status == RunStatus.ACTIVE:
+            in_prog = [t.id for t in current_state.tasks if t.status == TaskStatus.IN_PROGRESS]
+            if len(in_prog) == 1:
+                task_ids = [in_prog[0]]
+            else:
+                terminal_tasks = [
+                    t for t in current_state.tasks
+                    if t.status in (TaskStatus.DONE, TaskStatus.SKIPPED)
+                ]
+                if len(terminal_tasks) == len(current_state.tasks):
+                    test_gates = [g.id for g in contract.gates if g.kind == GateKind.IMPLEMENTATION_TESTS]
+                    gate_ids = test_gates or ["gate.tests"]
+
     kind = getattr(args, "kind", None)
     if kind == "test":
         kind = "test_result"
     elif kind == "command":
         kind = "command_result"
+
+    config = load_project_config(CONFIG_FILE)
+    test_cmd = config.get("test_command")
+    timeout = float(config.get("check_timeout_s", 600))
 
     try:
         res = run_check(
@@ -2902,9 +2937,17 @@ def check_command(args):
             task_ids=task_ids,
             gate_ids=gate_ids,
             kind=kind,
+            test_command=test_cmd if isinstance(test_cmd, (list, tuple)) else None,
+            timeout=timeout,
         )
+    except FileNotFoundError:
+        print(f"Command not found: '{argv[0]}'", file=sys.stderr)
+        sys.exit(1)
+    except subprocess.TimeoutExpired:
+        print(f"Command timed out after {timeout}s: {' '.join(argv)}", file=sys.stderr)
+        sys.exit(1)
     except Exception as exc:
-        print(f"RAPID1301 Error executing check: {exc}", file=sys.stderr)
+        print(f"Error executing check: {exc}", file=sys.stderr)
         sys.exit(1)
 
     if getattr(args, "json", False):
@@ -3009,12 +3052,13 @@ def task_command(args):
         # Run check unless --no-check
         no_check = getattr(args, "no_check", False)
         if not no_check:
-            config = load_project_config(PROJECT_RAPID_DIR, CONFIG_FILE)
+            config = load_project_config(CONFIG_FILE)
             test_cmd = config.get("test_command")
             if not test_cmd or not isinstance(test_cmd, (list, tuple)):
                 print("RAPID1301 No test_command configured in .rapid-os/config.json to verify task.", file=sys.stderr)
                 sys.exit(1)
 
+            timeout = float(config.get("check_timeout_s", 600))
             res = run_check(
                 CURRENT_DIR,
                 PROJECT_RAPID_DIR,
@@ -3022,31 +3066,18 @@ def task_command(args):
                 test_cmd,
                 task_ids=[target_task_id],
                 kind=EvidenceKind.TEST_RESULT.value,
+                test_command=test_cmd,
+                timeout=timeout,
             )
             if res.exit_code != 0:
                 print(f"Verification tests failed for task '{target_task_id}' (exit {res.exit_code}). Log: {res.log_path}", file=sys.stderr)
                 sys.exit(res.exit_code)
         else:
-            # When --no-check is passed, record task completion evidence so evaluator won't fail task evidence check
-            latest_st = registry.get_state(run_id)
-            try:
-                evidence_reg.add(
-                    run_id,
-                    {
-                        "kind": EvidenceKind.COMMAND_RESULT.value,
-                        "producer": "rapid:check",
-                        "summary": f"Task {target_task_id} completed (manually flagged --no-check)",
-                        "state_revision": latest_st.revision,
-                        "task_ids": [target_task_id],
-                        "gate_ids": [],
-                        "capability_ids": [],
-                        "payload": {"label": f"task-done-{target_task_id}", "exit_code": 0},
-                        "artifacts": [],
-                    },
-                    base_dir=CURRENT_DIR,
-                )
-            except Exception:
-                pass
+            print(
+                f"Warning: task '{target_task_id}' marked done with --no-check; "
+                "assertion remains UNVERIFIED and 'rapid next' will require verification.",
+                file=sys.stderr,
+            )
 
         try:
             next_state = registry.transition_task(
