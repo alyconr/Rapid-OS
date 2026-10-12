@@ -54,7 +54,7 @@ from rapid_os.orchestration.session import (
 def execute_start(
     project_root: Path,
     project_rapid_dir: Path,
-    mode: str,
+    mode: str | None = None,
     *,
     objective: str | None = None,
     spec_id: str | None = None,
@@ -87,8 +87,10 @@ def execute_start(
         active_run_id = existing_session.active_run_id
         contract = run_reg.get_contract(active_run_id)
         current_state = run_reg.get_state(active_run_id)
-        mode = existing_session.mode
+        mode = mode or existing_session.mode
     else:
+        if not mode:
+            return 1, "Mode is required when starting a run (e.g. 'rapid start feature')."
         if existing_session and existing_session.active_run_id:
             try:
                 active_state = run_reg.get_state(existing_session.active_run_id)
@@ -174,7 +176,11 @@ def execute_start(
         current_state = run_reg.get_state(active_run_id)
 
     # Session object creation
-    start_head = resolve_git_head(project_root)
+    if resume and existing_session and existing_session.start_head:
+        start_head = existing_session.start_head
+    else:
+        start_head = resolve_git_head(project_root)
+
     sess = Session(
         active_run_id=active_run_id,
         mode=mode,
@@ -241,43 +247,68 @@ def execute_start(
     )
 
     current_state = run_reg.get_state(active_run_id)
+    ev_records = evidence_reg.list(active_run_id)
     if current_state.status == RunStatus.PREPARED and baseline_gate:
         b_state = next((g for g in current_state.gates if g.id == baseline_gate.id), None)
         if b_state and b_state.disposition == GateDisposition.PENDING:
-            if test_cmd and isinstance(test_cmd, (list, tuple)):
-                try:
-                    chk_res = run_check(
-                        project_root,
-                        project_rapid_dir,
-                        active_run_id,
-                        test_cmd,
-                        gate_ids=[baseline_gate.id],
-                        kind="test_result",
-                        test_command=test_cmd,
-                        timeout=timeout,
-                    )
-                    ev_records = evidence_reg.list(active_run_id)
-                    if chk_res.exit_code == 0 and gate_satisfied(
-                        contract,
-                        current_state,
-                        ev_records,
-                        baseline_gate.id,
-                        evaluator=evaluator,
-                    ):
-                        evidence_id = chk_res.evidence.id if chk_res.evidence else "E001"
-                        current_state = run_reg.transition_gate(
+            if gate_satisfied(
+                contract,
+                current_state,
+                ev_records,
+                baseline_gate.id,
+                evaluator=evaluator,
+            ):
+                matching_evs = [
+                    e.id for e in ev_records
+                    if baseline_gate.id in e.gate_ids and e.kind == EvidenceKind.TEST_RESULT
+                ]
+                ev_ref = matching_evs[-1] if matching_evs else "evidence"
+                current_state = run_reg.transition_gate(
+                    active_run_id,
+                    baseline_gate.id,
+                    GateDisposition.ACKNOWLEDGED,
+                    reason=f"verified by {ev_ref}",
+                )
+                current_state = run_reg.transition_status(
+                    active_run_id,
+                    RunStatus.ACTIVE,
+                    reason="Baseline verified and active",
+                )
+            elif not resume:
+                if test_cmd and isinstance(test_cmd, (list, tuple)):
+                    try:
+                        chk_res = run_check(
+                            project_root,
+                            project_rapid_dir,
                             active_run_id,
+                            test_cmd,
+                            gate_ids=[baseline_gate.id],
+                            kind="test_result",
+                            test_command=test_cmd,
+                            timeout=timeout,
+                        )
+                        ev_records = evidence_reg.list(active_run_id)
+                        if chk_res.exit_code == 0 and gate_satisfied(
+                            contract,
+                            current_state,
+                            ev_records,
                             baseline_gate.id,
-                            GateDisposition.ACKNOWLEDGED,
-                            reason=f"verified by {evidence_id} (rapid:check)",
-                        )
-                        current_state = run_reg.transition_status(
-                            active_run_id,
-                            RunStatus.ACTIVE,
-                            reason="Baseline verified and active",
-                        )
-                except Exception:
-                    pass
+                            evaluator=evaluator,
+                        ):
+                            evidence_id = chk_res.evidence.id if chk_res.evidence else "E001"
+                            current_state = run_reg.transition_gate(
+                                active_run_id,
+                                baseline_gate.id,
+                                GateDisposition.ACKNOWLEDGED,
+                                reason=f"verified by {evidence_id} (rapid:check)",
+                            )
+                            current_state = run_reg.transition_status(
+                                active_run_id,
+                                RunStatus.ACTIVE,
+                                reason="Baseline verified and active",
+                            )
+                    except Exception:
+                        pass
 
     # 1.h Return NextAction
     current_state = run_reg.get_state(active_run_id)
@@ -474,8 +505,23 @@ def execute_approve(
     reason: str | None = None,
     is_tty: bool | None = None,
     input_func: Any = None,
+    environ: dict[str, str] | None = None,
 ) -> tuple[int, str]:
     """Execute porcelain `rapid approve` workflow."""
+    if reject and (not reason or not str(reason).strip()):
+        return 1, "Reason is required (--reason) when rejecting a gate approval."
+
+    env_map = environ if environ is not None else dict(sys.modules.get("os", {}).environ if "os" in sys.modules else {})
+    if not env_map:
+        import os
+        env_map = dict(os.environ)
+
+    if env_map.get("CLAUDE_CODE_CHILD_SESSION") == "1":
+        return (
+            1,
+            "RAPID1310 Human gate approval cannot be run inside Claude Code agent session (CLAUDE_CODE_CHILD_SESSION=1). La aprobación debe hacerla una persona en su propia terminal.",
+        )
+
     sess = load_session(project_rapid_dir)
     if not sess or not sess.active_run_id:
         return 1, "RAPID1307 No active run session found (.rapid-os/session.json)."
@@ -509,7 +555,7 @@ def execute_approve(
     ask_input = input_func if input_func is not None else input
     expected_confirm = f"aprobar {gate_id}"
     typed = ask_input(f"Escribe '{expected_confirm}' para confirmar la acción sobre el gate: ").strip()
-    if typed != expected_confirm:
+    if typed != expected_confirm and not (reject and typed == f"rechazar {gate_id}"):
         return 1, f"Confirmación abortada (se esperaba '{expected_confirm}')."
 
     review_type = REVIEW_GATE_KIND_TO_REVIEW_TYPE.get(gate.kind, "manual")

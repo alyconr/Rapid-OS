@@ -65,10 +65,13 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
         self,
         *args: str,
         input_str: str | None = None,
+        extra_env: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
         cmd = [sys.executable, "-m", "rapid_os.cli.main", *args]
         env = os.environ.copy()
         env["PYTHONPATH"] = str(ROOT)
+        if extra_env:
+            env.update(extra_env)
         return subprocess.run(
             cmd,
             cwd=str(self.tmp_path),
@@ -283,5 +286,192 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
         self.assertIsNone(data2["session"])
 
 
+    def test_red_baseline_to_activate_loop(self):
+        # 1. Start with RED baseline
+        (self.tmp_path / "math_ops.py").write_text(
+            "def add(a: int, b: int) -> int:\n    return 0\n",
+            encoding="utf-8",
+        )
+        self._git("add", ".")
+        self._git("commit", "-m", "Failing baseline commit")
+
+        test_cmd_str = f'"{sys.executable}" -m unittest discover -s tests -t .'
+        init_res = self._rapid("init", "--yes", "--test-command", test_cmd_str)
+        self.assertEqual(init_res.returncode, 0)
+
+        spec_payload = {
+            "title": "Fix Math Ops",
+            "mode": "feature",
+            "tasks": ["T001: Implement real add"],
+        }
+        start_res = self._rapid("start", "feature", "--spec-file", "-", input_str=json.dumps(spec_payload))
+        self.assertEqual(start_res.returncode, 0)
+
+        # Baseline was red, so next action must be run_baseline
+        next1 = self._rapid("next", "--json")
+        self.assertEqual(next1.returncode, 0)
+        data1 = json.loads(next1.stdout)
+        self.assertEqual(data1["action"]["kind"], "run_baseline")
+        self.assertIn("rapid abort", data1["action"]["instructions"])
+
+        # Test fixes the code
+        (self.tmp_path / "math_ops.py").write_text(
+            "def add(a: int, b: int) -> int:\n    return a + b\n",
+            encoding="utf-8",
+        )
+
+        # Agent loop executes literally each action.command until implement_task
+        iteration = 0
+        while iteration < 10:
+            iteration += 1
+            res = self._rapid("next", "--json")
+            self.assertEqual(res.returncode, 0)
+            data = json.loads(res.stdout)
+            action = data["action"]
+            if action["kind"] == "implement_task":
+                break
+            cmd = action.get("command")
+            self.assertIsNotNone(cmd, f"Expected command for action {action['kind']}")
+            if cmd[0] == "rapid":
+                cmd_res = self._rapid(*cmd[1:])
+            else:
+                cmd_res = subprocess.run(cmd, cwd=str(self.tmp_path), capture_output=True, text=True)
+            self.assertEqual(cmd_res.returncode, 0, f"Command {cmd} failed: {getattr(cmd_res, 'stderr', '')}")
+
+        self.assertLess(iteration, 10)
+        self.assertEqual(action["kind"], "implement_task")
+        self.assertEqual(action["task_id"], "T001")
+
+    def test_resume_preserves_start_head_across_commits(self):
+        from rapid_os.adapters.evidence_registry import EvidenceRegistry
+        from rapid_os.orchestration.session import load_session
+
+        test_cmd_str = f'"{sys.executable}" -m unittest discover -s tests -t .'
+        init_res = self._rapid("init", "--yes", "--test-command", test_cmd_str)
+        self.assertEqual(init_res.returncode, 0)
+
+        spec_payload = {
+            "title": "Preserve Start Head Spec",
+            "mode": "feature",
+            "tasks": ["T001: Implement task"],
+        }
+        start_res = self._rapid("start", "feature", "--spec-file", "-", input_str=json.dumps(spec_payload))
+        self.assertEqual(start_res.returncode, 0)
+
+        sess_before = load_session(self.tmp_path / ".rapid-os")
+        self.assertIsNotNone(sess_before)
+        initial_head = sess_before.start_head
+        self.assertIsNotNone(initial_head)
+
+        # Make a commit between start and resume
+        (self.tmp_path / "interim.txt").write_text("interim change\n", encoding="utf-8")
+        self._git("add", "interim.txt")
+        self._git("commit", "-m", "Commit between start and resume")
+
+        # Call start --resume without mode
+        resume_res = self._rapid("start", "--resume", "--json")
+        self.assertEqual(resume_res.returncode, 0, f"start --resume failed: {resume_res.stderr}")
+
+        sess_after = load_session(self.tmp_path / ".rapid-os")
+        self.assertIsNotNone(sess_after)
+        self.assertEqual(sess_after.start_head, initial_head, "start_head was modified on resume!")
+
+        # Complete task
+        start_t_res = self._rapid("task", "start", "T001")
+        self.assertEqual(start_t_res.returncode, 0)
+        done_res = self._rapid("task", "done", "T001", "--no-check")
+        self.assertEqual(done_res.returncode, 0)
+
+        # Check gate.tests
+        chk_res = self._rapid("check", "--gate", "gate.tests", "--", sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", ".")
+        self.assertEqual(chk_res.returncode, 0)
+
+        # Approve human gate
+        approve_py = (
+            "import sys, unittest.mock as mock, rapid_os.cli.main as m; "
+            "sys.argv = ['rapid', 'approve', 'gate.final-verification']; "
+            "mock.patch('sys.stdin.isatty', return_value=True).start(); "
+            "mock.patch('builtins.input', return_value='aprobar gate.final-verification').start(); "
+            "sys.exit(m.main())"
+        )
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(ROOT)
+        env["PYTHONIOENCODING"] = "utf-8"
+        subprocess.run([sys.executable, "-c", approve_py], cwd=str(self.tmp_path), check=True, env=env)
+
+        # rapid finish
+        finish_res = self._rapid("finish", "--json")
+        self.assertEqual(finish_res.returncode, 0, f"rapid finish failed: {finish_res.stderr}")
+
+        ev_reg = EvidenceRegistry(self.tmp_path, self.tmp_path / ".rapid-os")
+        evs = ev_reg.list(sess_before.active_run_id)
+        file_change_ev = next((e for e in evs if e.kind.value == "file_change"), None)
+        self.assertIsNotNone(file_change_ev)
+        self.assertIn("interim.txt", file_change_ev.payload["paths"])
+
+    def test_approve_reject_requires_reason_and_claude_code_session_rejection(self):
+        test_cmd_str = f'"{sys.executable}" -m unittest discover -s tests -t .'
+        self._rapid("init", "--yes", "--test-command", test_cmd_str)
+
+        spec_payload = {
+            "title": "Approval Test Spec",
+            "mode": "feature",
+            "tasks": ["T001: Task 1"],
+        }
+        self._rapid("start", "feature", "--spec-file", "-", input_str=json.dumps(spec_payload))
+
+        # Reject without reason -> exit 1
+        reject_fail = self._rapid("approve", "gate.final-verification", "--reject")
+        self.assertEqual(reject_fail.returncode, 1)
+        self.assertIn("Reason is required", reject_fail.stderr)
+
+        # Rejection from Claude Code agent session -> RAPID1310
+        agent_py = (
+            "import sys, unittest.mock as mock, rapid_os.cli.main as m; "
+            "sys.argv = ['rapid', 'approve', 'gate.final-verification']; "
+            "mock.patch('sys.stdin.isatty', return_value=True).start(); "
+            "mock.patch('builtins.input', return_value='aprobar gate.final-verification').start(); "
+            "sys.exit(m.main())"
+        )
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(ROOT)
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["CLAUDE_CODE_CHILD_SESSION"] = "1"
+        agent_res = subprocess.run([sys.executable, "-c", agent_py], cwd=str(self.tmp_path), capture_output=True, text=True, env=env)
+        self.assertEqual(agent_res.returncode, 1)
+        self.assertIn("RAPID1310", agent_res.stderr)
+        self.assertIn("debe hacerla una persona en su propia terminal", agent_res.stderr.lower())
+
+    def test_all_action_kind_commands_are_syntactically_valid_cli_commands(self):
+        self._rapid("init", "--yes", "--test-command", "python -m unittest")
+        spec_payload = {
+            "title": "Syntax Test Spec",
+            "mode": "feature",
+            "tasks": ["T001: Task 1"],
+        }
+        self._rapid("start", "feature", "--spec-file", "-", input_str=json.dumps(spec_payload))
+
+        # Commands generated across ActionKinds
+        command_candidates = [
+            ["rapid", "start", "--resume"],
+            ["rapid", "check", "--gate", "gate.baseline", "--", sys.executable, "-c", "import sys; sys.exit(0)"],
+            ["rapid", "task", "start", "T001"],
+            ["rapid", "task", "done", "T001", "--no-check"],
+            ["rapid", "check", "--gate", "gate.tests", "--", sys.executable, "-c", "import sys; sys.exit(0)"],
+            ["rapid", "check", "--task", "T001", "--", sys.executable, "-c", "import sys; sys.exit(0)"],
+            ["rapid", "check", "--", sys.executable, "-c", "import sys; sys.exit(0)"],
+            ["rapid", "finish"],
+        ]
+
+        for cmd in command_candidates:
+            res = self._rapid(*cmd[1:])
+            self.assertNotEqual(
+                res.returncode,
+                2,
+                f"Command '{cmd}' exited with code 2 (syntax/argparse failure): {res.stderr}",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
+

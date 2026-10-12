@@ -3140,12 +3140,16 @@ def start_command(args):
     """Execute rapid start command."""
     from rapid_os.orchestration.lifecycle import execute_start
 
-    mode = getattr(args, "mode", "feature")
+    mode = getattr(args, "mode", None)
+    resume = getattr(args, "resume", False)
+    if not mode and not resume:
+        print("RAPID1306 Mode is required when starting a run (e.g. 'rapid start feature'). Use --resume to continue an existing session.", file=sys.stderr)
+        sys.exit(1)
+
     objective = getattr(args, "objective", None)
     spec_id = getattr(args, "spec", None)
     spec_file = getattr(args, "spec_file", None)
     harness = getattr(args, "harness", None)
-    resume = getattr(args, "resume", False)
 
     code, res = execute_start(
         CURRENT_DIR,
@@ -3234,6 +3238,10 @@ def approve_command(args):
     reviewer = getattr(args, "reviewer", None)
     reject = getattr(args, "reject", False)
     reason = getattr(args, "reason", None)
+
+    if reject and (not reason or not str(reason).strip()):
+        print("Reason is required (--reason) when rejecting a gate approval.", file=sys.stderr)
+        sys.exit(1)
 
     code, msg = execute_approve(
         CURRENT_DIR,
@@ -3980,7 +3988,7 @@ def create_parser():
         help="Start or resume a governed intent workflow session.",
         description="Initialize session, compile or bind spec, evaluate contract, and execute initial baseline check.",
     )
-    start_p.add_argument("mode", choices=["feature", "bugfix", "refactor", "hardening", "research"], help="Engineering workflow mode.")
+    start_p.add_argument("mode", nargs="?", choices=["feature", "bugfix", "refactor", "hardening", "research"], help="Engineering workflow mode (required unless --resume).")
     start_p.add_argument("objective", nargs="?", help="Optional business objective or feature goal.")
     start_p.add_argument("--spec-file", dest="spec_file", help="Path to JSON spec authoring file (or '-' for stdin).")
     start_p.add_argument("--spec", dest="spec", help="Existing ready spec identifier.")
@@ -4013,7 +4021,7 @@ def create_parser():
     approve_p.add_argument("gate_id", help="Target human review gate identifier (e.g. gate.peer-review, gate.final-verification).")
     approve_p.add_argument("--reviewer", dest="reviewer", help="Human reviewer name or handle.")
     approve_p.add_argument("--reject", action="store_true", help="Reject rather than approve the review gate.")
-    approve_p.add_argument("--reason", dest="reason", help="Review transition reason or notes.")
+    approve_p.add_argument("--reason", dest="reason", help="Review transition reason (required if --reject is set).")
 
     # rapid status
     status_p = subparsers.add_parser(

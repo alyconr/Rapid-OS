@@ -338,10 +338,10 @@ Subcommands:
 Manage end-to-end intent porcelain sessions (`.rapid-os/session.json`).
 
 ### `rapid start`
-Initialize or resume a governed intent workflow session.
+Initialize or resume a governed intent workflow session. Mode is mandatory when creating a new run, and optional when `--resume` is passed (loaded from `.rapid-os/session.json`).
 
 ```bash
-rapid start {feature,bugfix,refactor,hardening,research} [<objective>] [--spec-file <path>|-] [--spec <id>] [--harness <harness-id>] [--resume] [--json]
+rapid start [{feature,bugfix,refactor,hardening,research}] [<objective>] [--spec-file <path>|-] [--spec <id>] [--harness <harness-id>] [--resume] [--json]
 ```
 
 ### `rapid next`
@@ -359,7 +359,7 @@ rapid finish [--json]
 ```
 
 ### `rapid approve`
-Interactively review and approve or reject a human gate. Requires an interactive terminal (TTY).
+Interactively review and approve or reject a human gate. Requires an interactive terminal (TTY) and cannot be executed inside agent child sessions (`CLAUDE_CODE_CHILD_SESSION == 1`). If `--reject` is passed, `--reason` is required.
 
 ```bash
 rapid approve <gate-id> [--reviewer <name>] [--reject] [--reason <text>]
