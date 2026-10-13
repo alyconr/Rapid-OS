@@ -2932,23 +2932,45 @@ def check_command(args):
     task_ids = [task_arg] if task_arg else []
     gate_arg = getattr(args, "gate", None)
     gate_ids = [gate_arg] if gate_arg else []
+    expect = getattr(args, "expect", "pass")
 
-    # Default binding when neither --task nor --gate is passed
-    if not task_ids and not gate_ids:
-        if current_state.status == RunStatus.PREPARED:
-            gate_ids = ["gate.baseline"]
-        elif current_state.status == RunStatus.ACTIVE:
+    if expect == "fail":
+        if gate_arg:
+            print(
+                "RAPID1320 'rapid check --expect fail' cannot be bound to a gate (--gate). "
+                "Expected failures must be linked exclusively to a task.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if not task_ids:
             in_prog = [t.id for t in current_state.tasks if t.status == TaskStatus.IN_PROGRESS]
             if len(in_prog) == 1:
                 task_ids = [in_prog[0]]
             else:
-                terminal_tasks = [
-                    t for t in current_state.tasks
-                    if t.status in (TaskStatus.DONE, TaskStatus.SKIPPED)
-                ]
-                if len(terminal_tasks) == len(current_state.tasks):
-                    test_gates = [g.id for g in contract.gates if g.kind == GateKind.IMPLEMENTATION_TESTS]
-                    gate_ids = test_gates or ["gate.tests"]
+                print(
+                    "RAPID1320 'rapid check --expect fail' must be bound to a task via --task or "
+                    f"require exactly one task in_progress (found {len(in_prog)}).",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+        gate_ids = []
+    else:
+        # Default binding when neither --task nor --gate is passed
+        if not task_ids and not gate_ids:
+            if current_state.status == RunStatus.PREPARED:
+                gate_ids = ["gate.baseline"]
+            elif current_state.status == RunStatus.ACTIVE:
+                in_prog = [t.id for t in current_state.tasks if t.status == TaskStatus.IN_PROGRESS]
+                if len(in_prog) == 1:
+                    task_ids = [in_prog[0]]
+                else:
+                    terminal_tasks = [
+                        t for t in current_state.tasks
+                        if t.status in (TaskStatus.DONE, TaskStatus.SKIPPED)
+                    ]
+                    if len(terminal_tasks) == len(current_state.tasks):
+                        test_gates = [g.id for g in contract.gates if g.kind == GateKind.IMPLEMENTATION_TESTS]
+                        gate_ids = test_gates or ["gate.tests"]
 
     kind = getattr(args, "kind", None)
     if kind == "test":
@@ -2959,8 +2981,6 @@ def check_command(args):
     config = load_project_config(CONFIG_FILE)
     test_cmd = config.get("test_command")
     timeout = float(config.get("check_timeout_s", 600))
-
-    expect = getattr(args, "expect", "pass")
     try:
         res = run_check(
             CURRENT_DIR,

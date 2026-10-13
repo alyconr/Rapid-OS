@@ -298,16 +298,16 @@ DEFAULT_BEHAVIORAL_RULESET_V2: tuple[BehavioralRule, ...] = (
         description="Pending gates are always UNVERIFIED; waived gates are WAIVED; acknowledged gates require valid gate-specific evidence to PASS and remain UNVERIFIED without evidence.",
     ),
     BehavioralRule(
-        id="rule.gate.implementation_tests.v1",
+        id="rule.gate.implementation_tests.v2",
         category="gate",
-        version=1,
-        description="IMPLEMENTATION_TESTS gates require ACKNOWLEDGED disposition plus artifact-backed TEST_RESULT evidence with exit_code == 0 and failed == 0.",
+        version=2,
+        description="IMPLEMENTATION_TESTS gates require ACKNOWLEDGED disposition plus artifact-backed TEST_RESULT evidence with exit_code == 0 and failed == 0 (evidence with expectation='fail' does not apply).",
     ),
     BehavioralRule(
-        id="rule.gate.baseline_check.v1",
+        id="rule.gate.baseline_check.v2",
         category="gate",
-        version=1,
-        description="BASELINE_CHECK gates require ACKNOWLEDGED disposition plus artifact-backed COMMAND_RESULT or TEST_RESULT evidence with exit_code == 0 (and failed == 0 for TEST_RESULT).",
+        version=2,
+        description="BASELINE_CHECK gates require ACKNOWLEDGED disposition plus artifact-backed COMMAND_RESULT or TEST_RESULT evidence with exit_code == 0 (and failed == 0 for TEST_RESULT; evidence with expectation='fail' does not apply).",
     ),
     BehavioralRule(
         id="rule.gate.workspace_isolation.v1",
@@ -1377,6 +1377,8 @@ class BehavioralEvaluator:
         evidence: RunEvidence,
     ) -> EvalAssertionStatus | None:
         if gate_kind == GateKind.IMPLEMENTATION_TESTS:
+            if self.ruleset_version >= 2 and evidence.payload.get("expectation") == "fail":
+                return None
             if evidence.kind != EvidenceKind.TEST_RESULT:
                 return None
             exit_code = int(evidence.payload["exit_code"])  # type: ignore[arg-type]
@@ -1388,6 +1390,8 @@ class BehavioralEvaluator:
             return EvalAssertionStatus.UNVERIFIED
 
         if gate_kind == GateKind.BASELINE_CHECK:
+            if self.ruleset_version >= 2 and evidence.payload.get("expectation") == "fail":
+                return None
             if evidence.kind == EvidenceKind.COMMAND_RESULT:
                 exit_code = int(evidence.payload["exit_code"])  # type: ignore[arg-type]
                 if exit_code != 0:
