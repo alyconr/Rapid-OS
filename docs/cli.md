@@ -293,25 +293,33 @@ Run deterministic, offline behavioral evaluations (`BehavioralEvaluator` → `Ev
 > **Product Truth**: `GateDisposition.ACKNOWLEDGED` is a declaration, not proof (`UNVERIFIED` without qualifying evidence). `EvaluationVerdict.PASS` means the configured Phase 6 evidence rules are satisfied by the exact recorded evidence set; it does not mathematically prove the software has zero bugs or that requirements are complete. Every persisted `EvaluationReport` undergoes mandatory semantic replay via `BehavioralEvaluator` when loaded or validated (`RAPID1223` on any discrepancy).
 
 ```bash
-rapid eval run --run <run-id> [--require <capability-id>] [--write] [--require-pass] [--json]
+rapid eval run --run <run-id> [--ruleset {1,2}] [--require <capability-id>] [--write] [--require-pass] [--json]
 rapid eval list --run <run-id> [--json]
 rapid eval show --run <run-id> [--revision <n>] [--json]
 ```
+
+Options for `run`:
+- `--ruleset {1,2}`: Behavioral ruleset version to evaluate against (defaults to `2`).
+- `--require <capability-id>`: Extra additive canonical capability ID to evaluate (repeatable).
+- `--write`: Persist append-only EvaluationReport snapshot.
+- `--require-pass`: Exit non-zero unless verdict is `pass` or `pass_with_waivers`.
+- `--json`: Emit pure EvaluationReport JSON.
 
 ---
 
 ## Check & Verification (`rapid check`)
 
-Execute direct argv commands without shell, capture combined output into `.rapid-os/scratch/checks/<run-id>/<n>.log`, parse test outcomes (unittest/pytest), and register append-only `RunEvidence` on success (`exit_code == 0`).
+Execute direct argv commands without shell, capture combined output into `.rapid-os/scratch/checks/<run-id>/<n>.log`, parse test outcomes (unittest/pytest), and register append-only `RunEvidence` on success (`exit_code == 0` for `expect=pass`, or failing exit/counts for `expect=fail`).
 
 ```bash
-rapid check [--task <task-id>] [--gate <gate-id>] [--kind {test,command}] [--json] -- <argv...>
+rapid check [--task <task-id>] [--gate <gate-id>] [--kind {test,command}] [--expect {pass,fail}] [--json] -- <argv...>
 ```
 
 Options:
 - `--task <task-id>`: Bind recorded evidence to a task (e.g. `T001`).
 - `--gate <gate-id>`: Bind recorded evidence to a gate (e.g. `gate.baseline`, `gate.tests`).
 - `--kind {test,command}`: Explicitly choose `test_result` or `command_result` evidence kind (inferred from argv if omitted).
+- `--expect {pass,fail}`: Expected outcome of the check (defaults to `pass`). If `fail`, evidence with `expectation="fail"` is registered only when the check fails (e.g. reproducing a defect before a fix).
 - `--json`: Output execution and recorded evidence details as JSON.
 - `-- <argv...>`: Vector of command arguments to run directly without shell.
 

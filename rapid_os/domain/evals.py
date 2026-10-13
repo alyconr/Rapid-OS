@@ -39,7 +39,8 @@ from rapid_os.domain.policy import sha256_canonical_json
 
 
 EVALUATION_REPORT_SCHEMA_VERSION = 1
-BEHAVIORAL_RULESET_VERSION = 1
+SUPPORTED_RULESET_VERSIONS: tuple[int, ...] = (1, 2)
+BEHAVIORAL_RULESET_VERSION = 2
 
 SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 ASSERTION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -80,6 +81,10 @@ REVIEW_GATE_KIND_TO_REVIEW_TYPE: Mapping[GateKind, str] = {
     GateKind.MANUAL_APPROVAL: "manual",
     GateKind.FINAL_VERIFICATION: "final",
 }
+
+HUMAN_GATE_KINDS: frozenset[GateKind] = frozenset(
+    REVIEW_GATE_KIND_TO_REVIEW_TYPE.keys()
+)
 
 
 class EvaluationError(ValueError):
@@ -204,7 +209,7 @@ class BehavioralRule:
         }
 
 
-DEFAULT_BEHAVIORAL_RULESET: tuple[BehavioralRule, ...] = (
+DEFAULT_BEHAVIORAL_RULESET_V1: tuple[BehavioralRule, ...] = (
     BehavioralRule(
         id="rule.run.lifecycle.v1",
         category="lifecycle",
@@ -267,13 +272,91 @@ DEFAULT_BEHAVIORAL_RULESET: tuple[BehavioralRule, ...] = (
     ),
 )
 
+DEFAULT_BEHAVIORAL_RULESET_V2: tuple[BehavioralRule, ...] = (
+    BehavioralRule(
+        id="rule.run.lifecycle.v1",
+        category="lifecycle",
+        version=1,
+        description="Run status FINISHED is PASS; FAILED or CANCELLED is FAIL; PREPARED, ACTIVE, or BLOCKED is UNVERIFIED.",
+    ),
+    BehavioralRule(
+        id="rule.task.evidence.v2",
+        category="task",
+        version=2,
+        description="Tasks in DONE require at least one non-failing execution evidence item linked via task_ids; expected failure evidence confirming reproduction does not count as failing; SKIPPED tasks are NOT_APPLICABLE; incomplete tasks are UNVERIFIED.",
+    ),
+    BehavioralRule(
+        id="rule.task.reproduction.v2",
+        category="task",
+        version=2,
+        description="Expected failure evidence (expectation='fail') generates a reproduction assertion in PASS if exit_code != 0 or failed > 0, and in FAIL otherwise.",
+    ),
+    BehavioralRule(
+        id="rule.gate.disposition.v1",
+        category="gate",
+        version=1,
+        description="Pending gates are always UNVERIFIED; waived gates are WAIVED; acknowledged gates require valid gate-specific evidence to PASS and remain UNVERIFIED without evidence.",
+    ),
+    BehavioralRule(
+        id="rule.gate.implementation_tests.v2",
+        category="gate",
+        version=2,
+        description="IMPLEMENTATION_TESTS gates require ACKNOWLEDGED disposition plus artifact-backed TEST_RESULT evidence with exit_code == 0 and failed == 0 (evidence with expectation='fail' does not apply).",
+    ),
+    BehavioralRule(
+        id="rule.gate.baseline_check.v2",
+        category="gate",
+        version=2,
+        description="BASELINE_CHECK gates require ACKNOWLEDGED disposition plus artifact-backed COMMAND_RESULT or TEST_RESULT evidence with exit_code == 0 (and failed == 0 for TEST_RESULT; evidence with expectation='fail' does not apply).",
+    ),
+    BehavioralRule(
+        id="rule.gate.workspace_isolation.v1",
+        category="gate",
+        version=1,
+        description="WORKSPACE_ISOLATION gates require ACKNOWLEDGED disposition plus WORKSPACE evidence with mode == 'isolated'.",
+    ),
+    BehavioralRule(
+        id="rule.gate.review.v2",
+        category="gate",
+        version=2,
+        description="Human review gates require ACKNOWLEDGED disposition plus approved REVIEW evidence produced by 'user', 'ci:*', or 'external:*'; review evidence produced by 'harness:*' leaves human gates UNVERIFIED.",
+    ),
+    BehavioralRule(
+        id="rule.gate.multi_evidence_conservative.v1",
+        category="gate",
+        version=1,
+        description="When multiple evidence items apply to a gate, any explicit failure dominates passing evidence (any FAIL -> FAIL, else any PASS -> PASS, else UNVERIFIED).",
+    ),
+    BehavioralRule(
+        id="rule.capability.observation.v2",
+        category="capability",
+        version=2,
+        description="Observable required capabilities must be backed by matching non-failing evidence (confirmed reproduction failures do not count as failing); context.consume and repository.read are NOT_APPLICABLE in Evidence Engine v1.",
+    ),
+    BehavioralRule(
+        id="rule.verdict.precedence.v1",
+        category="verdict",
+        version=1,
+        description="Overall verdict precedence: lifecycle FAIL or any required FAIL -> FAIL; else any required UNVERIFIED -> UNVERIFIED; else any required WAIVED -> PASS_WITH_WAIVERS; else PASS.",
+    ),
+)
+
+BEHAVIORAL_RULESETS: Mapping[int, tuple[BehavioralRule, ...]] = {
+    1: DEFAULT_BEHAVIORAL_RULESET_V1,
+    2: DEFAULT_BEHAVIORAL_RULESET_V2,
+}
+
+DEFAULT_BEHAVIORAL_RULESET: tuple[BehavioralRule, ...] = DEFAULT_BEHAVIORAL_RULESET_V2
+
 
 def compute_ruleset_digest(
-    rules: Iterable[BehavioralRule] = DEFAULT_BEHAVIORAL_RULESET,
+    rules: Iterable[BehavioralRule] | None = None,
     *,
     version: int = BEHAVIORAL_RULESET_VERSION,
 ) -> str:
     """Compute canonical SHA-256 digest of the active behavioral evaluation ruleset."""
+    if rules is None:
+        rules = BEHAVIORAL_RULESETS.get(version, DEFAULT_BEHAVIORAL_RULESET_V2)
     ordered = sorted(rules, key=lambda r: r.id)
     payload = {
         "ruleset_version": version,
@@ -282,7 +365,15 @@ def compute_ruleset_digest(
     return sha256_canonical_json(payload)
 
 
-DEFAULT_BEHAVIORAL_RULESET_DIGEST = compute_ruleset_digest()
+DEFAULT_BEHAVIORAL_RULESET_V1_DIGEST = compute_ruleset_digest(
+    DEFAULT_BEHAVIORAL_RULESET_V1,
+    version=1,
+)
+DEFAULT_BEHAVIORAL_RULESET_V2_DIGEST = compute_ruleset_digest(
+    DEFAULT_BEHAVIORAL_RULESET_V2,
+    version=2,
+)
+DEFAULT_BEHAVIORAL_RULESET_DIGEST = DEFAULT_BEHAVIORAL_RULESET_V2_DIGEST
 
 
 class EvalAssertionStatus(str, Enum):
@@ -576,10 +667,10 @@ class EvaluationReport:
         if (
             isinstance(self.ruleset_version, bool)
             or not isinstance(self.ruleset_version, int)
-            or self.ruleset_version != BEHAVIORAL_RULESET_VERSION
+            or self.ruleset_version not in SUPPORTED_RULESET_VERSIONS
         ):
             raise InvalidEvaluationReportError(
-                f"Unsupported EvaluationReport ruleset_version '{self.ruleset_version}': expected {BEHAVIORAL_RULESET_VERSION}."
+                f"Unsupported EvaluationReport ruleset_version '{self.ruleset_version}': expected one of {sorted(SUPPORTED_RULESET_VERSIONS)}."
             )
         object.__setattr__(
             self,
@@ -761,8 +852,22 @@ class EvaluationReport:
         return cls.from_dict(payload, verify_digest=verify_digest)
 
 
-def _is_evidence_item_failure(evidence: RunEvidence) -> bool:
+def _is_evidence_item_failure(
+    evidence: RunEvidence,
+    ruleset_version: int = BEHAVIORAL_RULESET_VERSION,
+) -> bool:
     """Return True if `evidence` records an explicit execution or verification failure."""
+    if ruleset_version >= 2 and evidence.payload.get("expectation") == "fail":
+        if evidence.kind == EvidenceKind.TEST_RESULT:
+            exit_code = int(evidence.payload["exit_code"])  # type: ignore[arg-type]
+            failed = int(evidence.payload["failed"])  # type: ignore[arg-type]
+            if exit_code != 0 or failed > 0:
+                return False
+        elif evidence.kind == EvidenceKind.COMMAND_RESULT:
+            exit_code = int(evidence.payload["exit_code"])  # type: ignore[arg-type]
+            if exit_code != 0:
+                return False
+
     if evidence.kind == EvidenceKind.COMMAND_RESULT:
         return int(evidence.payload["exit_code"]) != 0  # type: ignore[arg-type]
     if evidence.kind == EvidenceKind.TEST_RESULT:
@@ -793,8 +898,15 @@ class BehavioralEvaluator:
         ruleset_version: int = BEHAVIORAL_RULESET_VERSION,
         requirement_resolver: CapabilityRequirementResolver | None = None,
     ):
-        self.ruleset = tuple(ruleset)
+        if ruleset_version not in SUPPORTED_RULESET_VERSIONS:
+            raise InvalidEvaluationReportError(
+                f"Unsupported ruleset version {ruleset_version}; supported versions are {sorted(SUPPORTED_RULESET_VERSIONS)}."
+            )
         self.ruleset_version = ruleset_version
+        if ruleset is DEFAULT_BEHAVIORAL_RULESET:
+            self.ruleset = BEHAVIORAL_RULESETS.get(ruleset_version, DEFAULT_BEHAVIORAL_RULESET_V2)
+        else:
+            self.ruleset = tuple(ruleset)
         self.ruleset_digest = compute_ruleset_digest(
             self.ruleset,
             version=self.ruleset_version,
@@ -894,7 +1006,7 @@ class BehavioralEvaluator:
                 raise EvaluationBindingMismatchError(
                     f"RunState s{state.revision} is missing contract task '{contract_task.id}'."
                 )
-            assertions.append(
+            assertions.extend(
                 self._evaluate_task(task_state, ordered_evidence)
             )
 
@@ -1030,7 +1142,7 @@ class BehavioralEvaluator:
         self,
         task_state: TaskState,
         ordered_evidence: tuple[RunEvidence, ...],
-    ) -> EvalAssertion:
+    ) -> list[EvalAssertion]:
         assertion_id = f"task.{task_state.id}.evidence"
         linked = [
             ev
@@ -1038,59 +1150,124 @@ class BehavioralEvaluator:
             if task_state.id in ev.task_ids and ev.kind in TASK_EVIDENCE_KINDS
         ]
         ev_ids = tuple(ev.id for ev in linked)
+        assertions: list[EvalAssertion] = []
 
         if task_state.status == TaskStatus.SKIPPED:
-            return EvalAssertion(
-                id=assertion_id,
-                category="task",
-                subject_id=task_state.id,
-                required=False,
-                status=EvalAssertionStatus.NOT_APPLICABLE,
-                reason=f"Task '{task_state.id}' was skipped.",
-                evidence_ids=ev_ids,
+            assertions.append(
+                EvalAssertion(
+                    id=assertion_id,
+                    category="task",
+                    subject_id=task_state.id,
+                    required=False,
+                    status=EvalAssertionStatus.NOT_APPLICABLE,
+                    reason=f"Task '{task_state.id}' was skipped.",
+                    evidence_ids=ev_ids,
+                )
             )
+            return assertions
 
         if task_state.status == TaskStatus.DONE:
             if not linked:
-                return EvalAssertion(
+                assertions.append(
+                    EvalAssertion(
+                        id=assertion_id,
+                        category="task",
+                        subject_id=task_state.id,
+                        required=True,
+                        status=EvalAssertionStatus.UNVERIFIED,
+                        reason=f"Task '{task_state.id}' is marked done without linked execution evidence.",
+                        evidence_ids=(),
+                    )
+                )
+            else:
+                failing = [
+                    ev for ev in linked
+                    if _is_evidence_item_failure(ev, ruleset_version=self.ruleset_version)
+                ]
+                if failing:
+                    assertions.append(
+                        EvalAssertion(
+                            id=assertion_id,
+                            category="task",
+                            subject_id=task_state.id,
+                            required=True,
+                            status=EvalAssertionStatus.FAIL,
+                            reason=f"Task '{task_state.id}' has failing linked execution evidence ({', '.join(ev.id for ev in failing)}).",
+                            evidence_ids=ev_ids,
+                        )
+                    )
+                else:
+                    assertions.append(
+                        EvalAssertion(
+                            id=assertion_id,
+                            category="task",
+                            subject_id=task_state.id,
+                            required=True,
+                            status=EvalAssertionStatus.PASS,
+                            reason=f"Task '{task_state.id}' completion is backed by execution evidence ({', '.join(ev_ids)}).",
+                            evidence_ids=ev_ids,
+                        )
+                    )
+        else:
+            assertions.append(
+                EvalAssertion(
                     id=assertion_id,
                     category="task",
                     subject_id=task_state.id,
                     required=True,
                     status=EvalAssertionStatus.UNVERIFIED,
-                    reason=f"Task '{task_state.id}' is marked done without linked execution evidence.",
-                    evidence_ids=(),
-                )
-            failing = [ev for ev in linked if _is_evidence_item_failure(ev)]
-            if failing:
-                return EvalAssertion(
-                    id=assertion_id,
-                    category="task",
-                    subject_id=task_state.id,
-                    required=True,
-                    status=EvalAssertionStatus.FAIL,
-                    reason=f"Task '{task_state.id}' has failing linked execution evidence ({', '.join(ev.id for ev in failing)}).",
+                    reason=f"Task '{task_state.id}' is in status '{task_state.status.value}' and not yet completed.",
                     evidence_ids=ev_ids,
                 )
-            return EvalAssertion(
-                id=assertion_id,
-                category="task",
-                subject_id=task_state.id,
-                required=True,
-                status=EvalAssertionStatus.PASS,
-                reason=f"Task '{task_state.id}' completion is backed by execution evidence ({', '.join(ev_ids)}).",
-                evidence_ids=ev_ids,
             )
 
-        return EvalAssertion(
-            id=assertion_id,
-            category="task",
-            subject_id=task_state.id,
-            required=True,
-            status=EvalAssertionStatus.UNVERIFIED,
-            reason=f"Task '{task_state.id}' is in status '{task_state.status.value}' and not yet completed.",
-            evidence_ids=ev_ids,
-        )
+        if self.ruleset_version >= 2:
+            expected_fail_ev = [
+                ev for ev in linked
+                if ev.payload.get("expectation") == "fail"
+                and ev.kind in (EvidenceKind.TEST_RESULT, EvidenceKind.COMMAND_RESULT)
+            ]
+            if expected_fail_ev:
+                repro_ev_ids = tuple(ev.id for ev in expected_fail_ev)
+                reproduced = False
+                for ev in expected_fail_ev:
+                    if ev.kind == EvidenceKind.TEST_RESULT:
+                        exit_code = int(ev.payload["exit_code"])
+                        failed = int(ev.payload["failed"])
+                        if exit_code != 0 or failed > 0:
+                            reproduced = True
+                            break
+                    elif ev.kind == EvidenceKind.COMMAND_RESULT:
+                        exit_code = int(ev.payload["exit_code"])
+                        if exit_code != 0:
+                            reproduced = True
+                            break
+                if reproduced:
+                    assertions.append(
+                        EvalAssertion(
+                            id=f"reproduction.{task_state.id}",
+                            category="task",
+                            subject_id=task_state.id,
+                            required=True,
+                            status=EvalAssertionStatus.PASS,
+                            reason=f"Expected failure confirmed reproduction for task '{task_state.id}'.",
+                            evidence_ids=repro_ev_ids,
+                        )
+                    )
+                else:
+                    assertions.append(
+                        EvalAssertion(
+                            id=f"reproduction.{task_state.id}",
+                            category="task",
+                            subject_id=task_state.id,
+                            required=True,
+                            status=EvalAssertionStatus.FAIL,
+                            reason=f"Expected failure did not reproduce for task '{task_state.id}' (tests/command succeeded).",
+                            evidence_ids=repro_ev_ids,
+                        )
+                    )
+
+        return assertions
 
     def _evaluate_gate(
         self,
@@ -1165,6 +1342,25 @@ class BehavioralEvaluator:
                 evidence_ids=evidence_ids,
             )
 
+        if self.ruleset_version >= 2 and contract_gate.kind in HUMAN_GATE_KINDS:
+            harness_reviews = [
+                ev for ev in linked
+                if ev.kind == EvidenceKind.REVIEW
+                and str(ev.payload.get("review_type")) == REVIEW_GATE_KIND_TO_REVIEW_TYPE.get(contract_gate.kind)
+                and ev.producer.startswith("harness:")
+            ]
+            if harness_reviews:
+                harness_producer = harness_reviews[0].producer
+                return EvalAssertion(
+                    id=assertion_id,
+                    category="gate",
+                    subject_id=contract_gate.id,
+                    required=contract_gate.required,
+                    status=EvalAssertionStatus.UNVERIFIED,
+                    reason=f"Review evidence for human gate '{contract_gate.id}' cannot be produced by harness '{harness_producer}'.",
+                    evidence_ids=all_linked_ids,
+                )
+
         return EvalAssertion(
             id=assertion_id,
             category="gate",
@@ -1181,6 +1377,8 @@ class BehavioralEvaluator:
         evidence: RunEvidence,
     ) -> EvalAssertionStatus | None:
         if gate_kind == GateKind.IMPLEMENTATION_TESTS:
+            if self.ruleset_version >= 2 and evidence.payload.get("expectation") == "fail":
+                return None
             if evidence.kind != EvidenceKind.TEST_RESULT:
                 return None
             exit_code = int(evidence.payload["exit_code"])  # type: ignore[arg-type]
@@ -1192,6 +1390,8 @@ class BehavioralEvaluator:
             return EvalAssertionStatus.UNVERIFIED
 
         if gate_kind == GateKind.BASELINE_CHECK:
+            if self.ruleset_version >= 2 and evidence.payload.get("expectation") == "fail":
+                return None
             if evidence.kind == EvidenceKind.COMMAND_RESULT:
                 exit_code = int(evidence.payload["exit_code"])  # type: ignore[arg-type]
                 if exit_code != 0:
@@ -1223,6 +1423,8 @@ class BehavioralEvaluator:
                 return None
             if str(evidence.payload["review_type"]) != expected_review_type:
                 return None
+            if self.ruleset_version >= 2 and evidence.producer.startswith("harness:"):
+                return EvalAssertionStatus.UNVERIFIED
             outcome = str(evidence.payload["outcome"])
             if outcome == "approved":
                 return EvalAssertionStatus.PASS
@@ -1333,6 +1535,8 @@ class BehavioralEvaluator:
             failed = int(evidence.payload["failed"])  # type: ignore[arg-type]
             if exit_code == 0 and failed == 0:
                 return EvalAssertionStatus.PASS
+            if self.ruleset_version >= 2 and evidence.payload.get("expectation") == "fail":
+                return None
             return EvalAssertionStatus.FAIL
 
         if capability_id == "shell.execute":
@@ -1341,6 +1545,8 @@ class BehavioralEvaluator:
             exit_code = int(evidence.payload["exit_code"])  # type: ignore[arg-type]
             if exit_code == 0:
                 return EvalAssertionStatus.PASS
+            if self.ruleset_version >= 2 and evidence.payload.get("expectation") == "fail":
+                return None
             return EvalAssertionStatus.FAIL
 
         if capability_id == "git.inspect":

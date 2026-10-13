@@ -199,7 +199,7 @@ rapid evidence add --run spec-order-discount-fix-r1-run-001 --input evidence_reg
 ```json
 {
   "kind": "review",
-  "producer": "harness:claude",
+  "producer": "user",
   "summary": "Revisión final de código y verificación de ausencia de regresiones",
   "task_ids": ["T001"],
   "gate_ids": ["gate.final-verification"],

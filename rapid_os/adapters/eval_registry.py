@@ -20,6 +20,7 @@ from rapid_os.domain.evals import (
     EvaluationReportNotFoundError,
     InvalidEvaluationReportError,
     UnsafeEvaluationPathError,
+    compute_ruleset_digest,
     format_eval_report_file_name,
     is_canonical_eval_report_file_name,
     parse_eval_report_revision,
@@ -261,7 +262,12 @@ class EvalRegistry:
         # Mandatory semantic replay: reconstruct evaluation from contract + historical RunState +
         # exact historical evidence set + behavioral ruleset + extra capability requirements
         try:
-            replayed = self.evaluator.evaluate(
+            evaluator = (
+                self.evaluator
+                if self.evaluator.ruleset_version == report.ruleset_version
+                else BehavioralEvaluator(ruleset_version=report.ruleset_version)
+            )
+            replayed = evaluator.evaluate(
                 contract,
                 bound_state,
                 matched_prefix,
@@ -417,10 +423,11 @@ class EvalRegistry:
             current_evidence_set_digest
             or self.evidence_registry.evidence_set_digest(report.run_id)
         )
+        expected_ruleset_digest = compute_ruleset_digest(version=report.ruleset_version)
         return (
             report.state_digest != resolved_state.content_digest
             or report.evidence_set_digest != resolved_ev_digest
-            or report.ruleset_digest != self.evaluator.ruleset_digest
+            or report.ruleset_digest != expected_ruleset_digest
         )
 
     def list_report_entries(
@@ -555,6 +562,7 @@ class EvalRegistry:
         *,
         extra_capability_requirements: Iterable[CapabilityRequirement | str] = (),
         write: bool = False,
+        ruleset_version: int = BEHAVIORAL_RULESET_VERSION,
     ) -> EvaluationReport:
         """Evaluate `run_id` against its current `RunState` and verified `RunEvidence` set.
 
@@ -569,7 +577,12 @@ class EvalRegistry:
         )
         evidence_records = self.evidence_registry.verify(validated_run_id)
 
-        report = self.evaluator.evaluate(
+        evaluator = (
+            self.evaluator
+            if self.evaluator.ruleset_version == ruleset_version
+            else BehavioralEvaluator(ruleset_version=ruleset_version)
+        )
+        report = evaluator.evaluate(
             contract,
             current_state,
             evidence_records,

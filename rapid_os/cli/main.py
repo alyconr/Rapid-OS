@@ -2793,10 +2793,12 @@ def eval_command(args):
                     "Option '--run' is required to evaluate a run."
                 )
             extra_reqs = tuple(getattr(args, "require", None) or ())
+            ruleset_version = getattr(args, "ruleset", 2)
             report = registry.evaluate_run(
                 run_id,
                 extra_capability_requirements=extra_reqs,
                 write=bool(getattr(args, "write", False)),
+                ruleset_version=ruleset_version,
             )
 
             if getattr(args, "json", False):
@@ -2930,23 +2932,45 @@ def check_command(args):
     task_ids = [task_arg] if task_arg else []
     gate_arg = getattr(args, "gate", None)
     gate_ids = [gate_arg] if gate_arg else []
+    expect = getattr(args, "expect", "pass")
 
-    # Default binding when neither --task nor --gate is passed
-    if not task_ids and not gate_ids:
-        if current_state.status == RunStatus.PREPARED:
-            gate_ids = ["gate.baseline"]
-        elif current_state.status == RunStatus.ACTIVE:
+    if expect == "fail":
+        if gate_arg:
+            print(
+                "RAPID1320 'rapid check --expect fail' cannot be bound to a gate (--gate). "
+                "Expected failures must be linked exclusively to a task.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if not task_ids:
             in_prog = [t.id for t in current_state.tasks if t.status == TaskStatus.IN_PROGRESS]
             if len(in_prog) == 1:
                 task_ids = [in_prog[0]]
             else:
-                terminal_tasks = [
-                    t for t in current_state.tasks
-                    if t.status in (TaskStatus.DONE, TaskStatus.SKIPPED)
-                ]
-                if len(terminal_tasks) == len(current_state.tasks):
-                    test_gates = [g.id for g in contract.gates if g.kind == GateKind.IMPLEMENTATION_TESTS]
-                    gate_ids = test_gates or ["gate.tests"]
+                print(
+                    "RAPID1320 'rapid check --expect fail' must be bound to a task via --task or "
+                    f"require exactly one task in_progress (found {len(in_prog)}).",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+        gate_ids = []
+    else:
+        # Default binding when neither --task nor --gate is passed
+        if not task_ids and not gate_ids:
+            if current_state.status == RunStatus.PREPARED:
+                gate_ids = ["gate.baseline"]
+            elif current_state.status == RunStatus.ACTIVE:
+                in_prog = [t.id for t in current_state.tasks if t.status == TaskStatus.IN_PROGRESS]
+                if len(in_prog) == 1:
+                    task_ids = [in_prog[0]]
+                else:
+                    terminal_tasks = [
+                        t for t in current_state.tasks
+                        if t.status in (TaskStatus.DONE, TaskStatus.SKIPPED)
+                    ]
+                    if len(terminal_tasks) == len(current_state.tasks):
+                        test_gates = [g.id for g in contract.gates if g.kind == GateKind.IMPLEMENTATION_TESTS]
+                        gate_ids = test_gates or ["gate.tests"]
 
     kind = getattr(args, "kind", None)
     if kind == "test":
@@ -2957,7 +2981,6 @@ def check_command(args):
     config = load_project_config(CONFIG_FILE)
     test_cmd = config.get("test_command")
     timeout = float(config.get("check_timeout_s", 600))
-
     try:
         res = run_check(
             CURRENT_DIR,
@@ -2969,6 +2992,7 @@ def check_command(args):
             kind=kind,
             test_command=test_cmd if isinstance(test_cmd, (list, tuple)) else None,
             timeout=timeout,
+            expect=expect,
         )
     except FileNotFoundError:
         print(f"Command not found: '{argv[0]}'", file=sys.stderr)
@@ -2979,6 +3003,29 @@ def check_command(args):
     except Exception as exc:
         print(f"Error executing check: {exc}", file=sys.stderr)
         sys.exit(1)
+
+    if expect == "fail":
+        if getattr(args, "json", False):
+            payload = {
+                "run_id": res.run_id,
+                "argv": list(res.argv),
+                "exit_code": res.exit_code,
+                "log_path": str(res.log_path.relative_to(CURRENT_DIR)).replace("\\", "/"),
+                "kind": res.kind,
+                "passed": res.passed,
+                "failed": res.failed,
+                "skipped": res.skipped,
+                "evidence_id": res.evidence.id if res.evidence else None,
+            }
+            print(json.dumps(payload, indent=2))
+            sys.exit(0 if res.evidence is not None else 1)
+
+        if res.evidence is None:
+            print(f"Check expected failure, but command succeeded (exit code {res.exit_code})", file=sys.stderr)
+            sys.exit(1)
+
+        print_success(f"Expected failure confirmed (evidence {res.evidence.id})")
+        return 0
 
     if getattr(args, "json", False):
         payload = {
@@ -4003,6 +4050,7 @@ def create_parser():
         description="Evaluate a run's lifecycle, tasks, gates, and observable capabilities. Read-only unless --write is passed.",
     )
     eval_run.add_argument("--run", dest="run", required=True, help="Target run identifier.")
+    eval_run.add_argument("--ruleset", type=int, choices=[1, 2], default=2, help="Behavioral ruleset version to evaluate (1 or 2, defaults to 2).")
     eval_run.add_argument("--require", action="append", help="Extra additive canonical capability ID to evaluate (repeatable).")
     eval_run.add_argument("--write", action="store_true", help="Persist append-only EvaluationReport under .rapid-os/evals/<run-id>/reports/.")
     eval_run.add_argument(
@@ -4121,6 +4169,7 @@ def create_parser():
     check_p.add_argument("--task", dest="task", help="Target task identifier (e.g. T001).")
     check_p.add_argument("--gate", dest="gate", help="Target gate identifier (e.g. gate.baseline).")
     check_p.add_argument("--kind", dest="kind", choices=["test", "command", "test_result", "command_result"], help="Evidence kind to produce.")
+    check_p.add_argument("--expect", dest="expect", choices=["pass", "fail"], default="pass", help="Expected outcome of check ('pass' or 'fail').")
     check_p.add_argument("--json", action="store_true", help="Emit JSON result on stdout.")
     check_p.add_argument("argv", nargs=argparse.REMAINDER, help="Command line arguments to execute after --.")
 
