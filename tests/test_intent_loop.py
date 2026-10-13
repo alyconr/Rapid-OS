@@ -68,7 +68,11 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
         extra_env: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
         cmd = [sys.executable, "-m", "rapid_os.cli.main", *args]
-        env = os.environ.copy()
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION")
+        }
         env["PYTHONPATH"] = str(ROOT)
         if extra_env:
             env.update(extra_env)
@@ -205,7 +209,11 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
             f"mock.patch('builtins.input', return_value='aprobar {human_gate_to_approve}').start(); "
             "sys.exit(m.main())"
         )
-        env = os.environ.copy()
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION")
+        }
         env["PYTHONPATH"] = str(ROOT)
         approve_res = subprocess.run(
             [sys.executable, "-c", approve_py],
@@ -394,7 +402,11 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
             "mock.patch('builtins.input', return_value='aprobar gate.final-verification').start(); "
             "sys.exit(m.main())"
         )
-        env = os.environ.copy()
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION")
+        }
         env["PYTHONPATH"] = str(ROOT)
         env["PYTHONIOENCODING"] = "utf-8"
         subprocess.run([sys.executable, "-c", approve_py], cwd=str(self.tmp_path), check=True, env=env)
@@ -409,7 +421,7 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
         self.assertIsNotNone(file_change_ev)
         self.assertIn("interim.txt", file_change_ev.payload["paths"])
 
-    def test_approve_reject_requires_reason_and_claude_code_session_rejection(self):
+    def test_approve_reject_requires_reason(self):
         test_cmd_str = f'"{sys.executable}" -m unittest discover -s tests -t .'
         self._rapid("init", "--yes", "--test-command", test_cmd_str)
 
@@ -425,7 +437,18 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
         self.assertEqual(reject_fail.returncode, 1)
         self.assertIn("Reason is required", reject_fail.stderr)
 
-        # Rejection from Claude Code agent session -> RAPID1310
+    def test_approve_rejects_under_claude_code_session(self):
+        test_cmd_str = f'"{sys.executable}" -m unittest discover -s tests -t .'
+        self._rapid("init", "--yes", "--test-command", test_cmd_str)
+
+        spec_payload = {
+            "title": "Claude Code Approval Guard Spec",
+            "mode": "feature",
+            "tasks": ["T001: Task 1"],
+        }
+        self._rapid("start", "feature", "--spec-file", "-", input_str=json.dumps(spec_payload))
+
+        # Rejection from Claude Code agent session (CLAUDE_CODE_CHILD_SESSION=1) -> RAPID1310
         agent_py = (
             "import sys, unittest.mock as mock, rapid_os.cli.main as m; "
             "sys.argv = ['rapid', 'approve', 'gate.final-verification']; "
@@ -433,7 +456,11 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
             "mock.patch('builtins.input', return_value='aprobar gate.final-verification').start(); "
             "sys.exit(m.main())"
         )
-        env = os.environ.copy()
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION")
+        }
         env["PYTHONPATH"] = str(ROOT)
         env["PYTHONIOENCODING"] = "utf-8"
         env["CLAUDE_CODE_CHILD_SESSION"] = "1"
