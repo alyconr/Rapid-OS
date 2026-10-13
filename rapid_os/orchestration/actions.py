@@ -46,6 +46,7 @@ class NextAction:
     tasks_done: int = 0
     tasks_total: int = 0
     outcome: str | None = None
+    spec_template: dict[str, object] | None = None
 
     def __post_init__(self):
         coerced_kind = ActionKind.coerce(self.kind)
@@ -73,6 +74,8 @@ class NextAction:
         payload["instructions"] = self.instructions
         payload["command"] = list(self.command) if self.command is not None else None
         payload["after"] = list(self.after) if self.after is not None else None
+        if self.spec_template is not None:
+            payload["spec_template"] = dict(self.spec_template)
         return payload
 
     def to_dict(self) -> dict[str, object]:

@@ -23,7 +23,7 @@
   },
   "instructions": {
     "author_spec": "Redacta la especificación usando rapid spec create con título, modo feature y tareas atómicas.",
-    "run_baseline": "Ejecuta la verificación de baseline para registrar el estado saludable del repositorio antes de iniciar cambios.",
+    "run_baseline": "Ejecuta la verificación de baseline para registrar el estado saludable del repositorio antes de iniciar cambios. Si el comando sale en rojo, el repositorio no está sano antes de empezar; arregla la causa o ejecuta rapid abort.",
     "activate": "El baseline fue verificado satisfactoriamente. Activa el run para comenzar la ejecución de tareas.",
     "implement_task": "Implementa solo la tarea indicada. Corre los tests con rapid check.",
     "verify": "Ejecuta las verificaciones automáticas de machine gates o capacidades requeridas.",

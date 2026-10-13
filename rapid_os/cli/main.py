@@ -3136,10 +3136,215 @@ def task_command(args):
     sys.exit(1)
 
 
+def start_command(args):
+    """Execute rapid start command."""
+    from rapid_os.orchestration.lifecycle import execute_start
+
+    mode = getattr(args, "mode", None)
+    resume = getattr(args, "resume", False)
+    if not mode and not resume:
+        print("RAPID1306 Mode is required when starting a run (e.g. 'rapid start feature'). Use --resume to continue an existing session.", file=sys.stderr)
+        sys.exit(1)
+
+    objective = getattr(args, "objective", None)
+    spec_id = getattr(args, "spec", None)
+    spec_file = getattr(args, "spec_file", None)
+    harness = getattr(args, "harness", None)
+
+    code, res = execute_start(
+        CURRENT_DIR,
+        PROJECT_RAPID_DIR,
+        mode,
+        objective=objective,
+        spec_id=spec_id,
+        spec_file=spec_file,
+        harness=harness,
+        resume=resume,
+        config_file=CONFIG_FILE,
+        templates_dir=TEMPLATES_DIR,
+    )
+    if code != 0:
+        print(res, file=sys.stderr)
+        sys.exit(code)
+
+    if getattr(args, "json", False):
+        print(json.dumps(res.to_dict(), indent=2))
+        return 0
+
+    cmd_str = f" -> {' '.join(res.command)}" if res.command else ""
+    print(f"Next: {res.kind.value}{cmd_str}")
+    return 0
+
+
+def next_command(args):
+    """Execute rapid next command."""
+    from rapid_os.orchestration.lifecycle import execute_next
+
+    code, action = execute_next(
+        CURRENT_DIR,
+        PROJECT_RAPID_DIR,
+        config_file=CONFIG_FILE,
+        templates_dir=TEMPLATES_DIR,
+    )
+    if code != 0:
+        sys.exit(code)
+
+    if getattr(args, "json", False):
+        print(json.dumps(action.to_dict(), indent=2))
+        return 0
+
+    cmd_str = f" -> {' '.join(action.command)}" if action.command else ""
+    print(f"Next: {action.kind.value}{cmd_str}")
+    return 0
+
+
+def finish_command(args):
+    """Execute rapid finish command."""
+    from rapid_os.orchestration.actions import NextAction
+    from rapid_os.orchestration.lifecycle import execute_finish
+
+    code, result = execute_finish(
+        CURRENT_DIR,
+        PROJECT_RAPID_DIR,
+        config_file=CONFIG_FILE,
+        templates_dir=TEMPLATES_DIR,
+    )
+    if isinstance(result, str):
+        print(result, file=sys.stderr)
+        sys.exit(code)
+
+    if isinstance(result, NextAction):
+        if getattr(args, "json", False):
+            print(json.dumps(result.to_dict(), indent=2))
+            return 0
+        cmd_str = f" -> {' '.join(result.command)}" if result.command else ""
+        print(f"Cannot finish yet. Next: {result.kind.value}{cmd_str}")
+        return 0
+
+    # result is EvaluationReport
+    if getattr(args, "json", False):
+        print(json.dumps(result.to_dict(), indent=2))
+        sys.exit(code)
+
+    print(f"Evaluation report {result.report_id} verdict: {result.verdict.value.upper()}")
+    sys.exit(code)
+
+
+def approve_command(args):
+    """Execute rapid approve command."""
+    from rapid_os.orchestration.lifecycle import execute_approve
+
+    gate_id = args.gate_id
+    reviewer = getattr(args, "reviewer", None)
+    reject = getattr(args, "reject", False)
+    reason = getattr(args, "reason", None)
+
+    if reject and (not reason or not str(reason).strip()):
+        print("Reason is required (--reason) when rejecting a gate approval.", file=sys.stderr)
+        sys.exit(1)
+
+    code, msg = execute_approve(
+        CURRENT_DIR,
+        PROJECT_RAPID_DIR,
+        gate_id,
+        reviewer=reviewer,
+        reject=reject,
+        reason=reason,
+    )
+    if code != 0:
+        print(msg, file=sys.stderr)
+        sys.exit(code)
+
+    print_success(msg)
+    return 0
+
+
+def status_command(args):
+    """Execute rapid status command."""
+    from rapid_os.orchestration.session import load_session
+
+    sess = load_session(PROJECT_RAPID_DIR)
+    if not sess or not sess.active_run_id:
+        if getattr(args, "json", False):
+            print(json.dumps({"session": None, "run": None}, indent=2))
+            return 0
+        print("No active run session found (.rapid-os/session.json).")
+        return 0
+
+    run_reg = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+    eval_reg = EvalRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+
+    try:
+        record = run_reg.get(sess.active_run_id)
+        contract = run_reg.get_contract(sess.active_run_id)
+        state = run_reg.get_state(sess.active_run_id)
+    except Exception as exc:
+        print(f"RAPID1304 Run '{sess.active_run_id}' not found: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    reports = eval_reg.list_reports(sess.active_run_id)
+    last_verdict = reports[-1].verdict.value if reports else None
+
+    if getattr(args, "json", False):
+        payload = {
+            "session": sess.to_dict(),
+            "run": {
+                "id": record.id,
+                "status": state.status.value,
+                "revision": state.revision,
+                "mode": sess.mode,
+                "harness": contract.harness,
+                "classification": contract.classification.value,
+                "risk": contract.risk.label,
+                "tasks": [t.to_dict() for t in state.tasks],
+                "gates": [g.to_dict() for g in state.gates],
+                "last_verdict": last_verdict,
+            },
+        }
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    done_tasks = sum(1 for t in state.tasks if t.status in (TaskStatus.DONE, TaskStatus.SKIPPED))
+    print(f"Session Run:   {record.id} ({state.status.value}, s{state.revision})")
+    print(f"Mode/Harness:  {sess.mode} / {contract.harness}")
+    print(f"Tasks:         {done_tasks}/{len(state.tasks)} terminal")
+    if last_verdict:
+        print(f"Last Verdict:  {last_verdict.upper()}")
+    return 0
+
+
+def abort_command(args):
+    """Execute rapid abort command."""
+    from rapid_os.orchestration.lifecycle import execute_abort
+
+    reason = getattr(args, "reason", None)
+    code, msg = execute_abort(
+        CURRENT_DIR,
+        PROJECT_RAPID_DIR,
+        reason=reason,
+    )
+    if code != 0:
+        print(msg, file=sys.stderr)
+        sys.exit(code)
+
+    print_success(msg)
+    return 0
+
+
 def show_guide():
     print(f"📘 RAPID OS v{__version__} - GOVERNANCE LOOP & CLI GUIDE")
     print("")
-    print("Recommended v3 Governance Workflow:")
+    print("Recommended Porcelain Workflow (Agent/Intent Layer):")
+    print("  1. start        -> rapid start <mode> [--spec-file <path>|-] [--spec <id>] [writes state]")
+    print("  2. next         -> rapid next [--json] (determine deterministic next action) [read-only]")
+    print("  3. task start   -> rapid task start [<task-id>] [writes state]")
+    print("  4. task done    -> rapid task done [<task-id>] [--no-check] (verifies with test_command) [writes state]")
+    print("  5. check        -> rapid check [--task <id>] [--gate <id>] -- <argv...> [writes state]")
+    print("  6. approve      -> rapid approve <gate-id> (interactive review gate confirmation) [writes state]")
+    print("  7. finish       -> rapid finish [--json] (records file_change, checks machine gates, evaluates) [writes state]")
+    print("  8. status/abort -> rapid status (read-only) | rapid abort [--reason <text>] [writes state]")
+    print("")
+    print("Recommended Plumbing Governance Workflow:")
     print("  1. scan       -> rapid scan [--write] (inspect & snapshot repository facts)")
     print("  2. spec       -> rapid spec create ... --status ready (author immutable spec revision)")
     print("  3. context    -> rapid context --spec <spec-id> (compile task-aware budgeted context)")
@@ -3149,7 +3354,17 @@ def show_guide():
     print("  7. eval       -> rapid eval run --run <run-id> [--write] [--require-pass] (evaluate behavioral ruleset)")
     print("  8. validate   -> rapid validate [--strict] (verify end-to-end project & registry integrity)")
     print("")
-    print("Core & v3 Governance Commands:")
+    print("Core Porcelain Commands:")
+    print("  start           -> Begin or resume intent workflow session [writes state]")
+    print("  next            -> Compute deterministic next action and suggested command [read-only]")
+    print("  check           -> Execute command/test and record verified evidence [writes state]")
+    print("  task            -> Transition task state (start, done, skip) [writes state]")
+    print("  finish          -> Record repo changes, verify machine gates, and evaluate run [writes state]")
+    print("  approve         -> Interactively approve human review gate [writes state]")
+    print("  status          -> Display active session and run progress [read-only]")
+    print("  abort           -> Cancel active run and clear session [writes state]")
+    print("")
+    print("Core Plumbing Commands:")
     print("  init            -> Initialize project standards and agent rule files [writes state]")
     print("  scan            -> Inspect project intelligence (read-only; --write persists .rapid-os/project.json)")
     print("  context         -> Compile task-selective context [read-only]")
@@ -3767,6 +3982,63 @@ def create_parser():
     task_skip.add_argument("--reason", required=True, help="Mandatory reason for skipping the task.")
     task_skip.add_argument("--json", action="store_true", help="Emit JSON output.")
 
+    # rapid start
+    start_p = subparsers.add_parser(
+        "start",
+        help="Start or resume a governed intent workflow session.",
+        description="Initialize session, compile or bind spec, evaluate contract, and execute initial baseline check.",
+    )
+    start_p.add_argument("mode", nargs="?", choices=["feature", "bugfix", "refactor", "hardening", "research"], help="Engineering workflow mode (required unless --resume).")
+    start_p.add_argument("objective", nargs="?", help="Optional business objective or feature goal.")
+    start_p.add_argument("--spec-file", dest="spec_file", help="Path to JSON spec authoring file (or '-' for stdin).")
+    start_p.add_argument("--spec", dest="spec", help="Existing ready spec identifier.")
+    start_p.add_argument("--harness", dest="harness", help="Explicit harness override.")
+    start_p.add_argument("--resume", action="store_true", help="Resume baseline check and activation on active run.")
+    start_p.add_argument("--json", action="store_true", help="Emit NextAction JSON output.")
+
+    # rapid next
+    next_p = subparsers.add_parser(
+        "next",
+        help="Determine the next deterministic workflow action.",
+        description="Compute and print the next action according to active run state, evidence, and playbook rules.",
+    )
+    next_p.add_argument("--json", action="store_true", help="Emit NextAction JSON output.")
+
+    # rapid finish
+    finish_p = subparsers.add_parser(
+        "finish",
+        help="Complete run, record file changes, acknowledge machine gates, and evaluate.",
+        description="Collect git diff file changes, acknowledge satisfied machine gates, evaluate ruleset, and finish run.",
+    )
+    finish_p.add_argument("--json", action="store_true", help="Emit EvaluationReport or NextAction JSON output.")
+
+    # rapid approve
+    approve_p = subparsers.add_parser(
+        "approve",
+        help="Interactively review and approve or reject a human gate.",
+        description="Require interactive TTY confirmation to record user review evidence and acknowledge or reject a gate.",
+    )
+    approve_p.add_argument("gate_id", help="Target human review gate identifier (e.g. gate.peer-review, gate.final-verification).")
+    approve_p.add_argument("--reviewer", dest="reviewer", help="Human reviewer name or handle.")
+    approve_p.add_argument("--reject", action="store_true", help="Reject rather than approve the review gate.")
+    approve_p.add_argument("--reason", dest="reason", help="Review transition reason (required if --reject is set).")
+
+    # rapid status
+    status_p = subparsers.add_parser(
+        "status",
+        help="Display active session, run state, tasks, gates, and last evaluation verdict.",
+        description="Print a summary of the active run session and lifecycle state.",
+    )
+    status_p.add_argument("--json", action="store_true", help="Emit status summary JSON output.")
+
+    # rapid abort
+    abort_p = subparsers.add_parser(
+        "abort",
+        help="Cancel the active run and clear the porcelain session.",
+        description="Transition active run to cancelled and remove .rapid-os/session.json.",
+    )
+    abort_p.add_argument("--reason", dest="reason", help="Cancellation reason.")
+
     return parser
 
 
@@ -3787,6 +4059,18 @@ def main(argv=None):
         policy_command(args)
     elif args.command == "run":
         run_command(args)
+    elif args.command == "start":
+        start_command(args)
+    elif args.command == "next":
+        next_command(args)
+    elif args.command == "finish":
+        finish_command(args)
+    elif args.command == "approve":
+        approve_command(args)
+    elif args.command == "status":
+        status_command(args)
+    elif args.command == "abort":
+        abort_command(args)
     elif args.command == "check":
         check_command(args)
     elif args.command == "task":
@@ -3822,5 +4106,10 @@ def main(argv=None):
     else:
         parser.print_help()
     return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
 
 

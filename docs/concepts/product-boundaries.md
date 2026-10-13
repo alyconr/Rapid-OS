@@ -51,3 +51,14 @@ Rapid OS mantiene un alcance estricto de ingeniería determinista. Las siguiente
 - Registra y custodia artefactos de evidencia de ejecución (`rapid evidence`).
 - Evalúa evidencia física offline mediante reglas reproducibles (`rapid eval`).
 - Audita la integridad cruzada completa del proyecto (`rapid validate`).
+
+---
+
+## Fronteras en compuertas humanas y defensa en capas
+
+Un principio fundamental de gobernanza en Rapid OS es que **las compuertas de revisión humana nunca se reconocen automáticamente**.
+
+Para mitigar que agentes o subprocesos auto-aprueben compuertas humanas:
+- `rapid approve` exige una terminal interactiva (TTY), solicita confirmación textual explícita (`aprobar <gate-id>`) y rechaza la ejecución si detecta marcadores de sesión de agente hijo (`CLAUDE_CODE_CHILD_SESSION == "1"`).
+- Es importante destacar que la confirmación por TTY se puede emular externamente (mediante comandos como `script` o emuladores `pty`), por lo que actúa como **defensa en capas** y fricción deliberada, no como una garantía criptográfica o infalible. Las etapas posteriores del roadmap (PRs 2.1 y 3.2) refuerzan estas fronteras mediante firmas de identidad y verificación criptográfica de procedencia de revisiones.
+
