@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Mapping, Sequence
 
 from rapid_os.core.filesystem import resolve_child_path, safe_write_text
 from rapid_os.core.output import print_success
+from rapid_os.domain.shortcuts import ShortcutTemplate
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,12 @@ class AgentAdapter(ABC):
     @abstractmethod
     def render(self, context: str) -> Mapping[Path, str]:
         """Return generated content keyed by relative output path."""
+
+    def shortcut_outputs(
+        self, shortcuts: Sequence[ShortcutTemplate]
+    ) -> Mapping[Path, str]:
+        """Return `/rapid-<modo>` shortcut files keyed by relative path (none by default)."""
+        return {}
 
     def activate(self, context: str, current_dir: Path) -> None:
         """Render and place the adapter outputs in a project directory."""

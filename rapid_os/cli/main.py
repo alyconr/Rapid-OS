@@ -775,6 +775,7 @@ def init_project(args):
     if not getattr(args, "yes", False):
         create_optional_docs_scaffold()
     regenerate_context()
+    _offer_shortcuts(args, selected_tools, safe_prompt)
 
     # Update .gitignore if present in project root
     gitignore_path = CURRENT_DIR / ".gitignore"
@@ -806,6 +807,35 @@ def init_project(args):
             pass
 
     print("\n🚀 ¡Rapid OS activo!")
+
+
+def _offer_shortcuts(args, selected_tools, prompt):
+    """Offer the /rapid-<mode> shortcuts at the end of `rapid init`.
+
+    Never prompts unattended: --yes and non-interactive stdin only install with --shortcuts.
+    """
+    from rapid_os.adapters.shortcut_installer import ShortcutError, resolve_harness_ids
+
+    accepted = getattr(args, "shortcuts", False)
+    if not accepted and not getattr(args, "yes", False) and sys.stdin.isatty():
+        answer = prompt(
+            "\n¿Instalar los shortcuts /rapid-<modo> para tus agentes? [y/N]: ",
+            default="n",
+            flag_hint="--shortcuts",
+        )
+        accepted = answer.lower() in {"y", "yes", "s", "si", "sí"}
+    if not accepted:
+        print("\nTip: 'rapid shortcuts install' crea los comandos /rapid-<modo> en tus agentes.")
+        return
+    try:
+        harness_ids = resolve_harness_ids(None, selected_tools)
+        plan, written = _install_shortcuts(harness_ids, dry_run=False)
+    except ShortcutError as exc:
+        print_warning(str(exc))
+        return
+    print_success(f"Shortcuts instalados: {len(written)} archivo(s) escritos.")
+    for warning in plan.warnings:
+        print_warning(warning)
 
 
 def manage_skills(args):
@@ -3490,6 +3520,137 @@ def _add_spec_authoring_arguments(subparser, *, is_create: bool = False):
     subparser.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
 
 
+def _shortcut_entry_json(planned):
+    return {
+        "path": planned.path.as_posix(),
+        "shortcut": planned.shortcut,
+        "harnesses": list(planned.harnesses),
+        "action": planned.action,
+    }
+
+
+def _skipped_json(skipped):
+    return [
+        {"shortcut": s.shortcut, "mode": s.mode, "code": s.code, "reason": s.reason}
+        for s in skipped
+    ]
+
+
+def _install_shortcuts(harness_ids, *, dry_run):
+    """Plan and (unless dry_run) write shortcuts. Returns (plan, written paths)."""
+    from rapid_os.adapters.shortcut_installer import apply_plan, build_plan
+
+    plan = build_plan(CURRENT_DIR, harness_ids, TEMPLATES_DIR)
+    written = () if dry_run else apply_plan(CURRENT_DIR, plan)
+    return plan, written
+
+
+def shortcuts_command(args):
+    """Execute rapid shortcuts install|list|remove."""
+    from rapid_os.adapters.shortcut_installer import (
+        ShortcutError,
+        apply_removal,
+        list_entries,
+        plan_removal,
+        resolve_harness_ids,
+    )
+
+    action = getattr(args, "shortcuts_action", None)
+    if not action:
+        print("RAPID1318 Subcomando de shortcuts requerido (install, list, remove).", file=sys.stderr)
+        sys.exit(1)
+
+    as_json = getattr(args, "json", False)
+    dry_run = getattr(args, "dry_run", False)
+
+    try:
+        # A missing config would otherwise yield the generic default tools; only an explicit
+        # --harness or a project config may decide where shortcut files are written.
+        config_tools = (
+            _load_config_with_warning(CONFIG_FILE).get("tools", [])
+            if Path(CONFIG_FILE).exists()
+            else []
+        )
+        harness_ids = resolve_harness_ids(getattr(args, "harness", None), config_tools)
+
+        if action == "install":
+            plan, written = _install_shortcuts(harness_ids, dry_run=dry_run)
+            if as_json:
+                print(json.dumps({
+                    "schema_version": 1,
+                    "command": "install",
+                    "dry_run": dry_run,
+                    "harnesses": list(plan.harnesses),
+                    "files": [_shortcut_entry_json(f) for f in plan.files],
+                    "skipped": _skipped_json(plan.skipped),
+                    "warnings": list(plan.warnings),
+                }, indent=2, ensure_ascii=False))
+                return 0
+            prefix = "[dry-run] " if dry_run else ""
+            for planned in plan.files:
+                owners = ",".join(planned.harnesses)
+                print(f"{prefix}{planned.action:<9} {planned.path.as_posix()} [{owners}]")
+            changed = sum(1 for f in plan.files if f.action != "unchanged")
+            print(f"{prefix}{changed} archivo(s) a escribir, {len(plan.files) - changed} sin cambios.")
+            for warning in plan.warnings:
+                print(f"WARNING {warning}", file=sys.stderr)
+            return 0
+
+        if action == "list":
+            entries, skipped = list_entries(CURRENT_DIR, harness_ids, TEMPLATES_DIR)
+            if as_json:
+                print(json.dumps({
+                    "schema_version": 1,
+                    "command": "list",
+                    "harnesses": list(harness_ids),
+                    "shortcuts": [
+                        {"harness": e.harness, "shortcut": e.shortcut,
+                         "path": e.path.as_posix(), "state": e.state}
+                        for e in entries
+                    ],
+                    "skipped": _skipped_json(skipped),
+                }, indent=2, ensure_ascii=False))
+                return 0
+            for e in entries:
+                print(f"{e.state:<10} {e.harness:<12} {e.path.as_posix()}")
+            for s in skipped:
+                print(f"omitido    {s.shortcut}: {s.code} {s.reason}")
+            return 0
+
+        # remove
+        entries = plan_removal(CURRENT_DIR, harness_ids, TEMPLATES_DIR)
+        removed = () if dry_run else apply_removal(CURRENT_DIR, entries)
+        warnings = [
+            f"RAPID1317 {e.path.as_posix()} has no generated marker; left untouched."
+            for e in entries if e.action == "skip_unmarked"
+        ]
+        if as_json:
+            print(json.dumps({
+                "schema_version": 1,
+                "command": "remove",
+                "dry_run": dry_run,
+                "harnesses": list(harness_ids),
+                "files": [
+                    {"path": e.path.as_posix(), "shortcut": e.shortcut,
+                     "harnesses": list(e.harnesses), "action": e.action}
+                    for e in entries
+                ],
+                "warnings": warnings,
+            }, indent=2, ensure_ascii=False))
+            return 0
+        prefix = "[dry-run] " if dry_run else ""
+        for e in entries:
+            if e.action != "absent":
+                print(f"{prefix}{e.action:<13} {e.path.as_posix()}")
+        print(f"{prefix}{sum(1 for e in entries if e.action == 'remove')} archivo(s) a eliminar.")
+        for warning in warnings:
+            print(f"WARNING {warning}", file=sys.stderr)
+        return 0
+    except ShortcutError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
+
+
 def create_parser():
     parser = argparse.ArgumentParser(
         prog="rapid",
@@ -3529,6 +3690,11 @@ def create_parser():
     )
     init.add_argument("--test-command", dest="test_command", help="Explicit test command string to store in config (e.g. 'python -m pytest').")
     init.add_argument("--no-scan", action="store_true", help="Skip local project scanner during initialization.")
+    init.add_argument(
+        "--shortcuts",
+        action="store_true",
+        help="Install the /rapid-<mode> shortcuts for the selected agents without asking (writes state).",
+    )
 
     scan = subparsers.add_parser(
         "scan",
@@ -4039,6 +4205,28 @@ def create_parser():
     )
     abort_p.add_argument("--reason", dest="reason", help="Cancellation reason.")
 
+    # rapid shortcuts
+    shortcuts_p = subparsers.add_parser(
+        "shortcuts",
+        help="Install, list or remove generated /rapid-<mode> harness shortcuts (install/remove write state).",
+        description="Generate /rapid-<mode> shortcuts for each harness from templates/shortcuts (writes with .bak backups).",
+    )
+    shortcuts_sub = shortcuts_p.add_subparsers(dest="shortcuts_action")
+    for _name, _help in (
+        ("install", "Write the shortcut files for the selected harnesses (idempotent)."),
+        ("list", "Show installed state per harness and modes skipped for lack of a playbook (read-only)."),
+        ("remove", "Delete shortcut files that carry the generated marker."),
+    ):
+        _sp = shortcuts_sub.add_parser(_name, help=_help, description=_help)
+        _sp.add_argument(
+            "--harness",
+            action="append",
+            dest="harness",
+            help="Harness id (repeatable). Defaults to the tools in .rapid-os/config.json.",
+        )
+        _sp.add_argument("--dry-run", dest="dry_run", action="store_true", help="Show what would change without writing or deleting.")
+        _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
+
     return parser
 
 
@@ -4071,6 +4259,8 @@ def main(argv=None):
         status_command(args)
     elif args.command == "abort":
         abort_command(args)
+    elif args.command == "shortcuts":
+        shortcuts_command(args)
     elif args.command == "check":
         check_command(args)
     elif args.command == "task":

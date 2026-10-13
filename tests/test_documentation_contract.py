@@ -81,6 +81,9 @@ class DocumentationContractTests(unittest.TestCase):
 
         self.assertIn("no invoca automáticamente", concept)
         self.assertIn("no crea branches o worktrees", concept)
+        self.assertIn("rapid shortcuts install", concept)
+        self.assertIn("no instala shortcuts de harness por su cuenta", boundaries)
+        self.assertIn("nunca aprueban gates humanos", boundaries)
         self.assertIn("no invoca automáticamente", boundaries)
         self.assertIn("no utiliza llm-as-a-judge", boundaries)
         self.assertIn("capability", capability)

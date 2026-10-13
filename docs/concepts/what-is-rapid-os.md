@@ -67,6 +67,7 @@ Rapid OS:
 - no invoca automáticamente LLMs o coding agents;
 - no ejecuta comandos arbitrarios del repositorio durante un run;
 - no crea branches o worktrees automáticamente;
+- no escribe shortcuts `/rapid-<modo>` en las carpetas del harness (`.claude/skills`, `.agents/skills`, `.cursor/skills`, `.github/prompts`) salvo cuando se ejecuta `rapid shortcuts install` o `rapid init --shortcuts`;
 - no considera un gate `acknowledged` como evidencia;
 - no considera una capability declarada como prueba de que fue utilizada;
 - no garantiza que un `PASS` significa ausencia total de bugs o seguridad perfecta.
