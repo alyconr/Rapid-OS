@@ -580,6 +580,7 @@ class V3ReleaseReadinessTests(unittest.TestCase):
             "approve",
             "status",
             "abort",
+            "shortcuts",
         }
         self.assertEqual(registered_commands, expected_commands)
 

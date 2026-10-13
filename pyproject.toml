@@ -65,6 +65,7 @@ packages = [
     "rapid_os.templates.deploy",
     "rapid_os.templates.mcp",
     "rapid_os.templates.modes",
+    "rapid_os.templates.shortcuts",
     "rapid_os.templates.stacks",
     "rapid_os.templates.topologies",
 ]
@@ -80,6 +81,7 @@ version = { attr = "rapid_os.__version__" }
 "rapid_os.templates.deploy" = "templates/deploy"
 "rapid_os.templates.mcp" = "templates/mcp"
 "rapid_os.templates.modes" = "templates/modes"
+"rapid_os.templates.shortcuts" = "templates/shortcuts"
 "rapid_os.templates.stacks" = "templates/stacks"
 "rapid_os.templates.topologies" = "templates/topologies"
 
@@ -91,5 +93,6 @@ version = { attr = "rapid_os.__version__" }
 "rapid_os.templates.deploy" = ["*.md", "*.json"]
 "rapid_os.templates.mcp" = ["*.md", "*.json"]
 "rapid_os.templates.modes" = ["*.md", "*.json"]
+"rapid_os.templates.shortcuts" = ["*.md", "*.json"]
 "rapid_os.templates.stacks" = ["*.md", "*.json"]
 "rapid_os.templates.topologies" = ["*.md", "*.json"]
