@@ -399,7 +399,7 @@ class Sprint4DocumentationLabsTests(unittest.TestCase):
             # 12. Register final verification review evidence
             ev_final = {
                 "kind": "review",
-                "producer": "harness:codex",
+                "producer": "user",
                 "summary": "Final contractual verification review",
                 "gate_ids": ["gate.final-verification"],
                 "payload": {
@@ -674,7 +674,7 @@ class Sprint4DocumentationLabsTests(unittest.TestCase):
             # 14. Register review evidence
             ev_review = {
                 "kind": "review",
-                "producer": "harness:claude",
+                "producer": "user",
                 "summary": "Final verification review confirming absence of regression",
                 "gate_ids": ["gate.final-verification"],
                 "payload": {

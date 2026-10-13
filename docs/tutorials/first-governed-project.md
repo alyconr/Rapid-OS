@@ -420,7 +420,7 @@ Prepara `evidence_review.json`:
 ```json
 {
   "kind": "review",
-  "producer": "harness:codex",
+  "producer": "user",
   "summary": "Revisión final contractual de cumplimiento",
   "task_ids": ["T001"],
   "gate_ids": ["gate.final-verification"],

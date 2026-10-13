@@ -114,3 +114,21 @@ Un reporte generado contiene los siguientes bloques fundamentales:
   ]
 }
 ```
+
+---
+
+## 5. Versiones de Ruleset: Comparativa v1 vs v2
+
+A partir de Rapid OS v3.2, el motor de evaluación soporta múltiples versiones de reglas (`BehavioralRuleset`):
+
+| Característica | Ruleset v1 | Ruleset v2 (Por defecto) |
+| :--- | :--- | :--- |
+| **Versión por defecto** | Compatible con runs históricos | Regla activa por defecto en `rapid eval run` |
+| **Compuertas Humanas (`GateKind`)** | Aceptaba revisiones emitidas por cualquier productor (incluyendo `harness:*`) | **Rechaza** productores `harness:*` para compuertas de revisión humana (`peer_review`, `security_review`, `migration_review`, `manual_approval`, `final_verification`). Quedan `UNVERIFIED` si las firma un harness |
+| **Compuertas Automáticas / Machine** | Acepta `harness:*` y herramientas | Acepta `harness:*` y herramientas |
+| **Fallas Esperadas (`expectation: "fail"`)** | Evaluadas como fallas regulares | Soportadas para verificación de reproducción de defectos (TDD/Bugfix); el evaluador produce aserciones `reproduction.<task-id>` |
+| **CLI `--ruleset`** | `--ruleset 1` | `--ruleset 2` |
+
+> [!IMPORTANT]
+> Los reportes guardados con `--write` registran su `ruleset_version`. Al ejecutar `rapid eval show` o `rapid validate`, el replay semántico utiliza exactamente la versión declarada en el reporte para garantizar reproducibilidad histórica inmutable.
+

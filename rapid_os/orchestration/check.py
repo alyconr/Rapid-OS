@@ -114,6 +114,7 @@ def run_check(
     kind: str | None = None,
     test_command: Sequence[str] | None = None,
     timeout: float = 600.0,
+    expect: str = "pass",
 ) -> CheckResult:
     """Execute argv without shell, write scratch log, and record RunEvidence if successful."""
     clean_argv = tuple(str(a) for a in argv)
@@ -165,8 +166,30 @@ def run_check(
     if effective_kind == EvidenceKind.TEST_RESULT.value:
         counts = parse_test_output(output, exit_code)
 
-    # Invariant: append-only ledger must NOT record failed checks
-    if exit_code != 0:
+    reproduced_failure = False
+    if expect == "fail":
+        if effective_kind == EvidenceKind.TEST_RESULT.value:
+            reproduced_failure = (exit_code != 0 or counts["failed"] > 0)
+        else:
+            reproduced_failure = (exit_code != 0)
+
+    # If expect == "fail" but command succeeded without failure, reproduction failed!
+    if expect == "fail" and not reproduced_failure:
+        return CheckResult(
+            run_id=run_id,
+            argv=clean_argv,
+            exit_code=exit_code,
+            log_path=log_file,
+            kind=effective_kind,
+            output=output,
+            passed=counts["passed"],
+            failed=counts["failed"],
+            skipped=counts["skipped"],
+            evidence=None,
+        )
+
+    # For standard checks (expect == "pass"), non-zero exit is failure and no evidence is recorded
+    if expect != "fail" and exit_code != 0:
         return CheckResult(
             run_id=run_id,
             argv=clean_argv,
@@ -191,10 +214,15 @@ def run_check(
     except ValueError:
         rel_log_path = log_file.name
 
-    # Normalize cmd display string for portable text (no backslashes or slashes if problematic)
     cmd_token = clean_argv[0] if clean_argv else "command"
     cmd_token = Path(cmd_token).name.replace("\\", "/").split("/")[-1]
-    safe_cmd_summary = " ".join(clean_argv).replace("\\", "/")
+    clean_tokens = [cmd_token]
+    for tok in clean_argv[1:]:
+        t = str(tok).replace("\\", "/")
+        if re.match(r"^[A-Za-z]:", t) or t.startswith("/"):
+            t = Path(t).name
+        clean_tokens.append(t)
+    safe_cmd_summary = " ".join(clean_tokens)
     if len(safe_cmd_summary) > 60:
         safe_cmd_summary = safe_cmd_summary[:57] + "..."
 
@@ -207,17 +235,24 @@ def run_check(
             "failed": counts["failed"],
             "skipped": counts["skipped"],
         }
+        if expect == "fail":
+            authoring_payload["expectation"] = "fail"
         capability_ids = ["tests.execute"]
     else:
         authoring_payload = {
             "label": safe_cmd_summary,
             "exit_code": exit_code,
         }
+        if expect == "fail":
+            authoring_payload["expectation"] = "fail"
         capability_ids = ["shell.execute"]
 
-    summary = f"Check '{safe_cmd_summary}' passed (exit 0)"
-    if effective_kind == EvidenceKind.TEST_RESULT.value:
-        summary = f"Test check '{safe_cmd_summary}' passed ({counts['passed']} passed, {counts['failed']} failed)"
+    if expect == "fail":
+        summary = f"Reproduction check '{safe_cmd_summary}' confirmed expected failure (exit {exit_code})"
+    else:
+        summary = f"Check '{safe_cmd_summary}' passed (exit 0)"
+        if effective_kind == EvidenceKind.TEST_RESULT.value:
+            summary = f"Test check '{safe_cmd_summary}' passed ({counts['passed']} passed, {counts['failed']} failed)"
 
     authoring_input = {
         "kind": effective_kind,

@@ -3,6 +3,7 @@ import contextlib
 import io
 import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -15,6 +16,7 @@ from rapid_os.adapters.run_registry import RunRegistry
 from rapid_os.adapters.spec_registry import SpecRegistry
 from rapid_os.cli import main as cli_main
 from rapid_os.cli.main import create_parser
+from rapid_os.orchestration.session import Session, save_session
 from rapid_os.domain.evals import (
     BEHAVIORAL_RULESET_VERSION,
     DEFAULT_BEHAVIORAL_RULESET_DIGEST,
@@ -1591,6 +1593,227 @@ class EndToEndGovernanceLoopAndCliTests(unittest.TestCase):
                         forbidden_calls,
                         f"Forbidden call attribute '{node.attr}' in {file_path.name}",
                     )
+
+
+class RulesetV2AndExpectedFailuresTests(unittest.TestCase):
+    def test_ruleset_v2_rejects_harness_for_human_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rapid_dir, _, run_reg, run_id = _setup_ready_project(root)
+            ev_reg = EvidenceRegistry(root, rapid_dir)
+            eval_reg = EvalRegistry(root, rapid_dir)
+
+            run_reg.transition_gate(run_id, "gate.workspace-isolation", "acknowledged", reason="iso")
+            run_reg.transition_gate(run_id, "gate.baseline", "acknowledged", reason="base")
+            run_reg.transition_status(run_id, "active", reason="start")
+            run_reg.transition_task(run_id, "T001", "in_progress", reason="work")
+            run_reg.transition_task(run_id, "T001", "done", reason="done")
+            run_reg.transition_gate(
+                run_id, "gate.final-verification", "acknowledged", reason="Reviewed"
+            )
+
+            # Evidence signed by harness:codex
+            ev_reg.add(
+                run_id,
+                {
+                    "kind": "review",
+                    "producer": "harness:codex",
+                    "summary": "Review by agent harness",
+                    "gate_ids": ["gate.final-verification"],
+                    "payload": {
+                        "review_type": "final",
+                        "outcome": "approved",
+                        "reviewer": "codex",
+                    },
+                },
+            )
+
+            # Under Ruleset v2 (default), gate.final-verification remains UNVERIFIED
+            rep_v2 = eval_reg.evaluate_run(run_id, ruleset_version=2)
+            gate_ass_v2 = next(
+                a for a in rep_v2.assertions if a.id == "gate.gate.final-verification.evidence"
+            )
+            self.assertEqual(gate_ass_v2.status.value, "unverified")
+            self.assertIn("cannot be produced by harness", gate_ass_v2.reason)
+
+            # Under Ruleset v1, gate.final-verification is PASS
+            rep_v1 = eval_reg.evaluate_run(run_id, ruleset_version=1)
+            gate_ass_v1 = next(
+                a for a in rep_v1.assertions if a.id == "gate.gate.final-verification.evidence"
+            )
+            self.assertEqual(gate_ass_v1.status.value, "pass")
+
+            # Now add evidence signed by human/user
+            ev_reg.add(
+                run_id,
+                {
+                    "kind": "review",
+                    "producer": "user",
+                    "summary": "Review by human user",
+                    "gate_ids": ["gate.final-verification"],
+                    "payload": {
+                        "review_type": "final",
+                        "outcome": "approved",
+                        "reviewer": "quality-engineer",
+                    },
+                },
+            )
+            rep_v2_user = eval_reg.evaluate_run(run_id, ruleset_version=2)
+            gate_ass_v2_user = next(
+                a for a in rep_v2_user.assertions if a.id == "gate.gate.final-verification.evidence"
+            )
+            self.assertEqual(gate_ass_v2_user.status.value, "pass")
+
+    def test_ruleset_v2_allows_harness_for_machine_gates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rapid_dir, _, run_reg, run_id = _setup_ready_project(root)
+            ev_reg = EvidenceRegistry(root, rapid_dir)
+            eval_reg = EvalRegistry(root, rapid_dir)
+
+            run_reg.transition_gate(run_id, "gate.workspace-isolation", "acknowledged", reason="iso")
+            run_reg.transition_gate(run_id, "gate.baseline", "acknowledged", reason="base")
+            run_reg.transition_status(run_id, "active", reason="start")
+            run_reg.transition_task(run_id, "T001", "in_progress", reason="work")
+            run_reg.transition_task(run_id, "T001", "done", reason="done")
+            run_reg.transition_gate(
+                run_id, "gate.tests", "acknowledged", reason="Tests ran"
+            )
+
+            log_file = root / "test_out.log"
+            log_file.write_text("5 tests passed", encoding="utf-8")
+            ev_reg.add(
+                run_id,
+                {
+                    "kind": "test_result",
+                    "producer": "harness:codex",
+                    "summary": "Test run by harness",
+                    "gate_ids": ["gate.tests"],
+                    "artifacts": ["test_out.log"],
+                    "payload": {
+                        "suite": "unittest",
+                        "passed": 5,
+                        "failed": 0,
+                        "skipped": 0,
+                        "exit_code": 0,
+                    },
+                },
+            )
+
+            rep_v2 = eval_reg.evaluate_run(run_id, ruleset_version=2)
+            gate_ass = next(
+                a for a in rep_v2.assertions if a.id == "gate.gate.tests.evidence"
+            )
+            self.assertEqual(gate_ass.status.value, "pass")
+
+    def test_expected_failure_evidence_and_reproduction_assertion(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rapid_dir, _, run_reg, run_id = _setup_ready_project(root)
+            ev_reg = EvidenceRegistry(root, rapid_dir)
+            eval_reg = EvalRegistry(root, rapid_dir)
+
+            # Record test_result with expectation="fail"
+            ev = ev_reg.add(
+                run_id,
+                {
+                    "kind": "test_result",
+                    "producer": "test-runner",
+                    "summary": "Reproduction test failing before fix",
+                    "task_ids": ["T001"],
+                    "payload": {
+                        "suite": "unittest",
+                        "passed": 0,
+                        "failed": 1,
+                        "skipped": 0,
+                        "exit_code": 1,
+                        "expectation": "fail",
+                    },
+                },
+            )
+            self.assertEqual(ev.payload.get("expectation"), "fail")
+
+            # Under Ruleset v2, expected failure does NOT mark test failed;
+            # produces reproduction.T001 assertion
+            rep_v2 = eval_reg.evaluate_run(run_id, ruleset_version=2)
+            rep_ass = next(
+                (a for a in rep_v2.assertions if a.id == "reproduction.T001"), None
+            )
+            self.assertIsNotNone(rep_ass)
+            self.assertEqual(rep_ass.status.value, "pass")
+            self.assertIn("Expected failure confirmed reproduction", rep_ass.reason)
+
+            # Under Ruleset v1, does not understand expectation="fail" and treats it as failure
+            rep_v1 = eval_reg.evaluate_run(run_id, ruleset_version=1)
+            rep_ass_v1 = next(
+                (a for a in rep_v1.assertions if a.id == "reproduction.T001"), None
+            )
+            self.assertIsNone(rep_ass_v1)
+            test_fail_ass = next(
+                a for a in rep_v1.assertions if a.id == "capability.tests.execute.observed"
+            )
+            self.assertEqual(test_fail_ass.status.value, "fail")
+
+    def test_cli_check_expect_fail_and_eval_ruleset(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rapid_dir, _, run_reg, run_id = _setup_ready_project(root)
+            run_reg.transition_gate(run_id, "gate.workspace-isolation", "acknowledged", reason="iso")
+            run_reg.transition_gate(run_id, "gate.baseline", "acknowledged", reason="base")
+            run_reg.transition_status(run_id, "active", reason="start")
+            run_reg.transition_task(run_id, "T001", "in_progress", reason="work")
+
+            # Save session for CLI commands
+            save_session(rapid_dir, Session(active_run_id=run_id, mode="feature", harness="codex"))
+
+            # 1. rapid check --expect fail on a command that exits with code 1
+            code, out, err = _run_cli(
+                root,
+                [
+                    "check",
+                    "--task", "T001",
+                    "--expect", "fail",
+                    "--json",
+                    "--",
+                    sys.executable, "-c", "import sys; sys.exit(1)",
+                ],
+            )
+            self.assertEqual(code, 0, f"Expected 0 on confirmed failure: {err}")
+            data = json.loads(out)
+            self.assertIsNotNone(data.get("evidence_id"))
+
+            # 2. rapid check --expect fail on a command that exits with code 0 (unexpected pass)
+            code_pass, out_pass, err_pass = _run_cli(
+                root,
+                [
+                    "check",
+                    "--task", "T001",
+                    "--expect", "fail",
+                    "--json",
+                    "--",
+                    sys.executable, "-c", "import sys; sys.exit(0)",
+                ],
+            )
+            self.assertEqual(code_pass, 1)
+            data_pass = json.loads(out_pass)
+            self.assertIsNone(data_pass.get("evidence_id"))
+
+            # 3. rapid eval run --ruleset 1 vs 2 via CLI
+            code_eval2, out_eval2, err_eval2 = _run_cli(
+                root,
+                ["eval", "run", "--run", run_id, "--ruleset", "2", "--json"],
+            )
+            self.assertEqual(code_eval2, 0, err_eval2)
+            rep2 = json.loads(out_eval2)
+            self.assertEqual(rep2["ruleset_version"], 2)
+
+            code_eval1, out_eval1, err_eval1 = _run_cli(
+                root,
+                ["eval", "run", "--run", run_id, "--ruleset", "1", "--json"],
+            )
+            self.assertEqual(code_eval1, 0, err_eval1)
+            rep1 = json.loads(out_eval1)
+            self.assertEqual(rep1["ruleset_version"], 1)
 
 
 if __name__ == "__main__":

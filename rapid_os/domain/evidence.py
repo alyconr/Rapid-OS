@@ -278,6 +278,7 @@ ALLOWED_WORKSPACE_MODES = frozenset({"current", "isolated"})
 ALLOWED_REVIEW_TYPES = frozenset({"peer", "security", "migration", "manual", "final"})
 ALLOWED_REVIEW_OUTCOMES = frozenset({"approved", "changes_requested", "rejected"})
 ALLOWED_INVOCATION_OUTCOMES = frozenset({"success", "failure"})
+ALLOWED_EXPECTATIONS = frozenset({"pass", "fail"})
 
 PAYLOAD_REQUIRED_KEYS: Mapping[EvidenceKind, frozenset[str]] = {
     EvidenceKind.COMMAND_RESULT: frozenset({"label", "exit_code"}),
@@ -291,6 +292,11 @@ PAYLOAD_REQUIRED_KEYS: Mapping[EvidenceKind, frozenset[str]] = {
     EvidenceKind.TOOL_INVOCATION: frozenset({"tool_id", "outcome"}),
     EvidenceKind.DELEGATION: frozenset({"target", "outcome"}),
     EvidenceKind.ARTIFACT: frozenset({"label"}),
+}
+
+PAYLOAD_OPTIONAL_KEYS: Mapping[EvidenceKind, frozenset[str]] = {
+    EvidenceKind.COMMAND_RESULT: frozenset({"expectation"}),
+    EvidenceKind.TEST_RESULT: frozenset({"expectation"}),
 }
 
 
@@ -322,18 +328,31 @@ def validate_evidence_payload(
             f"Evidence payload for '{coerced_kind.value}' must be a JSON object."
         )
 
-    expected_keys = PAYLOAD_REQUIRED_KEYS[coerced_kind]
+    expected_required_keys = PAYLOAD_REQUIRED_KEYS[coerced_kind]
+    allowed_optional_keys = PAYLOAD_OPTIONAL_KEYS.get(coerced_kind, frozenset())
+    all_allowed_keys = expected_required_keys | allowed_optional_keys
     actual_keys = set(payload.keys())
-    unknown = actual_keys - expected_keys
+    unknown = actual_keys - all_allowed_keys
     if unknown:
         raise InvalidEvidencePayloadError(
             f"Unexpected fields in '{coerced_kind.value}' payload: {sorted(unknown)}."
         )
-    missing = expected_keys - actual_keys
+    missing = expected_required_keys - actual_keys
     if missing:
         raise InvalidEvidencePayloadError(
             f"Missing required fields in '{coerced_kind.value}' payload: {sorted(missing)}."
         )
+
+    expectation: str | None = None
+    if "expectation" in actual_keys:
+        raw_exp = payload["expectation"]
+        if not isinstance(raw_exp, str) or raw_exp.strip().lower() not in ALLOWED_EXPECTATIONS:
+            raise InvalidEvidencePayloadError(
+                f"Invalid expectation '{raw_exp}': expected one of {sorted(ALLOWED_EXPECTATIONS)}."
+            )
+        norm_exp = raw_exp.strip().lower()
+        if norm_exp == "fail":
+            expectation = "fail"
 
     if coerced_kind == EvidenceKind.COMMAND_RESULT:
         label = _validate_portable_text(
@@ -345,10 +364,13 @@ def validate_evidence_payload(
             payload["exit_code"],
             "command_result.exit_code",
         )
-        return {
+        res_payload: dict[str, object] = {
             "label": label,
             "exit_code": exit_code,
         }
+        if expectation is not None:
+            res_payload["expectation"] = expectation
+        return res_payload
 
     if coerced_kind == EvidenceKind.TEST_RESULT:
         suite = _validate_portable_text(
@@ -375,13 +397,16 @@ def validate_evidence_payload(
             "test_result.skipped",
             minimum=0,
         )
-        return {
+        test_payload: dict[str, object] = {
             "suite": suite,
             "exit_code": exit_code,
             "passed": passed,
             "failed": failed,
             "skipped": skipped,
         }
+        if expectation is not None:
+            test_payload["expectation"] = expectation
+        return test_payload
 
     if coerced_kind == EvidenceKind.FILE_CHANGE:
         raw_paths = payload["paths"]
