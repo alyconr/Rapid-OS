@@ -1321,6 +1321,31 @@ def doctor_command(args):
             Diagnostic(INFO, "RAPID909", f"Test command: {test_cmd_str}", CONFIG_FILE)
         )
 
+    from rapid_os.core.ancestry import find_agent_ancestor, read_ancestry
+
+    ancestry = read_ancestry()
+    harness_ancestor = find_agent_ancestor(ancestry)
+    if ancestry.error:
+        diagnostics.append(
+            Diagnostic(
+                WARNING,
+                "RAPID1319",
+                f"Process ancestry could not be read ({ancestry.error}); 'rapid approve' cannot look for "
+                "an agent harness among its parent processes and relies on the TTY and "
+                "CLAUDE_CODE_CHILD_SESSION checks only.",
+            )
+        )
+    elif harness_ancestor is not None:
+        diagnostics.append(
+            Diagnostic(
+                INFO,
+                "RAPID1319",
+                f"Running under the agent harness '{harness_ancestor.harness}' (ancestor process "
+                f"'{harness_ancestor.ancestor.name}', pid {harness_ancestor.ancestor.pid}): "
+                "'rapid approve' is refused here (RAPID1310); run it in your own terminal.",
+            )
+        )
+
     from rapid_os.adapters.claude_hooks import hooks_installed
 
     if hooks_installed(CURRENT_DIR) and shutil.which("rapid") is None:
@@ -3359,6 +3384,10 @@ def finish_command(args):
         if getattr(args, "json", False):
             print(json.dumps(result.to_dict(), indent=2))
             return 0
+        if result.kind.value == "done":
+            outcome = result.outcome or "ended"
+            print(f"Run '{result.run_id}' already ended ({outcome}); no new evidence recorded.")
+            return 0
         cmd_str = f" -> {' '.join(result.command)}" if result.command else ""
         print(f"Cannot finish yet. Next: {result.kind.value}{cmd_str}")
         return 0
@@ -3368,7 +3397,12 @@ def finish_command(args):
         print(json.dumps(result.to_dict(), indent=2))
         sys.exit(code)
 
-    print(f"Evaluation report {result.report_id} verdict: {result.verdict.value.upper()}")
+    # Reports are numbered by their file (0001.json, ...): the stored/latest one is the last.
+    revision = len(EvalRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).list_reports(result.run_id))
+    print(
+        f"Evaluation report {revision:04d} for run '{result.run_id}': "
+        f"verdict {result.verdict.value.upper()}"
+    )
     sys.exit(code)
 
 

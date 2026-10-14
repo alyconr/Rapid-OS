@@ -83,6 +83,7 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertIn("no crea branches o worktrees", concept)
         self.assertIn("rapid shortcuts install", concept)
         self.assertIn("rapid hook stop|pre-tool", concept)
+        self.assertIn("algún ancestro es un harness de agente", boundaries)
         self.assertIn("los hooks deniegan herramientas al agente, pero rapid os no invoca agentes", boundaries)
         self.assertIn("de mejor esfuerzo", boundaries)
         self.assertIn("rapid start --worktree", concept)

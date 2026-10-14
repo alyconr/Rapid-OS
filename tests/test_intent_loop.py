@@ -206,6 +206,8 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
             "import sys, unittest.mock as mock, rapid_os.cli.main as m; "
             f"sys.argv = ['rapid', 'approve', '{human_gate_to_approve}']; "
             "mock.patch('sys.stdin.isatty', return_value=True).start(); "
+            "mock.patch('rapid_os.orchestration.lifecycle.read_ancestry', "
+            "return_value=__import__('rapid_os.core.ancestry', fromlist=['x']).AncestryResult(())).start(); "
             f"mock.patch('builtins.input', return_value='aprobar {human_gate_to_approve}').start(); "
             "sys.exit(m.main())"
         )
@@ -399,6 +401,8 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
             "import sys, unittest.mock as mock, rapid_os.cli.main as m; "
             "sys.argv = ['rapid', 'approve', 'gate.final-verification']; "
             "mock.patch('sys.stdin.isatty', return_value=True).start(); "
+            "mock.patch('rapid_os.orchestration.lifecycle.read_ancestry', "
+            "return_value=__import__('rapid_os.core.ancestry', fromlist=['x']).AncestryResult(())).start(); "
             "mock.patch('builtins.input', return_value='aprobar gate.final-verification').start(); "
             "sys.exit(m.main())"
         )
@@ -453,6 +457,8 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
             "import sys, unittest.mock as mock, rapid_os.cli.main as m; "
             "sys.argv = ['rapid', 'approve', 'gate.final-verification']; "
             "mock.patch('sys.stdin.isatty', return_value=True).start(); "
+            "mock.patch('rapid_os.orchestration.lifecycle.read_ancestry', "
+            "return_value=__import__('rapid_os.core.ancestry', fromlist=['x']).AncestryResult(())).start(); "
             "mock.patch('builtins.input', return_value='aprobar gate.final-verification').start(); "
             "sys.exit(m.main())"
         )
@@ -577,6 +583,8 @@ class LabScenarioBase(unittest.TestCase):
             "import sys, unittest.mock as mock, rapid_os.cli.main as m; "
             f"sys.argv = ['rapid'] + {list(args)!r}; "
             "mock.patch('sys.stdin.isatty', return_value=True).start(); "
+            "mock.patch('rapid_os.orchestration.lifecycle.read_ancestry', "
+            "return_value=__import__('rapid_os.core.ancestry', fromlist=['x']).AncestryResult(())).start(); "
             f"mock.patch('builtins.input', side_effect=[EOFError if a == '__EOF__' else a for a in {list(answers)!r}]).start(); "
             "sys.exit(m.main())"
         )

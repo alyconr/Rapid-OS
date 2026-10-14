@@ -138,7 +138,9 @@ Claude Code aplica además su propio tope de continuaciones consecutivas.
 
 También se detectan `python -m rapid_os …`, `python rapid.py …`, rutas absolutas al ejecutable, prefijos de entorno (`VAR=1 rapid …`), `sudo`/`env`/`timeout`, comandos que ejecutan una cadena (`bash -c`, `bash -xc`, `script -qec`, `su -c`, `eval`) y `find … -exec`, además de comandos encadenados o anidados (`;`, `&&`, `||`, `|`, `$(…)`, comillas invertidas). `script` merece mención aparte: da una terminal al comando, así que junto con `env -u CLAUDE_CODE_CHILD_SESSION` permitiría esquivar la comprobación de TTY de `rapid approve`; por eso se analiza igual que `bash -c` y se deniega quitar esas variables.
 
-> **Es una detección de mejor esfuerzo.** Analiza la línea de comandos que ve el hook; no puede impedir que un agente decidido construya el comando en tiempo de ejecución ni que escriba en `.rapid-os/` con un lenguaje de programación. Los hooks refuerzan el bucle, no sustituyen la regla de que una persona apruebe en su terminal (`rapid approve` exige TTY y falla con `RAPID1310`).
+> **Defensa en profundidad en `rapid approve`.** Los hooks no son la única barrera: `rapid approve` rechaza (`RAPID1310`) cuando falta un TTY, cuando `CLAUDE_CODE_CHILD_SESSION` vale `1` y, además, cuando algún proceso ancestro es el binario `claude` (se recorre la cadena de procesos padre con la biblioteca estándar). Por eso quitar las variables de sesión y abrir un pty con `script` tampoco permite aprobar: `claude` sigue siendo ancestro. Si la ascendencia no se puede leer, no se rechaza por ello y `rapid doctor` lo avisa (`RAPID1319`). Una persona que aprueba en su propia terminal no se ve afectada.
+>
+> **La detección de comandos es de mejor esfuerzo.** Analiza la línea de comandos que ve el hook; no puede impedir que un agente decidido construya el comando en tiempo de ejecución ni que escriba en `.rapid-os/` con un lenguaje de programación. Los hooks refuerzan el bucle, no sustituyen la regla de que una persona apruebe en su terminal (`rapid approve` exige TTY y falla con `RAPID1310`).
 
 ### Worktrees y errores
 
