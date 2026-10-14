@@ -58,6 +58,7 @@ class CliSmokeTests(unittest.TestCase):
                 "abort",
                 "shortcuts",
                 "attach",
+                "hook",
             },
         )
 

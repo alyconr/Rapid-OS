@@ -67,6 +67,7 @@ Rapid OS:
 - no invoca automáticamente LLMs o coding agents;
 - no ejecuta comandos arbitrarios del repositorio durante un run;
 - no crea branches o worktrees por su cuenta: solo `rapid start --worktree` crea, a petición explícita, el worktree aislado (`../<repo>-<run-id>`, rama `rapid/<run-id>`) de un run cuyo contrato exige workspace aislado;
+- no invoca agentes con los hooks de Claude Code: `rapid hook stop|pre-tool` los ejecuta Claude Code y solo responden con una denegación de herramienta o un bloqueo de parada (`rapid shortcuts install --hooks` es la única vía que los escribe en `.claude/settings.json`);
 - no escribe shortcuts `/rapid-<modo>` en las carpetas del harness (`.claude/skills`, `.agents/skills`, `.cursor/skills`, `.github/prompts`) salvo cuando se ejecuta `rapid shortcuts install` o `rapid init --shortcuts`;
 - no considera un gate `acknowledged` como evidencia;
 - no considera una capability declarada como prueba de que fue utilizada;

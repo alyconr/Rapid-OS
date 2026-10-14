@@ -776,6 +776,7 @@ def init_project(args):
         create_optional_docs_scaffold()
     regenerate_context()
     _offer_shortcuts(args, selected_tools, safe_prompt)
+    _install_hooks_for_init(args, selected_tools)
 
     # Update .gitignore if present in project root
     gitignore_path = CURRENT_DIR / ".gitignore"
@@ -807,6 +808,22 @@ def init_project(args):
             pass
 
     print("\n🚀 ¡Rapid OS activo!")
+
+
+def _install_hooks_for_init(args, selected_tools):
+    """`rapid init --hooks`: only with the explicit flag, never as a side effect of --shortcuts."""
+    if not getattr(args, "hooks", False):
+        return
+    from rapid_os.adapters import claude_hooks
+    from rapid_os.adapters.shortcut_installer import ShortcutError
+
+    try:
+        plan = _plan_claude_hooks("install", tuple(selected_tools))
+        claude_hooks.apply_plan(CURRENT_DIR, plan)
+    except ShortcutError as exc:
+        print_warning(str(exc))
+        return
+    print_success(f"Hooks de Claude Code: {plan.action} ({plan.path.as_posix()}).")
 
 
 def _offer_shortcuts(args, selected_tools, prompt):
@@ -1302,6 +1319,20 @@ def doctor_command(args):
         )
         diagnostics.append(
             Diagnostic(INFO, "RAPID909", f"Test command: {test_cmd_str}", CONFIG_FILE)
+        )
+
+    from rapid_os.adapters.claude_hooks import hooks_installed
+
+    if hooks_installed(CURRENT_DIR) and shutil.which("rapid") is None:
+        diagnostics.append(
+            Diagnostic(
+                WARNING,
+                "RAPID1339",
+                "Claude Code hooks are installed in .claude/settings.json but 'rapid' is not on PATH; "
+                "the hooks cannot start (Claude Code treats that as a non-blocking error) and the run is not enforced.",
+                CURRENT_DIR / ".claude" / "settings.json",
+                hint="Install Rapid OS where Claude Code can find it (for example 'pipx install rapid-os') or add its scripts directory to PATH.",
+            )
         )
 
     if not check_node_installed():
@@ -3627,6 +3658,45 @@ def _install_shortcuts(harness_ids, *, dry_run):
     return plan, written
 
 
+def _plan_claude_hooks(action, harness_ids):
+    """Plan the .claude/settings.json hooks change; RAPID1337/RAPID1338 when it cannot apply."""
+    from rapid_os.adapters import claude_hooks
+    from rapid_os.adapters.shortcut_installer import ShortcutError
+
+    if "claude" not in harness_ids:
+        raise ShortcutError(
+            "RAPID1337",
+            "--hooks only applies to Claude Code: select the claude harness "
+            "(--harness claude, or add 'claude' to 'tools' in .rapid-os/config.json).",
+        )
+    if action == "install":
+        return claude_hooks.plan_install(CURRENT_DIR)
+    return claude_hooks.plan_remove(CURRENT_DIR)
+
+
+def hook_command(args):
+    """Execute rapid hook stop|pre-tool: read the Claude Code hook JSON on stdin.
+
+    Never fails the agent: internal errors, invalid stdin or a missing project produce no output
+    and exit 0 (see rapid_os.orchestration.hook_runtime).
+    """
+    from rapid_os.orchestration.hook_runtime import run_hook
+
+    event = getattr(args, "hook_event", None)
+    if not event:
+        print("Usage: rapid hook {stop,pre-tool}  (reads the Claude Code hook JSON from stdin)", file=sys.stderr)
+        return 0
+    try:
+        raw_stdin = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+    except Exception:
+        raw_stdin = ""
+    code, output = run_hook(event, raw_stdin, os.environ, templates_dir=TEMPLATES_DIR)
+    if output:
+        sys.stdout.write(output + "\n")
+        sys.stdout.flush()
+    sys.exit(code)
+
+
 def shortcuts_command(args):
     """Execute rapid shortcuts install|list|remove."""
     from rapid_os.adapters.shortcut_installer import (
@@ -3656,9 +3726,14 @@ def shortcuts_command(args):
         harness_ids = resolve_harness_ids(getattr(args, "harness", None), config_tools)
 
         if action == "install":
+            from rapid_os.adapters import claude_hooks
+
+            hooks_plan = _plan_claude_hooks("install", harness_ids) if getattr(args, "hooks", False) else None
             plan, written = _install_shortcuts(harness_ids, dry_run=dry_run)
+            if hooks_plan is not None and not dry_run:
+                claude_hooks.apply_plan(CURRENT_DIR, hooks_plan)
             if as_json:
-                print(json.dumps({
+                payload = {
                     "schema_version": 1,
                     "command": "install",
                     "dry_run": dry_run,
@@ -3666,12 +3741,17 @@ def shortcuts_command(args):
                     "files": [_shortcut_entry_json(f) for f in plan.files],
                     "skipped": _skipped_json(plan.skipped),
                     "warnings": list(plan.warnings),
-                }, indent=2, ensure_ascii=False))
+                }
+                if hooks_plan is not None:
+                    payload["hooks"] = hooks_plan.to_dict()
+                print(json.dumps(payload, indent=2, ensure_ascii=False))
                 return 0
             prefix = "[dry-run] " if dry_run else ""
             for planned in plan.files:
                 owners = ",".join(planned.harnesses)
                 print(f"{prefix}{planned.action:<9} {planned.path.as_posix()} [{owners}]")
+            if hooks_plan is not None:
+                print(f"{prefix}{hooks_plan.action:<9} {hooks_plan.path.as_posix()} [hooks: Stop, PreToolUse]")
             changed = sum(1 for f in plan.files if f.action != "unchanged")
             print(f"{prefix}{changed} archivo(s) a escribir, {len(plan.files) - changed} sin cambios.")
             for warning in plan.warnings:
@@ -3700,14 +3780,19 @@ def shortcuts_command(args):
             return 0
 
         # remove
+        from rapid_os.adapters import claude_hooks
+
+        hooks_plan = _plan_claude_hooks("remove", harness_ids) if getattr(args, "hooks", False) else None
         entries = plan_removal(CURRENT_DIR, harness_ids, TEMPLATES_DIR)
         removed = () if dry_run else apply_removal(CURRENT_DIR, entries)
+        if hooks_plan is not None and not dry_run:
+            claude_hooks.apply_plan(CURRENT_DIR, hooks_plan)
         warnings = [
             f"RAPID1317 {e.path.as_posix()} has no generated marker; left untouched."
             for e in entries if e.action == "skip_unmarked"
         ]
         if as_json:
-            print(json.dumps({
+            payload = {
                 "schema_version": 1,
                 "command": "remove",
                 "dry_run": dry_run,
@@ -3718,12 +3803,17 @@ def shortcuts_command(args):
                     for e in entries
                 ],
                 "warnings": warnings,
-            }, indent=2, ensure_ascii=False))
+            }
+            if hooks_plan is not None:
+                payload["hooks"] = hooks_plan.to_dict()
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
             return 0
         prefix = "[dry-run] " if dry_run else ""
         for e in entries:
             if e.action != "absent":
                 print(f"{prefix}{e.action:<13} {e.path.as_posix()}")
+        if hooks_plan is not None and hooks_plan.action != "absent":
+            print(f"{prefix}{hooks_plan.action:<13} {hooks_plan.path.as_posix()} [hooks: Stop, PreToolUse]")
         print(f"{prefix}{sum(1 for e in entries if e.action == 'remove')} archivo(s) a eliminar.")
         for warning in warnings:
             print(f"WARNING {warning}", file=sys.stderr)
@@ -3772,6 +3862,11 @@ def create_parser():
     )
     init.add_argument("--test-command", dest="test_command", help="Explicit test command string to store in config (e.g. 'python -m pytest').")
     init.add_argument("--no-scan", action="store_true", help="Skip local project scanner during initialization.")
+    init.add_argument(
+        "--hooks",
+        action="store_true",
+        help="Also install the Rapid OS hooks in .claude/settings.json (requires the claude agent; independent of --shortcuts).",
+    )
     init.add_argument(
         "--shortcuts",
         action="store_true",
@@ -4326,6 +4421,22 @@ def create_parser():
         )
         _sp.add_argument("--dry-run", dest="dry_run", action="store_true", help="Show what would change without writing or deleting.")
         _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
+        if _name != "list":
+            _sp.add_argument(
+                "--hooks",
+                action="store_true",
+                help="Also install (or remove) the Rapid OS hooks in .claude/settings.json; requires the claude harness.",
+            )
+
+    # rapid hook
+    hook_p = subparsers.add_parser(
+        "hook",
+        help="Claude Code hook entry points (read the hook JSON from stdin; never fail the agent).",
+        description="Run as a Claude Code hook: 'stop' keeps the agent working until the run needs a person; 'pre-tool' denies reserved commands and edits inside .rapid-os/.",
+    )
+    hook_sub = hook_p.add_subparsers(dest="hook_event")
+    hook_sub.add_parser("stop", help="Stop hook: block the stop while the run still has agent work.")
+    hook_sub.add_parser("pre-tool", help="PreToolUse hook: deny reserved rapid commands and writes to .rapid-os/.")
 
     return parser
 
@@ -4361,6 +4472,8 @@ def main(argv=None):
         abort_command(args)
     elif args.command == "attach":
         attach_command(args)
+    elif args.command == "hook":
+        hook_command(args)
     elif args.command == "shortcuts":
         shortcuts_command(args)
     elif args.command == "check":
