@@ -130,8 +130,18 @@ class ShortcutInstallerTests(unittest.TestCase):
     def plan(self, harnesses=("claude", "codex"), templates_dir=TEMPLATES):
         return installer.build_plan(self.root, harnesses, templates_dir)
 
-    def test_only_modes_with_a_playbook_are_generated(self):
+    def test_every_mode_shortcut_is_generated_when_all_playbooks_exist(self):
         plan = self.plan(("claude",))
+        self.assertEqual({f.shortcut for f in plan.files}, set(SHORTCUT_NAMES))
+        self.assertEqual(plan.skipped, ())
+
+    def test_only_modes_with_a_playbook_are_generated(self):
+        templates = self.root / "tpl"
+        shutil.copytree(TEMPLATES / "shortcuts", templates / "shortcuts")
+        (templates / "modes").mkdir()
+        shutil.copy(TEMPLATES / "modes" / "feature.json", templates / "modes" / "feature.json")
+
+        plan = installer.build_plan(self.root, ("claude",), templates)
         names = {f.shortcut for f in plan.files}
         self.assertEqual(names, {"rapid-feature", "rapid-next", "rapid-status", "rapid-approve"})
         self.assertEqual(
@@ -206,25 +216,25 @@ class ShortcutInstallerTests(unittest.TestCase):
 
     def test_codex_and_antigravity_share_agents_skills_once(self):
         plan = self.plan(("codex", "antigravity"))
-        self.assertEqual(len(plan.files), 4)
+        self.assertEqual(len(plan.files), 8)
         for planned in plan.files:
             self.assertTrue(planned.path.as_posix().startswith(".agents/skills/"))
             self.assertEqual(planned.harnesses, ("antigravity", "codex"))  # registry order
 
         with mock.patch.object(installer, "safe_write_text", wraps=installer.safe_write_text) as writer:
             installer.apply_plan(self.root, plan)
-        self.assertEqual(writer.call_count, 4)
+        self.assertEqual(writer.call_count, 8)
 
     def test_remove_only_deletes_marked_files(self):
         installer.apply_plan(self.root, self.plan(("claude", "codex")))
         own = self.root / ".claude/skills/rapid-next/SKILL.md"
         own.write_text("mine, no marker\n", encoding="utf-8")
 
-        entries = installer.plan_removal(self.root, ("claude", "codex"), TEMPLATES)
+        entries = installer.plan_removal(self.root, ("claude", "codex", "cursor"), TEMPLATES)
         actions = {e.path.as_posix(): e.action for e in entries}
         self.assertEqual(actions[".claude/skills/rapid-next/SKILL.md"], "skip_unmarked")
         self.assertEqual(actions[".claude/skills/rapid-feature/SKILL.md"], "remove")
-        self.assertEqual(actions[".claude/skills/rapid-bugfix/SKILL.md"], "absent")
+        self.assertEqual(actions[".cursor/skills/rapid-feature/SKILL.md"], "absent")
 
         installer.apply_removal(self.root, entries)
         self.assertEqual(own.read_text(encoding="utf-8"), "mine, no marker\n")
@@ -298,7 +308,8 @@ class ShortcutCliTests(unittest.TestCase):
         paths = {f["path"] for f in payload["files"]}
         self.assertIn(".claude/skills/rapid-feature/SKILL.md", paths)
         self.assertIn(".agents/skills/rapid-feature/SKILL.md", paths)
-        self.assertEqual({s["code"] for s in payload["skipped"]}, {"RAPID1315"})
+        self.assertIn(".claude/skills/rapid-bugfix/SKILL.md", paths)
+        self.assertEqual(payload["skipped"], [])
         self.assertEqual(tree(self.root), {})
 
     def test_install_list_remove_roundtrip(self):
@@ -311,7 +322,8 @@ class ShortcutCliTests(unittest.TestCase):
 
         listed = json.loads(self.rapid("shortcuts", "list", "--harness", "claude", "--json").stdout)
         self.assertTrue(all(e["state"] == "installed" for e in listed["shortcuts"]))
-        self.assertEqual(len(listed["skipped"]), 4)
+        self.assertEqual(listed["skipped"], [])
+        self.assertEqual(len(listed["shortcuts"]), 8)
 
         removed = self.rapid("shortcuts", "remove", "--harness", "claude", "--json")
         self.assertEqual(removed.returncode, 0, removed.stderr)

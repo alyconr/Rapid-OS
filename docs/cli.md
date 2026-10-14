@@ -342,7 +342,7 @@ Subcommands:
 
 ---
 
-## Intent & Workflow Layer (`rapid start`, `rapid next`, `rapid finish`, `rapid approve`, `rapid status`, `rapid abort`)
+## Intent & Workflow Layer (`rapid start`, `rapid next`, `rapid finish`, `rapid approve`, `rapid attach`, `rapid status`, `rapid abort`)
 
 Manage end-to-end intent porcelain sessions (`.rapid-os/session.json`).
 
@@ -350,11 +350,25 @@ Manage end-to-end intent porcelain sessions (`.rapid-os/session.json`).
 Initialize or resume a governed intent workflow session. Mode is mandatory when creating a new run, and optional when `--resume` is passed (loaded from `.rapid-os/session.json`).
 
 ```bash
-rapid start [{feature,bugfix,refactor,hardening,research}] [<objective>] [--spec-file <path>|-] [--spec <id>] [--harness <harness-id>] [--resume] [--json]
+rapid start [{feature,bugfix,refactor,hardening,research}] [<objective>] [--spec-file <path>|-] [--spec <id>] [--harness <harness-id>] [--resume] [--worktree] [--json]
 ```
 
+Each mode has its own playbook in `templates/modes/` (`spec_template` and per-action instructions):
+
+| Mode | Behavior |
+| :--- | :--- |
+| `feature` | Default loop: baseline, tasks, verification, human gate. |
+| `bugfix` | The baseline is taken at `start`, before the reproduction test exists. While `T001` ("Reproducir con un test en rojo") is `in_progress` without a passing `reproduction.T001` assertion, `rapid next` proposes `rapid check --expect fail --task T001 -- <test_command>`; once the failure is recorded it proposes `rapid task done T001 --no-check` (the suite is red by design). |
+| `refactor` | The baseline is mandatory. Once all tasks are terminal, if the latest `test_result` has fewer passed tests than the baseline, `rapid next` returns `blocked` with the difference (a Conductor rule, not an evaluator rule). |
+| `hardening` | Risk is `high`, so the contract requires an isolated workspace (see `--worktree`) and a `gate.review`. |
+| `research` | Spike: low risk, no baseline and no mandatory tests. Findings are recorded with `rapid attach`. |
+
+Options:
+- `--worktree`: When the contract requires `isolated_required`, create a git worktree at `../<repo>-<run-id>` on branch `rapid/<run-id>` from `HEAD`. The ledger (`.rapid-os/`, `session.json`) stays in the main repository; `session.json` stores `workspace_path`, `rapid check`/`rapid task done` run the commands in that directory, `rapid finish` collects the changes from it, and the run records `workspace` evidence with `mode: isolated` (which acknowledges `gate.workspace-isolation`). Without the flag the run stops at `blocked` and `rapid next` proposes `rapid start --resume --worktree`. The flag has no effect when the contract does not require isolation. Uncommitted changes of the main checkout are not part of the worktree (it starts from `HEAD`). `rapid abort` keeps the worktree on disk.
+- `session.json` also records `start_untracked`: the untracked files that existed before `rapid start`, which `rapid finish` does not attribute to the run.
+
 ### `rapid next`
-Query the deterministic next workflow action without mutating state.
+Query the deterministic next workflow action without mutating state. When a human review was rejected (`rapid approve --reject`) it returns `blocked` with the command `rapid abort`: the gate stays `FAIL` for that run and a new run is needed. Agents must not run `rapid abort` on their own in that case.
 
 ```bash
 rapid next [--json]
@@ -368,10 +382,26 @@ rapid finish [--json]
 ```
 
 ### `rapid approve`
-Interactively review and approve or reject a human gate. Requires an interactive terminal (TTY) and cannot be executed inside agent child sessions (`CLAUDE_CODE_CHILD_SESSION == 1`). If `--reject` is passed, `--reason` is required.
+Review a human gate. Without arguments it lists the pending human gates of the active run (read-only; no TTY needed). With a gate id it approves it, or with `--waive` / `--reject` waives or rejects it. Changing a gate requires an interactive terminal (TTY) and cannot be executed inside agent child sessions (`CLAUDE_CODE_CHILD_SESSION == 1`): without a TTY every case fails with `RAPID1310` (a stdin closed during the confirmation, EOF, is reported the same way).
 
 ```bash
-rapid approve <gate-id> [--reviewer <name>] [--reject] [--reason <text>]
+rapid approve
+rapid approve <gate-id> [--reviewer <name>]
+rapid approve <gate-id> --waive --reason <text> [--reviewer <name>]
+rapid approve <gate-id> --reject --reason <text> [--reviewer <name>]
+```
+
+Options:
+- `--reviewer <name>`: Reviewer recorded in the evidence. Defaults to `git config user.name`; if it is not set, the name is asked on the terminal (`RAPID1331` if left empty).
+- `--waive`: Waive a gate instead of approving it. Only gates that the contract marks as waivable (for example `gate.review`) can be waived, and `--reason` is mandatory. Confirm by typing `dispensar <gate-id>`.
+- `--reject`: Record a `review` evidence with outcome `changes_requested`. This leaves the gate in `FAIL` for the rest of that run: `rapid next` returns `blocked` with the command `rapid abort`, and a new run is needed. `--reason` is mandatory.
+- `--reason <text>`: Reason for `--waive` or `--reject` (`RAPID1333` if missing).
+
+### `rapid attach`
+Record a file of the project (or of the run workspace) as `artifact` evidence with producer `rapid:attach`. The evidence is linked to `--task` or, if omitted, to the only `in_progress` task, so it backs the task assertion; research spikes use it instead of tests. Files under `.rapid-os/` cannot be attached.
+
+```bash
+rapid attach <path> --label <text> [--task <task-id>]
 ```
 
 ### `rapid status`

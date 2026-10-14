@@ -6,7 +6,7 @@ from rapid_os.domain.evals import (
     EvalAssertionStatus,
     EvaluationReport,
 )
-from rapid_os.domain.evidence import RunEvidence
+from rapid_os.domain.evidence import EvidenceKind, RunEvidence
 from rapid_os.domain.execution import (
     ExecutionContract,
     GateDisposition,
@@ -68,6 +68,52 @@ def gate_satisfied(
         if assertion.category == "gate" and assertion.subject_id == gate_id:
             return assertion.status == EvalAssertionStatus.PASS
     return False
+
+
+REJECTING_REVIEW_OUTCOMES = frozenset({"changes_requested", "rejected"})
+
+
+def _rejected_human_gate_ids(
+    contract: ExecutionContract, evidence: Sequence[RunEvidence]
+) -> tuple[str, ...]:
+    """Human gates with a rejecting review: their assertion is FAIL for the rest of the run."""
+    gate_by_id = {g.id: g for g in contract.gates}
+    rejected: list[str] = []
+    for ev in evidence:
+        if ev.kind != EvidenceKind.REVIEW:
+            continue
+        if str(ev.payload.get("outcome")) not in REJECTING_REVIEW_OUTCOMES:
+            continue
+        for gate_id in ev.gate_ids:
+            gate = gate_by_id.get(gate_id)
+            if gate and gate.kind in HUMAN_GATE_KINDS and gate_id not in rejected:
+                rejected.append(gate_id)
+    return tuple(sorted(rejected))
+
+
+def _refactor_regression(
+    contract: ExecutionContract, evidence: Sequence[RunEvidence]
+) -> tuple[int, int] | None:
+    """Return (baseline_passed, latest_passed) when the latest tests pass fewer than the baseline."""
+    baseline_gate = next(
+        (g for g in contract.gates if g.kind == GateKind.BASELINE_CHECK or g.id == "gate.baseline"),
+        None,
+    )
+    if baseline_gate is None:
+        return None
+    real_tests = [
+        ev
+        for ev in evidence
+        if ev.kind == EvidenceKind.TEST_RESULT and ev.payload.get("expectation") != "fail"
+    ]
+    baselines = [ev for ev in real_tests if baseline_gate.id in ev.gate_ids]
+    if not baselines or not real_tests:
+        return None
+    baseline_passed = int(baselines[0].payload["passed"])
+    latest_passed = int(real_tests[-1].payload["passed"])
+    if latest_passed < baseline_passed:
+        return baseline_passed, latest_passed
+    return None
 
 
 def next_action_without_run(mode: str, playbook: Playbook) -> NextAction:
@@ -169,6 +215,29 @@ def next_action(
             kind=ActionKind.BLOCKED,
             instructions=state.reason or playbook.get_instruction(ActionKind.BLOCKED),
             command=None,
+            after=None,
+            awaiting_human=pending_human_ids,
+            missing=missing,
+            tasks_done=tasks_done,
+            tasks_total=tasks_total,
+            outcome=None,
+        )
+
+    # b2. Revisión humana rechazada: el gate queda en FAIL para siempre en este run.
+    rejected_gate_ids = _rejected_human_gate_ids(contract, raw_evidence)
+    if rejected_gate_ids:
+        return NextAction(
+            schema_version=1,
+            run_id=contract.run_id,
+            mode=mode,
+            kind=ActionKind.BLOCKED,
+            gate_ids=rejected_gate_ids,
+            instructions=(
+                f"Review rejected (changes_requested) for {', '.join(rejected_gate_ids)}; "
+                "the gate stays FAIL for the rest of this run. Run `rapid abort` and start a new run "
+                f"(`rapid start {mode}`) addressing the requested changes."
+            ),
+            command=("rapid", "abort"),
             after=None,
             awaiting_human=pending_human_ids,
             missing=missing,
@@ -308,13 +377,53 @@ def next_action(
                 else None
             )
             after = ("rapid", "task", "done", target_task.id)
+            instructions = playbook.get_instruction(ActionKind.IMPLEMENT_TASK)
+
+            # bugfix: la primera tarea (T001) debe reproducir el bug con un test en rojo.
+            if (
+                mode == "bugfix"
+                and target_task.status == TaskStatus.IN_PROGRESS
+                and contract.tasks
+                and target_task.id == contract.tasks[0].id
+            ):
+                reproduced = any(
+                    a.id == f"reproduction.{target_task.id}"
+                    and a.status == EvalAssertionStatus.PASS
+                    for a in report.assertions
+                )
+                if reproduced:
+                    # The task is red by design and the reproduction evidence backs it:
+                    # do not rerun the whole suite when closing it.
+                    after = ("rapid", "task", "done", target_task.id, "--no-check")
+                elif test_command:
+                    cmd = (
+                        "rapid", "check", "--expect", "fail", "--task", target_task.id,
+                        "--", *test_command,
+                    )
+                    instructions = (
+                        f"{instructions} First write the failing test that reproduces the bug, "
+                        f"then run the command to record the expected failure for {target_task.id}; "
+                        "the fix belongs to the next task."
+                    )
+                else:
+                    instructions = (
+                        f"{instructions} "
+                        "No test_command configured (RAPID1301). Please configure test_command in .rapid-os/config.json or pass --test-command."
+                    )
+            # research: spike without mandatory tests; findings are attached as evidence.
+            if mode == "research" and target_task.status == TaskStatus.IN_PROGRESS:
+                after = ("rapid", "task", "done", target_task.id, "--no-check")
+                instructions = (
+                    f"{instructions} No tests are required: record the findings with "
+                    f"`rapid attach <path> --label TEXT --task {target_task.id}` before closing the task."
+                )
             return NextAction(
                 schema_version=1,
                 run_id=contract.run_id,
                 mode=mode,
                 kind=ActionKind.IMPLEMENT_TASK,
                 task_id=target_task.id,
-                instructions=playbook.get_instruction(ActionKind.IMPLEMENT_TASK),
+                instructions=instructions,
                 command=cmd,
                 after=after,
                 awaiting_human=pending_human_ids,
@@ -325,6 +434,31 @@ def next_action(
             )
 
     # e. Todas las tareas terminales:
+    # 0) refactor: los tests pasados no pueden bajar respecto a la baseline (regla del Conductor).
+    if mode == "refactor":
+        regression = _refactor_regression(contract, raw_evidence)
+        if regression is not None:
+            baseline_passed, latest_passed = regression
+            return NextAction(
+                schema_version=1,
+                run_id=contract.run_id,
+                mode=mode,
+                kind=ActionKind.BLOCKED,
+                instructions=(
+                    f"Refactor lost test coverage: baseline had {baseline_passed} passed, "
+                    f"the latest test run has {latest_passed} passed "
+                    f"({baseline_passed - latest_passed} fewer). "
+                    "A refactor must not reduce passing tests; restore them and re-run `rapid check`."
+                ),
+                command=None,
+                after=None,
+                awaiting_human=pending_human_ids,
+                missing=missing,
+                tasks_done=tasks_done,
+                tasks_total=tasks_total,
+                outcome=None,
+            )
+
     # 1) Aserción FAIL -> blocked con la razón
     fail_assertion = next(
         (a for a in report.assertions if a.status == EvalAssertionStatus.FAIL), None
@@ -357,6 +491,25 @@ def next_action(
     )
     if unverified_task_assertion is not None:
         target_task_id = unverified_task_assertion.subject_id
+        if mode == "research":
+            return NextAction(
+                schema_version=1,
+                run_id=contract.run_id,
+                mode=mode,
+                kind=ActionKind.VERIFY,
+                task_id=target_task_id,
+                instructions=(
+                    f"Task {target_task_id} has no linked evidence. Research spikes need no tests: "
+                    f"attach the findings with `rapid attach <path> --label TEXT --task {target_task_id}`."
+                ),
+                command=None,
+                after=None,
+                awaiting_human=pending_human_ids,
+                missing=missing,
+                tasks_done=tasks_done,
+                tasks_total=tasks_total,
+                outcome=None,
+            )
         if test_command:
             cmd = ("rapid", "check", "--task", target_task_id, "--", *test_command)
             instr = playbook.get_instruction(ActionKind.VERIFY)

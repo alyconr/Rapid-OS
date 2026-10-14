@@ -2982,6 +2982,11 @@ def check_command(args):
     test_cmd = config.get("test_command")
     timeout = float(config.get("check_timeout_s", 600))
     try:
+        check_cwd = _run_workspace_cwd()
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
+    try:
         res = run_check(
             CURRENT_DIR,
             PROJECT_RAPID_DIR,
@@ -2993,6 +2998,7 @@ def check_command(args):
             test_command=test_cmd if isinstance(test_cmd, (list, tuple)) else None,
             timeout=timeout,
             expect=expect,
+            cwd=check_cwd,
         )
     except FileNotFoundError:
         print(f"Command not found: '{argv[0]}'", file=sys.stderr)
@@ -3136,6 +3142,11 @@ def task_command(args):
                 sys.exit(1)
 
             timeout = float(config.get("check_timeout_s", 600))
+            try:
+                task_cwd = _run_workspace_cwd()
+            except ValueError as exc:
+                print(str(exc), file=sys.stderr)
+                sys.exit(1)
             res = run_check(
                 CURRENT_DIR,
                 PROJECT_RAPID_DIR,
@@ -3145,6 +3156,7 @@ def task_command(args):
                 kind=EvidenceKind.TEST_RESULT.value,
                 test_command=test_cmd,
                 timeout=timeout,
+                cwd=task_cwd,
             )
             if res.exit_code != 0:
                 print(f"Verification tests failed for task '{target_task_id}' (exit {res.exit_code}). Log: {res.log_path}", file=sys.stderr)
@@ -3213,6 +3225,27 @@ def task_command(args):
     sys.exit(1)
 
 
+def _run_workspace_cwd():
+    """Directory where run commands execute (the run's worktree, else the project root)."""
+    from rapid_os.orchestration.workspace import resolve_workspace_cwd
+
+    return resolve_workspace_cwd(CURRENT_DIR, PROJECT_RAPID_DIR)
+
+
+def attach_command(args):
+    """Execute rapid attach command."""
+    from rapid_os.orchestration.lifecycle import execute_attach
+
+    code, msg = execute_attach(
+        CURRENT_DIR, PROJECT_RAPID_DIR, args.path, args.label, task_id=getattr(args, "task", None)
+    )
+    if code != 0:
+        print(msg, file=sys.stderr)
+        sys.exit(code)
+    print_success(msg)
+    return 0
+
+
 def start_command(args):
     """Execute rapid start command."""
     from rapid_os.orchestration.lifecycle import execute_start
@@ -3239,6 +3272,7 @@ def start_command(args):
         resume=resume,
         config_file=CONFIG_FILE,
         templates_dir=TEMPLATES_DIR,
+        worktree=getattr(args, "worktree", False),
     )
     if code != 0:
         print(res, file=sys.stderr)
@@ -3311,14 +3345,11 @@ def approve_command(args):
     """Execute rapid approve command."""
     from rapid_os.orchestration.lifecycle import execute_approve
 
-    gate_id = args.gate_id
+    gate_id = getattr(args, "gate_id", None)
     reviewer = getattr(args, "reviewer", None)
     reject = getattr(args, "reject", False)
+    waive = getattr(args, "waive", False)
     reason = getattr(args, "reason", None)
-
-    if reject and (not reason or not str(reason).strip()):
-        print("Reason is required (--reason) when rejecting a gate approval.", file=sys.stderr)
-        sys.exit(1)
 
     code, msg = execute_approve(
         CURRENT_DIR,
@@ -3326,13 +3357,17 @@ def approve_command(args):
         gate_id,
         reviewer=reviewer,
         reject=reject,
+        waive=waive,
         reason=reason,
     )
     if code != 0:
         print(msg, file=sys.stderr)
         sys.exit(code)
 
-    print_success(msg)
+    if gate_id:
+        print_success(msg)
+    else:
+        print(msg)
     return 0
 
 
@@ -4209,6 +4244,11 @@ def create_parser():
     start_p.add_argument("--spec", dest="spec", help="Existing ready spec identifier.")
     start_p.add_argument("--harness", dest="harness", help="Explicit harness override.")
     start_p.add_argument("--resume", action="store_true", help="Resume baseline check and activation on active run.")
+    start_p.add_argument(
+        "--worktree",
+        action="store_true",
+        help="When the contract requires an isolated workspace, create a git worktree at ../<repo>-<run-id> on branch rapid/<run-id> (writes state).",
+    )
     start_p.add_argument("--json", action="store_true", help="Emit NextAction JSON output.")
 
     # rapid next
@@ -4233,10 +4273,11 @@ def create_parser():
         help="Interactively review and approve or reject a human gate.",
         description="Require interactive TTY confirmation to record user review evidence and acknowledge or reject a gate.",
     )
-    approve_p.add_argument("gate_id", help="Target human review gate identifier (e.g. gate.peer-review, gate.final-verification).")
-    approve_p.add_argument("--reviewer", dest="reviewer", help="Human reviewer name or handle.")
-    approve_p.add_argument("--reject", action="store_true", help="Reject rather than approve the review gate.")
-    approve_p.add_argument("--reason", dest="reason", help="Review transition reason (required if --reject is set).")
+    approve_p.add_argument("gate_id", nargs="?", help="Target human review gate identifier (e.g. gate.peer-review, gate.final-verification). Omit to list pending human gates.")
+    approve_p.add_argument("--reviewer", dest="reviewer", help="Human reviewer name or handle (default: git config user.name, else asked on the terminal).")
+    approve_p.add_argument("--reject", action="store_true", help="Reject the gate (review outcome changes_requested); the gate stays FAIL for the rest of the run.")
+    approve_p.add_argument("--waive", action="store_true", help="Waive a waivable gate instead of approving it (requires --reason).")
+    approve_p.add_argument("--reason", dest="reason", help="Review transition reason (required with --reject or --waive).")
 
     # rapid status
     status_p = subparsers.add_parser(
@@ -4245,6 +4286,16 @@ def create_parser():
         description="Print a summary of the active run session and lifecycle state.",
     )
     status_p.add_argument("--json", action="store_true", help="Emit status summary JSON output.")
+
+    # rapid attach
+    attach_p = subparsers.add_parser(
+        "attach",
+        help="Attach a file to the active run as artifact evidence (writes state).",
+        description="Copy a file into the run evidence as an artifact (producer rapid:attach) with a human-readable label.",
+    )
+    attach_p.add_argument("path", help="File to attach (inside the project or the run workspace).")
+    attach_p.add_argument("--label", required=True, help="Short description of what the artifact shows.")
+    attach_p.add_argument("--task", dest="task", help="Task identifier the artifact backs (default: the only in_progress task).")
 
     # rapid abort
     abort_p = subparsers.add_parser(
@@ -4308,6 +4359,8 @@ def main(argv=None):
         status_command(args)
     elif args.command == "abort":
         abort_command(args)
+    elif args.command == "attach":
+        attach_command(args)
     elif args.command == "shortcuts":
         shortcuts_command(args)
     elif args.command == "check":

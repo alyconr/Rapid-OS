@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "mode": "research",
+  "spec_template": {
+    "title": "Pregunta o hipótesis a investigar",
+    "business_objective": "¿Qué decisión informará este spike?",
+    "problem_statement": "Describe la incertidumbre técnica y las alternativas a comparar.",
+    "scope": ["Comparar las alternativas con un experimento acotado"],
+    "out_of_scope": ["Implementación definitiva de la alternativa elegida"],
+    "actors_users": ["Equipo que tomará la decisión"],
+    "main_flow": ["Definir criterios de comparación", "Ejecutar el experimento", "Documentar la conclusión"],
+    "edge_cases": ["Resultados no concluyentes"],
+    "business_rules": ["La conclusión se sustenta en evidencia adjunta"],
+    "technical_constraints": ["Sin nuevas dependencias", "Python stdlib 3.10-3.13"],
+    "affected_paths": ["experiments/"],
+    "acceptance_criteria": ["Existe evidencia adjunta que respalda la conclusión", "La recomendación queda documentada"],
+    "testing_strategy": ["Un spike no exige tests; la evidencia se adjunta con rapid attach"],
+    "implementation_tasks": [
+      "T001: Definir la pregunta y los criterios de comparación",
+      "T002: Ejecutar el experimento y adjuntar la evidencia",
+      "T003: Documentar la conclusión y la recomendación"
+    ]
+  },
+  "instructions": {
+    "author_spec": "Redacta la especificación del spike siguiendo spec_template. Un spike no tiene tests obligatorios ni baseline: la evidencia se adjunta con rapid attach.",
+    "run_baseline": "Un spike no exige baseline. Si el contrato la pide, ejecuta la verificación indicada.",
+    "activate": "Activa el run para comenzar la ejecución de tareas.",
+    "implement_task": "Implementa solo la tarea indicada. Los tests no son obligatorios: adjunta los hallazgos con rapid attach <ruta> --label TEXT.",
+    "verify": "Ejecuta las verificaciones automáticas de machine gates o capacidades requeridas.",
+    "await_human_approval": "Compuertas de revisión humana pendientes. Espera la aprobación del revisor.",
+    "finish": "Todas las tareas y compuertas han sido completadas satisfactoriamente. Finaliza el run.",
+    "done": "El ciclo de ejecución ha concluido.",
+    "blocked": "La ejecución está bloqueada. Revisa la razón o tarea bloqueada y resuelve el impedimento."
+  }
+}

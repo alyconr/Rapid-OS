@@ -163,3 +163,9 @@ rapid eval run \
 ```
 
 El motor de evaluación confirmará que la compuerta de baseline y las pruebas de implementación están verificadas con evidencia matemática idónea.
+
+---
+
+## Con la capa porcelain
+
+`rapid start refactor --spec-file -` exige la baseline. Al terminar las tareas, si el último `test_result` tiene menos tests pasados que la baseline, `rapid next` devuelve `blocked` indicando la diferencia: un refactor no puede reducir los tests que pasan. Ver [`rapid start`](../../cli.md#rapid-start).

@@ -115,8 +115,13 @@ def run_check(
     test_command: Sequence[str] | None = None,
     timeout: float = 600.0,
     expect: str = "pass",
+    cwd: Path | None = None,
 ) -> CheckResult:
-    """Execute argv without shell, write scratch log, and record RunEvidence if successful."""
+    """Execute argv without shell, write scratch log, and record RunEvidence if successful.
+
+    The command runs in `cwd` (the run's isolated worktree) or in `project_root`; the
+    ledger, logs and evidence always stay under `project_root`.
+    """
     clean_argv = tuple(str(a) for a in argv)
     if not clean_argv:
         raise ValueError("Cannot run check with empty argv.")
@@ -142,7 +147,7 @@ def run_check(
     # Execute subprocess
     proc = subprocess.run(
         list(clean_argv),
-        cwd=str(project_root),
+        cwd=str(cwd if cwd is not None else project_root),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,

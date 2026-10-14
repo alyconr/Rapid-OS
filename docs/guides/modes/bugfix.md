@@ -126,3 +126,9 @@ rapid eval run \
 ```
 
 El veredicto confirmará que las compuertas de pruebas (`implementation_tests`) fueron satisfechas con evidencia empírica.
+
+---
+
+## Con la capa porcelain
+
+El mismo flujo, conducido por `rapid next`: `rapid start bugfix --spec-file -` toma la baseline **antes** de que exista el test de reproducción y, mientras `T001` ("Reproducir con un test en rojo") esté en curso, `rapid next` propone `rapid check --expect fail --task T001 -- <test_command>`. Con el fallo registrado, `T001` se cierra con `rapid task done T001 --no-check` y la corrección va en la tarea siguiente. Ver [`rapid start`](../../cli.md#rapid-start).
