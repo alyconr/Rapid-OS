@@ -181,6 +181,30 @@ _WRITERS_ANY = frozenset(
 )
 _WRITERS_LAST = frozenset({"cp", "copy"})
 
+# Programs that run a command string like `bash -c`: `script -qec CMD /dev/null` (a pty wrapper
+# that also defeats the TTY check of `rapid approve`), `su -c CMD`, `runuser -c CMD`.
+_COMMAND_STRING_PROGRAMS = frozenset({"script", "su", "runuser"})
+_NO_CLUSTER_SHELLS = frozenset({"powershell", "pwsh", "cmd"})
+_SHORT_C_CLUSTER = re.compile(r"^-[a-z]*c$")  # -c, -lc, -qc, -qec ...
+_FIND_EXEC_FLAGS = frozenset({"-exec", "-execdir", "-ok", "-okdir"})
+_FIND_EXEC_END = frozenset({";", "+", "\\;"})
+
+# Variables that tell `rapid approve` it is running inside an agent session.
+_AGENT_ENV_NAMES = frozenset({"claude_code_child_session", "claudecode"})
+_ENV_BUILTINS = frozenset({"export", "declare", "typeset", "readonly", "local", "setenv"})
+_ENV_UNSETTERS = frozenset({"unset", "unsetenv"})
+_PS_ENV_TAMPER = (
+    # The lookahead sits right after "=" so backtracking over the spaces cannot sneak past it.
+    re.compile(r"\$env:\s*(CLAUDE_CODE_CHILD_SESSION|CLAUDECODE)\b\s*=(?!\s*['\"]?1['\"]?\s*(?:$|[;|&)]))", re.I),
+    re.compile(
+        r"\b(remove-item|ri|del|erase|rm|rd|clear-item|cli|set-item|si|clear-content)\b[^;|&\n]*\benv:[\\/]?\s*"
+        r"(CLAUDE_CODE_CHILD_SESSION|CLAUDECODE)\b",
+        re.I,
+    ),
+    re.compile(r"SetEnvironmentVariable\(\s*['\"](CLAUDE_CODE_CHILD_SESSION|CLAUDECODE)['\"]", re.I),
+    re.compile(r"\bset\s+(CLAUDE_CODE_CHILD_SESSION|CLAUDECODE)\s*=", re.I),  # cmd.exe
+)
+
 _RESERVED = {
     ("approve",): "approve",
     ("abort",): "abort",
@@ -398,6 +422,8 @@ class ReservedUse:
 
 
 def _reserved_in_rapid_args(args: Sequence[str]) -> ReservedUse | None:
+    if any(a in ("--help", "-h") for a in args):
+        return None  # argparse prints the help and exits: nothing is approved or changed
     positional = _positionals(args)
     for pattern, name in _RESERVED.items():
         if tuple(p.lower() for p in positional[: len(pattern)]) == pattern:
@@ -431,13 +457,69 @@ def _python_rapid_args(args: Sequence[str]) -> list[str] | None:
 
 
 def _shell_payload(program: str, args: Sequence[str]) -> str | None:
+    """The command string a shell-like program runs (`bash -c`, `script -qec`, `su -c`, eval)."""
     base = _base(program)
     if base == "eval":
         return " ".join(args)
-    if base in _SHELLS:
+    if base in _SHELLS or base in _COMMAND_STRING_PROGRAMS:
+        clusters = base not in _NO_CLUSTER_SHELLS
         for idx, a in enumerate(args):
-            if a.lower() in _SHELL_COMMAND_FLAGS and idx + 1 < len(args):
+            if a.startswith("--command="):
+                return a[len("--command="):]
+            if idx + 1 >= len(args):
+                continue
+            if a.lower() in _SHELL_COMMAND_FLAGS or a == "--command":
                 return " ".join(args[idx + 1 :])
+            if clusters and _SHORT_C_CLUSTER.match(a):
+                return " ".join(args[idx + 1 :])
+    return None
+
+
+def _exec_subcommands(args: Sequence[str]) -> list[list[str]]:
+    """Commands run by `find ... -exec CMD ... ;|+` (also -execdir, -ok, -okdir)."""
+    subs: list[list[str]] = []
+    i = 0
+    while i < len(args):
+        if args[i] in _FIND_EXEC_FLAGS:
+            j = i + 1
+            sub: list[str] = []
+            while j < len(args) and args[j] not in _FIND_EXEC_END:
+                sub.append(args[j])
+                j += 1
+            subs.append(sub)
+            i = j
+        i += 1
+    return subs
+
+
+def _reserved_in_words(words: list[str], depth: int) -> ReservedUse | None:
+    if depth > 4:
+        return None
+    words = _skip_wrappers(words)
+    if not words:
+        return None
+    program, args = words[0], words[1:]
+    nested = _shell_payload(program, args)
+    if nested is not None:
+        return find_reserved_use(nested, depth + 1)
+    base = _base(program)
+    if base in _RAPID_PROGRAMS:
+        return _reserved_in_rapid_args(args)
+    if _PYTHON.match(base):
+        rapid_args = _python_rapid_args(args)
+        if rapid_args is not None:
+            return _reserved_in_rapid_args(rapid_args)
+        if "-c" in args:
+            at = args.index("-c") + 1
+            code = args[at] if at < len(args) else ""
+            if "rapid_os" in code and _PYTHON_CODE_HINT.search(code):
+                return ReservedUse("approve" if "approve" in code else "abort")
+        return None
+    if base == "find":
+        for sub in _exec_subcommands(args):
+            found = _reserved_in_words(sub, depth + 1)
+            if found:
+                return found
     return None
 
 
@@ -452,31 +534,122 @@ def find_reserved_use(command: str, depth: int = 0) -> ReservedUse | None:
             return found
     for tokens in _tokenize(outer):
         words, _ = _split_redirections(tokens)
-        words = _skip_wrappers(words)
-        if not words:
+        found = _reserved_in_words(words, depth)
+        if found:
+            return found
+    return None
+
+
+def _assignment_tamper(token: str) -> str | None:
+    if not _ENV_ASSIGN.match(token):
+        return None
+    name, _, value = token.partition("=")
+    if name.lower() in _AGENT_ENV_NAMES and value.strip() != "1":
+        return name
+    return None
+
+
+def _env_tamper_in_words(words: list[str]) -> str | None:
+    """Prefixes, `env -u`, `unset`, `export` that drop or redefine the agent-session variables."""
+    i, n = 0, len(words)
+    while i < n:
+        word = words[i]
+        hit = _assignment_tamper(word)
+        if hit:
+            return hit
+        if _ENV_ASSIGN.match(word):
+            i += 1
             continue
-        program, args = words[0], words[1:]
-        nested = _shell_payload(program, args)
-        if nested is not None:
-            found = find_reserved_use(nested, depth + 1)
-            if found:
-                return found
+        base = _base(word)
+        if base in _KEYWORDS:
+            i += 1
             continue
-        base = _base(program)
-        if base in _RAPID_PROGRAMS:
-            found = _reserved_in_rapid_args(args)
-            if found:
-                return found
-        elif _PYTHON.match(base):
-            rapid_args = _python_rapid_args(args)
-            if rapid_args is not None:
-                found = _reserved_in_rapid_args(rapid_args)
-                if found:
-                    return found
-            elif "-c" in args:
-                code = args[args.index("-c") + 1] if args.index("-c") + 1 < len(args) else ""
-                if "rapid_os" in code and _PYTHON_CODE_HINT.search(code):
-                    return ReservedUse("approve" if "approve" in code else "abort")
+        if base in _WRAPPERS:
+            valued = _WRAPPERS[base]
+            i += 1
+            while i < n:
+                tok = words[i]
+                if base == "env":
+                    if tok in ("-u", "--unset") and i + 1 < n:
+                        if words[i + 1].lower() in _AGENT_ENV_NAMES:
+                            return words[i + 1]
+                        i += 2
+                        continue
+                    if tok.startswith("--unset=") and tok[len("--unset="):].lower() in _AGENT_ENV_NAMES:
+                        return tok[len("--unset="):]
+                    if tok.startswith("-u") and not tok.startswith("--") and tok[2:].lower() in _AGENT_ENV_NAMES:
+                        return tok[2:]
+                    if tok in ("-i", "--ignore-environment", "-"):
+                        return "CLAUDE_CODE_CHILD_SESSION"  # env -i wipes the whole environment
+                hit = _assignment_tamper(tok)
+                if hit:
+                    return hit
+                if tok in valued:
+                    i += 2
+                elif tok.startswith("-") or _ENV_ASSIGN.match(tok):
+                    i += 1
+                elif base == "timeout" and re.match(r"^[0-9.]+[smhd]?$", tok):
+                    i += 1
+                else:
+                    break
+            continue
+        rest = words[i + 1 :]
+        if base in _ENV_UNSETTERS:
+            return next((tok for tok in rest if tok.lower() in _AGENT_ENV_NAMES), None)
+        if base in _ENV_BUILTINS:
+            for tok in rest:
+                hit = _assignment_tamper(tok)
+                if hit:
+                    return hit
+            if "-n" in rest:  # export -n NAME removes the export attribute
+                return next((tok for tok in rest if tok.lower() in _AGENT_ENV_NAMES), None)
+        return None
+    return None
+
+
+def _env_tamper_in_command(words: list[str], depth: int) -> str | None:
+    if depth > 4:
+        return None
+    hit = _env_tamper_in_words(words)
+    if hit:
+        return hit
+    words = _skip_wrappers(words)
+    if not words:
+        return None
+    program, args = words[0], words[1:]
+    nested = _shell_payload(program, args)
+    if nested is not None:
+        return find_env_tamper(nested, depth + 1)
+    if _base(program) == "find":
+        for sub in _exec_subcommands(args):
+            hit = _env_tamper_in_command(sub, depth + 1)
+            if hit:
+                return hit
+    return None
+
+
+def find_env_tamper(command: str, depth: int = 0) -> str | None:
+    """Name of the agent-session variable that the command removes or redefines, if any.
+
+    CLAUDE_CODE_CHILD_SESSION (and CLAUDECODE) are what make `rapid approve` refuse to run inside
+    an agent session; clearing them would lift that guard.
+    """
+    if depth > 4 or not command.strip():
+        return None
+    for pattern in _PS_ENV_TAMPER:
+        match = pattern.search(command)
+        if match:
+            return match.group(1)
+    outer, inner = _extract_substitutions(_strip_heredocs(command))
+    for body in inner:
+        hit = find_env_tamper(body, depth + 1)
+        if hit:
+            return hit
+    for tokens in _tokenize(outer):
+        words, _ = _split_redirections(tokens)
+        hit = _env_tamper_in_command(words, depth)
+        if hit:
+            return hit
     return None
 
 
@@ -503,6 +676,51 @@ def is_protected_path(path: str, cwd: str, protected_dirs: Sequence[str]) -> boo
     return False
 
 
+def _protected_write_in_words(words: list[str], cwd: str, protected_dirs: Sequence[str], depth: int) -> str | None:
+    if depth > 4:
+        return None
+    words = _skip_wrappers(words)
+    if not words:
+        return None
+    program, args = words[0], words[1:]
+    nested = _shell_payload(program, args)
+    if nested is not None:
+        return find_protected_write(nested, cwd, protected_dirs, depth + 1)
+    base = _base(program)
+    positional = _positionals(args)
+    candidates: list[str] = []
+    if base in _WRITERS_ANY:
+        candidates = positional
+    elif base in _WRITERS_LAST:
+        candidates = positional[-1:]
+        for idx, a in enumerate(args):
+            if a in ("-t", "--target-directory") and idx + 1 < len(args):
+                candidates.append(args[idx + 1])
+    elif base in ("sed", "perl", "gsed") and any(
+        a == "--in-place" or (a.startswith("-") and not a.startswith("--") and "i" in a[1:])
+        for a in args
+    ):
+        candidates = positional
+    elif base == "dd":
+        candidates = [a[3:] for a in args if a.startswith("of=")]
+    elif base == "find":
+        if "-delete" in args:
+            start_paths: list[str] = []
+            for a in args:
+                if a.startswith(("-", "(", "!")):
+                    break
+                start_paths.append(a)
+            candidates = start_paths
+        for sub in _exec_subcommands(args):
+            found = _protected_write_in_words(sub, cwd, protected_dirs, depth + 1)
+            if found:
+                return found
+    for candidate in candidates:
+        if is_protected_path(candidate, cwd, protected_dirs):
+            return candidate
+    return None
+
+
 def find_protected_write(command: str, cwd: str, protected_dirs: Sequence[str], depth: int = 0) -> str | None:
     """Return the offending path when the shell command writes inside `.rapid-os/` (best-effort)."""
     if depth > 4 or not command.strip():
@@ -517,37 +735,9 @@ def find_protected_write(command: str, cwd: str, protected_dirs: Sequence[str], 
         for target in redirect_targets:
             if is_protected_path(target, cwd, protected_dirs):
                 return target
-        words = _skip_wrappers(words)
-        if not words:
-            continue
-        program, args = words[0], words[1:]
-        nested = _shell_payload(program, args)
-        if nested is not None:
-            found = find_protected_write(nested, cwd, protected_dirs, depth + 1)
-            if found:
-                return found
-            continue
-        base = _base(program)
-        positional = _positionals(args)
-        candidates: list[str] = []
-        if base in _WRITERS_ANY:
-            candidates = positional
-        elif base in _WRITERS_LAST:
-            candidates = positional[-1:]
-            for idx, a in enumerate(args):
-                if a in ("-t", "--target-directory") and idx + 1 < len(args):
-                    candidates.append(args[idx + 1])
-        elif base in ("sed", "perl", "gsed") and any(
-            a == "--in-place" or (a.startswith("-") and not a.startswith("--") and "i" in a[1:] and base != "perl")
-            or (base == "perl" and a.startswith("-") and not a.startswith("--") and "i" in a[1:])
-            for a in args
-        ):
-            candidates = positional
-        elif base == "dd":
-            candidates = [a[3:] for a in args if a.startswith("of=")]
-        for candidate in candidates:
-            if is_protected_path(candidate, cwd, protected_dirs):
-                return candidate
+        found = _protected_write_in_words(words, cwd, protected_dirs, depth)
+        if found:
+            return found
     return None
 
 
@@ -587,6 +777,13 @@ def decide_pre_tool(payload: HookPayload, protected_dirs: Sequence[str]) -> PreT
         use = find_reserved_use(command)
         if use:
             return PreToolDecision(_approve_reason(use))
+        tampered = find_env_tamper(command)
+        if tampered:
+            return PreToolDecision(
+                f"Removing or redefining {tampered} would lift the guard that keeps human gates for the "
+                "person. Do not change the agent-session environment: run `rapid next --json` and follow "
+                "action.command instead."
+            )
         offending = find_protected_write(command, cwd, protected_dirs)
         if offending:
             return PreToolDecision(

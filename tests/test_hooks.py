@@ -21,6 +21,7 @@ from rapid_os.orchestration.hooks import (
     StopGuard,
     decide_pre_tool,
     decide_stop,
+    find_env_tamper,
     find_protected_write,
     find_reserved_use,
     parse_payload,
@@ -284,6 +285,180 @@ class PreToolDecisionTests(unittest.TestCase):
     def test_find_reserved_use_names_the_gate(self):
         use = find_reserved_use("cd x && VAR=1 rapid approve gate.review --reviewer me")
         self.assertEqual((use.command, use.gate), ("approve", "gate.review"))
+
+
+class PreToolBypassTests(unittest.TestCase):
+    """Bypasses found in the review of PR #57: pty wrappers, session-variable tampering, find -exec."""
+
+    SCRIPT_DENIED = (
+        # The command from the review: strips the agent-session variables, then gets a TTY via script.
+        "env -u CLAUDE_CODE_CHILD_SESSION -u CLAUDECODE script -qec 'rapid approve gate.final-verification' /dev/null",
+        "script -qec 'rapid approve gate.final-verification' /dev/null",
+        "script -qc 'rapid approve gate.x' /dev/null",
+        "script -c 'rapid abort' /dev/null",
+        "script -q -e -c 'rapid approve x' /dev/null",
+        "script --command 'rapid approve x' /dev/null",
+        "script --command='rapid approve x' /dev/null",
+        "script -qec 'cd x && VAR=1 python -m rapid_os approve x' /dev/null",
+        "su -c 'rapid approve x' someone",
+        "runuser -c 'rapid abort' someone",
+        "bash -xc 'rapid approve x'",
+        "sh -ec \"rapid abort\"",
+    )
+    SCRIPT_ALLOWED = (
+        "script -qec 'rapid status --json' /dev/null",
+        "script -q session.log",
+        "script -qec 'python -m unittest' /dev/null",
+        "bash -c 'rapid next --json'",
+        "su -c 'ls' someone",
+    )
+    TAMPER_DENIED = (
+        "env -u CLAUDE_CODE_CHILD_SESSION ls",
+        "env -u CLAUDECODE ls",
+        "env --unset CLAUDECODE ls",
+        "env --unset=CLAUDE_CODE_CHILD_SESSION ls",
+        "env -uCLAUDECODE ls",
+        "env -i rapid next",
+        "env CLAUDECODE=0 ls",
+        "unset CLAUDE_CODE_CHILD_SESSION",
+        "unset -v CLAUDECODE",
+        "unset FOO CLAUDECODE",
+        "CLAUDECODE= rapid next",
+        "CLAUDECODE=0 rapid next",
+        "CLAUDE_CODE_CHILD_SESSION= python x.py",
+        "CLAUDE_CODE_CHILD_SESSION=0 CLAUDECODE=0 ls",
+        "export CLAUDECODE=0",
+        "export CLAUDE_CODE_CHILD_SESSION=",
+        "export -n CLAUDECODE",
+        "declare -x CLAUDECODE=0",
+        "sudo CLAUDECODE=0 ls",
+        "cd x && CLAUDECODE=0 ls",
+        "bash -c 'unset CLAUDECODE; ls'",
+        "echo $(env -u CLAUDECODE ls)",
+        "find . -exec env -u CLAUDECODE ls {} \\;",
+    )
+    TAMPER_ALLOWED = (
+        "echo $CLAUDECODE",
+        "printenv CLAUDECODE",
+        "CLAUDECODE=1 rapid next",
+        "export CLAUDECODE=1",
+        "env -u HOME ls",
+        "env FOO=1 ls",
+        "unset FOO",
+        "echo CLAUDECODE=0",
+        "grep -r CLAUDE_CODE_CHILD_SESSION docs",
+    )
+    POWERSHELL_TAMPER_DENIED = (
+        "Remove-Item Env:CLAUDE_CODE_CHILD_SESSION",
+        "ri env:CLAUDECODE",
+        "Remove-Item -Path Env:\\CLAUDECODE -ErrorAction SilentlyContinue",
+        "$env:CLAUDECODE = ''",
+        '$env:CLAUDE_CODE_CHILD_SESSION="0"',
+        "$env:CLAUDECODE=$null",
+        "[Environment]::SetEnvironmentVariable('CLAUDECODE', $null)",
+        "Set-Item Env:CLAUDECODE 0",
+        "Get-Date; $env:CLAUDECODE = 0; rapid next",
+    )
+    POWERSHELL_TAMPER_ALLOWED = (
+        "$env:CLAUDECODE",
+        "Get-ChildItem Env:",
+        "$env:CLAUDECODE = '1'",
+        "Remove-Item Env:FOO",
+    )
+    FIND_DENIED = (
+        "find . -name x -exec rapid approve gate.x {} \\;",
+        "find . -execdir rapid abort {} +",
+        "find . -ok rapid evidence add x \\;",
+        "find . -exec python -m rapid_os approve x \\;",
+    )
+    FIND_ALLOWED = (
+        "find . -name '*.py' -exec grep rapid {} \\;",
+        "find . -exec rapid status --json {} \\;",
+        "find src -delete",
+        "find . -type f -name '*.pyc' -delete",
+    )
+    HELP_ALLOWED = (
+        "rapid approve --help",
+        "rapid approve -h",
+        "rapid approve gate.final-verification --help",
+        "rapid abort --help",
+        "rapid run gate --help",
+        "python -m rapid_os approve --help",
+        "cd x && rapid approve -h",
+    )
+
+    def assertTable(self, commands, *, denied, tool="Bash"):
+        for command in commands:
+            with self.subTest(command=command, denied=denied):
+                decision = decide_pre_tool(bash(command, tool=tool), PROTECTED)
+                if denied:
+                    self.assertIsNotNone(decision, command)
+                else:
+                    self.assertIsNone(decision, command)
+
+    def test_script_and_other_command_string_programs_are_shell_payloads(self):
+        self.assertTable(self.SCRIPT_DENIED, denied=True)
+        self.assertTable(self.SCRIPT_ALLOWED, denied=False)
+
+    def test_review_bypass_command_is_denied_with_the_gate_command_for_the_person(self):
+        command = self.SCRIPT_DENIED[0]
+        self.assertIsNotNone(find_reserved_use(command))
+        decision = decide_pre_tool(bash(command), PROTECTED)
+        self.assertIsNotNone(decision)
+        self.assertIn("`rapid approve gate.final-verification`", decision.reason)
+        self.assertEqual(
+            pre_tool_output(decision)["hookSpecificOutput"]["permissionDecision"], "deny"
+        )
+
+    def test_script_payload_is_analysed_inside_short_flag_clusters(self):
+        for flags in ("-c", "-qc", "-qec", "-eqc", "-lc"):
+            with self.subTest(flags=flags):
+                use = find_reserved_use(f"script {flags} 'rapid approve gate.review' /dev/null")
+                self.assertEqual(use.gate, "gate.review")
+
+    def test_powershell_flags_are_not_mistaken_for_clusters(self):
+        # -ExecutionPolicy contains a 'c' but is not a short cluster: the real -Command must still be read.
+        command = 'powershell -NoProfile -ExecutionPolicy Bypass -Command "rapid approve gate.x"'
+        self.assertIsNotNone(decide_pre_tool(bash(command, tool="PowerShell"), PROTECTED))
+
+    def test_removing_or_redefining_the_agent_session_variables_is_denied(self):
+        self.assertTable(self.TAMPER_DENIED, denied=True)
+        self.assertTable(self.TAMPER_ALLOWED, denied=False)
+
+    def test_powershell_environment_tampering_is_denied(self):
+        self.assertTable(self.POWERSHELL_TAMPER_DENIED, denied=True, tool="PowerShell")
+        self.assertTable(self.POWERSHELL_TAMPER_ALLOWED, denied=False, tool="PowerShell")
+
+    def test_tamper_reason_points_to_rapid_next_and_names_the_variable(self):
+        decision = decide_pre_tool(bash("env -u CLAUDE_CODE_CHILD_SESSION ls"), PROTECTED)
+        self.assertIn("CLAUDE_CODE_CHILD_SESSION", decision.reason)
+        self.assertIn("rapid next --json", decision.reason)
+        self.assertEqual(find_env_tamper("CLAUDECODE=0 rapid next"), "CLAUDECODE")
+        self.assertIsNone(find_env_tamper("CLAUDECODE=1 rapid next"))
+
+    def test_find_exec_is_a_wrapper(self):
+        self.assertTable(self.FIND_DENIED, denied=True)
+        self.assertTable(self.FIND_ALLOWED, denied=False)
+
+    def test_find_can_not_delete_or_exec_writes_inside_rapid_os(self):
+        for command in ("find .rapid-os -delete", "find /proj/.rapid-os -name '*.json' -delete",
+                        "find . -exec rm .rapid-os/x {} \\;"):
+            with self.subTest(command=command):
+                self.assertIsNotNone(find_protected_write(command, CWD, PROTECTED), command)
+        self.assertIsNone(find_protected_write("find src -delete", CWD, PROTECTED))
+
+    def test_help_for_reserved_commands_is_allowed(self):
+        self.assertTable(self.HELP_ALLOWED, denied=False)
+
+    def test_help_does_not_open_a_loophole_for_real_approvals(self):
+        for command in (
+            "rapid approve gate.x --reviewer me",
+            "rapid approve gate.x && rapid approve --help",
+            "rapid approve --help; rapid approve gate.x",
+            "rapid approve --help | rapid approve gate.x",
+        ):
+            with self.subTest(command=command):
+                self.assertIsNotNone(decide_pre_tool(bash(command), PROTECTED), command)
 
 
 class ProjectResolutionTests(unittest.TestCase):
@@ -685,6 +860,16 @@ class FeatureHookScenarioTests(LabScenarioBase):
             tool_input={"command": "cd x && VAR=1 python -m rapid_os approve gate.final-verification"},
         )
         self.assertEqual(evasion["hookSpecificOutput"]["permissionDecision"], "deny")
+        pty_bypass = self.hook(
+            "pre-tool", hook_event_name="PreToolUse", tool_name="Bash",
+            tool_input={"command": "env -u CLAUDE_CODE_CHILD_SESSION -u CLAUDECODE script -qec "
+                                   "'rapid approve gate.final-verification' /dev/null"},
+        )
+        self.assertEqual(pty_bypass["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertIsNone(self.hook(
+            "pre-tool", hook_event_name="PreToolUse", tool_name="Bash",
+            tool_input={"command": "rapid approve --help"},
+        ))
         self.assertIsNone(self.hook(
             "pre-tool", hook_event_name="PreToolUse", tool_name="Bash",
             tool_input={"command": "rapid status --json"},

@@ -132,9 +132,11 @@ Claude Code aplica además su propio tope de continuaciones consecutivas.
 | `rapid approve …`, `rapid run gate …`, `rapid run status …`, `rapid evidence add …`, `rapid spec status …`, `rapid abort` | Denegado. Para `approve` el motivo da el comando exacto que la persona debe teclear en su terminal. |
 | `rapid status`, `next`, `check`, `task`, `attach`, `finish`, `start` | Permitido. |
 | `Write`, `Edit`, `MultiEdit`, `NotebookEdit` sobre `.rapid-os/` | Denegado. |
-| Comandos de shell que escriben en `.rapid-os/` (`>`, `>>`, `tee`, `cp`, `mv`, `rm`, `sed -i`, …) | Denegado. |
+| Comandos de shell que escriben en `.rapid-os/` (`>`, `>>`, `tee`, `cp`, `mv`, `rm`, `sed -i`, `find -delete`, …) | Denegado. |
+| Quitar o redefinir `CLAUDE_CODE_CHILD_SESSION` o `CLAUDECODE` (`env -u`, `env --unset`, `env -i`, `unset`, prefijos `VAR=` o `VAR=0`, `export`, `Remove-Item Env:`, `$env:VAR = …`) | Denegado, con un motivo que remite a `rapid next`: esas variables son lo que hace que `rapid approve` se niegue a correr dentro de una sesión de agente. |
+| `rapid approve --help` (o `-h`) | Permitido: solo imprime la ayuda. |
 
-También se detectan `python -m rapid_os …`, `python rapid.py …`, rutas absolutas al ejecutable, prefijos de entorno (`VAR=1 rapid …`), `sudo`/`env`/`timeout`, `bash -c`, y comandos encadenados o anidados (`;`, `&&`, `||`, `|`, `$(…)`, comillas invertidas).
+También se detectan `python -m rapid_os …`, `python rapid.py …`, rutas absolutas al ejecutable, prefijos de entorno (`VAR=1 rapid …`), `sudo`/`env`/`timeout`, comandos que ejecutan una cadena (`bash -c`, `bash -xc`, `script -qec`, `su -c`, `eval`) y `find … -exec`, además de comandos encadenados o anidados (`;`, `&&`, `||`, `|`, `$(…)`, comillas invertidas). `script` merece mención aparte: da una terminal al comando, así que junto con `env -u CLAUDE_CODE_CHILD_SESSION` permitiría esquivar la comprobación de TTY de `rapid approve`; por eso se analiza igual que `bash -c` y se deniega quitar esas variables.
 
 > **Es una detección de mejor esfuerzo.** Analiza la línea de comandos que ve el hook; no puede impedir que un agente decidido construya el comando en tiempo de ejecución ni que escriba en `.rapid-os/` con un lenguaje de programación. Los hooks refuerzan el bucle, no sustituyen la regla de que una persona apruebe en su terminal (`rapid approve` exige TTY y falla con `RAPID1310`).
 
