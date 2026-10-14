@@ -97,7 +97,12 @@ def split_available(
         if template.mode is None:
             available.append(template)
             continue
+        # The playbook must exist in the templates being installed from (load_playbook alone
+        # also falls back to the packaged templates).
+        has_playbook = (Path(templates_dir) / "modes" / f"{template.mode}.json").is_file()
         try:
+            if not has_playbook:
+                raise PlaybookError(f"Playbook for mode '{template.mode}' not found.")
             load_playbook(template.mode, templates_dir=templates_dir)
         except PlaybookError:
             skipped.append(

@@ -47,6 +47,7 @@ class NextAction:
     tasks_total: int = 0
     outcome: str | None = None
     spec_template: dict[str, object] | None = None
+    workspace_path: str | None = None
 
     def __post_init__(self):
         coerced_kind = ActionKind.coerce(self.kind)
@@ -76,6 +77,8 @@ class NextAction:
         payload["after"] = list(self.after) if self.after is not None else None
         if self.spec_template is not None:
             payload["spec_template"] = dict(self.spec_template)
+        if self.workspace_path is not None:
+            payload["workspace_path"] = self.workspace_path
         return payload
 
     def to_dict(self) -> dict[str, object]:

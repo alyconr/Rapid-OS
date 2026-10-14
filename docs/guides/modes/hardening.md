@@ -140,3 +140,9 @@ rapid eval run \
 ```
 
 El veredicto final certificará que los requerimientos de seguridad y las evidencias vinculadas satisfacen la política de ejecución antes de cualquier despliegue.
+
+---
+
+## Con la capa porcelain
+
+El modo `hardening` eleva el riesgo a `high`: el contrato exige un workspace aislado y la compuerta `gate.review`. `rapid start hardening --spec-file - --worktree` crea el worktree `../<repo>-<run-id>` (rama `rapid/<run-id>`); el código se edita allí, `rapid check` ejecuta en ese directorio y el ledger permanece en el repositorio principal. `gate.review` admite `rapid approve gate.review --waive --reason "<motivo>"`; un `--reject` deja el gate en FAIL y obliga a abortar y empezar un run nuevo. Ver [`rapid start`](../../cli.md#rapid-start) y [`rapid approve`](../../cli.md#rapid-approve).

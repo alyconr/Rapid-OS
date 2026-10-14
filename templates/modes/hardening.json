@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "mode": "hardening",
+  "spec_template": {
+    "title": "Título descriptivo del endurecimiento",
+    "business_objective": "¿Qué riesgo de seguridad o robustez se reduce y por qué importa?",
+    "problem_statement": "Describe la superficie expuesta, el vector de ataque o el fallo de robustez.",
+    "scope": ["Validar y acotar las entradas o fronteras indicadas"],
+    "out_of_scope": ["Cambios funcionales no relacionados con el endurecimiento"],
+    "actors_users": ["Usuario final", "Atacante potencial"],
+    "main_flow": ["Entrada actual sin validar", "Entrada validada y acotada"],
+    "edge_cases": ["Entradas vacías, enormes, con bytes nulos o con formato inválido"],
+    "business_rules": ["Las entradas inválidas se rechazan con un error explícito"],
+    "technical_constraints": ["Sin nuevas dependencias", "Python stdlib 3.10-3.13"],
+    "affected_paths": ["src/"],
+    "acceptance_criteria": ["Las entradas inválidas se rechazan", "Las entradas válidas siguen funcionando"],
+    "testing_strategy": ["Tests de entradas maliciosas y de límites", "Suite completa en el workspace aislado"],
+    "implementation_tasks": [
+      "T001: Escribir tests de entradas inválidas y de límites",
+      "T002: Implementar la validación defensiva",
+      "T003: Verificar la suite completa en el workspace aislado"
+    ]
+  },
+  "instructions": {
+    "author_spec": "Redacta la especificación de endurecimiento siguiendo spec_template. El modo hardening eleva el riesgo a high: el contrato exigirá un workspace aislado y revisión humana. Añade tags (security, auth, migration...) si aplican.",
+    "run_baseline": "Ejecuta la verificación de baseline en el workspace aislado. Si el comando sale en rojo, el repositorio no está sano antes de empezar; arregla la causa o ejecuta rapid abort.",
+    "activate": "El baseline fue verificado satisfactoriamente. Activa el run para comenzar la ejecución de tareas.",
+    "implement_task": "Implementa solo la tarea indicada, editando los archivos en el workspace aislado del run. Corre los tests con rapid check.",
+    "verify": "Ejecuta las verificaciones automáticas de machine gates o capacidades requeridas.",
+    "await_human_approval": "Compuertas de revisión humana pendientes. Espera la aprobación del revisor.",
+    "finish": "Todas las tareas y compuertas han sido completadas satisfactoriamente. Finaliza el run.",
+    "done": "El ciclo de ejecución ha concluido; la rama rapid/<run-id> del worktree queda lista para integrar.",
+    "blocked": "La ejecución está bloqueada. Revisa la razón o tarea bloqueada y resuelve el impedimento. Si falta el workspace aislado, ejecuta rapid start --resume --worktree."
+  }
+}

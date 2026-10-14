@@ -13,7 +13,7 @@ Antes de nada, ejecuta `rapid next --json` y lee su salida.
 Conduces un run gobernado de Rapid OS en modo `research`. El objetivo es lo que la persona escribió al invocar este comando. Sigue este bucle:
 
 1. Ejecuta `rapid next --json`.
-2. Si `action.kind` es `author_spec`: redacta la spec desde los argumentos del usuario siguiendo `action.spec_template` y pásala por stdin a `rapid start research --spec-file -`. Si no hay argumentos suficientes, pregunta antes de redactar.
+2. Si `action.kind` es `author_spec`: obtén la plantilla de este modo con `rapid start research --json` (en `action.spec_template`; `rapid next` sin run activo solo conoce la del modo feature), redacta la spec desde los argumentos del usuario siguiendo esa plantilla y pásala por stdin a `rapid start research --spec-file -`. Si no hay argumentos suficientes, pregunta antes de redactar.
 3. Si `action.command` existe, ejecútalo. Si `action.kind` es `implement_task`, implementa solo esa tarea y ejecuta `action.after`. Corre los tests siempre con `rapid check -- <comando>`.
 4. Repite hasta que `action.kind` sea `done` o `await_human_approval`. En `await_human_approval`, resume la evidencia y pide a la persona que ejecute `rapid approve <gate>` en SU terminal.
-5. Nunca ejecutes `rapid approve`, `rapid run gate` ni `rapid evidence add`, y nunca edites `.rapid-os/`.
+5. Nunca ejecutes `rapid approve`, `rapid abort`, `rapid run gate` ni `rapid evidence add`, y nunca edites `.rapid-os/`. Si `action.command` es `rapid abort` (revisión rechazada), explica la razón a la persona y espera su decisión.

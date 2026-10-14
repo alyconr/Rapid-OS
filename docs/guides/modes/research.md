@@ -114,3 +114,9 @@ rapid eval run \
 ```
 
 Una vez concluido el spike de investigación con veredicto satisfactorio, el equipo puede promover las recomendaciones a una especificación de modo [`feature`](./feature.md) o [`refactor`](./refactor.md) para su implementación gobernada en el sistema.
+
+---
+
+## Con la capa porcelain
+
+Un spike no tiene tests obligatorios ni baseline. Los hallazgos se registran con `rapid attach <ruta> --label "<texto>"`, que vincula el archivo a la tarea en curso como evidencia `artifact` (productor `rapid:attach`). Ver [`rapid attach`](../../cli.md#rapid-attach).

@@ -29,15 +29,24 @@ class Session:
     harness: str
     start_head: str | None = None
     schema_version: int = SESSION_SCHEMA_VERSION
+    # Untracked files that already existed when the run started (None = not recorded).
+    start_untracked: tuple[str, ...] | None = None
+    # Isolated git worktree of the run (absolute path); the ledger stays in the main repo.
+    workspace_path: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "schema_version": self.schema_version,
             "active_run_id": self.active_run_id,
             "mode": self.mode,
             "harness": self.harness,
             "start_head": self.start_head,
         }
+        if self.start_untracked is not None:
+            payload["start_untracked"] = list(self.start_untracked)
+        if self.workspace_path is not None:
+            payload["workspace_path"] = self.workspace_path
+        return payload
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Session:
@@ -56,13 +65,54 @@ class Session:
         start_head = data.get("start_head")
         if start_head is not None and not isinstance(start_head, str):
             raise ValueError("Session 'start_head' must be a string or None.")
+        raw_untracked = data.get("start_untracked")
+        start_untracked: tuple[str, ...] | None = None
+        if raw_untracked is not None:
+            if not isinstance(raw_untracked, list) or not all(
+                isinstance(item, str) for item in raw_untracked
+            ):
+                raise ValueError("Session 'start_untracked' must be a list of strings or None.")
+            start_untracked = tuple(raw_untracked)
+        workspace_path = data.get("workspace_path")
+        if workspace_path is not None and not isinstance(workspace_path, str):
+            raise ValueError("Session 'workspace_path' must be a string or None.")
         return cls(
             schema_version=schema_version,
             active_run_id=active_run_id,
             mode=mode,
             harness=harness,
             start_head=start_head,
+            start_untracked=start_untracked,
+            workspace_path=workspace_path,
         )
+
+
+def resolve_git_untracked(cwd: Path | str | None = None) -> tuple[str, ...] | None:
+    """List untracked, non-ignored files (`git ls-files --others --exclude-standard`).
+
+    Returns None when git is unavailable or `cwd` is not a repository, so callers can tell
+    "nothing untracked" (empty tuple) from "unknown".
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard"],
+            cwd=str(cwd) if cwd else None,
+            capture_output=True,
+            text=True,
+            check=False,
+            shell=False,
+        )
+    except Exception:
+        return None
+    if proc.returncode != 0:
+        return None
+    return tuple(
+        sorted(
+            line.strip().replace("\\", "/")
+            for line in proc.stdout.splitlines()
+            if line.strip()
+        )
+    )
 
 
 def resolve_git_head(cwd: Path | str | None = None) -> str | None:
