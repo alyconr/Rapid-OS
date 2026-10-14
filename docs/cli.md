@@ -61,7 +61,8 @@ Options:
 - `-y`, `--yes`: Non-interactive mode accepting defaults and skipping business rules prompts. Con `--yes --no-scan` no se propone `test_command` y hay que pasar `--test-command`.
 - `--test-command <cmd>`: Explicit test command string to store in `.rapid-os/config.json`.
 - `--no-scan`: Skip automatic project intelligence scan suggestions during initialization.
-- `--shortcuts`: Install the `/rapid-<mode>` shortcuts for the selected agents at the end of `init` without asking (see `rapid shortcuts`). Without it, `init` only offers them on an interactive terminal.
+- `--shortcuts`: Install the `/rapid-<mode>` shortcuts for the selected agents at the end of `init` without asking (see `rapid shortcuts`). Without it, `init` only offers them on an interactive terminal. It does not install hooks.
+- `--hooks`: Also install the Claude Code hooks (see `rapid hook`) in `.claude/settings.json`. Independent of `--shortcuts`; it needs `claude` among the selected agents (otherwise a `RAPID1337` warning is printed and `init` continues).
 
 ### `rapid guide`
 Display the Rapid OS v3 8-step governance workflow and command reference (`Read-only` vs `Writes`). Read-only.
@@ -342,7 +343,7 @@ Subcommands:
 
 ---
 
-## Intent & Workflow Layer (`rapid start`, `rapid next`, `rapid finish`, `rapid approve`, `rapid attach`, `rapid status`, `rapid abort`)
+## Intent & Workflow Layer (`rapid start`, `rapid next`, `rapid finish`, `rapid approve`, `rapid attach`, `rapid hook`, `rapid status`, `rapid abort`)
 
 Manage end-to-end intent porcelain sessions (`.rapid-os/session.json`).
 
@@ -404,6 +405,18 @@ Record a file of the project (or of the run workspace) as `artifact` evidence wi
 rapid attach <path> --label <text> [--task <task-id>]
 ```
 
+### `rapid hook`
+Entry points for the Claude Code hooks. They read the hook JSON that Claude Code writes on stdin (`session_id`, `cwd`, `tool_name`, `tool_input`, `stop_hook_active`) and are meant to be wired in `.claude/settings.json` (see `rapid shortcuts install --hooks`), not typed by hand. They never fail the agent: invalid stdin, a missing project or a corrupt `.rapid-os/` produce no output and exit 0, and the cause is appended to `.rapid-os/scratch/hooks.log`.
+
+```bash
+rapid hook stop
+rapid hook pre-tool
+```
+
+- `stop`: blocks the stop (`{"decision": "block", "reason": ...}`) only while `rapid next` proposes `run_baseline`, `activate`, `implement_task`, `verify` or `finish`; the reason is the instructions plus the exact command. It never blocks on `author_spec`, `await_human_approval`, `blocked` (including the `rapid abort` proposed after a rejected review), `done` or when there is no session. After `hooks.max_stop_blocks` consecutive blocks for the same action (default `3`, set in `.rapid-os/config.json` as `{"hooks": {"max_stop_blocks": 3}}`; `0` disables blocking) the agent is allowed to stop; the count lives per `session_id` in `.rapid-os/scratch/hooks.json` and restarts when the action (`kind` + `task_id` + `gate_ids`) changes.
+- `pre-tool`: denies (`permissionDecision: "deny"`) shell commands (`Bash`, `PowerShell`) that run `rapid approve`, `rapid run gate`, `rapid run status`, `rapid evidence add`, `rapid spec status` or `rapid abort` (also through `python -m rapid_os`, `python rapid.py`, absolute paths, environment prefixes, `;`, `&&`, `||`, `|`, `$(...)` and backticks), and any write inside `.rapid-os/` (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`, or a shell command using `>`, `>>`, `tee`, `cp`, `mv`, `rm`, `sed -i`, ...). `rapid status`, `next`, `check`, `task`, `attach`, `finish` and `start` stay allowed. The detection of shell commands is best-effort: it cannot stop an agent determined to hide a command.
+- Project resolution: from `cwd` upward to the first `.rapid-os/`; inside a worktree created by `rapid start --worktree` the ledger of the main repository is used.
+
 ### `rapid status`
 Display active session, run state, tasks, gates, and last evaluation verdict.
 
@@ -433,6 +446,7 @@ rapid shortcuts remove  [--harness <id> ...] [--dry-run] [--json]
 Options:
 - `--harness <id>`: Harness to target (`claude`, `codex`, `antigravity`, `cursor`, `vscode`). Repeatable. Without it, the supported entries of `tools` in `.rapid-os/config.json` are used; a project without that file must pass `--harness` (`RAPID1312`).
 - `--dry-run`: Show what would be written or deleted without touching the filesystem (`install`, `remove`).
+- `--hooks`: With `install`, also merge the Rapid OS hooks (`Stop` and `PreToolUse`, command `rapid` with arguments `hook stop` / `hook pre-tool`) into the project's `.claude/settings.json`; with `remove`, also remove them. Requires the `claude` harness (`RAPID1337`). Other keys and hooks of the file are left untouched, an existing file is backed up as `.bak`, installing twice writes nothing, and `remove` only deletes the handlers it owns (and the file itself when nothing else is left in it). An unreadable `settings.json` is reported with `RAPID1338` and never overwritten. The handlers use Claude Code's exec form, so `rapid` must be on the `PATH` of the machine running Claude Code; `rapid doctor` warns (`RAPID1339`) when hooks are installed and `rapid` is not found.
 - `--json`: Emit `schema_version`, `command`, `harnesses`, `files[]` (`path`, `shortcut`, `harnesses`, `action`) and, for `install` and `list`, `skipped[]`.
 
 Generated files:

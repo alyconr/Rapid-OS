@@ -92,3 +92,54 @@ rapid eval run --run <run-id> --write --require-pass
 
 - **Claude Code edita sin correr pruebas:** La evaluación marcará `fail` o `unverified` si no se aporta evidencia con `test_result` válido.
 - **Rutas no canónicas:** Las rutas en los payloads de evidencia deben ser rutas relativas POSIX (ej. `src/app.py`, no rutas absolutas con `C:\`).
+
+---
+
+## 6. Hooks de Claude Code (refuerzo opcional del bucle)
+
+Los hooks de Claude Code ejecutan un comando en puntos del ciclo del agente ([documentación oficial](https://code.claude.com/docs/en/hooks)). Rapid OS aporta dos, `rapid hook stop` y `rapid hook pre-tool`, para que el agente no se detenga a mitad de un run, no lance comandos reservados a la persona y no edite `.rapid-os/`.
+
+> Los hooks los ejecuta Claude Code, no Rapid OS: Rapid OS sigue sin invocar agentes. Solo responden con una parada bloqueada o una herramienta denegada.
+
+### Instalación
+
+```bash
+rapid shortcuts install --harness claude --hooks
+rapid shortcuts install --harness claude --hooks --dry-run --json   # ver qué cambiaría
+rapid shortcuts remove --harness claude --hooks                      # quita solo lo propio
+```
+
+Fusiona en `.claude/settings.json` del proyecto un grupo `Stop` y un grupo `PreToolUse` (matcher `Bash|PowerShell|Write|Edit|MultiEdit|NotebookEdit`) cuyo comando es `rapid` con los argumentos `hook stop` / `hook pre-tool` (forma *exec* de Claude Code: sin shell, igual en Linux, macOS y Windows). No toca otras claves ni los hooks del usuario, hace una copia `.bak` y es idempotente. `rapid init --shortcuts` **no** instala hooks: hay que pedirlos con `--hooks` (en `rapid init` o en `rapid shortcuts install`).
+
+`rapid` debe estar en el `PATH` del equipo donde corre Claude Code (por ejemplo con `pipx install rapid-os`). Si no se resuelve, Claude Code lo trata como un error no bloqueante y el refuerzo deja de actuar; `rapid doctor` lo avisa con `RAPID1339`.
+
+### Qué hace `Stop`
+
+Bloquea la parada con la razón (`instructions` más el comando exacto) mientras `rapid next` proponga `run_baseline`, `activate`, `implement_task`, `verify` o `finish`. No bloquea en `author_spec`, `await_human_approval`, `blocked` (tampoco cuando se propone `rapid abort` tras un `--reject`), `done` ni sin sesión.
+
+Guarda de bucle: como máximo `hooks.max_stop_blocks` bloqueos consecutivos (3 por defecto) por sesión y acción; configurable en `.rapid-os/config.json`:
+
+```json
+{ "hooks": { "max_stop_blocks": 3 } }
+```
+
+Claude Code aplica además su propio tope de continuaciones consecutivas.
+
+### Qué hace `PreToolUse`
+
+| Acción del agente | Resultado |
+| :--- | :--- |
+| `rapid approve …`, `rapid run gate …`, `rapid run status …`, `rapid evidence add …`, `rapid spec status …`, `rapid abort` | Denegado. Para `approve` el motivo da el comando exacto que la persona debe teclear en su terminal. |
+| `rapid status`, `next`, `check`, `task`, `attach`, `finish`, `start` | Permitido. |
+| `Write`, `Edit`, `MultiEdit`, `NotebookEdit` sobre `.rapid-os/` | Denegado. |
+| Comandos de shell que escriben en `.rapid-os/` (`>`, `>>`, `tee`, `cp`, `mv`, `rm`, `sed -i`, …) | Denegado. |
+
+También se detectan `python -m rapid_os …`, `python rapid.py …`, rutas absolutas al ejecutable, prefijos de entorno (`VAR=1 rapid …`), `sudo`/`env`/`timeout`, `bash -c`, y comandos encadenados o anidados (`;`, `&&`, `||`, `|`, `$(…)`, comillas invertidas).
+
+> **Es una detección de mejor esfuerzo.** Analiza la línea de comandos que ve el hook; no puede impedir que un agente decidido construya el comando en tiempo de ejecución ni que escriba en `.rapid-os/` con un lenguaje de programación. Los hooks refuerzan el bucle, no sustituyen la regla de que una persona apruebe en su terminal (`rapid approve` exige TTY y falla con `RAPID1310`).
+
+### Worktrees y errores
+
+- La resolución del proyecto sube desde el `cwd` del payload hasta el primer `.rapid-os/`. Si el `cwd` es el worktree de `rapid start --worktree`, se usa el ledger del repositorio principal (el que guarda `workspace_path` en `session.json`).
+- Sin proyecto: sin salida y exit 0.
+- Cualquier error interno, un stdin que no es JSON o un `.rapid-os/` corrupto: sin salida, exit 0 y una línea en `.rapid-os/scratch/hooks.log`. Un hook nunca debe romper al agente.

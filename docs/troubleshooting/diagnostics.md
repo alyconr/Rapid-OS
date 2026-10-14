@@ -173,5 +173,8 @@ Cuando ejecutas `rapid validate`, `rapid scan`, o comandos de gobernanza, RAPID 
 | `RAPID1334` | ERROR | No se pudo crear el worktree aislado de `rapid start --worktree` (no es un repositorio git, no hay commits, la ruta `../<repo>-<run-id>` ya existe o `git worktree add` falló). | Confirmar un repositorio git con al menos un commit, liberar la ruta y reintentar `rapid start --resume --worktree`. |
 | `RAPID1335` | ERROR | El worktree registrado en `workspace_path` de `session.json` ya no existe. | Restaurarlo con `git worktree add` en esa ruta o cancelar el run con `rapid abort`. |
 | `RAPID1336` | ERROR | `rapid attach` falló: sin `--label`, archivo inexistente, fuera del proyecto y del workspace, bajo `.rapid-os/`, o tarea inexistente. | Corregir la ruta, indicar `--label` y, si aplica, un `--task` válido. |
+| `RAPID1337` | ERROR | `rapid shortcuts install --hooks` / `remove --hooks` (o `rapid init --hooks`, donde se reporta como aviso) sin el harness `claude` seleccionado. | Seleccionar `claude` (`--harness claude` o `tools` en `.rapid-os/config.json`) o quitar `--hooks`. |
+| `RAPID1338` | ERROR | `.claude/settings.json` no se puede fusionar: JSON inválido, raíz que no es un objeto, `hooks` o `hooks.<Evento>` con un tipo inesperado, o error al escribirlo. El archivo no se modifica. | Corregir el archivo a mano (o restaurar el `.bak`) y repetir el comando. |
+| `RAPID1339` | WARNING | `rapid doctor`: hay hooks de Claude Code instalados pero `rapid` no se resuelve en el `PATH`; Claude Code trata el fallo como error no bloqueante y el run deja de reforzarse. | Instalar Rapid OS donde lo vea Claude Code (p. ej. `pipx install rapid-os`) o añadir su directorio de scripts al `PATH`. |
 
 
