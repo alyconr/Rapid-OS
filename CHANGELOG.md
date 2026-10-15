@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Porcelain layer**: `rapid start`, `rapid next`, `rapid check`, `rapid task`, `rapid attach`, `rapid finish`, `rapid approve`, `rapid status` and `rapid abort` drive a governed run on top of the v3 plumbing. A pure Conductor (`next_action`) asks the `BehavioralEvaluator` what is missing and returns a `NextAction`; the active run lives in `.rapid-os/session.json`. Evidence producers: `rapid:check`, `rapid:start`, `rapid:finish`, `rapid:attach`.
+- **Behavioral ruleset v2**: `rapid check --expect fail --task <id>` records an expected failure (`expectation: "fail"`) that produces a `reproduction.<task>` assertion and does not count as a failing task or gate evidence (`RAPID1320`); review evidence produced by a `harness:*` producer cannot close a human gate.
+- **Five engineering modes** with playbooks in `templates/modes/`: `feature`, `bugfix` (baseline before the red test, `check --expect fail` on `T001`), `refactor` (blocked when passing tests drop below the baseline), `hardening` (isolated git worktree with `rapid start --worktree`) and `research` (`rapid attach`, no mandatory tests).
+- **Shortcuts**: `rapid shortcuts install|list|remove` and `rapid init --shortcuts` generate eight `/rapid-<mode>` shortcuts (`rapid-feature`, `-bugfix`, `-refactor`, `-hardening`, `-research`, `-next`, `-status`, `-approve`) for Claude Code, Codex, Antigravity, Cursor and VS Code from `templates/shortcuts/`, idempotent and with `.bak` backups (`RAPID1311`–`RAPID1318`). A `RAPID1321` warning flags harness selections that leave the same shortcut in two folders one tool reads.
+- **Claude Code hooks**: `rapid hook stop|pre-tool` keep the agent working until a person is needed and deny reserved commands (`rapid approve`, `rapid abort`, `rapid run gate`, `rapid evidence add`) and edits inside `.rapid-os/`; installed with `rapid shortcuts install --hooks` or `rapid init --hooks` (`RAPID1337`–`RAPID1339`).
+- `rapid approve` without arguments lists pending human gates; `--waive` (waivable gates only) and `--reject` (review outcome `changes_requested`) with `--reason`; `--reviewer` defaults to `git config user.name` (`RAPID1330`–`RAPID1336`).
+- `docs/architecture/orchestration.md` and `docs/guides/shortcuts.md`.
+
+### Changed
+- **`rapid approve` hardened**: it requires a TTY, refuses `CLAUDE_CODE_CHILD_SESSION=1` and, new, refuses when any ancestor process is Claude Code (`RAPID1310`; `RAPID1319` in `rapid doctor` when the ancestry cannot be read). The ancestry check is best-effort: a process that detaches from its parent (double fork, `setsid`, `nohup … &`), a renamed `claude.exe` or a reused pid escape it. The rule is unchanged: a person approves in their own terminal.
+- `rapid finish` on a run that already ended exits `0` only when the stored verdict is `pass` or `pass_with_waivers` and records no new evidence; a run without a report exits `1` with `already ended (<outcome>)`.
+- Product boundaries now state what is executed: the plumbing runs nothing; the porcelain runs only the `test_command` of `.rapid-os/config.json` or the argv given to `rapid check`, creates a worktree only with `rapid start --worktree`, and never invokes agents or approves human gates.
+- Documentation presents the shortcuts as the main flow and the v3 commands as advanced mode; new "Shortcuts y orquestación" sidebar category and navbar entry; the unused `site/` Docusaurus template was removed.
+
+### Fixed
+- `rapid finish` text mode no longer fails with `AttributeError` and prints the report revision and verdict.
+- Runs without a baseline gate (low-risk spikes) and isolated runs could never leave `prepared`.
+- `rapid finish` no longer attributes to the run the untracked files that existed before `rapid start`.
+- `rapid start` and `rapid approve` report expected failures (a missing context source, a closed stdin) with a RAPID code instead of a traceback.
+
+### Security & Hardening
+- Defense in depth around human approval: TTY, session marker, process ancestry, typed confirmation, optional Claude Code hooks (including a guard against clearing the session variables) and `user`-only review evidence. These are best-effort controls, not cryptographic attestation.
+
+---
+
 ## [3.0.0] - 2026-10-08
 
 ### Added

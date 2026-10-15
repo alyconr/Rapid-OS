@@ -78,7 +78,26 @@ Rapid OS v3 enforces a strict separation between four concepts that are frequent
 ### What Rapid OS v3 Does NOT Do
 - Does **not** launch or orchestrate autonomous coding agents or call LLM APIs.
 - Does **not** use LLM-as-a-judge (all evaluations are 100% deterministic ruleset checks).
-- Does **not** execute arbitrary shell commands or run your project's test suite during runs or evaluations.
-- Does **not** automatically create or manage Git branches or worktrees for runs.
+- Does **not** execute anything from the plumbing commands (`spec`, `run`, `evidence`, `eval`…); the porcelain runs only the `test_command` of `.rapid-os/config.json` or the argv given to `rapid check`, and read-only `git` commands to record the run's changes.
+- Does **not** create Git branches or worktrees except with `rapid start --worktree`, and never invokes agents or approves human gates.
 - Does **not** provide cryptographic hardware/remote attestation of external evidence producers (authenticity is local digest, size, sequence, and contract/state binding verification).
 - Does **not** claim that `EvaluationVerdict.PASS` is a mathematical proof of zero software bugs or complete requirement coverage beyond the recorded evidence rules.
+
+---
+
+## 5. Porcelain Verbs → Plumbing Commands
+
+The porcelain verbs drive the loop above for you (see the [orchestration architecture](./architecture/orchestration.md) and the [shortcuts guide](./guides/shortcuts.md)). This table replaces the manual plumbing sequence each verb performs; the plumbing commands remain available for CI, debugging and auditing (**advanced mode**).
+
+| Porcelain verb | Plumbing commands it replaces |
+| :--- | :--- |
+| `rapid start <mode> --spec-file -` | `rapid spec create` + `rapid spec status <spec-id> ready` + `rapid run create --spec <spec-id> --harness <id>`, then the baseline: run the tests, `rapid evidence add` (`test_result`), `rapid run gate <run-id> gate.baseline acknowledged` and `rapid run status <run-id> active` |
+| `rapid next` | Reading `rapid run show` / `rapid run status` and `rapid eval run` by hand to decide what is missing |
+| `rapid check -- <command>` | Running the command, saving its log and `rapid evidence add` (`test_result` or `command_result`, producer `rapid:check`) |
+| `rapid task start\|done\|skip` | `rapid run task <run-id> <task-id> in_progress\|done\|skipped` (`done` also runs the checks) |
+| `rapid attach <path> --label <text>` | `rapid evidence add` with an `artifact` evidence (producer `rapid:attach`) |
+| `rapid finish` | `rapid evidence add` (`file_change`), `rapid run gate <run-id> <gate> acknowledged` for the machine gates the evidence already satisfies, `rapid run status <run-id> finished` and `rapid eval run --run <run-id> --write` |
+| `rapid approve <gate>` | `rapid evidence add` (`review`, producer `user`) + `rapid run gate <run-id> <gate> acknowledged\|waived`; only a person can run it |
+| `rapid status` | `rapid run show` / `rapid run status` + `rapid eval list` |
+| `rapid abort` | `rapid run status <run-id> cancelled` |
+| `rapid shortcuts` / `rapid hook` | Nothing: they generate and enforce the agent-side files (`/rapid-<mode>` skills and Claude Code hooks) |

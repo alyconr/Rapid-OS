@@ -75,7 +75,17 @@ En tareas de gran envergadura (como refactorizaciones o hardening), Antigravity 
 rapid run create --spec spec-complex-refactor --harness antigravity
 ```
 
-2. **Evidencia de Delegación:**
+2. **Verificar Baseline:**
+Ejecuta las pruebas iniciales guardando el log auténtico como artefacto (`base.log`), registra la evidencia de baseline (conforme a [`evidence_baseline.json`](../tutorials/first-governed-project.md#1-registrar-evidencia-de-baseline-y-acreditar-gatebaseline)) y reconoce `gate.baseline` antes de activar el run:
+```bash
+python -m unittest discover -s tests -t . > base.log 2>&1
+rapid evidence add --run <run-id> --input evidence_baseline.json
+rapid run gate <run-id> gate.baseline acknowledged
+rapid run status <run-id> active
+rapid run task <run-id> T001 in_progress
+```
+
+3. **Evidencia de Delegación:**
 Si Antigravity delega una subtarea en un subagente especializado, se puede registrar una evidencia canónica de tipo `delegation`:
 
 ```json
@@ -93,10 +103,10 @@ Si Antigravity delega una subtarea en un subagente especializado, se puede regis
 }
 ```
 
-3. **Evidencia de Pruebas Unitarias:**
+4. **Evidencia de Pruebas Unitarias:**
 El agente ejecuta las pruebas en un entorno temporal y captura la salida con `test_result`.
 
-4. **Evaluación de Cumplimiento:**
+5. **Evaluación de Cumplimiento:**
 ```bash
 rapid eval run --run <run-id> --write --require-pass
 ```

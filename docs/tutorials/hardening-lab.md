@@ -2,6 +2,22 @@
 
 Aprende a gobernar proyectos de endurecimiento y seguridad con RAPID OS, manejando elevación de nivel de riesgo, validación de fronteras de entrada y aislamiento de workspace.
 
+## Con shortcuts
+
+Copia `examples/hardening-lab/starter` a una carpeta propia (repositorio git con un commit). El modo `hardening` necesita el estándar de seguridad del arquetipo `corporate`. El contrato exige un workspace aislado: el shortcut ejecuta `rapid start --resume --worktree`, que crea `../<repo>-<run-id>` en la rama `rapid/<run-id>`; `gate.review` se puede aprobar o dispensar con `--waive`.
+
+```bash
+rapid init --agents claude --archetype corporate --shortcuts
+```
+
+```text
+/rapid-hardening validar y acotar las entradas de register_user
+```
+
+El agente sigue el bucle `rapid next` → `rapid start` → `rapid check` → `rapid finish` y se detiene cuando hace falta una persona: entonces tú ejecutas `rapid approve <gate>` en tu terminal (`/rapid-approve` te da el comando exacto). Las instalaciones por harness están en la [guía de shortcuts](../guides/shortcuts.md).
+
+El resto del laboratorio es el **modo avanzado**: el mismo recorrido con comandos v3, para entender qué registra cada verbo y para CI y auditoría.
+
 ---
 
 ## 1. Overview

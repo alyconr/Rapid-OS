@@ -78,3 +78,9 @@ Cuando se lance una nueva versión menor o mayor del producto (por ejemplo, RAPI
   - `npm run typecheck`
   - `npm run build`
   - Pruebas Python de documentación (`tests/test_documentation_labs.py`, `tests/test_documentation_deployment.py`).
+
+---
+
+## 4. Directorio `site/` eliminado
+
+El repositorio conservaba un `site/` con la plantilla por defecto de Docusaurus (`README.md`, `blog/`, `debug_rapid_config.py`, `docusaurus.config.ts`…). Ningún workflow, test, configuración de empaquetado ni documento lo usaba: el portal se construye y se publica **solo** desde `website/` (con `docs.path = '../docs'`). Se eliminó para que no haya dos proyectos Docusaurus. Si necesitas la plantilla, consulta el historial de git; no recrees `site/`: cualquier cambio documental va en `docs/` y la navegación en `website/sidebars.ts`.

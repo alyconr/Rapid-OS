@@ -52,9 +52,23 @@ Rapid OS introduce contratos y registros deterministas alrededor de ese flujo.
   </div>
 </div>
 
-## Cómo se usa
+## Empieza con los shortcuts
 
-El ciclo de gobernanza v3 sigue ocho pasos:
+El flujo principal son los **shortcuts** `/rapid-<modo>`: un comando por modo de ingeniería que tu agente de código ejecuta para llevar el trabajo de principio a fin dentro de un run gobernado.
+
+```bash
+rapid init --shortcuts
+```
+
+```text
+/rapid-feature añadir exportación CSV al informe mensual
+```
+
+El agente sigue el bucle `rapid next` → `rapid start` → `rapid check` → `rapid finish` y se detiene cuando hace falta una persona; entonces ejecutas `rapid approve <gate>` en tu terminal. La carpeta que se genera y la forma de invocarlo en cada harness están en la [guía de shortcuts](./guides/shortcuts.md); cómo encajan las piezas, en la [arquitectura de orquestación](./architecture/orchestration.md).
+
+## Modo avanzado: el ciclo de gobernanza v3
+
+Los comandos v3 (`rapid scan`, `rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) siguen disponibles para CI, depuración y auditoría. El ciclo de gobernanza v3 sigue ocho pasos:
 
 ```text
 1. scan
@@ -67,13 +81,14 @@ El ciclo de gobernanza v3 sigue ocho pasos:
 8. eval + validate
 ```
 
-Rapid OS **no ejecuta de forma autónoma un LLM**, no crea worktrees por sí solo, no corre comandos arbitrarios del proyecto y no usa un LLM como juez. El coding harness externo realiza el trabajo; Rapid OS gobierna y verifica los artefactos alrededor de ese trabajo.
+Rapid OS **no ejecuta de forma autónoma un LLM**, no aprueba gates humanos, solo crea un worktree con `rapid start --worktree`, ejecuta únicamente el `test_command` configurado o el argv de `rapid check` (el plumbing no ejecuta nada) y no usa un LLM como juez. El coding harness externo realiza el trabajo; Rapid OS gobierna y verifica los artefactos alrededor de ese trabajo.
 
 ## Empieza por aquí
 
 - [Qué es Rapid OS y para quién sirve](./concepts/what-is-rapid-os.md)
 - [Por qué Rapid OS y problemas que resuelve](./concepts/why-rapid-os.md)
 - [Requisitos e instalación](./installation/index.md)
+- [Shortcuts por harness (`/rapid-<modo>`)](./guides/shortcuts.md)
 - [Tu primer proyecto gobernado (Quickstart)](./getting-started/first-project.md)
 - [Gobernar un proyecto existente](./getting-started/existing-project.md)
 - [Modos de ingeniería](./guides/modes/index.md)
@@ -85,3 +100,4 @@ Rapid OS **no ejecuta de forma autónoma un LLM**, no crea worktrees por sí sol
 - [Estructura de archivos](./guides/project-layout.md)
 - [Referencia completa de CLI](./cli.md)
 - [Arquitectura técnica v3](./architecture/rapid-os-v3.md)
+- [Arquitectura de orquestación (porcelain sobre plumbing)](./architecture/orchestration.md)

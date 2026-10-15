@@ -2,6 +2,22 @@
 
 Aprende a gobernar el desarrollo de una nueva funcionalidad en RAPID OS con criterios de aceptación rigurosos, gates de pruebas y resolución de capacidades.
 
+## Con shortcuts
+
+Copia `examples/feature-lab/starter` a una carpeta propia (como repositorio git con un commit), inicialízala y pídele el trabajo a tu agente. La baseline queda verde al iniciar y el agente implementa cada tarea con `rapid check`.
+
+```bash
+rapid init --agents claude --shortcuts
+```
+
+```text
+/rapid-feature añadir control de disponibilidad: rechazar reservas que se solapen en el mismo horario
+```
+
+El agente sigue el bucle `rapid next` → `rapid start` → `rapid check` → `rapid finish` y se detiene cuando hace falta una persona: entonces tú ejecutas `rapid approve <gate>` en tu terminal (`/rapid-approve` te da el comando exacto). Las instalaciones por harness están en la [guía de shortcuts](../guides/shortcuts.md).
+
+El resto del laboratorio es el **modo avanzado**: el mismo recorrido con comandos v3, para entender qué registra cada verbo y para CI y auditoría.
+
 ---
 
 ## 1. Overview

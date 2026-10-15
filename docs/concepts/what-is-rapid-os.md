@@ -58,17 +58,20 @@ Rapid OS puede:
 - mantener un ledger append-only de estados del run;
 - copiar y verificar artefactos de evidencia con SHA-256;
 - producir evaluaciones deterministas y reproducibles;
-- validar integridad cruzada entre specs, runs, evidence y evals.
+- validar integridad cruzada entre specs, runs, evidence y evals;
+- conducir un run gobernado con el porcelain (`rapid start`, `rapid next`, `rapid check`, `rapid task`, `rapid attach`, `rapid finish`) y generar los shortcuts `/rapid-<modo>` de cada harness.
 
 ## Qué no hace
 
 Rapid OS:
 
 - no invoca automáticamente LLMs o coding agents;
-- no ejecuta comandos arbitrarios del repositorio durante un run;
+- el plumbing (`rapid scan`, `rapid context`, `rapid spec`, `rapid policy`, `rapid run`, `rapid harness`, `rapid evidence`, `rapid eval`, `rapid validate`) no ejecuta nada del repositorio: opera sobre archivos y registros;
+- el porcelain ejecuta solo el `test_command` de `.rapid-os/config.json` o el argv que se pasa a `rapid check -- <comando>`, sin shell, más comandos `git` de lectura para registrar los cambios del run; no ejecuta ningún otro comando del proyecto;
 - no crea branches o worktrees por su cuenta: solo `rapid start --worktree` crea, a petición explícita, el worktree aislado (`../<repo>-<run-id>`, rama `rapid/<run-id>`) de un run cuyo contrato exige workspace aislado;
 - no invoca agentes con los hooks de Claude Code: `rapid hook stop|pre-tool` los ejecuta Claude Code y solo responden con una denegación de herramienta o un bloqueo de parada (`rapid shortcuts install --hooks` es la única vía que los escribe en `.claude/settings.json`);
 - no escribe shortcuts `/rapid-<modo>` en las carpetas del harness (`.claude/skills`, `.agents/skills`, `.cursor/skills`, `.github/prompts`) salvo cuando se ejecuta `rapid shortcuts install` o `rapid init --shortcuts`;
+- nunca invoca agentes y nunca aprueba gates humanos: `rapid approve` lo ejecuta una persona en su terminal (exige TTY y falla con `RAPID1310` bajo un agente);
 - no considera un gate `acknowledged` como evidencia;
 - no considera una capability declarada como prueba de que fue utilizada;
 - no garantiza que un `PASS` significa ausencia total de bugs o seguridad perfecta.
