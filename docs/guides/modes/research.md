@@ -9,6 +9,24 @@ El modo **Research** está orientado a spikes técnicos, evaluación de bibliote
 
 ---
 
+## Con el shortcut `/rapid-research`
+
+```text
+/rapid-research comparar JSON y SQLite para guardar las preferencias
+```
+
+(En Codex: `$rapid-research …`.) El shortcut conduce el run completo; la instalación y la invocación por harness están en la [guía de shortcuts](../shortcuts.md).
+
+Qué hace su playbook (`templates/modes/research.json` y las reglas del Conductor):
+
+- Un spike es de riesgo bajo: solo queda `gate.final-verification`; no hay baseline ni tests obligatorios.
+- Los hallazgos se registran con `rapid attach <ruta> --label "…"` (evidencia `artifact`, productor `rapid:attach`), vinculada a la tarea en curso (o a la que indiques con `--task`).
+- Las tareas se cierran con `rapid task done T00N --no-check`, porque no hay tests que ejecutar.
+
+El resto de esta guía describe el mismo ciclo con comandos v3 (**Modo avanzado**), útil para CI, depuración y auditoría.
+
+---
+
 ## Filosofía del modo Research
 
 - **Baja fricción**: Clasificado como `ExecutionClass.SPIKE` con riesgo bajo (`RiskLevel.LOW = 10`).
@@ -115,8 +133,3 @@ rapid eval run \
 
 Una vez concluido el spike de investigación con veredicto satisfactorio, el equipo puede promover las recomendaciones a una especificación de modo [`feature`](./feature.md) o [`refactor`](./refactor.md) para su implementación gobernada en el sistema.
 
----
-
-## Con la capa porcelain
-
-Un spike no tiene tests obligatorios ni baseline. Los hallazgos se registran con `rapid attach <ruta> --label "<texto>"`, que vincula el archivo a la tarea en curso como evidencia `artifact` (productor `rapid:attach`). Ver [`rapid attach`](../../cli.md#rapid-attach).

@@ -39,6 +39,36 @@ Para que el modelo en Cursor respete automáticamente las reglas de RAPID OS, ag
 
 ---
 
+## Flujo principal: shortcuts
+
+La forma recomendada de trabajar con Cursor es con los shortcuts `/rapid-<modo>`. Los 8 shortcuts, el bucle que siguen, la aprobación humana y los errores frecuentes están en la [guía de shortcuts](../guides/shortcuts.md).
+
+### Instalación
+
+```bash
+rapid init --shortcuts                                # al inicializar el proyecto
+rapid shortcuts install --harness cursor              # en un proyecto ya inicializado
+```
+
+Genera `.cursor/skills/rapid-*/SKILL.md` (los 8 shortcuts; [documentación de skills de Cursor](https://cursor.com/docs/context/skills)). Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`. `.cursorrules` sigue aportando las reglas del proyecto.
+
+### Invocación
+
+En el chat del Agent escribe `/` y busca el shortcut:
+
+```text
+/rapid-feature añadir exportación CSV al informe mensual
+```
+
+- `/rapid-approve` lleva `disable-model-invocation`: solo se incluye si lo invocas tú. **No aprueba**: te da el comando para tu terminal (`RAPID1310` si lo intenta un agente).
+- Cursor lee además `.agents/skills/` y `.claude/skills/`. Si usas Cursor junto con Claude Code, Codex o Antigravity, consulta [cómo combinar harnesses](../guides/shortcuts.md#si-combinas-harnesses) antes de añadir `cursor` a la instalación.
+
+---
+
+## Modo avanzado (comandos v3)
+
+Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) siguen disponibles para CI, depuración y auditoría, y tampoco hace falta usarlos a mano en el día a día. Las secciones 4 y 5 conservan el flujo manual completo.
+
 ## 4. Flujo de Trabajo en Cursor Composer
 
 1. **Crear Run:**

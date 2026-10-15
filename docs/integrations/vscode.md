@@ -37,6 +37,36 @@ Salida canónica:
 
 ---
 
+## Flujo principal: shortcuts
+
+La forma recomendada de trabajar con VS Code y Copilot es con los shortcuts `/rapid-<modo>`. Los 8 shortcuts, el bucle que siguen, la aprobación humana y los errores frecuentes están en la [guía de shortcuts](../guides/shortcuts.md).
+
+### Instalación
+
+```bash
+rapid init --shortcuts                                # al inicializar el proyecto
+rapid shortcuts install --harness vscode              # en un proyecto ya inicializado
+```
+
+Genera `.github/prompts/rapid-*.prompt.md` (los 8 shortcuts como *prompt files*; [documentación](https://code.visualstudio.com/docs/copilot/customization/prompt-files)). Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`.
+
+### Invocación
+
+En la vista de Chat escribe `/` seguido del nombre (o usa el comando **Chat: Run Prompt**):
+
+```text
+/rapid-feature añadir exportación CSV al informe mensual
+```
+
+- `/rapid-approve` **no aprueba**: te da el comando para ejecutar en la terminal integrada. `rapid approve` exige una terminal interactiva tuya y falla con `RAPID1310` si lo lanza un agente.
+- VS Code lee además skills de `.claude/skills/` y `.agents/skills/`. Si usas VS Code junto con Claude Code, Codex o Antigravity, consulta [cómo combinar harnesses](../guides/shortcuts.md#si-combinas-harnesses) antes de añadir `vscode` a la instalación.
+
+---
+
+## Modo avanzado (comandos v3)
+
+Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) siguen disponibles para CI, depuración y auditoría, y tampoco hace falta usarlos a mano en el día a día. La sección 4 conservan el flujo manual completo.
+
 ## 4. Flujo de Trabajo en VS Code
 
 1. **Creación del Run:**

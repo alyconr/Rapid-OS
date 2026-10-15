@@ -346,6 +346,123 @@ class DocumentationContractTests(unittest.TestCase):
             with self.subTest(prefix=prefix):
                 self.assertIn(prefix, diagnostics, f"Diagnostic range {prefix} missing from catalog")
 
+    # ------------------------------------------------------------------ shortcuts documentation
+    INTEGRATION_SHORTCUTS = {
+        # page -> (harness id, invocation of its shortcut)
+        "claude-code.md": ("claude", "/rapid-feature"),
+        "codex.md": ("codex", "$rapid-feature"),
+        "cursor.md": ("cursor", "/rapid-feature"),
+        "antigravity.md": ("antigravity", "/rapid-feature"),
+        "vscode.md": ("vscode", "/rapid-feature"),
+    }
+    MODE_NAMES = ("feature", "bugfix", "refactor", "hardening", "research")
+
+    def test_integration_pages_present_the_shortcuts_flow(self):
+        """Every harness page (except index.md) installs and invokes its own shortcut, and keeps the v3 flow."""
+        pages = sorted(p.name for p in (DOCS / "integrations").glob("*.md") if p.name != "index.md")
+        self.assertEqual(sorted(self.INTEGRATION_SHORTCUTS), pages, "Unknown integration page: add it here")
+        for page, (harness, invocation) in self.INTEGRATION_SHORTCUTS.items():
+            text = (DOCS / "integrations" / page).read_text(encoding="utf-8")
+            with self.subTest(page=page):
+                self.assertIn("rapid shortcuts install", text)
+                self.assertIn(f"--harness {harness}", text)
+                self.assertIn(invocation, text)
+                self.assertIn("## Flujo principal: shortcuts", text)
+                self.assertIn("## Modo avanzado (comandos v3)", text)
+                self.assertIn("guides/shortcuts.md", text)
+                # The main flow comes right after the configuration sections and before the advanced one.
+                self.assertLess(text.index("## Flujo principal: shortcuts"), text.index("## Modo avanzado (comandos v3)"))
+                self.assertIn("rapid eval run", text)  # the v3 flow is kept, not deleted
+
+    def test_integrations_index_mentions_shortcuts_and_the_advanced_mode(self):
+        text = (DOCS / "integrations" / "index.md").read_text(encoding="utf-8")
+        self.assertIn("shortcuts", text)
+        self.assertIn("Modo avanzado", text)
+        self.assertIn("guides/shortcuts.md", text)
+
+    def test_mode_guides_open_with_their_shortcut(self):
+        """Each mode guide names its /rapid-<mode> shortcut before the manual v3 flow."""
+        for mode in self.MODE_NAMES:
+            text = (DOCS / "guides" / "modes" / f"{mode}.md").read_text(encoding="utf-8")
+            with self.subTest(mode=mode):
+                self.assertIn(f"/rapid-{mode}", text)
+                self.assertIn(f"## Con el shortcut `/rapid-{mode}`", text)
+                self.assertIn("Modo avanzado", text)
+                self.assertIn("../shortcuts.md", text)
+                if "rapid spec create" in text:
+                    self.assertLess(text.index(f"/rapid-{mode}"), text.index("rapid spec create"))
+        index = (DOCS / "guides" / "modes" / "index.md").read_text(encoding="utf-8")
+        for mode in self.MODE_NAMES:
+            self.assertIn(f"/rapid-{mode}", index)
+
+    def test_mode_guides_state_their_playbook_rules(self):
+        """The playbook rules come from templates/modes/*.json and the Conductor, not from memory."""
+        rules = {
+            "bugfix": ("rapid check --expect fail --task T001", "antes"),
+            "refactor": ("tests pasados", "baseline"),
+            "hardening": ("rapid start hardening --spec-file - --worktree", "rapid/<run-id>"),
+            "research": ("rapid attach", "tests obligatorios"),
+        }
+        for mode, needles in rules.items():
+            text = (DOCS / "guides" / "modes" / f"{mode}.md").read_text(encoding="utf-8")
+            for needle in needles:
+                with self.subTest(mode=mode, needle=needle):
+                    self.assertIn(needle, text)
+        playbook = json.loads((ROOT / "templates" / "modes" / "bugfix.json").read_text(encoding="utf-8"))
+        self.assertEqual(playbook["spec_template"]["implementation_tasks"][0], "T001: Reproducir con un test en rojo")
+
+    def test_shortcuts_guide_is_registered_in_the_sidebar(self):
+        sidebars = (WEBSITE / "sidebars.ts").read_text(encoding="utf-8")
+        self.assertTrue((DOCS / "guides" / "shortcuts.md").is_file())
+        self.assertIn("'guides/shortcuts'", sidebars)
+        # First item of "Primeros pasos" (its own category arrives in a later PR).
+        self.assertLess(sidebars.index("'guides/shortcuts'"), sidebars.index("'getting-started/first-project'"))
+        self.assertLess(sidebars.index("label: 'Primeros pasos'"), sidebars.index("'guides/shortcuts'"))
+
+    def test_shortcuts_guide_table_matches_the_adapters(self):
+        """The folder of each harness in the guide is what the adapters really generate."""
+        from rapid_os.adapters.agents import DEFAULT_AGENT_REGISTRY
+        from rapid_os.adapters.shortcut_installer import load_templates
+
+        guide = (DOCS / "guides" / "shortcuts.md").read_text(encoding="utf-8")
+        templates = load_templates(ROOT / "templates")
+        self.assertEqual(len(templates), 8)
+        for template in templates:
+            self.assertIn(f"`{template.name}`", guide)
+        for adapter in DEFAULT_AGENT_REGISTRY.adapters():
+            outputs = adapter.shortcut_outputs(templates)
+            self.assertTrue(outputs, adapter.id)
+            sample = next(iter(outputs)).as_posix()
+            folder = sample[: sample.index("rapid-")]
+            with self.subTest(harness=adapter.id):
+                self.assertIn(f"`{adapter.id}`", guide)
+                self.assertIn(folder, guide)
+
+    def test_shortcuts_guide_problem_codes_exist_in_the_diagnostics_catalog(self):
+        guide = (DOCS / "guides" / "shortcuts.md").read_text(encoding="utf-8")
+        diagnostics = (DOCS / "troubleshooting" / "diagnostics.md").read_text(encoding="utf-8")
+        for code in ("1301", "1307", "1308", "1310", "1312", "1315", "1320", "1337", "1339"):
+            with self.subTest(code=code):
+                self.assertIn(f"| `RAPID{code}` |", guide)
+                self.assertIn(f"| `RAPID{code}` |", diagnostics)
+        self.assertIn("diagnostics.md", guide)
+
+    def test_readme_leads_with_the_shortcuts_quick_start(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("Quick start con shortcuts", readme)
+        self.assertLess(readme.index("Quick start con shortcuts"), readme.index('## Usage <a name="usage">'))
+        for needle in ("rapid init --shortcuts", "/rapid-feature", "$rapid-feature", "guides/shortcuts"):
+            self.assertIn(needle, readme)
+        reference = readme[readme.index('<a name="cli-reference">'):]
+        porcelain = reference.index("Flujo principal: verbos porcelain")
+        advanced = reference.index("Comandos v3 y utilidades (Modo avanzado)")
+        self.assertLess(porcelain, advanced)
+        block = reference[porcelain:advanced]
+        for verb in ("rapid start", "rapid next", "rapid check", "rapid task", "rapid attach", "rapid finish",
+                     "rapid approve", "rapid status", "rapid abort", "rapid shortcuts", "rapid hook"):
+            with self.subTest(verb=verb):
+                self.assertIn(verb, block)
+
 
 if __name__ == "__main__":
     unittest.main()

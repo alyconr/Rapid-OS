@@ -37,6 +37,38 @@ Perfil declarativo:
 
 ---
 
+## Flujo principal: shortcuts
+
+La forma recomendada de trabajar con Claude Code es con los shortcuts `/rapid-<modo>`. Los 8 shortcuts, el bucle que siguen, la aprobación humana y los errores frecuentes están en la [guía de shortcuts](../guides/shortcuts.md).
+
+### Instalación
+
+```bash
+rapid init --shortcuts                                # al inicializar el proyecto
+rapid shortcuts install --harness claude              # en un proyecto ya inicializado
+rapid shortcuts install --harness claude --hooks      # además, los hooks (sección 6)
+```
+
+Genera `.claude/skills/rapid-*/SKILL.md` (los 8 shortcuts; [documentación de skills](https://code.claude.com/docs/en/skills)). Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`.
+
+### Invocación
+
+Escribe `/rapid-` en Claude Code y elige un shortcut, o lánzalo directamente:
+
+```text
+/rapid-feature añadir exportación CSV al informe mensual
+```
+
+- Claude Code es el único harness que ejecuta la línea `` !`rapid next --json` `` antes de enviar el prompt; si ese comando falla, el skill se aborta, así que `rapid` debe estar en el `PATH`.
+- `allowed-tools` pre-aprueba solo `rapid next`, `start`, `check`, `task`, `finish` y `status`; nunca `approve` ni `abort`.
+- `/rapid-approve` lleva `disable-model-invocation` y **no aprueba**: te da el comando para tu terminal. Aprueba siempre en tu propia terminal, no con el modo `!` de Claude Code (`RAPID1310`).
+
+---
+
+## Modo avanzado (comandos v3)
+
+Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) siguen disponibles para CI, depuración y auditoría, y tampoco hace falta usarlos a mano en el día a día. Las secciones 4 y 5 conservan el flujo manual completo.
+
 ## 4. Flujo de Trabajo Gobernado
 
 1. **Crear Spec y Run en RAPID OS:**
@@ -96,6 +128,8 @@ rapid eval run --run <run-id> --write --require-pass
 ---
 
 ## 6. Hooks de Claude Code (refuerzo opcional del bucle)
+
+> Los hooks refuerzan el flujo principal con shortcuts; no forman parte del modo avanzado.
 
 Los hooks de Claude Code ejecutan un comando en puntos del ciclo del agente ([documentación oficial](https://code.claude.com/docs/en/hooks)). Rapid OS aporta dos, `rapid hook stop` y `rapid hook pre-tool`, para que el agente no se detenga a mitad de un run, no lance comandos reservados a la persona y no edite `.rapid-os/`.
 

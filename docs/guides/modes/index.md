@@ -24,6 +24,22 @@ flowchart TD
 
 ---
 
+## Cada modo tiene su shortcut
+
+El flujo principal es el shortcut del modo: lo instalas una vez (`rapid init --shortcuts` o `rapid shortcuts install`) y el agente conduce el run. Los comandos v3 de las secciones siguientes son el **Modo avanzado**, útil para CI, depuración y auditoría.
+
+| Modo | Shortcut (Codex: `$` en lugar de `/`) | Qué hace su playbook |
+| :--- | :--- | :--- |
+| `feature` | `/rapid-feature <objetivo>` | Plantilla de spec, baseline verificada al iniciar y bucle `next` → `check` → `finish`. |
+| `bugfix` | `/rapid-bugfix <bug>` | Baseline antes del test rojo; `rapid check --expect fail` sobre `T001` registra la reproducción. |
+| `refactor` | `/rapid-refactor <alcance>` | Baseline obligatoria; se bloquea si bajan los tests que pasan respecto a ella. |
+| `hardening` | `/rapid-hardening <área>` | Worktree aislado con `rapid start --worktree`; `gate.review` dispensable. |
+| `research` | `/rapid-research <tema>` | Spike sin tests obligatorios; los hallazgos se adjuntan con `rapid attach`. |
+
+Además existen `/rapid-next`, `/rapid-status` y `/rapid-approve` (este último no aprueba: te da el comando para tu terminal). Todo está en la [guía de shortcuts](../shortcuts.md).
+
+---
+
 ## Modos disponibles
 
 RAPID OS soporta los siguientes cinco modos operativos canónicos:
@@ -75,7 +91,7 @@ rapid run create --spec checkout-v2 --harness codex
 
 ## Siguiente paso
 
-Explora la guía detallada de cada modo para comprender el flujo paso a paso y los tipos de evidencia requeridos:
+Empieza por la [guía de shortcuts](../shortcuts.md) y explora la guía detallada de cada modo para comprender el flujo paso a paso y los tipos de evidencia requeridos:
 
 - [Modo Feature](./feature.md)
 - [Modo Bugfix](./bugfix.md)
