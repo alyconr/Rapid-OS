@@ -18,6 +18,7 @@ from rapid_os.adapters.evidence_registry import EvidenceRegistry
 from rapid_os.adapters.project_snapshot import resolve_project_snapshot_path, write_project_snapshot
 from rapid_os.adapters.run_registry import RunRegistry
 from rapid_os.adapters.spec_registry import SpecRegistry
+from rapid_os.core.ancestry import AncestryResult, find_agent_ancestor, read_ancestry
 from rapid_os.core.config import load_project_config
 from rapid_os.core.harness_detect import detect_harness
 from rapid_os.domain.evals import (
@@ -507,6 +508,24 @@ def execute_finish(
     project_cfg = load_project_config(cfg)
     test_cmd = project_cfg.get("test_command")
 
+    if current_state.status.is_terminal:
+        # The run already ended: finishing again records nothing and returns the stored verdict.
+        # Exit 0 only for a passing verdict; a run that ended without a report exits 1.
+        reports = eval_reg.list_reports(run_id)
+        if reports:
+            latest = reports[-1]
+            passing = latest.verdict in (EvaluationVerdict.PASS, EvaluationVerdict.PASS_WITH_WAIVERS)
+            return (0 if passing else 1), latest
+        done = next_action(
+            contract,
+            current_state,
+            evidence_reg.list(run_id),
+            playbook,
+            evaluator=evaluator,
+            test_command=test_cmd if isinstance(test_cmd, (list, tuple)) else None,
+        )
+        return 1, done
+
     # 3.a Record file_change evidence from git
     start_head = sess.start_head
     changed_files: list[str] = []
@@ -672,6 +691,7 @@ def execute_approve(
     is_tty: bool | None = None,
     input_func: Any = None,
     environ: dict[str, str] | None = None,
+    ancestry: AncestryResult | None = None,
 ) -> tuple[int, str]:
     """Execute porcelain `rapid approve` workflow.
 
@@ -688,9 +708,11 @@ def execute_approve(
     if waive and (not reason or not str(reason).strip()):
         return 1, "RAPID1333 A non-empty '--reason' is required when waiving a gate."
 
-    env_map = environ if environ is not None else dict(sys.modules.get("os", {}).environ if "os" in sys.modules else {})
-    if not env_map:
+    if environ is not None:
+        env_map = environ
+    else:
         import os
+
         env_map = dict(os.environ)
 
     if not gate_id:
@@ -701,6 +723,17 @@ def execute_approve(
         return (
             1,
             "RAPID1310 Human gate approval cannot be run inside Claude Code agent session (CLAUDE_CODE_CHILD_SESSION=1). La aprobación debe hacerla una persona en su propia terminal.",
+        )
+
+    # An agent harness among the ancestors means an agent (or a script it spawned) is asking, even
+    # if it dropped the session variables and found a pty. Unreadable ancestry never rejects.
+    agent = find_agent_ancestor(ancestry if ancestry is not None else read_ancestry())
+    if agent is not None:
+        return (
+            1,
+            f"RAPID1310 Human gate approval cannot be run under an agent harness (ancestor process "
+            f"'{agent.ancestor.name}', pid {agent.ancestor.pid}, {agent.harness}). "
+            "La aprobación debe hacerla una persona en su propia terminal.",
         )
 
     # TTY check comes before touching the ledger so every mutating case fails the same way.
