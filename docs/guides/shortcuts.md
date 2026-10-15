@@ -82,7 +82,7 @@ Algunas herramientas leen más carpetas que la suya, según su documentación of
 | Cursor | `.cursor/skills/`, `.agents/skills/` y, por compatibilidad, `.claude/skills/` y `.codex/skills/` | [Cursor: skills](https://cursor.com/docs/context/skills) |
 | VS Code / Copilot | `.github/skills/`, `.claude/skills/`, `.agents/skills/` (además de los prompt files de `.github/prompts/`) | [VS Code: agent skills](https://code.visualstudio.com/docs/copilot/customization/agent-skills) |
 
-Por eso, seleccionar `cursor` o `vscode` **junto con** `claude`, `codex` o `antigravity` deja el mismo `/rapid-*` en dos carpetas que esa herramienta lee. La documentación oficial de Cursor y de VS Code **no especifica** cómo muestran dos skills del mismo nombre en carpetas distintas (la de VS Code solo indica que, para skills de marketplace con el mismo nombre en otra ubicación, ambos aparecen en su página de Skills), así que aquí no se afirma que el menú los duplique. Para no depender de ello:
+Por eso, seleccionar `cursor` o `vscode` **junto con** `claude`, `codex` o `antigravity` deja el mismo `/rapid-*` en dos carpetas que esa herramienta lee. La documentación oficial de Cursor y de VS Code **no especifica** cómo muestran dos skills del mismo nombre en carpetas distintas (la de VS Code solo indica que, para skills de marketplace con el mismo nombre en otra ubicación, ambos aparecen en su página de Skills), así que aquí no se afirma que el menú los duplique. `rapid shortcuts install`, `rapid shortcuts list` y `rapid init --shortcuts` avisan con `WARNING RAPID1321` (en stderr, y como `warnings` con `--json`) cuando tu selección entra en este caso; es solo un aviso, no cambia el exit code ni lo que se escribe. Para no depender de ello:
 
 | Usas | Instala | Nota |
 | :--- | :--- | :--- |
@@ -163,5 +163,6 @@ El catálogo completo de códigos está en [diagnósticos](../troubleshooting/di
 | `RAPID1312` | No hay harness seleccionado para instalar. | `--harness <id>` o `rapid init --agents <lista>`. |
 | `RAPID1315` | Un shortcut de modo se omitió porque ese modo no tiene playbook. | Informativo; vuelve a ejecutar `rapid shortcuts install` cuando exista. |
 | `RAPID1320` | `rapid check --expect fail` sin tarea (o ligado a un gate). | Indica `--task T001` o deja exactamente una tarea en curso. |
+| `RAPID1321` | Aviso: la selección deja el mismo `/rapid-*` en dos carpetas que Cursor o VS Code leen. | Instala solo la combinación recomendada en el aviso (ver «Si combinas harnesses»); no bloquea nada. |
 | `RAPID1337` | `--hooks` sin el harness `claude`. | Selecciona `--harness claude` o quita `--hooks`. |
 | `RAPID1339` | `rapid doctor`: hay hooks instalados pero `rapid` no está en el `PATH`. | Instala Rapid OS donde lo vea Claude Code o añade su directorio de scripts al `PATH`. |
