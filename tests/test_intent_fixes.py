@@ -301,23 +301,110 @@ class FinishScenarioTests(LabScenarioBase):
         self.assertEqual(self._evidence_count(run_id), evidence_before)
         self.assertEqual([p.name for p in self._report_files(run_id)], reports_before)
 
-    def test_finish_on_a_cancelled_run_reports_it_without_evidence(self):
-        data = self._start("feature", self.SPEC)
-        run_id = data["run_id"]
+    def _registry_state(self, run_id, status):
         from rapid_os.adapters.run_registry import RunRegistry
 
-        RunRegistry(self.project, self.project / ".rapid-os").transition_status(
-            run_id, RunStatus.CANCELLED, reason="test"
-        )
+        RunRegistry(self.project, self.project / ".rapid-os").transition_status(run_id, status, reason="test")
+
+    def test_finish_on_a_run_without_a_report_exits_1_with_already_ended(self):
+        for status, outcome in ((RunStatus.CANCELLED, "cancelled"), (RunStatus.FAILED, "failed")):
+            with self.subTest(status=outcome):
+                self.tearDown()
+                self.setUp()
+                run_id = self._start("feature", self.SPEC)["run_id"]
+                self._registry_state(run_id, status)
+                evidence_before = self._evidence_count(run_id)
+
+                res = self._rapid("finish")
+                self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+                self.assertIn(f"already ended ({outcome})", res.stderr)
+                self.assertNotIn("Traceback", res.stderr)
+
+                as_json = self._rapid("finish", "--json")
+                self.assertEqual(as_json.returncode, 1, as_json.stderr)
+                payload = json.loads(as_json.stdout)
+                self.assertEqual(payload["action"]["kind"], "done")
+                self.assertEqual(payload["outcome"], outcome)
+
+                self.assertEqual(self._evidence_count(run_id), evidence_before)
+                self.assertEqual(self._report_files(run_id), [])
+
+    def test_finish_on_a_run_with_a_non_passing_stored_verdict_exits_1(self):
+        from types import SimpleNamespace
+
+        from rapid_os.adapters.eval_registry import EvalRegistry
+        from rapid_os.domain.evals import EvaluationVerdict
+        from rapid_os.orchestration import lifecycle
+
+        run_id = self._run_to_approval()
+        self.assertEqual(self._rapid("finish").returncode, 0)  # ends the run with a pass
         evidence_before = self._evidence_count(run_id)
-        res = self._rapid("finish")
-        self.assertEqual(res.returncode, 0, res.stderr)
-        self.assertIn("already ended (cancelled)", res.stdout)
-        as_json = self._rapid("finish", "--json")
-        self.assertEqual(as_json.returncode, 0, as_json.stderr)
-        self.assertEqual(json.loads(as_json.stdout)["action"]["kind"], "done")
+        reports_before = [p.name for p in self._report_files(run_id)]
+
+        # A stored report that is not a pass (a finished run cannot be forged into one through the
+        # CLI, so the stored report is stubbed): exit 1 and the report is still returned.
+        for verdict in (EvaluationVerdict.FAIL, EvaluationVerdict.UNVERIFIED):
+            with self.subTest(verdict=verdict.value):
+                stub = SimpleNamespace(verdict=verdict, run_id=run_id)
+                with mock.patch.object(EvalRegistry, "list_reports", return_value=(stub,)):
+                    code, result = lifecycle.execute_finish(
+                        self.project, self.project / ".rapid-os", templates_dir=ROOT / "templates"
+                    )
+                self.assertEqual(code, 1)
+                self.assertIs(result, stub)
+
+        for verdict in (EvaluationVerdict.PASS, EvaluationVerdict.PASS_WITH_WAIVERS):
+            with self.subTest(verdict=verdict.value):
+                stub = SimpleNamespace(verdict=verdict, run_id=run_id)
+                with mock.patch.object(EvalRegistry, "list_reports", return_value=(stub,)):
+                    code, _ = lifecycle.execute_finish(
+                        self.project, self.project / ".rapid-os", templates_dir=ROOT / "templates"
+                    )
+                self.assertEqual(code, 0)
+
         self.assertEqual(self._evidence_count(run_id), evidence_before)
-        self.assertEqual(self._report_files(run_id), [])
+        self.assertEqual([p.name for p in self._report_files(run_id)], reports_before)
+
+
+class FinishWithWaiversTests(LabScenarioBase):
+    LAB = "hardening"
+    ARCHETYPE = "corporate"
+
+    SPEC = {
+        "title": "Validate profile inputs",
+        "business_objective": "Reject hostile input",
+        "problem_statement": "register_user accepts anything",
+        "acceptance_criteria": ["invalid usernames are rejected"],
+        "tasks": ["T001: Add defensive validation"],
+    }
+
+    def test_pass_with_waivers_exits_0_and_a_second_finish_stays_0(self):
+        self._start("hardening", self.SPEC, "--worktree")
+        session = json.loads((self.project / ".rapid-os" / "session.json").read_text(encoding="utf-8"))
+        workspace = Path(session["workspace_path"])
+        run_id = session["active_run_id"]
+
+        def implement(action):
+            self._copy_solution("profile_mgr.py", "tests/test_profile_mgr.py", dest_root=workspace)
+
+        action, _ = self._drive(implement)
+        self.assertEqual(action["kind"], "await_human_approval")
+        waived = self._rapid_tty(
+            ["approve", "gate.review", "--waive", "--reason", "covered by the audit"],
+            "dispensar gate.review",
+        )
+        self.assertEqual(waived.returncode, 0, waived.stderr)
+        self.assertEqual(self._approve("gate.final-verification").returncode, 0)
+
+        first = self._rapid("finish", "--json")
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(json.loads(first.stdout)["verdict"], "pass_with_waivers")
+        evidence_before = len(self._registry().list(run_id))
+
+        again = self._rapid("finish")
+        self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
+        self.assertIn("verdict PASS_WITH_WAIVERS", again.stdout)
+        self.assertEqual(len(self._registry().list(run_id)), evidence_before)
 
 
 if __name__ == "__main__":

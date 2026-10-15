@@ -382,7 +382,7 @@ Collect repository changes, evaluate machine gates, and close the run.
 rapid finish [--json]
 ```
 
-In text mode it prints the report revision and the verdict (`Evaluation report 0001 for run '<run-id>': verdict PASS`). Finishing a run that already ended is idempotent: it exits 0 with the stored verdict (the latest report) and records no new evidence or report; a run that ended without a report (for example cancelled) prints `already ended (<outcome>)`.
+In text mode it prints the report revision and the verdict (`Evaluation report 0001 for run '<run-id>': verdict PASS`). Finishing a run that already ended is idempotent and records no new evidence or report: it prints the stored verdict (the latest report) and exits 0 only if that verdict is `pass` or `pass_with_waivers`, otherwise 1; a run that ended without a report (for example `cancelled` or `failed`) prints `already ended (<outcome>)` on stderr and exits 1.
 
 ### `rapid approve`
 Review a human gate. Without arguments it lists the pending human gates of the active run (read-only; no TTY needed). With a gate id it approves it, or with `--waive` / `--reject` waives or rejects it. Changing a gate requires an interactive terminal (TTY) and cannot be executed inside agent child sessions (`CLAUDE_CODE_CHILD_SESSION == 1`) nor under an agent harness: if any ancestor process is Claude Code (`claude`/`claude.exe`), it fails with `RAPID1310` even with a TTY and without the session variables (unreadable ancestry never rejects; `rapid doctor` reports it with `RAPID1319`). Without a TTY every case fails with `RAPID1310` (a stdin closed during the confirmation, EOF, is reported the same way).

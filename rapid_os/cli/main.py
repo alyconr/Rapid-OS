@@ -3383,11 +3383,14 @@ def finish_command(args):
     if isinstance(result, NextAction):
         if getattr(args, "json", False):
             print(json.dumps(result.to_dict(), indent=2))
-            return 0
+            sys.exit(code)
         if result.kind.value == "done":
             outcome = result.outcome or "ended"
-            print(f"Run '{result.run_id}' already ended ({outcome}); no new evidence recorded.")
-            return 0
+            print(
+                f"Run '{result.run_id}' already ended ({outcome}); no new evidence recorded.",
+                file=sys.stderr if code else sys.stdout,
+            )
+            sys.exit(code)
         cmd_str = f" -> {' '.join(result.command)}" if result.command else ""
         print(f"Cannot finish yet. Next: {result.kind.value}{cmd_str}")
         return 0

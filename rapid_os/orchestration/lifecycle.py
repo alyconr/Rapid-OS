@@ -510,9 +510,12 @@ def execute_finish(
 
     if current_state.status.is_terminal:
         # The run already ended: finishing again records nothing and returns the stored verdict.
+        # Exit 0 only for a passing verdict; a run that ended without a report exits 1.
         reports = eval_reg.list_reports(run_id)
         if reports:
-            return 0, reports[-1]
+            latest = reports[-1]
+            passing = latest.verdict in (EvaluationVerdict.PASS, EvaluationVerdict.PASS_WITH_WAIVERS)
+            return (0 if passing else 1), latest
         done = next_action(
             contract,
             current_state,
@@ -521,7 +524,7 @@ def execute_finish(
             evaluator=evaluator,
             test_command=test_cmd if isinstance(test_cmd, (list, tuple)) else None,
         )
-        return 0, done
+        return 1, done
 
     # 3.a Record file_change evidence from git
     start_head = sess.start_head
