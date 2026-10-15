@@ -9,6 +9,24 @@ El modo **Bugfix** prioriza la reproducción verificable del error, la contenci�
 
 ---
 
+## Con el shortcut `/rapid-bugfix`
+
+```text
+/rapid-bugfix el descuento del 10% devuelve un total negativo
+```
+
+(En Codex: `$rapid-bugfix …`.) El shortcut conduce el run completo; la instalación y la invocación por harness están en la [guía de shortcuts](../shortcuts.md).
+
+Qué hace su playbook (`templates/modes/bugfix.json` y las reglas del Conductor):
+
+- La baseline se toma en `rapid start`, **antes** de que exista el test de reproducción.
+- La primera tarea (`T001`) es «Reproducir con un test en rojo». Mientras está en curso y no hay una aserción `reproduction.T001` en PASS, `rapid next` propone `rapid check --expect fail --task T001 -- <test_command>`, que registra el fallo esperado como evidencia.
+- Con el fallo registrado, `T001` se cierra con `rapid task done T001 --no-check` (la suite está en rojo a propósito) y la corrección va en las tareas siguientes.
+
+El resto de esta guía describe el mismo ciclo con comandos v3 (**Modo avanzado**), útil para CI, depuración y auditoría.
+
+---
+
 ## Principios del modo Bugfix
 
 1. **No hay fix sin prueba de regresión**: Todo defecto debe reproducirse primero mediante una prueba que falle.
@@ -127,8 +145,3 @@ rapid eval run \
 
 El veredicto confirmará que las compuertas de pruebas (`implementation_tests`) fueron satisfechas con evidencia empírica.
 
----
-
-## Con la capa porcelain
-
-El mismo flujo, conducido por `rapid next`: `rapid start bugfix --spec-file -` toma la baseline **antes** de que exista el test de reproducción y, mientras `T001` ("Reproducir con un test en rojo") esté en curso, `rapid next` propone `rapid check --expect fail --task T001 -- <test_command>`. Con el fallo registrado, `T001` se cierra con `rapid task done T001 --no-check` y la corrección va en la tarea siguiente. Ver [`rapid start`](../../cli.md#rapid-start).

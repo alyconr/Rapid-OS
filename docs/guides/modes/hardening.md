@@ -9,6 +9,24 @@ El modo **Hardening** gobierna intervenciones de alta sensibilidad: parcheo de v
 
 ---
 
+## Con el shortcut `/rapid-hardening`
+
+```text
+/rapid-hardening validar y acotar las entradas de register_user
+```
+
+(En Codex: `$rapid-hardening …`.) El shortcut conduce el run completo; la instalación y la invocación por harness están en la [guía de shortcuts](../shortcuts.md).
+
+Qué hace su playbook (`templates/modes/hardening.json` y las reglas del Conductor):
+
+- Riesgo `high`: el contrato exige un workspace aislado y la compuerta `gate.review` (dispensable) además de la baseline, los tests y la verificación final.
+- `rapid start hardening --spec-file - --worktree` crea un git worktree en `../<repo>-<run-id>` (rama `rapid/<run-id>`); el ledger se queda en el repositorio principal, `rapid check` ejecuta en el worktree y `rapid finish` toma los cambios de ahí. Sin la bandera, `rapid next` propone `rapid start --resume --worktree`.
+- El worktree parte de `HEAD` (los cambios sin commit del checkout principal no entran) y `rapid abort` no lo elimina.
+
+El resto de esta guía describe el mismo ciclo con comandos v3 (**Modo avanzado**), útil para CI, depuración y auditoría.
+
+---
+
 ## Características del modo Hardening en RAPID OS
 
 - **Riesgo elevado**: Típicamente evaluado en `high` (80) o `critical` (100).
@@ -141,8 +159,3 @@ rapid eval run \
 
 El veredicto final certificará que los requerimientos de seguridad y las evidencias vinculadas satisfacen la política de ejecución antes de cualquier despliegue.
 
----
-
-## Con la capa porcelain
-
-El modo `hardening` eleva el riesgo a `high`: el contrato exige un workspace aislado y la compuerta `gate.review`. `rapid start hardening --spec-file - --worktree` crea el worktree `../<repo>-<run-id>` (rama `rapid/<run-id>`); el código se edita allí, `rapid check` ejecuta en ese directorio y el ledger permanece en el repositorio principal. `gate.review` admite `rapid approve gate.review --waive --reason "<motivo>"`; un `--reject` deja el gate en FAIL y obliga a abortar y empezar un run nuevo. Ver [`rapid start`](../../cli.md#rapid-start) y [`rapid approve`](../../cli.md#rapid-approve).

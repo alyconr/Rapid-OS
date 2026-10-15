@@ -9,6 +9,24 @@ El modo **Refactor** gobierna cambios en la estructura interna del código (simp
 
 ---
 
+## Con el shortcut `/rapid-refactor`
+
+```text
+/rapid-refactor separar el cálculo de comisiones del formato de salida
+```
+
+(En Codex: `$rapid-refactor …`.) El shortcut conduce el run completo; la instalación y la invocación por harness están en la [guía de shortcuts](../shortcuts.md).
+
+Qué hace su playbook (`templates/modes/refactor.json` y las reglas del Conductor):
+
+- La baseline es obligatoria (`gate.baseline`): es la referencia de no regresión.
+- Cuando todas las tareas terminan, si el último `test_result` tiene menos tests pasados que la baseline, `rapid next` devuelve `blocked` con la diferencia: un refactor no puede reducir los tests que pasan.
+- Es una regla del Conductor (`rapid_os/orchestration/conductor.py`), no del evaluador.
+
+El resto de esta guía describe el mismo ciclo con comandos v3 (**Modo avanzado**), útil para CI, depuración y auditoría.
+
+---
+
 ## Reglas de oro del Refactor en RAPID OS
 
 1. **Invarianza de comportamiento**: Si los tests funcionales existentes requieren modificaciones de aserción para pasar, no es un refactor puro; es un cambio funcional encubierto.
@@ -164,8 +182,3 @@ rapid eval run \
 
 El motor de evaluación confirmará que la compuerta de baseline y las pruebas de implementación están verificadas con evidencia matemática idónea.
 
----
-
-## Con la capa porcelain
-
-`rapid start refactor --spec-file -` exige la baseline. Al terminar las tareas, si el último `test_result` tiene menos tests pasados que la baseline, `rapid next` devuelve `blocked` indicando la diferencia: un refactor no puede reducir los tests que pasan. Ver [`rapid start`](../../cli.md#rapid-start).

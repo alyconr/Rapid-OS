@@ -39,6 +39,35 @@ Para sobreescribir estas capacidades y declarar que tu entorno local autoriza la
 
 ---
 
+## Flujo principal: shortcuts
+
+La forma recomendada de trabajar con Codex es con los shortcuts de Rapid OS. Los 8 shortcuts, el bucle que siguen, la aprobación humana y los errores frecuentes están en la [guía de shortcuts](../guides/shortcuts.md).
+
+### Instalación
+
+```bash
+rapid init --shortcuts                                # al inicializar el proyecto
+rapid shortcuts install --harness codex               # en un proyecto ya inicializado
+```
+
+Genera `.agents/skills/rapid-*/SKILL.md` (los 8 shortcuts; [documentación de skills de Codex](https://developers.openai.com/codex/skills)). Es la misma carpeta que usa Antigravity: si seleccionas ambos, se escribe una sola vez. Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`.
+
+### Invocación
+
+En Codex se invocan con `$` o desde `/skills`:
+
+```text
+$rapid-feature añadir exportación CSV al informe mensual
+```
+
+`$rapid-approve` **no aprueba**: muestra los gates pendientes y la evidencia, y te da el comando para tu terminal. `rapid approve` exige una terminal interactiva tuya y falla con `RAPID1310` si lo lanza un agente. El archivo `AGENTS.md` generado por `rapid init` sigue aportando el contexto del proyecto.
+
+---
+
+## Modo avanzado (comandos v3)
+
+Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) siguen disponibles para CI, depuración y auditoría, y tampoco hace falta usarlos a mano en el día a día. Las secciones 4 a 8 conservan el flujo manual completo.
+
 ## 4. Entrega del Context Bundle y Spec
 
 RAPID OS compila un paquete de contexto optimizado:

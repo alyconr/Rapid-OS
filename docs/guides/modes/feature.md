@@ -9,6 +9,24 @@ El modo **Feature** está diseñado para implementar nuevas capacidades funciona
 
 ---
 
+## Con el shortcut `/rapid-feature`
+
+```text
+/rapid-feature añadir exportación CSV al informe mensual
+```
+
+(En Codex: `$rapid-feature …`.) El shortcut conduce el run completo; la instalación y la invocación por harness están en la [guía de shortcuts](../shortcuts.md).
+
+Qué hace su playbook (`templates/modes/feature.json` y las reglas del Conductor):
+
+- `rapid next` entrega la plantilla de spec (`action.spec_template`: título, objetivo de negocio, alcance, criterios de aceptación y tareas atómicas `T001…`) y el agente la rellena desde tu objetivo.
+- Riesgo medio por defecto: la baseline se verifica y registra al iniciar (`gate.baseline`), las tareas se verifican con `rapid check`, y quedan `gate.tests` y `gate.final-verification` (humano).
+- El bucle es implementar cada tarea → `rapid check -- <test_command>` → `rapid finish`; la aprobación final la das tú en tu terminal.
+
+El resto de esta guía describe el mismo ciclo con comandos v3 (**Modo avanzado**), útil para CI, depuración y auditoría.
+
+---
+
 ## Flujo paso a paso
 
 ```mermaid

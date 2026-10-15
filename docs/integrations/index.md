@@ -33,9 +33,15 @@ RAPID OS evalúa exclusivamente los **11 identificadores canónicos de capacidad
 
 ---
 
-## 3. Catálogo de Guías por Harness
+## 3. Flujo principal: shortcuts
 
-Selecciona la guía correspondiente a tu herramienta:
+El flujo principal con cualquiera de estos harnesses son los **shortcuts** `/rapid-<modo>` (`$rapid-<modo>` en Codex): `rapid init --shortcuts` (o el subcomando `install` de `rapid shortcuts`, con `--harness <id>`) los genera para tu herramienta y el agente conduce el run (`rapid next` → `rapid start` → `rapid check` → `rapid finish`) hasta que hace falta una persona. Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) quedan como **Modo avanzado** para CI, depuración y auditoría. Consulta la [guía de shortcuts](../guides/shortcuts.md) para la tabla de carpetas e invocación por harness.
+
+---
+
+## 4. Catálogo de Guías por Harness
+
+Cada guía abre con el flujo principal (shortcuts) y conserva el modo avanzado. Selecciona la correspondiente a tu herramienta:
 
 1. [**OpenAI Codex / CLI Integration**](codex.md): Flujos de ejecución headless y scripts gobernados.
 2. [**Anthropic Claude Code**](claude-code.md): Integración con la CLI interactiva y permisos de terminal.

@@ -37,6 +37,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       link: {type: 'doc', id: 'getting-started'},
       items: [
+        'guides/shortcuts',
         'getting-started/first-project',
         'getting-started/existing-project',
         'getting-started/first-spec',

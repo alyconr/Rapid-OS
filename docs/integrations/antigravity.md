@@ -37,6 +37,35 @@ Capacidades declaradas:
 
 ---
 
+## Flujo principal: shortcuts
+
+La forma recomendada de trabajar con Antigravity es con los shortcuts `/rapid-<modo>`. Los 8 shortcuts, el bucle que siguen, la aprobación humana y los errores frecuentes están en la [guía de shortcuts](../guides/shortcuts.md).
+
+### Instalación
+
+```bash
+rapid init --shortcuts                                # al inicializar el proyecto
+rapid shortcuts install --harness antigravity         # en un proyecto ya inicializado
+```
+
+Genera `.agents/skills/rapid-*/SKILL.md` (los 8 shortcuts; [documentación de skills de Antigravity](https://antigravity.google/docs/skills)). Es la misma carpeta que usa Codex: si seleccionas ambos, se escribe una sola vez. Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`.
+
+### Invocación
+
+Se invocan con `/` en el chat:
+
+```text
+/rapid-feature añadir exportación CSV al informe mensual
+```
+
+`/rapid-approve` **no aprueba**: muestra los gates pendientes y la evidencia, y te da el comando para tu terminal. Si Antigravity delega en subagentes, el shortcut sigue siendo el mismo: el bucle `rapid next` → `rapid check` → `rapid finish` y la aprobación humana en tu terminal.
+
+---
+
+## Modo avanzado (comandos v3)
+
+Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) siguen disponibles para CI, depuración y auditoría, y tampoco hace falta usarlos a mano en el día a día. La sección 4 conservan el flujo manual completo.
+
 ## 4. Gobernanza de Tareas Complejas con Subagentes
 
 En tareas de gran envergadura (como refactorizaciones o hardening), Antigravity puede invocar subagentes:

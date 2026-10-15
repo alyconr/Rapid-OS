@@ -32,6 +32,7 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity, VS Code y Codex) en Ingeni
         <li><a href="#update">Update</a></li>
       </ul>
     </li>
+    <li><a href="#quick-start-shortcuts">Quick start con shortcuts</a></li>
     <li><a href="#usage">Usage</a></li>
     <li><a href="#run-tests">Run tests</a></li>
     <li><a href="#deployment">Deployment</a></li>
@@ -62,6 +63,7 @@ El portal público incluye la documentación completa, estructurada en las sigui
 - **Aprender e Iniciar**:
   - [Qué es Rapid OS](https://alyconr.github.io/Rapid-OS/concepts/what-is-rapid-os) · [Por qué Rapid OS](https://alyconr.github.io/Rapid-OS/concepts/why-rapid-os)
   - [Guía de Instalación](https://alyconr.github.io/Rapid-OS/installation) · [Primeros Pasos](https://alyconr.github.io/Rapid-OS/getting-started)
+  - [Shortcuts por harness (`/rapid-<modo>`)](https://alyconr.github.io/Rapid-OS/guides/shortcuts)
   - [Modos de Ingeniería (Feature, Bugfix, Refactor, Hardening, Research)](https://alyconr.github.io/Rapid-OS/guides/modes)
   - [Casos de Uso Reales](https://alyconr.github.io/Rapid-OS/guides/use-cases)
 - **Laboratorios Prácticos Reproducibles (Hands-on Tutorials)**:
@@ -293,6 +295,27 @@ rapid doctor
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+## ⚡ Quick start con shortcuts <a name="quick-start-shortcuts"></a>
+
+El flujo principal de Rapid OS son los **shortcuts**: un comando `/rapid-<modo>` por modo de ingeniería que tu agente de código ejecuta para llevar el trabajo de principio a fin dentro de un run gobernado.
+
+```bash
+rapid init --shortcuts          # 1. inicializa el proyecto e instala los shortcuts de tus agentes
+rapid shortcuts install         #    (en un proyecto ya inicializado; admite --harness y --hooks)
+```
+
+```text
+/rapid-feature añadir exportación CSV al informe mensual     # 2. Claude Code, Cursor, Antigravity, VS Code
+$rapid-feature añadir exportación CSV al informe mensual     #    Codex
+```
+
+- Hay un shortcut por modo (`/rapid-feature`, `-bugfix`, `-refactor`, `-hardening`, `-research`) y tres de apoyo (`/rapid-next`, `/rapid-status`, `/rapid-approve`).
+- El agente sigue el bucle `rapid next --json` → `rapid start` → `rapid task` / `rapid check` → `rapid finish`, y se detiene cuando hace falta una persona. Entonces tú ejecutas `rapid approve <gate>` **en tu terminal**: el agente nunca aprueba, aborta ni edita `.rapid-os/`.
+- Detalle por harness (carpeta generada e invocación), aprobación humana y errores frecuentes: [Shortcuts por harness](https://alyconr.github.io/Rapid-OS/guides/shortcuts).
+- Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) siguen disponibles como **Modo avanzado** para CI, depuración y auditoría: ver [CLI Command Reference](#cli-reference).
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ## Usage <a name="usage"></a>
 
 ### 1. Inicializar Proyecto (Nuevo o Legacy)
@@ -472,7 +495,27 @@ Si necesitas modificar tus reglas existentes, tienes dos caminos desde la CLI:
 
 ## ⚡ CLI Command Reference <a name="cli-reference"></a>
 
-Tabla completa de comandos disponibles en Rapid OS y sus resultados.
+### Flujo principal: verbos porcelain
+
+Son los comandos que usan los shortcuts.
+
+| Comando                      | Descripción                                                                                     | Resultado / Output                                                                                |
+| :--------------------------- | :---------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------ |
+| `rapid start <modo>`         | **Inicia o reanuda un run gobernado** (`feature`, `bugfix`, `refactor`, `hardening`, `research`) desde una spec (`--spec-file -`, `--spec`). | Crea el run, toma la baseline y devuelve la siguiente acción. `--resume` continúa; `--worktree` crea el worktree aislado cuando el contrato lo exige. |
+| `rapid next`                 | **Siguiente acción determinista** del run activo (`author_spec`, `implement_task`, `verify`, `await_human_approval`, `finish`, `done`, `blocked`). | Read-only. Incluye el comando exacto a ejecutar. |
+| `rapid check -- <comando>`   | **Ejecuta un comando y registra evidencia** (tests, gates, tareas).                              | Log en `.rapid-os/scratch/checks/`. Soporta `--task`, `--gate` y `--expect fail` (reproducir un bug). |
+| `rapid task start\|done\|skip` | **Transiciona tareas** del run activo.                                                          | `done` verifica con `test_command` salvo `--no-check`. |
+| `rapid attach <ruta> --label` | **Adjunta un archivo como evidencia** (`artifact`) a la tarea en curso.                         | Evidencia con productor `rapid:attach`; la usa el modo `research`. |
+| `rapid finish`               | **Cierra el run**: registra los cambios, reconoce gates de máquina y evalúa.                    | Imprime el veredicto; sale `0` solo con `pass` o `pass_with_waivers`. |
+| `rapid approve [gate]`       | **Aprobación humana** de un gate (`--waive`, `--reject`, `--reviewer`). Sin argumentos lista los pendientes. | Solo una persona en su terminal: falla con `RAPID1310` sin TTY, bajo un agente o con `claude` como ancestro. |
+| `rapid status`               | **Estado del run activo**: tareas, gates y último veredicto.                                     | Read-only. |
+| `rapid abort`                | **Cancela el run activo** y limpia la sesión.                                                    | Lo decide una persona; el worktree aislado, si existe, se conserva. |
+| `rapid shortcuts install\|list\|remove` | **Genera los shortcuts** `/rapid-<modo>` de cada harness (`--harness`, `--dry-run`, `--hooks`). | Idempotente, con backup `.bak`; `remove` solo borra lo generado. |
+| `rapid hook stop\|pre-tool`  | **Entradas de los hooks de Claude Code** (se instalan con `shortcuts install --hooks`; no se escriben a mano). | Mantienen al agente trabajando y le deniegan comandos reservados y la edición de `.rapid-os/`. |
+
+### Comandos v3 y utilidades (Modo avanzado)
+
+Para CI, depuración y auditoría. Tabla completa de comandos disponibles en Rapid OS y sus resultados.
 
 | Comando                      | Descripción                                                                                     | Resultado / Output                                                                                |
 | :--------------------------- | :---------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------ |
