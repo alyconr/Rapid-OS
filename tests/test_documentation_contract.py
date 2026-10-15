@@ -441,7 +441,7 @@ class DocumentationContractTests(unittest.TestCase):
     def test_shortcuts_guide_problem_codes_exist_in_the_diagnostics_catalog(self):
         guide = (DOCS / "guides" / "shortcuts.md").read_text(encoding="utf-8")
         diagnostics = (DOCS / "troubleshooting" / "diagnostics.md").read_text(encoding="utf-8")
-        for code in ("1301", "1307", "1308", "1310", "1312", "1315", "1320", "1337", "1339"):
+        for code in ("1301", "1307", "1308", "1310", "1312", "1315", "1320", "1321", "1337", "1339"):
             with self.subTest(code=code):
                 self.assertIn(f"| `RAPID{code}` |", guide)
                 self.assertIn(f"| `RAPID{code}` |", diagnostics)

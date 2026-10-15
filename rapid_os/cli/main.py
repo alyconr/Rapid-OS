@@ -846,6 +846,7 @@ def _offer_shortcuts(args, selected_tools, prompt):
         return
     try:
         harness_ids = resolve_harness_ids(None, selected_tools)
+        _warn_folder_overlaps(harness_ids)
         plan, written = _install_shortcuts(harness_ids, dry_run=False)
     except ShortcutError as exc:
         print_warning(str(exc))
@@ -3686,6 +3687,19 @@ def _skipped_json(skipped):
     ]
 
 
+def _warn_folder_overlaps(harness_ids):
+    """RAPID1321: warn (stderr) when the selection leaves a /rapid-* in two folders a tool reads.
+
+    Informational only: it never changes the exit code or what is written.
+    """
+    from rapid_os.domain.shortcuts import detect_folder_overlaps
+
+    overlaps = detect_folder_overlaps(harness_ids)
+    for overlap in overlaps:
+        print(f"WARNING {overlap.message}", file=sys.stderr)
+    return overlaps
+
+
 def _install_shortcuts(harness_ids, *, dry_run):
     """Plan and (unless dry_run) write shortcuts. Returns (plan, written paths)."""
     from rapid_os.adapters.shortcut_installer import apply_plan, build_plan
@@ -3767,6 +3781,7 @@ def shortcuts_command(args):
 
             hooks_plan = _plan_claude_hooks("install", harness_ids) if getattr(args, "hooks", False) else None
             plan, written = _install_shortcuts(harness_ids, dry_run=dry_run)
+            overlaps = _warn_folder_overlaps(harness_ids)
             if hooks_plan is not None and not dry_run:
                 claude_hooks.apply_plan(CURRENT_DIR, hooks_plan)
             if as_json:
@@ -3777,7 +3792,7 @@ def shortcuts_command(args):
                     "harnesses": list(plan.harnesses),
                     "files": [_shortcut_entry_json(f) for f in plan.files],
                     "skipped": _skipped_json(plan.skipped),
-                    "warnings": list(plan.warnings),
+                    "warnings": [*plan.warnings, *(o.to_dict() for o in overlaps)],
                 }
                 if hooks_plan is not None:
                     payload["hooks"] = hooks_plan.to_dict()
@@ -3797,8 +3812,9 @@ def shortcuts_command(args):
 
         if action == "list":
             entries, skipped = list_entries(CURRENT_DIR, harness_ids, TEMPLATES_DIR)
+            overlaps = _warn_folder_overlaps(harness_ids)
             if as_json:
-                print(json.dumps({
+                payload = {
                     "schema_version": 1,
                     "command": "list",
                     "harnesses": list(harness_ids),
@@ -3808,7 +3824,10 @@ def shortcuts_command(args):
                         for e in entries
                     ],
                     "skipped": _skipped_json(skipped),
-                }, indent=2, ensure_ascii=False))
+                }
+                if overlaps:
+                    payload["warnings"] = [o.to_dict() for o in overlaps]
+                print(json.dumps(payload, indent=2, ensure_ascii=False))
                 return 0
             for e in entries:
                 print(f"{e.state:<10} {e.harness:<12} {e.path.as_posix()}")
