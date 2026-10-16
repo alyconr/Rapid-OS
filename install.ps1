@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $RepoUrl = "https://github.com/alyconr/Rapid-OS.git"
-$RapidVersion = "v3.0.0"
+$RapidVersion = "v3.1.0"
 $InstallDir = Join-Path $HOME ".rapid-os"
 
 Write-Host "🚀 Installing Rapid OS $RapidVersion (stable release) for Windows..." -ForegroundColor Cyan

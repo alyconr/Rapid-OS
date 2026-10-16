@@ -149,6 +149,24 @@ class ShortcutInstallerTests(unittest.TestCase):
             ["rapid-bugfix", "rapid-hardening", "rapid-refactor", "rapid-research"],
         )
         self.assertTrue(all(s.code == "RAPID1315" for s in plan.skipped))
+        self.assertEqual(
+            sorted(w["shortcut"] for w in plan.warning_objects),
+            ["rapid-bugfix", "rapid-hardening", "rapid-refactor", "rapid-research"],
+        )
+        for w in plan.warning_objects:
+            self.assertEqual(sorted(w), ["code", "message", "mode", "shortcut"])
+            self.assertEqual(w["code"], "RAPID1315")
+        self.assertEqual([w["message"] for w in plan.warning_objects], list(plan.warnings))
+
+    def test_unmarked_existing_file_warns_with_an_object(self):
+        target = self.root / ".claude" / "skills" / "rapid-feature" / "SKILL.md"
+        target.parent.mkdir(parents=True)
+        target.write_text("hand written\n", encoding="utf-8")
+        plan = self.plan(("claude",))
+        self.assertEqual(
+            plan.warning_objects,
+            ({"code": "RAPID1316", "message": plan.warnings[0], "path": ".claude/skills/rapid-feature/SKILL.md"},),
+        )
 
     def test_install_after_new_playbook_adds_the_missing_shortcut(self):
         templates = self.root / "tpl"
@@ -310,6 +328,26 @@ class ShortcutCliTests(unittest.TestCase):
         self.assertIn(".agents/skills/rapid-feature/SKILL.md", paths)
         self.assertIn(".claude/skills/rapid-bugfix/SKILL.md", paths)
         self.assertEqual(payload["skipped"], [])
+
+    def test_install_json_warnings_are_homogeneous_objects(self):
+        skill = self.root / ".claude" / "skills" / "rapid-feature" / "SKILL.md"
+        skill.parent.mkdir(parents=True)
+        skill.write_text("hand written\n", encoding="utf-8")
+        result = self.rapid("shortcuts", "install", "--harness", "claude", "--harness", "cursor", "--dry-run", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        warnings = json.loads(result.stdout)["warnings"]
+        self.assertEqual([w["code"] for w in warnings], ["RAPID1316", "RAPID1321"])
+        for w in warnings:
+            self.assertIsInstance(w, dict)
+            self.assertIn("code", w)
+            self.assertIn("message", w)
+
+    def test_list_json_warnings_are_objects_when_present(self):
+        result = self.rapid("shortcuts", "list", "--harness", "claude", "--harness", "cursor", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        warnings = json.loads(result.stdout)["warnings"]
+        self.assertTrue(warnings)
+        self.assertTrue(all(isinstance(w, dict) and {"code", "message"} <= set(w) for w in warnings))
         self.assertEqual(tree(self.root), {})
 
     def test_install_list_remove_roundtrip(self):

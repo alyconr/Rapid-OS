@@ -3792,7 +3792,7 @@ def shortcuts_command(args):
                     "harnesses": list(plan.harnesses),
                     "files": [_shortcut_entry_json(f) for f in plan.files],
                     "skipped": _skipped_json(plan.skipped),
-                    "warnings": [*plan.warnings, *(o.to_dict() for o in overlaps)],
+                    "warnings": [*plan.warning_objects, *(o.to_dict() for o in overlaps)],
                 }
                 if hooks_plan is not None:
                     payload["hooks"] = hooks_plan.to_dict()

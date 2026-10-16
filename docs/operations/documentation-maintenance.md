@@ -36,7 +36,7 @@ Este documento establece las directrices operativas para mantener la salud técn
 
 En RAPID OS, la documentación evoluciona de manera sincronizada con el ciclo de vida del producto:
 
-- **Versión Activa (`v3.0.0`):** La documentación en `docs/` refleja con exactitud la release actual del CLI y la arquitectura determinista v3.
+- **Versión Activa (`v3.1.0`):** La documentación en `docs/` refleja con exactitud la release actual del CLI y la arquitectura determinista v3.
 - **Rama de Desarrollo (`develop`):** Contiene cambios pendientes de release; se compila y valida en CI pero **no se publica** a GitHub Pages hasta merge en `main`.
 
 ### Procedimiento para Nuevas Versiones Mayores / Menores (Docusaurus Versioning)

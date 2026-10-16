@@ -6,7 +6,7 @@ All commands operate on the **current working directory** as the target project 
 
 ## Global Options
 
-- `--version`: Print `Rapid OS 3.0.0` and exit (`0`).
+- `--version`: Print `Rapid OS 3.1.0` and exit (`0`).
 - `-h`, `--help`: Show command help and exit (`0`).
 
 ```bash
@@ -452,7 +452,7 @@ Options:
 - `--dry-run`: Show what would be written or deleted without touching the filesystem (`install`, `remove`).
 - `--hooks`: With `install`, also merge the Rapid OS hooks (`Stop` and `PreToolUse`, command `rapid` with arguments `hook stop` / `hook pre-tool`) into the project's `.claude/settings.json`; with `remove`, also remove them. Requires the `claude` harness (`RAPID1337`). Other keys and hooks of the file are left untouched, an existing file is backed up as `.bak`, installing twice writes nothing, and `remove` only deletes the handlers it owns (and the file itself when nothing else is left in it). An unreadable `settings.json` is reported with `RAPID1338` and never overwritten. The handlers use Claude Code's exec form, so `rapid` must be on the `PATH` of the machine running Claude Code; `rapid doctor` warns (`RAPID1339`) when hooks are installed and `rapid` is not found.
 - `--json`: Emit `schema_version`, `command`, `harnesses`, `files[]` (`path`, `shortcut`, `harnesses`, `action`) and, for `install` and `list`, `skipped[]`.
-- `warnings` (`install` and `list`): when the selection leaves the same `/rapid-*` in two folders that one tool reads (`cursor` or `vscode` together with `claude`, `codex` or `antigravity`), each overlap prints `WARNING RAPID1321` on stderr (also in `rapid init --shortcuts`) and, with `--json`, adds an object `{code, message, reader, harnesses, folders}` to `warnings`. In `install` the object is appended to the `warnings` list that already holds the text warnings; in `list` the field is optional and omitted when empty. It never changes the exit code or what is written. See [Si combinas harnesses](guides/shortcuts.md#si-combinas-harnesses).
+- `warnings` (`install` and `list`): always a list of objects `{code, message, ...}` (`RAPID1315` and `RAPID1316` carry `shortcut`/`mode` or `path`; `RAPID1321` is described below). In `install` it is always present (empty when there is nothing to warn about); in `list` it is optional and omitted when empty. When the selection leaves the same `/rapid-*` in two folders that one tool reads (`cursor` or `vscode` together with `claude`, `codex` or `antigravity`), each overlap prints `WARNING RAPID1321` on stderr (also in `rapid init --shortcuts`) and, with `--json`, adds an object `{code, message, reader, harnesses, folders}` to `warnings`. In `install` the object is appended to the `warnings` list that already holds the text warnings; in `list` the field is optional and omitted when empty. It never changes the exit code or what is written. See [Si combinas harnesses](guides/shortcuts.md#si-combinas-harnesses).
 
 Generated files:
 

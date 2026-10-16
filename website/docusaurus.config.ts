@@ -100,7 +100,7 @@ const config: Config = {
             {label: 'Diagnósticos RAPIDxxx', to: '/troubleshooting/diagnostics'},
             {label: 'Arquitectura v3', to: '/architecture/rapid-os-v3'},
             {label: 'Arquitectura de orquestación', to: '/architecture/orchestration'},
-            {label: 'Release v3.0.0', to: '/release-v3.0.0'},
+            {label: 'Release v3.1.0', to: '/release-v3.1.0'},
           ],
         },
         {

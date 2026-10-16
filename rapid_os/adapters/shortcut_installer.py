@@ -52,6 +52,8 @@ class InstallPlan:
     files: tuple[PlannedFile, ...]
     skipped: tuple[SkippedShortcut, ...]
     warnings: tuple[str, ...] = ()
+    # The same warnings as objects ({code, message, ...}) for the JSON output.
+    warning_objects: tuple[dict, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -210,6 +212,7 @@ def build_plan(
 
     files: list[PlannedFile] = []
     warnings: list[str] = []
+    warning_objects: list[dict] = []
     for relative in sorted(merged, key=lambda p: p.as_posix()):
         content, owners, shortcut = merged[relative]
         existing = _read_existing(_target(project_root, relative))
@@ -220,13 +223,22 @@ def build_plan(
         else:
             action = "update"
             if not has_generated_marker(existing):
-                warnings.append(
+                message = (
                     f"RAPID1316 {relative.as_posix()} exists without the generated marker; "
                     "it will be replaced and the previous content kept as .bak."
                 )
+                warnings.append(message)
+                warning_objects.append(
+                    {"code": "RAPID1316", "message": message, "path": relative.as_posix()}
+                )
         files.append(PlannedFile(relative, content, tuple(owners), shortcut, action))
-    warnings.extend(f"{s.code} {s.shortcut}: {s.reason}" for s in skipped)
-    return InstallPlan(tuple(harness_ids), tuple(files), skipped, tuple(warnings))
+    for s in skipped:
+        message = f"{s.code} {s.shortcut}: {s.reason}"
+        warnings.append(message)
+        warning_objects.append(
+            {"code": s.code, "message": message, "shortcut": s.shortcut, "mode": s.mode}
+        )
+    return InstallPlan(tuple(harness_ids), tuple(files), skipped, tuple(warnings), tuple(warning_objects))
 
 
 def apply_plan(project_root: Path, plan: InstallPlan) -> tuple[Path, ...]:

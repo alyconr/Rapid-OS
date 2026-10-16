@@ -39,16 +39,16 @@ git --version
 
 ## 2. Método A: Instalador automático Shell (Recomendado)
 
-El script de instalación clona el repositorio en `~/.rapid-os`, fija la versión estable `v3.0.0` y añade un alias seguro en tu archivo `~/.bashrc` o `~/.zshrc`:
+El script de instalación clona el repositorio en `~/.rapid-os`, fija la versión estable `v3.1.0` y añade un alias seguro en tu archivo `~/.bashrc` o `~/.zshrc`:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.sh | bash
+curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.sh | bash
 ```
 
 ### ¿Qué realiza el instalador?
 1. Verifica la existencia de `python3` (3.10+) y `git`.
 2. Clona el repositorio en `$HOME/.rapid-os`.
-3. Hace checkout seguro de la versión `v3.0.0`.
+3. Hace checkout seguro de la versión `v3.1.0`.
 4. Asigna permisos de ejecución a `rapid.py`.
 5. Agrega el alias a tu archivo de inicio de shell (`~/.bashrc` o `~/.zshrc`):
    ```bash
@@ -77,7 +77,7 @@ python3 -m venv ~/.venvs/rapid-env
 source ~/.venvs/rapid-env/bin/activate
 
 # 3. Instalar Rapid OS desde GitHub
-pip install git+https://github.com/alyconr/Rapid-OS.git@v3.0.0
+pip install git+https://github.com/alyconr/Rapid-OS.git@v3.1.0
 
 # 4. Comprobar instalación
 rapid --version

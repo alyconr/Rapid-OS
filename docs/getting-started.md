@@ -1,6 +1,6 @@
-# Getting Started with Rapid OS v3.0.0
+# Getting Started with Rapid OS v3.1.0
 
-This guide walks through installing Rapid OS `v3.0.0` and executing a complete, governed engineering workflow from repository scanning to behavioral evaluation.
+This guide walks through installing Rapid OS `v3.1.0` and executing a complete, governed engineering workflow from repository scanning to behavioral evaluation.
 
 ---
 
@@ -14,12 +14,12 @@ This guide walks through installing Rapid OS `v3.0.0` and executing a complete, 
 
 ## 2. Installation
 
-### Stable Release (`v3.0.0`)
+### Stable Release (`v3.1.0`)
 
-#### Option A: Standard Python Package (`pip` / `venv`) from Tag `v3.0.0`
+#### Option A: Standard Python Package (`pip` / `venv`) from Tag `v3.1.0`
 
 ```bash
-git clone --branch v3.0.0 https://github.com/alyconr/Rapid-OS.git
+git clone --branch v3.1.0 https://github.com/alyconr/Rapid-OS.git
 cd Rapid-OS
 python -m pip install .
 rapid --version
@@ -28,20 +28,20 @@ rapid --version
 Expected output:
 
 ```text
-Rapid OS 3.0.0
+Rapid OS 3.1.0
 ```
 
-#### Option B: Reproducible Stable Shell / PowerShell Installer (`v3.0.0`)
+#### Option B: Reproducible Stable Shell / PowerShell Installer (`v3.1.0`)
 
-Once the `v3.0.0` tag is published:
+Once the `v3.1.0` tag is published:
 
 - **Linux / macOS / WSL**:
   ```bash
-  curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.sh | bash
+  curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.sh | bash
   ```
 - **Windows PowerShell**:
   ```powershell
-  irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.ps1 | iex
+  irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.ps1 | iex
   ```
 
 ### Development (`latest development version` on `main`)
