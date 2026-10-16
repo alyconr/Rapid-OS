@@ -7,6 +7,28 @@ description: Cómo adoptar Rapid OS en repositorios con código preexistente sin
 
 Adoptar Rapid OS en un repositorio que ya se encuentra en producción o desarrollo activo es un proceso seguro y no invasivo. Rapid OS está diseñado para **analizar y gobernar sin modificar tu código de negocio**.
 
+## Con shortcuts
+
+Con shortcuts no necesitas recorrer los pasos de abajo a mano. Desde la raíz del repositorio (con al menos un commit):
+
+```bash
+cd /ruta/a/tu-proyecto-existente
+rapid init --agents claude --shortcuts --test-command "python -m unittest discover"
+```
+
+`rapid init` solo crea `.rapid-os/` y los archivos de instrucciones del agente; los shortcuts se generan en la carpeta de cada harness (`.claude/skills/`, `.agents/skills/`, `.cursor/skills/` o `.github/prompts/`) y no modifican tu código de negocio. El `--test-command` queda en `.rapid-os/config.json` y es el que usa `rapid check`. Después añade a `.gitignore`:
+
+```gitignore
+.rapid-os/session.json
+.rapid-os/scratch/
+```
+
+Y pide el trabajo a tu agente, por ejemplo `/rapid-bugfix el descuento del 10% devuelve un total negativo`. El primer paso de cada run es un *baseline* de tus tests: si tu suite ya está en rojo, el run no avanza hasta que lo resuelvas o ejecutes `rapid abort`. Detalle por harness en la [guía de shortcuts](../guides/shortcuts.md).
+
+## Modo avanzado
+
+Los pasos siguientes (`rapid doctor`, `rapid scan`, `rapid scope`…) son la ruta con comandos v3: útiles para entender qué descubre Rapid OS en tu repositorio, para CI y para auditoría.
+
 ---
 
 ## 1. Localizar la raíz del repositorio

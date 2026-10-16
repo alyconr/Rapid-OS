@@ -4,6 +4,32 @@ Guía de resolución de problemas e incidencias comunes al ejecutar los laborato
 
 ---
 
+## Ruta con shortcuts
+
+Errores típicos al trabajar con `/rapid-*`. La guía completa está en [Shortcuts por harness](../guides/shortcuts.md) y el catálogo en [Diagnósticos](./diagnostics.md).
+
+### `RAPID1301`: falta `test_command`
+- **Causa:** `.rapid-os/config.json` no tiene `test_command` (o está vacío), así que `rapid check` no sabe qué comando de tests ejecutar. Es un aviso.
+- **Solución:** `rapid init --test-command "python -m unittest discover"`, o define `"test_command": ["python", "-m", "unittest", "discover"]` (lista argv) en `.rapid-os/config.json`.
+
+### `RAPID1307`: no hay un run activo
+- **Causa:** `rapid check`, `task`, `finish`… se ejecutaron sin `.rapid-os/session.json` (no se hizo `rapid start`, o el run terminó o se abortó).
+- **Solución:** inicia un run con el shortcut del modo (`/rapid-feature <objetivo>`) o con `rapid start <modo>`.
+
+### `RAPID1308`: ya hay un run activo
+- **Causa:** ejecutaste `rapid start` (o un shortcut de modo) mientras hay un run no terminal en `.rapid-os/session.json`.
+- **Solución:** continúa con `rapid next`, usa `rapid start <modo> --resume`, o abandona el run con `rapid abort`.
+
+### `RAPID1310`: `rapid approve` se niega
+- **Causa:** no hay terminal interactiva, la sesión es de un agente (`CLAUDE_CODE_CHILD_SESSION=1`) o un ancestro del proceso es Claude Code (por ejemplo, el modo `!`).
+- **Solución:** ejecuta `rapid approve <gate>` tú, en tu propia terminal (sirve la terminal integrada del editor). Un shortcut nunca aprueba gates humanos.
+
+### `RAPID1321`: aviso de carpetas solapadas
+- **Causa:** seleccionaste Cursor o VS Code junto con Claude, Codex o Antigravity, y el mismo `/rapid-*` queda en dos carpetas que esa herramienta lee.
+- **Solución:** es solo un aviso. Para evitarlo, instala un único harness que cubra ambas herramientas; ver [Si combinas harnesses](../guides/shortcuts.md#si-combinas-harnesses).
+
+---
+
 ## 1. Problemas de Inicialización y Scanner
 
 ### Error: `RAPID1001` (Project Model Error) o facts incompletos

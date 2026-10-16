@@ -650,6 +650,92 @@ class DocumentationContractTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, upgrade)
 
+    def test_onboarding_pages_lead_with_shortcuts_or_declare_advanced_mode(self):
+        pages = sorted(
+            [*(DOCS / "getting-started").glob("*.md"), *(DOCS / "installation").glob("*.md"), *(DOCS / "tutorials").glob("*.md")]
+        )
+        pages.append(DOCS / "getting-started.md")
+        for page in pages:
+            if page.name == "requirements.md" and page.parent.name == "installation":
+                continue
+            text = page.read_text(encoding="utf-8")
+            with self.subTest(page=page.relative_to(DOCS).as_posix()):
+                self.assertTrue(
+                    "rapid shortcuts" in text or "/rapid-" in text or "Modo avanzado" in text,
+                    "must mention `rapid shortcuts` or `/rapid-`, or declare 'Modo avanzado'",
+                )
+
+    def test_getting_started_is_the_shortcuts_route_with_a_map_and_advanced_mode(self):
+        text = (DOCS / "getting-started.md").read_text(encoding="utf-8")
+        for needle in ("rapid init --shortcuts", "/rapid-feature", "## 2. Mapa de esta sección", "## Modo avanzado",
+                       "rapid scan --write", "rapid spec create", "rapid evidence verify", "rapid eval run"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, text)
+        for sub in ("first-project", "existing-project", "first-spec", "first-context", "next-steps"):
+            self.assertIn(f"getting-started/{sub}.md", text)
+        self.assertNotIn("Getting Started with", text)
+
+    def test_onboarding_pages_have_a_with_shortcuts_section(self):
+        for relative in ("existing-project.md", "first-spec.md", "first-context.md"):
+            text = (DOCS / "getting-started" / relative).read_text(encoding="utf-8")
+            with self.subTest(page=relative):
+                self.assertIn("## Con shortcuts", text)
+                self.assertIn("## Modo avanzado", text)
+        spec = (DOCS / "getting-started" / "first-spec.md").read_text(encoding="utf-8")
+        for needle in ("author_spec", "spec_template", "rapid start <modo> --spec-file -"):
+            self.assertIn(needle, spec)
+
+    def test_tutorials_index_maps_labs_to_shortcuts_and_first_lab_is_flagged_advanced(self):
+        index = (DOCS / "tutorials" / "index.md").read_text(encoding="utf-8")
+        for shortcut in ("/rapid-feature", "/rapid-bugfix", "/rapid-refactor", "/rapid-hardening", "/rapid-research"):
+            self.assertIn(shortcut, index)
+        first = (DOCS / "tutorials" / "first-governed-project.md").read_text(encoding="utf-8")
+        self.assertIn("**Modo avanzado.**", first)
+        self.assertIn("feature-lab.md", first)
+
+    def test_project_layout_covers_the_porcelain_files_and_verb_classes(self):
+        text = (DOCS / "guides" / "project-layout.md").read_text(encoding="utf-8")
+        for needle in (".rapid-os/session.json", ".rapid-os/scratch/", "hooks.json", "hooks.log", ".claude/skills",
+                       ".agents/skills", ".cursor/skills", ".github/prompts", ".claude/settings.json",
+                       "../<repo>-<run-id>", "`rapid next`, `rapid status`, `rapid shortcuts list`",
+                       "`rapid start`, `rapid check`, `rapid task`, `rapid attach`, `rapid finish`, `rapid approve`, `rapid abort`"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, text)
+
+    def test_core_concepts_cover_the_porcelain_vocabulary(self):
+        text = (DOCS / "concepts" / "core-concepts.md").read_text(encoding="utf-8")
+        for needle in ("Sesión", "NextAction", "Playbook", "Shortcut", "Productor porcelain", "Gate humano",
+                       "architecture/orchestration.md"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, text)
+
+    def test_installation_pages_install_shortcuts_and_verification_checks_them(self):
+        for page in ("linux", "macos", "windows", "wsl"):
+            with self.subTest(page=page):
+                self.assertIn("rapid init --shortcuts", (DOCS / "installation" / f"{page}.md").read_text(encoding="utf-8"))
+        verification = (DOCS / "installation" / "verification.md").read_text(encoding="utf-8")
+        for needle in ("rapid shortcuts list", "rapid doctor", "RAPID1319", "RAPID1339"):
+            self.assertIn(needle, verification)
+
+    def test_tutorial_troubleshooting_covers_the_shortcuts_route(self):
+        text = (DOCS / "troubleshooting" / "tutorials.md").read_text(encoding="utf-8")
+        for code in ("RAPID1301", "RAPID1307", "RAPID1308", "RAPID1310", "RAPID1321"):
+            self.assertIn(code, text)
+        self.assertIn("guides/shortcuts.md", text)
+        self.assertIn("diagnostics.md", text)
+
+    def test_docs_deploy_is_documented_as_manual_and_mandatory_after_the_tag(self):
+        workflow = (ROOT / ".github" / "workflows" / "docs-deploy.yml").read_text(encoding="utf-8")
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertNotIn("push:", workflow)
+        deployment = (DOCS / "operations" / "documentation-deployment.md").read_text(encoding="utf-8")
+        self.assertIn("Solo `workflow_dispatch` (manual)", deployment)
+        self.assertNotIn("workflow_dispatch` o push a `main`", deployment)
+        self.assertIn("paso obligatorio", deployment)
+        checklist = (DOCS / "release-checklist.md").read_text(encoding="utf-8")
+        self.assertIn("docs-deploy.yml", checklist)
+        self.assertIn("mandatory after the tag", checklist)
+
     def test_quickstart_leads_with_shortcuts_and_keeps_the_advanced_path(self):
         for relative in ("index.md", "getting-started/first-project.md"):
             text = (DOCS / relative).read_text(encoding="utf-8")

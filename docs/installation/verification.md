@@ -5,7 +5,7 @@ description: Comandos oficiales para comprobar la correcta instalación y funcio
 
 # Verificación de la instalación
 
-Una vez instalado Rapid OS en tu sistema, ejecuta los siguientes cuatro comandos para validar que el CLI responde correctamente y que tu entorno está listo para gobernar proyectos.
+Una vez instalado Rapid OS en tu sistema, ejecuta los siguientes comandos para validar que el CLI responde correctamente y que tu entorno está listo para gobernar proyectos.
 
 ---
 
@@ -85,6 +85,27 @@ Si ejecutas `rapid doctor` fuera de un proyecto inicializado con Rapid OS, es co
 
 ---
 
+## 5. Shortcuts instalados (`rapid shortcuts list`)
+
+Dentro de un proyecto donde ejecutaste `rapid init --shortcuts` (o `rapid shortcuts install`), comprueba el estado de cada archivo generado:
+
+```bash
+rapid shortcuts list
+```
+
+**Resultado esperado:** los shortcuts de tus harness en estado `installed`. Si alguno aparece como `outdated` (tras actualizar Rapid OS), ejecuta `rapid shortcuts install`; si aparece `missing`, instálalo. Con `--json` obtienes el mismo estado para scripts. Si seleccionaste Cursor o VS Code junto con Claude, Codex o Antigravity verás `WARNING RAPID1321`: es solo un aviso de carpetas solapadas (ver [Si combinas harnesses](../guides/shortcuts.md#si-combinas-harnesses)).
+
+---
+
+## 6. Diagnóstico dentro del proyecto (`rapid doctor`)
+
+Con el proyecto inicializado, `rapid doctor` revisa también la capa porcelain. Dos avisos son esperables y no indican un fallo de instalación:
+
+- **`RAPID1319`**: no se pudo leer el árbol de procesos, así que `rapid approve` no puede comprobar si lo lanza un agente. Aprobar sigue exigiendo una terminal interactiva.
+- **`RAPID1339`**: hay hooks de Claude Code instalados pero `rapid` no se resuelve en el `PATH` que ve Claude Code. Instala Rapid OS donde lo vea (por ejemplo `pipx install rapid-os`) o añade su directorio de scripts al `PATH`; si no usas hooks, no aparece.
+
+---
+
 ## Todo listo
 
-Si los cuatro comandos respondieron con éxito, tu instalación es correcta y reproducible. Ahora puedes avanzar al tutorial: **[Tu primer proyecto gobernado](../getting-started/first-project.md)**.
+Si los comandos respondieron con éxito, tu instalación es correcta y reproducible. Ahora puedes avanzar a [Primeros pasos](../getting-started.md) o al tutorial: **[Tu primer proyecto gobernado](../getting-started/first-project.md)**.

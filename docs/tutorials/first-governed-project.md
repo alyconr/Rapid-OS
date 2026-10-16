@@ -1,5 +1,7 @@
 # Laboratorio 1: Primer Proyecto Gobernado
 
+> **Modo avanzado.** Este laboratorio es la ruta con los comandos v3 (`rapid scan`, `rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…): hace a mano lo que hace el agente. La ruta habitual es con shortcuts: sigue el [laboratorio Feature Engineering](feature-lab.md#con-shortcuts) (`/rapid-feature`) y la [guía de shortcuts](../guides/shortcuts.md).
+
 Aprende a ejecutar el Governance Loop completo de RAPID OS v3 sobre un proyecto Python real con un asistente o coding harness externo.
 
 ---

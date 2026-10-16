@@ -117,3 +117,16 @@ El evaluador de comportamiento (`rapid eval run`) es un motor determinista que c
 ## 10. Integrity Validation (`rapid validate`)
 
 `rapid validate` comprueba la integridad referencial y criptográfica cruzada de todos los directorios y archivos de `.rapid-os/`, asegurando que no existan manipulaciones manuales, inconsistencias de esquemas o roturas en la cadena de procedencia SHA-256.
+
+---
+
+## 11. Capa porcelain: sesión, NextAction, playbook, shortcut, productor y gate humano
+
+Sobre el motor de gobernanza (el *plumbing*: specs, runs, evidencia, evaluación) Rapid OS ofrece una capa de intención (el *porcelain*: `rapid start`, `next`, `check`, `finish`, `approve`…). Sus conceptos, con el diseño completo en la [arquitectura de orquestación](../architecture/orchestration.md):
+
+- **Sesión (`.rapid-os/session.json`):** recuerda el run activo (`active_run_id`), el modo, el harness y el estado del repositorio al empezar (`start_head`). Es estado local, no versionado; los verbos porcelain la usan para no pedirte el id del run.
+- **`NextAction`:** la respuesta determinista de `rapid next --json`. Lleva `action.kind` (`author_spec`, `run_baseline`, `activate`, `implement_task`, `verify`, `await_human_approval`, `finish`, `done` o `blocked`), el `command` a ejecutar, qué falta y el progreso. Se calcula con una función pura sobre el contrato, el estado y la evidencia, usando el evaluador de comportamiento como oráculo.
+- **Playbook (`templates/modes/<modo>.json`):** la plantilla de un modo (`feature`, `bugfix`, `refactor`, `hardening`, `research`): la `spec_template` y las instrucciones de cada acción.
+- **Shortcut:** el archivo que enseña a un harness el bucle de un modo (`/rapid-feature`…). Se genera desde `templates/shortcuts/` con `rapid shortcuts install`.
+- **Productor porcelain:** el campo `producer` de la evidencia indica quién la registró: `rapid:check`, `rapid:start`, `rapid:finish`, `rapid:attach`, `user` o `harness:<id>`. La evidencia de revisión producida por un `harness:*` no puede cerrar un gate humano.
+- **Gate humano:** `gate.peer_review`, `security_review`, `migration_review`, `manual_approval` y `final_verification`. Nunca se reconocen automáticamente: una persona ejecuta `rapid approve <gate>` en su terminal (con TTY y sin agente como ancestro). Es una protección de mejor esfuerzo; ver [límites del producto](./product-boundaries.md).
