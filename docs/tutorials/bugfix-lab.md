@@ -2,6 +2,22 @@
 
 Aprende a gobernar la corrección de defectos con RAPID OS garantizando la captura de baseline, pruebas de reproducción y prevención de regresiones.
 
+## Con shortcuts
+
+Copia `examples/bugfix-lab/starter` a una carpeta propia (repositorio git con un commit). El starter incluye `test_regression_expected_discount` en rojo: elimínalo antes de empezar para que la baseline sea verde, y deja que `T001` («Reproducir con un test en rojo») lo reescriba mediante `rapid check --expect fail`.
+
+```bash
+rapid init --agents claude --shortcuts
+```
+
+```text
+/rapid-bugfix el descuento del 10% devuelve un total negativo
+```
+
+El agente sigue el bucle `rapid next` → `rapid start` → `rapid check` → `rapid finish` y se detiene cuando hace falta una persona: entonces tú ejecutas `rapid approve <gate>` en tu terminal (`/rapid-approve` te da el comando exacto). Las instalaciones por harness están en la [guía de shortcuts](../guides/shortcuts.md).
+
+El resto del laboratorio es el **modo avanzado**: el mismo recorrido con comandos v3, para entender qué registra cada verbo y para CI y auditoría.
+
 ---
 
 ## 1. Overview

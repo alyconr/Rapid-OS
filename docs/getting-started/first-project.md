@@ -17,6 +17,26 @@ En este tutorial aprenderás a gobernar un proyecto desde cero utilizando el CLI
 
 ---
 
+## Camino principal: shortcuts
+
+La forma recomendada de trabajar es con los shortcuts: inicializas el proyecto con tu agente y le pides el trabajo.
+
+```bash
+rapid init --agents claude --shortcuts
+```
+
+```text
+/rapid-feature añadir una función validate_username a app.py
+```
+
+El agente conduce el run (`rapid next` → `rapid start` → `rapid check` → `rapid finish`) y se detiene en `gate.final-verification`; tú ejecutas `rapid approve gate.final-verification` en tu terminal. Detalle por harness en la [guía de shortcuts](../guides/shortcuts.md).
+
+## Modo avanzado (comandos v3)
+
+El resto del tutorial hace a mano lo que hace el agente, con los comandos v3 (`rapid scan`, `rapid spec`, `rapid context`…): útil para entender qué registra cada paso, para CI y para auditoría.
+
+---
+
 ## Escenario: el proyecto `hello-rapid`
 
 Vamos a crear un directorio de trabajo aislado con un script básico en Python:

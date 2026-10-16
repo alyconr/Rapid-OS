@@ -88,7 +88,7 @@ El portal público incluye la documentación completa, estructurada en las sigui
   - [Procedimiento de Rollback](https://alyconr.github.io/Rapid-OS/operations/documentation-rollback)
   - [Mantenimiento y Versionamiento](https://alyconr.github.io/Rapid-OS/operations/documentation-maintenance)
   - [Diagnósticos RAPIDxxx](https://alyconr.github.io/Rapid-OS/troubleshooting/diagnostics) · [Referencia de CLI](https://alyconr.github.io/Rapid-OS/cli)
-  - [Arquitectura v3](https://alyconr.github.io/Rapid-OS/architecture/rapid-os-v3) · [Release v3.0.0](https://alyconr.github.io/Rapid-OS/release-v3.0.0) · [Changelog](CHANGELOG.md)
+  - [Arquitectura v3](https://alyconr.github.io/Rapid-OS/architecture/rapid-os-v3) · [Arquitectura de orquestación](https://alyconr.github.io/Rapid-OS/architecture/orchestration) · [Release v3.0.0](https://alyconr.github.io/Rapid-OS/release-v3.0.0) · [Changelog](CHANGELOG.md)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -827,14 +827,19 @@ Rapid OS DOES:
 - resolve declared harness capability compatibility
 - store immutable run evidence and verify artifact digests
 - evaluate runs deterministically against evidence rules
+- drive governed runs with the porcelain verbs (start, next, check, task, attach, finish) and generate /rapid-<mode> shortcuts
 
 Rapid OS DOES NOT:
-- launch coding agents
-- execute shell commands for runs
-- run tests automatically
-- create git worktrees automatically
+- launch coding agents or call LLM APIs
+- run anything from the plumbing commands (spec, run, evidence, eval...)
+- approve human gates (a person runs `rapid approve` in their own terminal)
+- create git worktrees except with `rapid start --worktree`
 - cryptographically attest external producer identity
 - guarantee software correctness beyond recorded evidence rules
+
+Rapid OS RUNS, only through the porcelain:
+- the test_command from .rapid-os/config.json, or the argv given to `rapid check`
+- read-only git commands to record the run's changes (and `git worktree add` with --worktree)
 ```
 
 Lo que Rapid OS **ES** y lo que **NO ES**:
@@ -842,7 +847,7 @@ Lo que Rapid OS **ES** y lo que **NO ES**:
 | LO QUE PUEDES HACER (Do's)                                                         | LO QUE NO HACE (Don'ts)                                                                              |
 | :--------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------- |
 | **Inyectar Contexto Senior**: Obligar a la IA a seguir Clean Architecture y SOLID. | **Escribir código por sí solo**: Rapid OS es el _Arquitecto_, tu IA (Cursor/Claude) es el _Albañil_. |
-| **Gobernar Contratos de Ejecución**: Clasificar riesgo, exigir gates y fijar snapshots inmutables por Run. | **Invocar Agentes o Ejecutar Comandos**: No lanza editores, no crea worktrees ni ejecuta tests automáticamente. |
+| **Gobernar Contratos de Ejecución**: Clasificar riesgo, exigir gates y fijar snapshots inmutables por Run. | **Invocar Agentes ni aprobar gates**: No lanza editores ni modelos y nunca aprueba gates humanos. Ejecuta solo el `test_command` configurado o el argv de `rapid check` (el plumbing no ejecuta nada) y crea un worktree solo con `rapid start --worktree`. |
 | **Refactorizar Legacy**: Definir reglas modernas para limpiar código antiguo.      | **Ejecutarse en la Nube**: Es una CLI 100% local. No sube tu código a ningún lado.                   |
 | **Estandarizar Equipos**: Que todos los devs (y sus IAs) escriban igual.           | **Compilar tu App**: No reemplaza a `npm run build` o compiladores.                                  |
 | **Generar Guías y Contexto**: Crea reglas de agentes, specs, MCPs y `DEPLOY.md`.   | **Desplegar Producción**: Genera las instrucciones en `DEPLOY.md`, pero TÚ ejecutas el deploy final. |

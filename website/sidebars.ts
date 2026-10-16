@@ -37,12 +37,25 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       link: {type: 'doc', id: 'getting-started'},
       items: [
-        'guides/shortcuts',
         'getting-started/first-project',
         'getting-started/existing-project',
         'getting-started/first-spec',
         'getting-started/first-context',
         'getting-started/next-steps',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Shortcuts y orquestación',
+      collapsed: false,
+      items: [
+        'guides/shortcuts',
+        'architecture/orchestration',
+        {
+          type: 'link',
+          label: 'Hooks de Claude Code',
+          href: '/integrations/claude-code#6-hooks-de-claude-code-refuerzo-opcional-del-bucle',
+        },
       ],
     },
     {

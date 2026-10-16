@@ -2,6 +2,22 @@
 
 Aprende a gobernar investigaciones técnicas y spikes exploratorios en RAPID OS sin sobreingeniería, documentando tradeoffs empíricos y preservando la trazabilidad del aprendizaje.
 
+## Con shortcuts
+
+Copia `examples/research-lab/starter` a una carpeta propia (repositorio git con un commit). Un spike no tiene baseline ni tests obligatorios: los hallazgos se registran con `rapid attach <ruta> --label "…"`.
+
+```bash
+rapid init --agents claude --shortcuts
+```
+
+```text
+/rapid-research comparar JSON y SQLite para guardar las preferencias
+```
+
+El agente sigue el bucle `rapid next` → `rapid start` → `rapid check` → `rapid finish` y se detiene cuando hace falta una persona: entonces tú ejecutas `rapid approve <gate>` en tu terminal (`/rapid-approve` te da el comando exacto). Las instalaciones por harness están en la [guía de shortcuts](../guides/shortcuts.md).
+
+El resto del laboratorio es el **modo avanzado**: el mismo recorrido con comandos v3, para entender qué registra cada verbo y para CI y auditoría.
+
 ---
 
 ## 1. Overview

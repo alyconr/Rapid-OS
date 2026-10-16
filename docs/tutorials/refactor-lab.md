@@ -2,6 +2,22 @@
 
 Aprende a gobernar refactorizaciones complejas con RAPID OS desacoplando lógica de negocio sin alterar contratos públicos ni romper compatibilidad.
 
+## Con shortcuts
+
+Copia `examples/refactor-lab/starter` a una carpeta propia (repositorio git con un commit). La baseline es obligatoria y, si los tests que pasan bajan respecto a ella, `rapid next` se bloquea indicando la diferencia.
+
+```bash
+rapid init --agents claude --shortcuts
+```
+
+```text
+/rapid-refactor extraer un CommissionCalculator puro sin cambiar la firma pública de CommissionReporter
+```
+
+El agente sigue el bucle `rapid next` → `rapid start` → `rapid check` → `rapid finish` y se detiene cuando hace falta una persona: entonces tú ejecutas `rapid approve <gate>` en tu terminal (`/rapid-approve` te da el comando exacto). Las instalaciones por harness están en la [guía de shortcuts](../guides/shortcuts.md).
+
+El resto del laboratorio es el **modo avanzado**: el mismo recorrido con comandos v3, para entender qué registra cada verbo y para CI y auditoría.
+
 ---
 
 ## 1. Overview

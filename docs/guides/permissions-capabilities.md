@@ -83,7 +83,13 @@ Por defecto:
 - `low` y `medium` permiten el workspace actual;
 - `high` y `critical` requieren workspace aislado.
 
-Rapid OS declara esta necesidad en el contrato. No crea automáticamente el worktree, contenedor o sandbox.
+Rapid OS declara esta necesidad en el contrato y `rapid start` se detiene en `blocked` hasta que exista el workspace aislado. Solo `rapid start --worktree` crea el worktree (`../<repo>-<run-id>`, rama `rapid/<run-id>`); nunca crea contenedores ni sandboxes.
+
+## Qué ejecuta Rapid OS y qué no
+
+- El plumbing (`rapid spec`, `rapid run`, `rapid harness`, `rapid evidence`, `rapid eval`…) no ejecuta nada del repositorio: una capability como `tests.execute` solo se *declara* y se *comprueba contra evidencia*.
+- El porcelain ejecuta solo el `test_command` de `.rapid-os/config.json` o el argv que se pasa a `rapid check`, y deja ese resultado como evidencia (`rapid:check`).
+- Nunca invoca agentes ni aprueba gates humanos; `rapid approve` lo ejecuta una persona.
 
 ## Resolver compatibilidad
 
