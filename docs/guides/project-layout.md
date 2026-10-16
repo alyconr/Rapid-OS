@@ -56,7 +56,7 @@ No todos los archivos existen desde el inicio; aparecen cuando se usa el módulo
 
 | Ruta | Quién la escribe | Qué contiene |
 | :--- | :--- | :--- |
-| `.rapid-os/session.json` | `rapid start`, `rapid finish`, `rapid abort` | El run activo: `active_run_id`, `mode`, `harness`, `start_head` y, si aplica, `start_untracked` y `workspace_path`. Estado local: no se versiona. |
+| `.rapid-os/session.json` | `rapid start` lo escribe; `rapid abort` lo borra | El run activo: `active_run_id`, `mode`, `harness`, `start_head` y, si aplica, `start_untracked` y `workspace_path`. `rapid finish` no lo toca: por eso un segundo `rapid finish` encuentra el run ya terminado. Estado local: no se versiona. |
 | `.rapid-os/scratch/checks/<run-id>/<n>.log` | `rapid check` | La salida completa de cada comando ejecutado con `rapid check`. La evidencia (`rapid:check`) la registra en `.rapid-os/evidence/`; el log es solo un apoyo. |
 | `.rapid-os/scratch/hooks.json` | `rapid hook` | Guarda del hook `Stop` (evita bucles de continuación). |
 | `.rapid-os/scratch/hooks.log` | `rapid hook` | Una línea por decisión de los hooks; rota a `hooks.log.1`. |
