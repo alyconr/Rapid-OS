@@ -43,7 +43,7 @@ python -m venv .venv
 source .venv/bin/activate  # En Windows: .venv\Scripts\Activate.ps1
 
 # Instalar desde el repositorio o paquete
-python -m pip install git+https://github.com/alyconr/Rapid-OS.git@v3.0.0
+python -m pip install git+https://github.com/alyconr/Rapid-OS.git@v3.1.0
 ```
 
 ---
@@ -51,7 +51,7 @@ python -m pip install git+https://github.com/alyconr/Rapid-OS.git@v3.0.0
 ## Diferencia entre versión Estable y Desarrollo
 
 :::info Canales de instalación
-- **Versión Estable (`v3.0.0`):** Pinned al tag oficial [`v3.0.0`](https://github.com/alyconr/Rapid-OS/releases/tag/v3.0.0). Recomendada para producción y equipos de desarrollo.
+- **Versión Estable (`v3.1.0`):** Pinned al tag oficial [`v3.1.0`](https://github.com/alyconr/Rapid-OS/releases/tag/v3.1.0). Recomendada para producción y equipos de desarrollo.
 - **Versión de Desarrollo (`main`):** Obtenida mediante checkout de la rama `main` en desarrollo activo. Contiene las últimas características antes de su empaquetado formal.
 :::
 

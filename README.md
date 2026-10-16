@@ -14,7 +14,7 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity, VS Code y Codex) en Ingeni
   <summary>Table of Contents</summary>
   <ol>
     <li><a href="#about-the-project">📖 About the Project</a></li>
-    <li><a href="#rapid-os-v3-status">Rapid OS v3.0.0 Status</a></li>
+    <li><a href="#rapid-os-v3-status">Rapid OS v3.1.0 Status</a></li>
     <li><a href="#how-it-works">🧩 How it Works</a></li>
     <li>
       <a href="#build-with">⚒️ Build With</a>
@@ -37,7 +37,7 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity, VS Code y Codex) en Ingeni
     <li><a href="#run-tests">Run tests</a></li>
     <li><a href="#deployment">Deployment</a></li>
     <li><a href="#authors">👥 Authors</a></li>
-    <li><a href="#future-features">Future v3.1+ Enhancements</a></li>
+    <li><a href="#future-features">Future v3.2+ Enhancements</a></li>
     <li><a href="#contributing">🤝 Contributing</a></li>
     <li><a href="#show-your-support">⭐ Show your Support</a></li>
     <li><a href="#acknowledgements">👏 Acknowledgements</a></li>
@@ -56,7 +56,7 @@ Cuando trabajas con asistentes de IA como Cursor, Claude, Antigravity, VS Code o
 
 **🌐 Portal Oficial de Documentación**: [https://alyconr.github.io/Rapid-OS/](https://alyconr.github.io/Rapid-OS/)
 
-### 📚 Suite Canónica de Documentación (`v3.0.0`)
+### 📚 Suite Canónica de Documentación (`v3.1.0`)
 
 El portal público incluye la documentación completa, estructurada en las siguientes áreas:
 
@@ -88,15 +88,15 @@ El portal público incluye la documentación completa, estructurada en las sigui
   - [Procedimiento de Rollback](https://alyconr.github.io/Rapid-OS/operations/documentation-rollback)
   - [Mantenimiento y Versionamiento](https://alyconr.github.io/Rapid-OS/operations/documentation-maintenance)
   - [Diagnósticos RAPIDxxx](https://alyconr.github.io/Rapid-OS/troubleshooting/diagnostics) · [Referencia de CLI](https://alyconr.github.io/Rapid-OS/cli)
-  - [Arquitectura v3](https://alyconr.github.io/Rapid-OS/architecture/rapid-os-v3) · [Arquitectura de orquestación](https://alyconr.github.io/Rapid-OS/architecture/orchestration) · [Release v3.0.0](https://alyconr.github.io/Rapid-OS/release-v3.0.0) · [Changelog](CHANGELOG.md)
+  - [Arquitectura v3](https://alyconr.github.io/Rapid-OS/architecture/rapid-os-v3) · [Arquitectura de orquestación](https://alyconr.github.io/Rapid-OS/architecture/orchestration) · [Release v3.1.0](https://alyconr.github.io/Rapid-OS/release-v3.1.0) · [Release v3.0.0](https://alyconr.github.io/Rapid-OS/release-v3.0.0) · [Changelog](CHANGELOG.md)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Rapid OS v3.0.0 Status <a name="rapid-os-v3-status"></a> <a name="rapid-os-v2-status"></a>
+## Rapid OS v3.1.0 Status <a name="rapid-os-v3-status"></a> <a name="rapid-os-v2-status"></a>
 
-Rapid OS `v3.0.0` is complete and preserves full backward compatibility with all v2 commands and generated file locations.
+Rapid OS `v3.1.0` is complete and preserves full backward compatibility with all v3.0 and v2 commands and generated file locations. It adds the porcelain layer, the five engineering modes, shortcuts and Claude Code hooks on top of the v3 governance engine.
 
-| Workstream | Status | Included in v3.0.0 |
+| Workstream | Status | Included in v3.1.0 |
 | :-- | :-- | :-- |
 | Core package & PEP 517 packaging | Complete | `rapid_os` package, `rapid` console script, `rapid.py` compatibility entrypoint, and `rapid --version`. |
 | Agent adapter architecture | Complete | Cursor, Claude, Antigravity, VS Code, and Codex adapters behind a registry. |
@@ -109,6 +109,12 @@ Rapid OS `v3.0.0` is complete and preserves full backward compatibility with all
 | Execution Policy Engine & Run Contract (v3 Phase 4) | Complete | Deterministic `ExecutionPolicy`, `PolicyDecision`, `ExecutionContract`, immutable `RunRecord` & `RunState` ledger under `.rapid-os/runs/<run-id>/`, `rapid policy` (`show`, `init`), `rapid run` (`create`, `list`, `show`, `status`, `task`, `gate`), and `RAPID1000–RAPID1014` validation. |
 | Harness Capability Registry (v3 Phase 5) | Complete | Canonical capability catalog, conservative builtin & project `HarnessProfile` overrides (`.rapid-os/harnesses/<id>.json`), deterministic `CapabilityRequirementResolver` & `CapabilityResolver`, `.rapid-os/capabilities.lock`, `rapid harness` (`list`, `show`, `init`, `lock`, `resolve`), and `RAPID1100–RAPID1112` validation. |
 | Evidence Engine & Behavioral Evals (v3 Phase 6) | Complete | Immutable `RunEvidence` records & copied SHA-256-verified artifacts (`.rapid-os/evidence/<run-id>/`), deterministic `BehavioralEvaluator` & append-only `EvaluationReport` ledger (`.rapid-os/evals/<run-id>/`), `rapid evidence` (`list`, `show`, `add`, `verify`), `rapid eval` (`run`, `list`, `show`), and `RAPID1200–RAPID1229` validation. |
+| Porcelain layer (v3.1) | Complete | `rapid start`, `next`, `check`, `task`, `attach`, `finish`, `approve`, `status` and `abort` drive a governed run on top of the plumbing; a pure Conductor asks the `BehavioralEvaluator` what is missing; `.rapid-os/session.json` remembers the active run. |
+| Behavioral ruleset v2 (v3.1) | Complete | `rapid check --expect fail` (`expectation: "fail"` produces a `reproduction.<task>` assertion) and `harness:*` producers can no longer close human gates; `--ruleset 1` remains available and v1 reports stay valid. |
+| Engineering modes (v3.1) | Complete | Playbooks for `feature`, `bugfix`, `refactor`, `hardening` (isolated worktree with `rapid start --worktree`) and `research` (`rapid attach`). |
+| Shortcuts (v3.1) | Complete | `rapid shortcuts install\|list\|remove` and `rapid init --shortcuts` generate eight `/rapid-<mode>` shortcuts for Claude Code, Codex, Antigravity, Cursor and VS Code; `RAPID1321` warns about overlapping folders. |
+| Claude Code hooks (v3.1) | Complete | `rapid hook stop\|pre-tool` installed with `--hooks`: keep the agent working until a person is needed and deny reserved commands and edits inside `.rapid-os/`. |
+| Hardened human approval (v3.1) | Complete | `rapid approve` requires a TTY, refuses agent sessions and Claude Code ancestors (`RAPID1310`), and supports `--waive` / `--reject`. Best-effort: see the known limits in the release notes. |
 | MCP abstraction | Complete | Structured MCP model with editor-specific rendering and package metadata. |
 | Testing and CI hardening | Complete | GitHub Actions on Python 3.10, 3.11, 3.12 & 3.13 running `unittest`, CLI smoke checks, `python -m build` artifact checks, and clean wheel + sdist installation tests. |
 
@@ -225,27 +231,27 @@ Asegúrate de tener instalado:
 
 ### Install <a name="install"></a>
 
-#### Stable Release (`v3.0.0`)
+#### Stable Release (`v3.1.0`)
 
-Una vez publicado el tag estable `v3.0.0`, utiliza los instaladores anclados a ese release reproducible:
+Una vez publicado el tag estable `v3.1.0`, utiliza los instaladores anclados a ese release reproducible:
 
-- **Opción A: Instalación estándar de paquete Python (`pip` / `venv`) en el tag `v3.0.0`**:
+- **Opción A: Instalación estándar de paquete Python (`pip` / `venv`) en el tag `v3.1.0`**:
   ```bash
-  git clone --branch v3.0.0 https://github.com/alyconr/Rapid-OS.git
+  git clone --branch v3.1.0 https://github.com/alyconr/Rapid-OS.git
   cd Rapid-OS
   python -m pip install .
   rapid --version
   ```
-- **Opción B: Linux, macOS o WSL (Stable `v3.0.0`)**:
+- **Opción B: Linux, macOS o WSL (Stable `v3.1.0`)**:
   ```bash
-  curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.sh | bash
+  curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.sh | bash
   ```
-- **Opción C: Windows PowerShell (Stable `v3.0.0`)**:
+- **Opción C: Windows PowerShell (Stable `v3.1.0`)**:
   ```powershell
-  irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.ps1 | iex
+  irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.ps1 | iex
   ```
 
-Reinicia tu terminal después de la instalación para cargar el comando `rapid` y verifica con `rapid --version` (`Rapid OS 3.0.0`).
+Reinicia tu terminal después de la instalación para cargar el comando `rapid` y verifica con `rapid --version` (`Rapid OS 3.1.0`).
 
 #### Development (`latest development version` on `main`)
 
@@ -262,25 +268,25 @@ python -m pip install -e .
 
 ### Update <a name="update"></a>
 
-#### Actualizar a la versión estable `v3.0.0`
+#### Actualizar a la versión estable `v3.1.0`
 
-- **Windows PowerShell (Stable `v3.0.0`)**:
+- **Windows PowerShell (Stable `v3.1.0`)**:
   ```powershell
   git -C "$HOME\.rapid-os" fetch --tags --force origin
-  git -C "$HOME\.rapid-os" checkout --detach v3.0.0
+  git -C "$HOME\.rapid-os" checkout --detach v3.1.0
   ```
   O ejecutando el instalador estable:
   ```powershell
-  irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.ps1 | iex
+  irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.ps1 | iex
   ```
-- **Linux, macOS o WSL (Stable `v3.0.0`)**:
+- **Linux, macOS o WSL (Stable `v3.1.0`)**:
   ```bash
   git -C "$HOME/.rapid-os" fetch --tags --force origin
-  git -C "$HOME/.rapid-os" checkout --detach v3.0.0
+  git -C "$HOME/.rapid-os" checkout --detach v3.1.0
   ```
   O ejecutando el instalador estable:
   ```bash
-  curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.sh | bash
+  curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.sh | bash
   ```
 
 #### Actualizar un entorno de desarrollo (`latest development version` en `main`)
@@ -929,9 +935,9 @@ Target con template incluido actualmente: `aws`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Future v3.1+ Enhancements <a name="future-features"></a>
+## Future v3.2+ Enhancements <a name="future-features"></a>
 
-Rapid OS v3.0.0 is complete. These items are optional post-v3.0 enhancements and are not required to use the current CLI:
+Rapid OS v3.1.0 is complete. These items are optional post-v3.1 enhancements and are not required to use the current CLI:
 
 - [ ] **Soporte para JetBrains**: Integración con IntelliJ/PyCharm AI Assistant.
 - [ ] **Configuración avanzada de Codex**: Soporte para `AGENTS.override.md`, configuración global o instrucciones anidadas si el flujo lo requiere.

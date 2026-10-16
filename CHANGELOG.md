@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+---
+
+## [3.1.0] - 2026-10-16
+
 ### Added
 - **Porcelain layer**: `rapid start`, `rapid next`, `rapid check`, `rapid task`, `rapid attach`, `rapid finish`, `rapid approve`, `rapid status` and `rapid abort` drive a governed run on top of the v3 plumbing. A pure Conductor (`next_action`) asks the `BehavioralEvaluator` what is missing and returns a `NextAction`; the active run lives in `.rapid-os/session.json`. Evidence producers: `rapid:check`, `rapid:start`, `rapid:finish`, `rapid:attach`.
 - **Behavioral ruleset v2**: `rapid check --expect fail --task <id>` records an expected failure (`expectation: "fail"`) that produces a `reproduction.<task>` assertion and does not count as a failing task or gate evidence (`RAPID1320`); review evidence produced by a `harness:*` producer cannot close a human gate.
@@ -19,6 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 - **`rapid approve` hardened**: it requires a TTY, refuses `CLAUDE_CODE_CHILD_SESSION=1` and, new, refuses when any ancestor process is Claude Code (`RAPID1310`; `RAPID1319` in `rapid doctor` when the ancestry cannot be read). The ancestry check is best-effort: a process that detaches from its parent (double fork, `setsid`, `nohup … &`), a renamed `claude.exe` or a reused pid escape it. The rule is unchanged: a person approves in their own terminal.
+- **Shortcuts JSON contract**: in `rapid shortcuts install --json` and `list --json`, `warnings` is a list of homogeneous objects `{code, message, ...}` (`RAPID1315`, `RAPID1316`, `RAPID1321`); the loose text warnings of `install --json` became objects with the same text in `message`.
+- Package version is `3.1.0`; the installers and the installation docs resolve the `v3.1.0` tag.
 - `rapid finish` on a run that already ended exits `0` only when the stored verdict is `pass` or `pass_with_waivers` and records no new evidence; a run without a report exits `1` with `already ended (<outcome>)`.
 - Product boundaries now state what is executed: the plumbing runs nothing; the porcelain runs only the `test_command` of `.rapid-os/config.json` or the argv given to `rapid check`, creates a worktree only with `rapid start --worktree`, and never invokes agents or approves human gates.
 - Documentation presents the shortcuts as the main flow and the v3 commands as advanced mode; new "Shortcuts y orquestación" sidebar category and navbar entry; the unused `site/` Docusaurus template was removed.

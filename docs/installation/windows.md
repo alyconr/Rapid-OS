@@ -28,16 +28,16 @@ git --version
 
 ## 2. Método A: Instalador automático de PowerShell (Recomendado)
 
-El instalador oficial descarga el repositorio en `$HOME\.rapid-os`, fija la versión estable `v3.0.0` y registra la función `rapid` en tu perfil de PowerShell (`$PROFILE`):
+El instalador oficial descarga el repositorio en `$HOME\.rapid-os`, fija la versión estable `v3.1.0` y registra la función `rapid` en tu perfil de PowerShell (`$PROFILE`):
 
 ```powershell
-irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.ps1 | iex
+irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.ps1 | iex
 ```
 
 ### ¿Qué hace este script?
 1. Comprueba que `git` y `python` estén disponibles.
 2. Clona el repositorio oficial en `$HOME\.rapid-os`.
-3. Hace checkout de la versión estable `v3.0.0`.
+3. Hace checkout de la versión estable `v3.1.0`.
 4. Añade a tu archivo de perfil `$PROFILE` la función:
    ```powershell
    function rapid { python "$InstallDir\rapid.py" $args }
@@ -69,7 +69,7 @@ python -m venv rapid-env
 .\rapid-env\Scripts\Activate.ps1
 
 # 3. Instalar la versión estable desde GitHub
-python -m pip install git+https://github.com/alyconr/Rapid-OS.git@v3.0.0
+python -m pip install git+https://github.com/alyconr/Rapid-OS.git@v3.1.0
 
 # 4. Verificar
 rapid --version

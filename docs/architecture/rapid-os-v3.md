@@ -16,7 +16,7 @@ Phase 6  Evidence Engine & Behavioral Evals (COMPLETE)
 
 > All Rapid OS v3 phases (Phases 0 through 6) are complete and hardened for the `v3.0.0` stable release.
 >
-> **Release Versioning vs. Artifact Schema Versioning**: The product release version (`rapid_os.__version__ = "3.0.0"`) follows Semantic Versioning for the CLI and Python package, whereas persisted domain artifacts (`.rapid-os/project.json`, `spec.json`, `revision.json`, `policy.json`, `run.json`, `contract.json`, `states/*.json`, `harnesses/*.json`, `capabilities.lock`, `records/E00N.json`, `reports/000N.json`) independently maintain `schema_version = 1` (and `BehavioralRuleset.version = 1`) for deterministic serialization compatibility.
+> **Release Versioning vs. Artifact Schema Versioning**: The product release version (`rapid_os.__version__ = "3.1.0"`) follows Semantic Versioning for the CLI and Python package, whereas persisted domain artifacts (`.rapid-os/project.json`, `spec.json`, `revision.json`, `policy.json`, `run.json`, `contract.json`, `states/*.json`, `harnesses/*.json`, `capabilities.lock`, `records/E00N.json`, `reports/000N.json`) independently maintain `schema_version = 1` (and `BehavioralRuleset.version = 1`) for deterministic serialization compatibility.
 
 ---
 

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_URL="https://github.com/alyconr/Rapid-OS.git"
-RAPID_VERSION="v3.0.0"
+RAPID_VERSION="v3.1.0"
 INSTALL_DIR="$HOME/.rapid-os"
 
 echo "🔍 Checking dependencies..."

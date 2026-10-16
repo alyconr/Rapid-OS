@@ -19,7 +19,7 @@ rapid --version
 
 **Resultado esperado:**
 ```text
-Rapid OS 3.0.0
+Rapid OS 3.1.0
 ```
 
 Si este comando no responde o indica que la orden no fue encontrada, consulta la guía de [Solución de problemas](../troubleshooting/installation.md).

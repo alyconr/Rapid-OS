@@ -67,6 +67,7 @@ class DocumentationContractTests(unittest.TestCase):
             "guides/permissions-capabilities.md",
             "guides/project-layout.md",
             "release-v3.0.0.md",
+            "release-v3.1.0.md",
             "audit/sprint-2-validation.md",
         ]
         for rel_path in sprint_2_docs:
@@ -120,7 +121,7 @@ class DocumentationContractTests(unittest.TestCase):
     def test_stable_vs_development_installation_distinct(self):
         """Installation docs clearly distinguish stable release from development checkout."""
         install_index = (DOCS / "installation" / "index.md").read_text(encoding="utf-8")
-        self.assertIn("v3.0.0", install_index)
+        self.assertIn("v3.1.0", install_index)
         self.assertIn("main", install_index)
         self.assertIn("Estable", install_index)
         self.assertIn("Desarrollo", install_index)
@@ -534,7 +535,7 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertLess(navbar.index("label: 'Shortcuts'"), navbar.index("label: 'Modos'"))
         self.assertIn("{label: 'Shortcuts', to: '/guides/shortcuts'}", footer)
         self.assertIn("{label: 'Arquitectura de orquestación', to: '/architecture/orchestration'}", footer)
-        self.assertIn("{label: 'Release v3.0.0', to: '/release-v3.0.0'}", footer)  # moves in the release PR
+        self.assertIn("{label: 'Release v3.1.0', to: '/release-v3.1.0'}", footer)
 
     def test_orchestration_architecture_covers_the_porcelain_design(self):
         text = (DOCS / "architecture" / "orchestration.md").read_text(encoding="utf-8")
@@ -620,16 +621,34 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertIn("/guides/shortcuts", suite)
         self.assertIn("/architecture/orchestration", suite)
 
-    def test_changelog_has_an_unreleased_section_with_the_porcelain_work(self):
+    def test_changelog_has_an_empty_unreleased_and_the_3_1_0_section(self):
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertIn("## [Unreleased]", changelog)
-        self.assertLess(changelog.index("## [Unreleased]"), changelog.index("## [3.0.0]"))
-        unreleased = changelog[changelog.index("## [Unreleased]"):changelog.index("## [3.0.0]")]
+        self.assertLess(changelog.index("## [Unreleased]"), changelog.index("## [3.1.0] - "))
+        self.assertLess(changelog.index("## [3.1.0] - "), changelog.index("## [3.0.0]"))
+        between = changelog[changelog.index("## [Unreleased]"):changelog.index("## [3.1.0] - ")]
+        self.assertNotIn("###", between)  # [Unreleased] starts empty after the release
+        released = changelog[changelog.index("## [3.1.0] - "):changelog.index("## [3.0.0]")]
         for needle in ("Porcelain layer", "ruleset v2", "Five engineering modes", "Shortcuts", "RAPID1321",
                        "Claude Code hooks", "`rapid approve` hardened", "ancestor process", "best-effort",
-                       "`rapid finish`"):
+                       "`rapid finish`", "Shortcuts JSON contract"):
             with self.subTest(needle=needle):
-                self.assertIn(needle, unreleased)
+                self.assertIn(needle, released)
+
+    def test_release_3_1_0_pages_are_registered_and_cover_the_contract(self):
+        sidebars = (ROOT / "website" / "sidebars.ts").read_text(encoding="utf-8")
+        self.assertIn("'release-v3.1.0'", sidebars)
+        self.assertIn("'release-v3.0.0'", sidebars)  # kept as history
+        notes = (DOCS / "release-v3.1.0.md").read_text(encoding="utf-8")
+        for needle in ("--ruleset 1", "v1 reports stay valid", "double fork", "renamed `claude.exe`", "reused pid",
+                       "Codex and Cursor", "unchanged", "optional fields"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, notes)
+        upgrade = (DOCS / "installation" / "upgrade.md").read_text(encoding="utf-8")
+        self.assertIn("## 5. De 3.0 a 3.1", upgrade)
+        for needle in ("rapid init --shortcuts", "rapid shortcuts install", "--hooks", ".rapid-os/session.json",
+                       ".rapid-os/scratch/", "test_command", "nada que migrar"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, upgrade)
 
     def test_quickstart_leads_with_shortcuts_and_keeps_the_advanced_path(self):
         for relative in ("index.md", "getting-started/first-project.md"):

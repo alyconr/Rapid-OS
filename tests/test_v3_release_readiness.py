@@ -17,6 +17,8 @@ from rapid_os.cli.main import create_parser
 from rapid_os.core.paths import resolve_paths
 from rapid_os.domain.validation import validate_project
 
+VERSION = "3.1.0"
+
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -72,7 +74,7 @@ def _bootstrap_minimal_project(root: Path) -> None:
     (root / ".rapid-os" / "config.json").write_text(
         json.dumps(
             {
-                "version": "3.0.0",
+                "version": VERSION,
                 "stack": "python-ai",
                 "topology": "fullstack-separated",
                 "tools": ["codex"],
@@ -86,12 +88,12 @@ def _bootstrap_minimal_project(root: Path) -> None:
 
 class V3ReleaseReadinessTests(unittest.TestCase):
     def test_version_contract_and_cli_flag(self) -> None:
-        self.assertEqual(rapid_os.__version__, "3.0.0")
-        self.assertEqual(rapid.__version__, "3.0.0")
+        self.assertEqual(rapid_os.__version__, VERSION)
+        self.assertEqual(rapid.__version__, VERSION)
 
         code, out, err = _run_cli(["--version"])
         self.assertEqual(code, 0)
-        self.assertEqual(out.strip(), "Rapid OS 3.0.0")
+        self.assertEqual(out.strip(), f"Rapid OS {VERSION}")
         self.assertEqual(err, "")
 
     def test_end_to_end_positive_governance_loop_cli(self) -> None:
@@ -593,7 +595,7 @@ class V3ReleaseReadinessTests(unittest.TestCase):
         self.assertNotIn("--root", cli_doc)
         self.assertNotIn("rapid update", cli_doc)
 
-        # Verify required v3.0.0 documentation files exist
+        # Verify required release documentation files exist
         required_docs = [
             REPO_ROOT / "README.md",
             REPO_ROOT / "CHANGELOG.md",
@@ -605,6 +607,7 @@ class V3ReleaseReadinessTests(unittest.TestCase):
             REPO_ROOT / "docs" / "architecture" / "rapid-os-v3.md",
             REPO_ROOT / "docs" / "architecture" / "rapid-os-v2.md",
             REPO_ROOT / "docs" / "release-v3.0.0.md",
+            REPO_ROOT / "docs" / f"release-v{VERSION}.md",
             REPO_ROOT / "docs" / "release-checklist.md",
         ]
         for doc_path in required_docs:
@@ -636,8 +639,8 @@ class V3ReleaseReadinessTests(unittest.TestCase):
             self.assertTrue((paths.templates_dir / "topologies").is_dir())
 
     def test_release_engineering_product_truth_contracts(self) -> None:
-        # 1. __version__ == 3.0.0
-        self.assertEqual(rapid_os.__version__, "3.0.0")
+        # 1. __version__ == VERSION
+        self.assertEqual(rapid_os.__version__, VERSION)
 
         # 2. pyproject classifiers match supported CI versions in .github/workflows/tests.yml
         pyproject_text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
@@ -658,56 +661,69 @@ class V3ReleaseReadinessTests(unittest.TestCase):
 
         # Verify CI builds wheel + sdist and tests installing the built wheel artifact
         self.assertIn("python -m build", workflow_text)
-        self.assertIn("dist/rapid_os-3.0.0-py3-none-any.whl", workflow_text)
-        self.assertIn("dist/rapid_os-3.0.0.tar.gz", workflow_text)
+        self.assertIn(f"dist/rapid_os-{VERSION}-py3-none-any.whl", workflow_text)
+        self.assertIn(f"dist/rapid_os-{VERSION}.tar.gz", workflow_text)
 
-        # 3. Stable installers reference v3.0.0 and do NOT update via origin main
+        # 3. Stable installers reference the release tag and do NOT update via origin main
         install_sh = (REPO_ROOT / "install.sh").read_text(encoding="utf-8")
         install_ps1 = (REPO_ROOT / "install.ps1").read_text(encoding="utf-8")
 
-        self.assertIn('RAPID_VERSION="v3.0.0"', install_sh)
+        self.assertIn(f'RAPID_VERSION="v{VERSION}"', install_sh)
         self.assertIn('checkout --detach "$RAPID_VERSION"', install_sh)
         self.assertNotIn("origin main", install_sh)
 
-        self.assertIn('$RapidVersion = "v3.0.0"', install_ps1)
+        self.assertIn(f'$RapidVersion = "v{VERSION}"', install_ps1)
         self.assertIn("checkout --detach $RapidVersion", install_ps1)
         self.assertNotIn("origin main", install_ps1)
 
-        # 4. README and getting-started distinguish stable v3.0.0 vs development main
+        # 4. README and getting-started distinguish stable vs development main
         readme_text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         getting_started_text = (REPO_ROOT / "docs" / "getting-started.md").read_text(encoding="utf-8")
 
         for doc_name, doc_text in (("README.md", readme_text), ("docs/getting-started.md", getting_started_text)):
-            self.assertIn("https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.sh", doc_text, doc_name)
-            self.assertIn("https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.0.0/install.ps1", doc_text, doc_name)
+            self.assertIn(f"https://raw.githubusercontent.com/alyconr/Rapid-OS/v{VERSION}/install.sh", doc_text, doc_name)
+            self.assertIn(f"https://raw.githubusercontent.com/alyconr/Rapid-OS/v{VERSION}/install.ps1", doc_text, doc_name)
             self.assertNotIn("https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.sh", doc_text, doc_name)
             self.assertNotIn("https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.ps1", doc_text, doc_name)
-            self.assertIn("Stable Release (`v3.0.0`)", doc_text, doc_name)
+            self.assertIn(f"Stable Release (`v{VERSION}`)", doc_text, doc_name)
             self.assertIn("latest development version", doc_text, doc_name)
 
         # 5. Release notes do not claim zero optional network/runtime dependencies
-        release_notes_text = (REPO_ROOT / "docs" / "release-v3.0.0.md").read_text(encoding="utf-8")
-        self.assertNotIn("No Network or External Runtime Dependencies", release_notes_text)
+        for notes_name in ("release-v3.0.0.md", f"release-v{VERSION}.md"):
+            release_notes_text = (REPO_ROOT / "docs" / notes_name).read_text(encoding="utf-8")
+            self.assertNotIn("No Network or External Runtime Dependencies", release_notes_text, notes_name)
+            self.assertIn("Node.js", release_notes_text, notes_name)
+            self.assertIn("npx", release_notes_text, notes_name)
+            self.assertIn("network access", release_notes_text, notes_name)
         self.assertIn(
             "Rapid OS v3 governance core has no mandatory external runtime dependencies and uses the Python standard library.",
-            release_notes_text,
+            (REPO_ROOT / "docs" / "release-v3.0.0.md").read_text(encoding="utf-8"),
         )
-        self.assertIn("Node.js", release_notes_text)
-        self.assertIn("npx", release_notes_text)
-        self.assertIn("network access", release_notes_text)
+        self.assertIn(
+            "The governance core still uses only the Python standard library",
+            (REPO_ROOT / "docs" / f"release-v{VERSION}.md").read_text(encoding="utf-8"),
+        )
 
         # 6. Release checklist enforces pre-tag build, wheel/sdist, CI matrix, and installer gates
         checklist_text = (REPO_ROOT / "docs" / "release-checklist.md").read_text(encoding="utf-8")
         for required_gate in (
             "python -m build",
-            "dist/rapid_os-3.0.0-py3-none-any.whl",
-            "dist/rapid_os-3.0.0.tar.gz",
+            f"dist/rapid_os-{VERSION}-py3-none-any.whl",
+            f"dist/rapid_os-{VERSION}.tar.gz",
             "clean wheel installation succeeds",
             "declared Python versions (`3.10`, `3.11`, `3.12`, `3.13`) are green in CI",
-            "stable installer resolves exact `v3.0.0` tag",
+            f"stable installer resolves exact `v{VERSION}` tag",
             "stable installation docs do not track `main`",
         ):
             self.assertIn(required_gate, checklist_text)
+        for smoke in (
+            'rapid init --yes --test-command "python -m unittest discover"',
+            "shortcuts install --harness claude --dry-run --json",
+            "RAPID1315",
+            "--spec-file -",
+        ):
+            self.assertIn(smoke, checklist_text)
+        self.assertIn(f"Release Version**: `{VERSION}`", (REPO_ROOT / "docs" / f"release-v{VERSION}.md").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
