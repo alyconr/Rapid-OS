@@ -14,6 +14,7 @@ from rapid_os.domain.execution import (
     RunState,
     RunStatus,
     TaskStatus,
+    WorkspaceRequirement,
 )
 from rapid_os.orchestration.actions import ActionKind, NextAction
 from rapid_os.orchestration.playbooks import Playbook
@@ -143,8 +144,13 @@ def next_action(
     *,
     evaluator: BehavioralEvaluator,
     test_command: Sequence[str] | None = None,
+    workspace_ready: bool = True,
 ) -> NextAction:
-    """Determine deterministically the next action for a run using pure domain evaluation."""
+    """Determine deterministically the next action for a run using pure domain evaluation.
+
+    `workspace_ready` is False when the session has no `workspace_path`: an `isolated_required`
+    contract is then blocked until `rapid start --resume --worktree` creates the worktree.
+    """
     raw_evidence = tuple(evidence)
     gate_by_id = {g.id: g for g in contract.gates}
     state_gate_by_id = {g.id: g for g in state.gates}
@@ -241,6 +247,27 @@ def next_action(
             after=None,
             awaiting_human=pending_human_ids,
             missing=missing,
+            tasks_done=tasks_done,
+            tasks_total=tasks_total,
+            outcome=None,
+        )
+
+    # b3. Contrato con workspace aislado y la sesión aún sin worktree (igual que `rapid start`).
+    if contract.workspace == WorkspaceRequirement.ISOLATED_REQUIRED and not workspace_ready:
+        return NextAction(
+            schema_version=1,
+            run_id=contract.run_id,
+            mode=mode,
+            kind=ActionKind.BLOCKED,
+            instructions=(
+                "Execution contract requires an isolated workspace (worktree). "
+                "Workspace isolation must be established before execution: "
+                "run `rapid start --resume --worktree` to create it."
+            ),
+            command=("rapid", "start", "--resume", "--worktree"),
+            after=None,
+            awaiting_human=pending_human_ids,
+            missing=("gate.workspace-isolation",),
             tasks_done=tasks_done,
             tasks_total=tasks_total,
             outcome=None,

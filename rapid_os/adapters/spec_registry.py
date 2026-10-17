@@ -740,6 +740,29 @@ class SpecRegistry:
             record,
         )
 
+    def compare_existing(self, **fields: object) -> tuple[SpecRecord, bool] | None:
+        """Look up the spec these `create()` fields would produce.
+
+        Returns `None` when no spec with that identity exists, otherwise `(record, identical)`
+        where `identical` tells whether the stored current revision has the same content.
+        """
+        from dataclasses import replace as dataclass_replace
+
+        values = dict(fields)
+        raw_id = values.pop("id", None)
+        candidate = self._build_revision_input(
+            spec_id=str(raw_id) if raw_id is not None else None,
+            revision_num=1,
+            spec_or_scope=None,
+            fields=values,
+        )
+        if not self._resolve_spec_dir(candidate.spec_id).exists():
+            return None
+        record = self.get(candidate.spec_id)
+        stored = self.get_revision(candidate.spec_id, record.current_revision)
+        candidate = dataclass_replace(candidate, revision=record.current_revision)
+        return record, candidate.content_digest == stored.content_digest
+
     def revise(
         self,
         spec_id: str,
