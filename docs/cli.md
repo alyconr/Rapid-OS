@@ -56,7 +56,8 @@ rapid init --no-scan
 Options:
 - `--stack <name>`: Select stack template directly (`templates/stacks/<name>.md`).
 - `--archetype {mvp,corporate}`: Select archetype directly without interactive prompt.
-- `--topology <id>`: Select topology template directly (`templates/topologies/<id>.md`).
+- `--topology <id>`: Select topology template directly (`templates/topologies/<id>.md`). With `--yes` and no `--topology`, the topology is chosen to match the stack (`doc-site` only with `docs-modern`; `fullstack-separated` for `web-modern`, `python-ai` and `nodejs-ai`; `front-end-only` for `frontend-creative`).
+- `rapid init` also creates `.rapid-os/standards/security.md` (from the `corporate` archetype or, if there is none, a minimal template) when it does not exist; `rapid start hardening` requires it.
 - `--agents <lista>`: Comma-separated list of agent IDs or numbers (e.g. `cursor,claude`).
 - `-y`, `--yes`: Non-interactive mode accepting defaults and skipping business rules prompts. Con `--yes --no-scan` no se propone `test_command` y hay que pasar `--test-command`.
 - `--test-command <cmd>`: Explicit test command string to store in `.rapid-os/config.json`.
@@ -368,6 +369,7 @@ Each mode has its own playbook in `templates/modes/` (`spec_template` and per-ac
 
 Options:
 - `--worktree`: When the contract requires `isolated_required`, create a git worktree at `../<repo>-<run-id>` on branch `rapid/<run-id>` from `HEAD`. The ledger (`.rapid-os/`, `session.json`) stays in the main repository; `session.json` stores `workspace_path`, `rapid check`/`rapid task done` run the commands in that directory, `rapid finish` collects the changes from it, and the run records `workspace` evidence with `mode: isolated` (which acknowledges `gate.workspace-isolation`). Without the flag the run stops at `blocked` and `rapid next` proposes `rapid start --resume --worktree`. The flag has no effect when the contract does not require isolation. Uncommitted changes of the main checkout are not part of the worktree (it starts from `HEAD`). `rapid abort` keeps the worktree on disk.
+- `--spec-file`: if a spec with the same identity (`id` or title) and the same content already exists (a previous `rapid start` created it and then failed, e.g. `RAPID1004`), it is reused; if the content differs, `rapid start` exits with `RAPID1322` and suggests `rapid start <mode> --spec <id>`.
 - `session.json` also records `start_untracked`: the untracked files that existed before `rapid start`, which `rapid finish` does not attribute to the run.
 
 ### `rapid next`

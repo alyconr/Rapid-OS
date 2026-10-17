@@ -450,6 +450,39 @@ def _propose_test_command(scan) -> list[str] | None:
     return None
 
 
+DEFAULT_TOPOLOGY_BY_STACK = {
+    "docs-modern": "doc-site",
+    "python-ai": "fullstack-separated",
+    "nodejs-ai": "fullstack-separated",
+    "web-modern": "fullstack-separated",
+    "frontend-creative": "front-end-only",
+}
+
+
+def default_topology_for_stack(stack_name, suggested_topology, topologies):
+    """Topology for `rapid init --yes` when nothing was asked: coherent with the stack.
+
+    `doc-site` is only valid with `docs-modern` (and `docs-modern` needs `doc-site`), so the
+    alphabetical first template can never be the default. A scanner suggestion is kept only when
+    it does not contradict the chosen stack.
+    """
+    if stack_name == "docs-modern":
+        return "doc-site" if "doc-site" in topologies else None
+    if (
+        suggested_topology in topologies
+        and suggested_topology != "doc-site"
+        and not (suggested_topology == "front-end-only" and stack_name in ("python-ai", "nodejs-ai"))
+    ):
+        return suggested_topology
+    required = DEFAULT_TOPOLOGY_BY_STACK.get(stack_name)
+    if required in topologies:
+        return required
+    for name in topologies:
+        if name != "doc-site":
+            return name
+    return None
+
+
 def init_project(args):
     print_step("Inicializando Rapid OS...")
 
@@ -543,7 +576,7 @@ def init_project(args):
         if use_suggestions and suggested_topology in topos:
             topo_name = suggested_topology
         elif getattr(args, "yes", False):
-            topo_name = suggested_topology or (topos[0] if topos else None)
+            topo_name = default_topology_for_stack(stack_name, suggested_topology, topos)
         elif topos:
             print("\n🏗️  SELECCIONA TOPOLOGÍA:")
             for i, t in enumerate(topos, 1):
@@ -607,6 +640,13 @@ def init_project(args):
         )
         if sec_src.exists():
             safe_copy_file(sec_src, standards_dest / "security.md", backup=True)
+        elif not (standards_dest / "security.md").exists():
+            # `rapid start hardening` requires a security standard: start from a minimal template.
+            minimal_security = resolve_child_path(
+                TEMPLATES_DIR / "archetypes", "default-security.md", single_segment=True
+            )
+            if minimal_security.exists():
+                safe_copy_file(minimal_security, standards_dest / "security.md", backup=True)
     except (ValueError, OSError) as exc:
         print_error(f"No se pudieron inicializar los estandares del proyecto: {exc}")
         return
