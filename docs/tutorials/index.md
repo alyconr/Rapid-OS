@@ -15,6 +15,23 @@ En RAPID OS distinguimos de forma absoluta dos actores:
 
 ---
 
+## Con shortcuts
+
+Cada laboratorio tiene una sección **Con shortcuts**: inicializas con `rapid init --shortcuts` y pides el trabajo a tu agente; el agente conduce el run y tú apruebas los gates humanos en tu terminal. La [guía de shortcuts](../guides/shortcuts.md) explica la instalación por harness.
+
+| Laboratorio | Shortcut |
+|---|---|
+| [Primer Proyecto Gobernado](first-governed-project.md) | Ruta avanzada con comandos v3; la versión con shortcuts es el [Feature Engineering](feature-lab.md) (`/rapid-feature`). |
+| [Feature Engineering](feature-lab.md) | `/rapid-feature` |
+| [Bugfix Engineering](bugfix-lab.md) | `/rapid-bugfix` |
+| [Refactor Engineering](refactor-lab.md) | `/rapid-refactor` |
+| [Hardening & Security](hardening-lab.md) | `/rapid-hardening` |
+| [Research & Spikes](research-lab.md) | `/rapid-research` |
+
+El procedimiento guiado de cada laboratorio es el **Modo avanzado**: los comandos v3 que el agente ejecuta por ti, útiles para CI, depuración y auditoría.
+
+---
+
 ## Progresión Pedagógica
 
 Los laboratorios siguen una ruta progresiva desde los fundamentos del Governance Loop hasta escenarios avanzados de refactorización y endurecimiento:

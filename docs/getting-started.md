@@ -1,85 +1,105 @@
-# Getting Started with Rapid OS v3.1.0
+---
+title: Primeros pasos
+description: La ruta principal para trabajar con Rapid OS (instalar, rapid init --shortcuts, /rapid-feature), el mapa de la sección y el recorrido avanzado con los comandos v3.
+---
 
-This guide walks through installing Rapid OS `v3.1.0` and executing a complete, governed engineering workflow from repository scanning to behavioral evaluation.
+# Primeros pasos con Rapid OS
+
+Rapid OS gobierna el trabajo de tu agente de código: cada cambio ocurre dentro de un **run** con spec, tareas, gates y evidencia verificable. La forma habitual de usarlo es con **shortcuts**: tú describes el objetivo y el agente conduce el run. Los comandos v3 siguen disponibles como [Modo avanzado](#modo-avanzado).
 
 ---
 
-## 1. Prerequisites
+## 1. Ruta principal: shortcuts
 
-- **Python 3.10+** (`3.10`, `3.11`, `3.12`, and `3.13` verified in CI; the v3 governance core has no mandatory external runtime dependencies and uses the Python standard library)
-- **Git**
-- **Node.js / `npx` (Optional)**: Only required if you use optional remote skill installation (`rapid skill add`)
+### Requisitos
 
----
+- **Python 3.10 o superior** (el núcleo de gobernanza usa solo la biblioteca estándar) y **Git**.
+- Un coding harness compatible: Claude Code, Codex, Antigravity, Cursor o VS Code (Copilot).
+- **Node.js / `npx` (opcional)**: solo para la instalación remota de skills (`rapid skill add`).
 
-## 2. Installation
+### Paso 1: instalar
 
-### Stable Release (`v3.1.0`)
-
-#### Option A: Standard Python Package (`pip` / `venv`) from Tag `v3.1.0`
+Elige el método de tu sistema en [Instalación](./installation/index.md) ([Linux](./installation/linux.md), [macOS](./installation/macos.md), [Windows](./installation/windows.md) o [WSL](./installation/wsl.md)) y comprueba que el comando responde:
 
 ```bash
-git clone --branch v3.1.0 https://github.com/alyconr/Rapid-OS.git
-cd Rapid-OS
-python -m pip install .
 rapid --version
 ```
 
-Expected output:
+Los canales (versión estable y desarrollo) y la actualización se explican en [Instalación](./installation/index.md) y [Actualización](./installation/upgrade.md).
 
-```text
-Rapid OS 3.1.0
-```
+### Paso 2: inicializar el proyecto con shortcuts
 
-#### Option B: Reproducible Stable Shell / PowerShell Installer (`v3.1.0`)
-
-Once the `v3.1.0` tag is published:
-
-- **Linux / macOS / WSL**:
-  ```bash
-  curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.sh | bash
-  ```
-- **Windows PowerShell**:
-  ```powershell
-  irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.ps1 | iex
-  ```
-
-### Development (`latest development version` on `main`)
-
-If you are working from the latest development branch (`main`) rather than a pinned stable release:
+Desde la raíz de tu repositorio (con al menos un commit):
 
 ```bash
-git clone https://github.com/alyconr/Rapid-OS.git
-cd Rapid-OS
-git checkout main
-python -m pip install -e .
-python rapid.py guide
+rapid init --shortcuts
 ```
+
+Esto crea `.rapid-os/` (estándares y `config.json`) y genera los 8 shortcuts `/rapid-*` para los agentes que elijas. Añade a `.gitignore` el estado local de la sesión:
+
+```gitignore
+.rapid-os/session.json
+.rapid-os/scratch/
+```
+
+Define el comando de tests que usará `rapid check` (por ejemplo `rapid init --test-command "python -m unittest discover"`, o `test_command` en `.rapid-os/config.json`). En un proyecto ya inicializado usa `rapid shortcuts install`.
+
+### Paso 3: pedir el trabajo
+
+En tu agente:
+
+```text
+/rapid-feature añadir exportación CSV al informe mensual
+```
+
+El agente sigue el bucle `rapid next` → `rapid start` → `rapid check` → `rapid finish` y se detiene cuando hace falta una persona. Entonces tú ejecutas `rapid approve <gate>` **en tu propia terminal**: ningún shortcut aprueba gates humanos. Qué carpeta se genera en cada harness y cómo se invoca está en la [guía de shortcuts](./guides/shortcuts.md).
+
+Los otros shortcuts: `/rapid-bugfix`, `/rapid-refactor`, `/rapid-hardening`, `/rapid-research`, `/rapid-next`, `/rapid-status` y `/rapid-approve`.
 
 ---
 
-## 3. Initialize or Inspect Your Project
+## 2. Mapa de esta sección
 
-Navigate to the root of your target project directory:
+| Página | Para qué sirve |
+| :--- | :--- |
+| [Tu primer proyecto gobernado](./getting-started/first-project.md) | Tutorial guiado desde cero: shortcuts primero, comandos v3 después. |
+| [Gobernar un proyecto existente](./getting-started/existing-project.md) | Adoptar Rapid OS en un repositorio con código previo sin tocar tu código de negocio. |
+| [Creación y gestión de especificaciones](./getting-started/first-spec.md) | Qué es una spec, cómo la redacta el agente (`author_spec`) y cómo se crea a mano. |
+| [Compilación de contexto estructurado](./getting-started/first-context.md) | Qué contexto recibe el agente y cómo compilarlo a mano. |
+| [Próximos pasos](./getting-started/next-steps.md) | Hacia dónde seguir: laboratorios, integraciones y referencia. |
+
+Fuera de esta sección:
+
+- [Guía de shortcuts](./guides/shortcuts.md): instalación por harness, el bucle y la aprobación humana.
+- [Laboratorios](./tutorials/index.md): un laboratorio por modo, cada uno con su shortcut.
+- [Referencia de CLI](./cli.md) y [diagnósticos](./troubleshooting/diagnostics.md).
+
+---
+
+## Modo avanzado
+
+Los comandos v3 (`rapid scan`, `rapid spec`, `rapid context`, `rapid run`, `rapid evidence`, `rapid eval`, `rapid validate`) hacen a mano lo que hace el agente con los shortcuts. Son útiles para CI, depuración y auditoría, y para entender qué registra cada paso. El recorrido completo:
+
+### Inicializar o inspeccionar tu proyecto
 
 ```bash
-cd /path/to/your-project
+cd /ruta/a/tu-proyecto
 rapid doctor
 ```
 
-If you want to initialize project standards (`.rapid-os/standards/`, `.rapid-os/config.json`, and agent instruction files):
+Para inicializar estándares (`.rapid-os/standards/`, `.rapid-os/config.json` y archivos de instrucciones del agente):
 
 ```bash
 rapid init
 ```
 
-Or create the minimal standards structure non-interactively before running the v3 governance loop.
+También puedes crear la estructura mínima de estándares de forma no interactiva antes de ejecutar el ciclo de gobernanza v3.
 
 ---
 
-## 4. End-to-End Governance Walkthrough
+## Recorrido completo con los comandos v3
 
-### Step 1: Scan Project Intelligence (`rapid scan`)
+### Paso 1: Scan Project Intelligence (`rapid scan`)
 
 Scan the repository for deterministic facts (`ProjectModel`) and persist `.rapid-os/project.json`:
 
@@ -87,7 +107,7 @@ Scan the repository for deterministic facts (`ProjectModel`) and persist `.rapid
 rapid scan --write
 ```
 
-### Step 2: Create and Ready an Immutable Spec (`rapid spec`)
+### Paso 2: Create and Ready an Immutable Spec (`rapid spec`)
 
 Create a structured specification in `.rapid-os/specs/checkout-idempotency/` and mark it `ready`:
 
@@ -104,7 +124,7 @@ rapid spec create \
   --status ready
 ```
 
-### Step 3: Compile Task-Specific Context (`rapid context`)
+### Paso 3: Compile Task-Specific Context (`rapid context`)
 
 Compile a budgeted, provenance-backed context bundle (`CompiledContext`) for your coding harness:
 
@@ -112,7 +132,7 @@ Compile a budgeted, provenance-backed context bundle (`CompiledContext`) for you
 rapid context compile --mode feature --spec checkout-idempotency --harness codex --manifest
 ```
 
-### Step 4: Create an Immutable Run Contract (`rapid policy` & `rapid run`)
+### Paso 4: Create an Immutable Run Contract (`rapid policy` & `rapid run`)
 
 Inspect the active execution policy and create a governed Run (`checkout-idempotency-r1-run-001`):
 
@@ -121,7 +141,7 @@ rapid policy show
 rapid run create --spec checkout-idempotency --harness codex
 ```
 
-### Step 5: Resolve Harness Capabilities (`rapid harness`)
+### Paso 5: Resolve Harness Capabilities (`rapid harness`)
 
 Initialize and lock a project harness profile if your run requires capabilities beyond the conservative built-in profile (such as `repository.write` and `tests.execute`), then verify compatibility:
 
@@ -131,7 +151,7 @@ rapid harness show codex
 rapid harness resolve --run checkout-idempotency-r1-run-001
 ```
 
-### Step 6: Execute Work & Advance Run State (`rapid run`)
+### Paso 6: Execute Work & Advance Run State (`rapid run`)
 
 Acknowledge pre-execution gates, activate the run, and record task progress as your coding harness executes the work:
 
@@ -145,7 +165,7 @@ rapid run gate checkout-idempotency-r1-run-001 gate.final-verification acknowled
 rapid run status checkout-idempotency-r1-run-001 finished
 ```
 
-### Step 7: Attach Verifiable Run Evidence (`rapid evidence`)
+### Paso 7: Attach Verifiable Run Evidence (`rapid evidence`)
 
 > **Important**: Acknowledging gates in Step 6 is a *declaration*, not proof. Without evidence, `rapid eval run` will report `unverified`.
 
@@ -157,7 +177,7 @@ rapid evidence add --run checkout-idempotency-r1-run-001 --input implementation-
 rapid evidence verify --run checkout-idempotency-r1-run-001
 ```
 
-### Step 8: Run Behavioral Evaluation & Validate Project (`rapid eval` & `rapid validate`)
+### Paso 8: Run Behavioral Evaluation & Validate Project (`rapid eval` & `rapid validate`)
 
 Evaluate the run against Phase 6 behavioral rules and require a passing verdict:
 

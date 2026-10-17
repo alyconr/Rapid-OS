@@ -11,7 +11,9 @@ Rapid OS es útil cuando el valor no está solo en “generar código”, sino e
 
 Un equipo necesita agregar una funcionalidad sin permitir que el agente improvise arquitectura o reglas de negocio.
 
-Flujo recomendado:
+Con shortcuts: `/rapid-feature <objetivo>`; el agente redacta la spec, crea el run y se detiene en los gates humanos.
+
+Flujo avanzado (comandos v3):
 
 ```bash
 rapid scan --write
@@ -24,6 +26,8 @@ El valor de Rapid OS está en fijar una Spec, compilar contexto con procedencia 
 
 ## 2. Refactorizar un sistema legacy
 
+Con shortcuts: `/rapid-refactor <alcance>`; el run se bloquea si bajan los tests que pasaban.
+
 En un sistema heredado, `rapid init` y `rapid scan` ayudan a separar:
 
 - señales detectadas del repositorio;
@@ -34,6 +38,8 @@ En un sistema heredado, `rapid init` y `rapid scan` ayudan a separar:
 Esto reduce el riesgo de que el agente imite patrones obsoletos solo porque existen en el código actual.
 
 ## 3. Cambios de alto riesgo
+
+Con shortcuts: `/rapid-hardening <área>`, que trabaja en un worktree aislado (`rapid start --worktree`); para corregir un defecto, `/rapid-bugfix <descripción>`; para investigar sin tests obligatorios, `/rapid-research <pregunta>`.
 
 Una migración de esquema, autenticación, infraestructura o seguridad puede elevar el riesgo a `high` o `critical`.
 
@@ -51,6 +57,8 @@ El run no puede avanzar ignorando las precondiciones del contrato.
 
 ## 4. Equipos que usan varios coding harnesses
 
+Con shortcuts: `rapid shortcuts install --harness <id>` genera el mismo `/rapid-*` en la carpeta de cada harness; ver [Si combinas harnesses](./shortcuts.md#si-combinas-harnesses).
+
 Rapid OS modela profiles para `codex`, `claude`, `cursor`, `vscode`, `antigravity` y harnesses personalizados.
 
 Esto permite responder:
@@ -60,6 +68,8 @@ Esto permite responder:
 La resolución puede ser `compatible`, `incompatible` o `unresolved`.
 
 ## 5. Evidencia para CI o procesos de revisión
+
+Esta es la ruta del modo avanzado: en CI se usan los comandos v3, no los shortcuts.
 
 Después de que una herramienta externa ejecuta pruebas o revisiones, sus resultados pueden registrarse como evidencia:
 

@@ -19,7 +19,9 @@ Este runbook describe el procedimiento formal, seguro y determinista para public
 | Componente | Workflow | Evento | Permisos |
 | :--- | :--- | :--- | :--- |
 | **Validación CI** | `.github/workflows/docs.yml` | Pull Request y Push a `main` | `contents: read` |
-| **Publicación** | `.github/workflows/docs-deploy.yml` | `workflow_dispatch` o push a `main` | `contents: read`, `pages: write`, `id-token: write` |
+| **Publicación** | `.github/workflows/docs-deploy.yml` | Solo `workflow_dispatch` (manual) | `contents: read`, `pages: write`, `id-token: write` |
+
+> **La publicación nunca es automática.** `docs-deploy.yml` se lanza **a mano** desde Actions; un merge a `main` no publica el portal. Tras etiquetar una release, ejecutarlo es un **paso obligatorio**: sin él, el portal publicado sigue mostrando la versión anterior (ver [checklist de release](../release-checklist.md)).
 
 > **Nota de Seguridad:** Ningún Pull Request ni fork tiene acceso a publicar en GitHub Pages. Los tokens OIDC temporales solo se emiten en el entorno protegido `github-pages`.
 

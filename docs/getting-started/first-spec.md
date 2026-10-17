@@ -7,6 +7,28 @@ description: Cómo diseñar especificaciones inmutables y versionadas con rapid 
 
 En el desarrollo asistido por IA, una especificación imprecisa produce invariablemente código incorrecto o fuera de alcance. Rapid OS formaliza las intenciones del equipo en especificaciones versionadas e inmutables mediante el subcomando `rapid spec`.
 
+## Con shortcuts
+
+Con shortcuts **no escribes la spec a mano**. Pides el trabajo y el agente la redacta:
+
+```text
+/rapid-feature añadir exportación CSV al informe mensual
+```
+
+1. El shortcut ejecuta `rapid next --json`. Sin run activo, la acción es `author_spec` e incluye `action.spec_template`: la plantilla del modo (título, objetivo de negocio, problema, alcance, criterios de aceptación, tareas…).
+2. El agente redacta la spec desde tu objetivo **siguiendo esa plantilla** y la pasa por stdin a `rapid start <modo> --spec-file -`. Los alias `acceptance` y `tasks` se aceptan en lugar de `acceptance_criteria` e `implementation_tasks`.
+3. `rapid start` crea la spec, el contrato y el run, y devuelve la siguiente acción (normalmente el baseline).
+
+```bash
+echo '{"title": "Exportar informe a CSV", "business_objective": "Compartir el informe mensual", "problem_statement": "Hoy solo se puede ver en pantalla", "acceptance_criteria": ["El informe se descarga como CSV"], "tasks": ["T001: Añadir export_csv al informe"]}' | rapid start feature --spec-file - --json
+```
+
+Sin run activo, `rapid next` solo conoce la plantilla de `feature`; los demás shortcuts piden la suya con `rapid start <modo> --json`. El bucle completo está en la [guía de shortcuts](../guides/shortcuts.md#4-el-bucle-que-siguen).
+
+## Modo avanzado
+
+El resto de la página describe la spec con los comandos v3 (`rapid spec create`, `revise` y `status`): la forma de crear specs a mano, desde CI o para auditoría.
+
 ---
 
 ## Anatomía de una especificación en Rapid OS

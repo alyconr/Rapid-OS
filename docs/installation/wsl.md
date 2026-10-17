@@ -54,6 +54,8 @@ Comprueba el comando:
 rapid --version
 ```
 
+Después, desde la raíz de tu repositorio (dentro de WSL), instala los shortcuts: `rapid init --shortcuts` (o `rapid shortcuts install` en un proyecto ya inicializado). Detalle en la [guía de shortcuts](../guides/shortcuts.md).
+
 ---
 
 ## 4. Diferencias entre Windows nativo y WSL

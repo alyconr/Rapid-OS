@@ -100,3 +100,15 @@ rapid doctor
 ```
 
 Continúa a la sección de [Verificación detallada](./verification.md).
+
+---
+
+## 6. Instalar los shortcuts en tu proyecto
+
+Con `rapid` funcionando, ya puedes trabajar con shortcuts. Desde la raíz de tu repositorio:
+
+```powershell
+rapid init --shortcuts
+```
+
+Esto inicializa `.rapid-os/` y genera los `/rapid-*` para los agentes que elijas. En un proyecto ya inicializado usa `rapid shortcuts install`. Después, en tu agente: `/rapid-feature <objetivo>`. Detalle en la [guía de shortcuts](../guides/shortcuts.md) y en [Primeros pasos](../getting-started.md).

@@ -9,6 +9,20 @@ Uno de los principales problemas al trabajar con coding agents es la sobrecarga 
 
 El subcomando `rapid context` actúa como un **compilador de contexto determinista**: selecciona, prioriza y presupuesta exactamente lo que el agente necesita saber para una tarea específica.
 
+## Con shortcuts
+
+Con shortcuts no compilas el contexto a mano: el run lo gestiona por ti. Al ejecutar `rapid start <modo> --spec-file -`, Rapid OS crea el contrato del run con la spec y los estándares del proyecto, y el shortcut le indica al agente que trabaje solo con la tarea que devuelve `rapid next --json` (`implement_task`). Los estándares de `.rapid-os/standards/` y los archivos de instrucciones del harness (`CLAUDE.md`, `AGENTS.md`…) los generó `rapid init`.
+
+```text
+/rapid-feature añadir exportación CSV al informe mensual
+```
+
+Si necesitas ver exactamente qué contexto recibiría un harness (por ejemplo, para depurar una respuesta o para CI), usa `rapid context`, descrito en el modo avanzado.
+
+## Modo avanzado
+
+El resto de la página explica el compilador de contexto (`rapid context`): presupuesto, relevancia, manifiesto y procedencia.
+
 ---
 
 ## Por qué no volcar todo el repositorio

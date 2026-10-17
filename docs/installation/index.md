@@ -62,3 +62,4 @@ python -m pip install git+https://github.com/alyconr/Rapid-OS.git@v3.1.0
 1. Revisa los [Requisitos del sistema](./requirements.md).
 2. Sigue la guía correspondiente a tu sistema operativo.
 3. Ejecuta la [Verificación de la instalación](./verification.md) para comprobar que el CLI responde correctamente.
+4. Instala los shortcuts en tu proyecto con `rapid init --shortcuts` (o `rapid shortcuts install` en un proyecto ya inicializado) y sigue [Primeros pasos](../getting-started.md).

@@ -91,3 +91,16 @@ gh release create v3.1.0 \
   --notes-file docs/release-v3.1.0.md
 ```
 
+---
+
+## 4. Publishing the documentation portal (mandatory after the tag)
+
+The portal is **not** published automatically: `.github/workflows/docs-deploy.yml` only runs on `workflow_dispatch`, so merging to `main` or pushing the tag does not update https://alyconr.github.io/Rapid-OS/. After tagging, a person must run it:
+
+```bash
+gh workflow run docs-deploy.yml --ref main
+gh run list --workflow docs-deploy.yml --limit 1
+```
+
+- [ ] `Deploy Documentation` finished with `build`, `deploy` and `smoke-test` green
+- [ ] the live portal shows the new release page (see [documentation deployment](./operations/documentation-deployment.md))

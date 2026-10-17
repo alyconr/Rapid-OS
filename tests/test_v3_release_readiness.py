@@ -680,13 +680,17 @@ class V3ReleaseReadinessTests(unittest.TestCase):
         readme_text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         getting_started_text = (REPO_ROOT / "docs" / "getting-started.md").read_text(encoding="utf-8")
 
-        for doc_name, doc_text in (("README.md", readme_text), ("docs/getting-started.md", getting_started_text)):
-            self.assertIn(f"https://raw.githubusercontent.com/alyconr/Rapid-OS/v{VERSION}/install.sh", doc_text, doc_name)
-            self.assertIn(f"https://raw.githubusercontent.com/alyconr/Rapid-OS/v{VERSION}/install.ps1", doc_text, doc_name)
+        self.assertIn(f"https://raw.githubusercontent.com/alyconr/Rapid-OS/v{VERSION}/install.sh", readme_text)
+        self.assertIn(f"https://raw.githubusercontent.com/alyconr/Rapid-OS/v{VERSION}/install.ps1", readme_text)
+        self.assertIn(f"Stable Release (`v{VERSION}`)", readme_text)
+        self.assertIn("latest development version", readme_text)
+        # getting-started does not pin a version: installation lives in docs/installation/ (which does)
+        install_index = (REPO_ROOT / "docs" / "installation" / "index.md").read_text(encoding="utf-8")
+        self.assertIn(f"v{VERSION}", install_index)
+        for doc_name, doc_text in (("README.md", readme_text), ("docs/getting-started.md", getting_started_text), ("docs/installation/index.md", install_index)):
             self.assertNotIn("https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.sh", doc_text, doc_name)
             self.assertNotIn("https://raw.githubusercontent.com/alyconr/Rapid-OS/main/install.ps1", doc_text, doc_name)
-            self.assertIn(f"Stable Release (`v{VERSION}`)", doc_text, doc_name)
-            self.assertIn("latest development version", doc_text, doc_name)
+        self.assertNotRegex(getting_started_text, r"\bv?\d+\.\d+\.\d+\b", "getting-started must not pin a version")
 
         # 5. Release notes do not claim zero optional network/runtime dependencies
         for notes_name in ("release-v3.0.0.md", f"release-v{VERSION}.md"):
