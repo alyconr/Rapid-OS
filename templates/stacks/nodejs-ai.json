@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "nodejs-ai",
+  "summary": "Node.js AI agent runtime with TypeScript.",
+  "language": "TypeScript",
+  "fits": [
+    "AI agents and tool-calling services",
+    "JavaScript teams building LLM backends"
+  ],
+  "avoid_if": [
+    "the project has no backend or database",
+    "a documentation site is the goal"
+  ],
+  "compatible_topologies": [
+    "fullstack-baas",
+    "fullstack-separated"
+  ],
+  "default_topology": "fullstack-separated"
+}

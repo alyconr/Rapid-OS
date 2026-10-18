@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "docs-modern",
+  "summary": "Documentation site built with Docusaurus.",
+  "language": "TypeScript",
+  "fits": [
+    "documentation sites",
+    "knowledge bases",
+    "developer portals"
+  ],
+  "avoid_if": [
+    "the product is an interactive application",
+    "a custom backend is required"
+  ],
+  "compatible_topologies": [
+    "doc-site"
+  ],
+  "default_topology": "doc-site"
+}

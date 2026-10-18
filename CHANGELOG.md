@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Sidecar JSON por stack y topología (`templates/stacks/<id>.json`, `templates/topologies/<id>.json`) y módulo `rapid_os.domain.catalog` que los carga y valida (`RAPID1401`). `default_topology_for_stack` y la compatibilidad de `validate_stack_topology` leen ahora `compatible_topologies` y `default_topology`; el comportamiento de los 5 stacks existentes no cambia. Una plantilla sin sidecar es `RAPID1412` (aviso) y se trata como compatible con todas las topologías excepto `doc-site`.
+- Stack `generic`: `rapid init` genera `tech-stack.md` con el lenguaje, gestor de paquetes, framework y testing detectados por el scanner y la regla de seguir las convenciones del repositorio. `infer_stack` lo reconoce por su línea de encabezado exacta (`# TECH STACK: GENERIC`).
+- Bancos de preguntas como datos en `templates/setup/` (`docs/{brief,business,data-model,architecture}.json` y `stack-questions.json`), incluidos en sdist y wheel.
+
+### Fixed
+- Corrección de comportamiento: `rapid init --yes` sin sugerencia del scanner ya no elige `web-modern` (Next.js) sino `generic`.
+
 ---
 
 ## [3.1.0] - 2026-10-16

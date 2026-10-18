@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "generic",
+  "summary": "Stack-agnostic baseline built from what the scanner detects in the repository.",
+  "language": "auto-detected",
+  "fits": [
+    "existing repositories without a catalog match",
+    "projects that must keep their current conventions"
+  ],
+  "avoid_if": [
+    "a documentation site is the goal"
+  ],
+  "compatible_topologies": [
+    "front-end-only",
+    "fullstack-baas",
+    "fullstack-separated"
+  ],
+  "default_topology": "fullstack-separated"
+}

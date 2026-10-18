@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "doc-site",
+  "summary": "Documentation site, static content with no application backend.",
+  "fits": [
+    "documentation",
+    "knowledge bases"
+  ],
+  "avoid_if": [
+    "the product needs user accounts or a database"
+  ]
+}

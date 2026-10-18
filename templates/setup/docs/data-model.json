@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "id": "data-model",
+  "file": "docs/DATA_MODEL.md",
+  "title": "Modelo de datos",
+  "context_priority": "MEDIUM",
+  "max_chars": 5000,
+  "required_sections": [
+    {
+      "id": "entities",
+      "titles": [
+        "Entidades",
+        "Entities"
+      ]
+    },
+    {
+      "id": "relationships",
+      "titles": [
+        "Relaciones",
+        "Relationships"
+      ]
+    },
+    {
+      "id": "invariants",
+      "titles": [
+        "Invariantes",
+        "Invariants"
+      ]
+    },
+    {
+      "id": "states",
+      "titles": [
+        "Estados",
+        "States"
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "entities",
+      "text": "¿Cuáles son las entidades principales y sus campos clave?",
+      "required": true
+    },
+    {
+      "id": "relationships",
+      "text": "¿Cómo se relacionan entre sí?",
+      "required": true
+    },
+    {
+      "id": "invariants",
+      "text": "¿Qué condiciones deben cumplirse siempre sobre los datos?",
+      "required": true
+    },
+    {
+      "id": "states",
+      "text": "¿Qué estados tienen las entidades y cómo transitan?",
+      "required": true
+    },
+    {
+      "id": "sensitive",
+      "text": "¿Qué datos son personales o sensibles?",
+      "required": false
+    }
+  ]
+}
