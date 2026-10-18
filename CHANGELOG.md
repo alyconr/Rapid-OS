@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
-## [3.1.0] - 2026-10-16
+## [3.1.0] - 2026-10-18
 
 ### Added
 - **Porcelain layer**: `rapid start`, `rapid next`, `rapid check`, `rapid task`, `rapid attach`, `rapid finish`, `rapid approve`, `rapid status` and `rapid abort` drive a governed run on top of the v3 plumbing. A pure Conductor (`next_action`) asks the `BehavioralEvaluator` what is missing and returns a `NextAction`; the active run lives in `.rapid-os/session.json`. Evidence producers: `rapid:check`, `rapid:start`, `rapid:finish`, `rapid:attach`.
