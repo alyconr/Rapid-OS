@@ -184,12 +184,81 @@ class CatalogSidecarTests(unittest.TestCase):
             for section in bank.required_sections:
                 self.assertGreaterEqual(len(section.titles), 2)
         brief_titles = {t for sec in banks["brief"].required_sections for t in sec.titles}
-        self.assertTrue({"Objetivo", "Goal"} <= brief_titles)
+        self.assertTrue({"Problema", "Problem"} <= brief_titles)
         stories = next(q for q in banks["brief"].questions if q.id == "stories")
         self.assertIn("- [ ] H001:", stories.text)
         self.assertEqual(
             {q.id for q in load_stack_questions(TEMPLATES)},
             {"product_type", "team_language", "hosting", "relational_data", "ai", "realtime"},
+        )
+
+    def test_setup_banks_have_the_agreed_values(self):
+        expected = {
+            "brief": ("docs/PRODUCT_BRIEF.md", "HIGH", 5000, {
+                "problem": ("Problema", "Problem"), "users": ("Usuarios", "Users"),
+                "stories": ("Historias", "Stories")}),
+            "business": ("docs/BUSINESS_RULES.md", "HIGH", 6000, {
+                "goal": ("Objetivo", "Goal"),
+                "rules": ("Reglas no negociables", "Non-negotiable rules"),
+                "constraints": ("Restricciones", "Constraints"),
+                "assumptions": ("Supuestos", "Assumptions"),
+                "glossary": ("Glosario", "Glossary")}),
+            "data-model": ("docs/DATA_MODEL.md", "MEDIUM", 5000, {
+                "entities": ("Entidades", "Entities"),
+                "relationships": ("Relaciones", "Relationships"),
+                "invariants": ("Invariantes", "Invariants"),
+                "states": ("Estados", "States")}),
+            "architecture": ("docs/ARCHITECTURE.md", "HIGH", 4000, {
+                "decision": ("Decisión", "Decision"), "rationale": ("Por qué", "Rationale"),
+                "alternatives": ("Alternativas descartadas", "Rejected alternatives"),
+                "consequences": ("Consecuencias", "Consequences")}),
+        }
+        banks = load_setup_doc_banks(TEMPLATES)
+        for doc_id, (file, priority, max_chars, sections) in expected.items():
+            with self.subTest(doc=doc_id):
+                bank = banks[doc_id]
+                self.assertEqual((bank.file, bank.context_priority, bank.max_chars), (file, priority, max_chars))
+                self.assertEqual({s.id: s.titles for s in bank.required_sections}, sections)
+                self.assertEqual([s.id for s in bank.required_sections], list(sections))
+                question_ids = {question.id for question in bank.questions}
+                for section_id in sections:
+                    self.assertIn(section_id, question_ids)
+                for question in bank.questions:
+                    self.assertIsInstance(question.required, bool)
+
+    def test_bank_section_without_matching_question_raises_rapid1401(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            shutil.copytree(TEMPLATES / "setup", Path(tmp) / "setup")
+            brief = Path(tmp) / "setup" / "docs" / "brief.json"
+            data = json.loads(brief.read_text(encoding="utf-8"))
+            data["questions"] = [q for q in data["questions"] if q["id"] != "users"]
+            brief.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaises(CatalogError):
+                load_setup_doc_banks(Path(tmp))
+
+    def test_rapid404_message_names_compatible_topologies_unless_backend_case(self):
+        def message(stack, topology):
+            with tempfile.TemporaryDirectory() as tmp:
+                templates = _copy_templates(tmp)
+                sidecar = templates / "stacks" / "python-ai.json"
+                data = json.loads(sidecar.read_text(encoding="utf-8"))
+                data.update(compatible_topologies=["fullstack-separated"], default_topology="fullstack-separated")
+                sidecar.write_text(json.dumps(data), encoding="utf-8")
+                standards = Path(tmp) / "standards"
+                standards.mkdir()
+                (standards / "tech-stack.md").write_text(
+                    (templates / "stacks" / f"{stack}.md").read_text(encoding="utf-8"), encoding="utf-8")
+                (standards / "topology.md").write_text(
+                    (templates / "topologies" / f"{topology}.md").read_text(encoding="utf-8"), encoding="utf-8")
+                report = validate_stack_topology(Path(tmp), templates)
+            return next(d.message for d in report.diagnostics if d.code == "RAPID404")
+
+        self.assertIn("requires backend/database capabilities", message("python-ai", "front-end-only"))
+        generic = message("python-ai", "fullstack-baas")
+        self.assertNotIn("requires backend/database capabilities", generic)
+        self.assertEqual(
+            generic,
+            "python-ai is not compatible with fullstack-baas (compatible: fullstack-separated).",
         )
 
     def test_broken_sidecars_raise_rapid1401(self):
@@ -313,6 +382,21 @@ class GenericStackTests(unittest.TestCase):
         text += "- **Framework:** Next.js, FastAPI (docusaurus, bun.js)\n"
         self.assertEqual(infer_stack(text), "generic")
         self.assertEqual(infer_stack("Detected Next.js\n" + GENERIC_STACK_HEADER + " extra\n"), "web-modern")
+
+    def test_no_scan_does_not_claim_nothing_was_detected(self):
+        text = build_generic_stack(ProjectModel(root=Path(".")), scanned=False)
+        self.assertIn("not scanned (--no-scan)", text)
+        self.assertNotIn("not detected", text)
+        self.assertEqual(infer_stack(text), "generic")
+
+    def test_init_no_scan_writes_not_scanned(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            init = _run_rapid(project, "init", "--yes", "--no-scan")
+            self.assertEqual(init.returncode, 0, init.stderr)
+            stack = (project / ".rapid-os" / "standards" / "tech-stack.md").read_text(encoding="utf-8")
+            self.assertIn("not scanned (--no-scan)", stack)
+            self.assertNotIn("not detected", stack)
 
     def test_empty_model_renders_not_detected(self):
         text = build_generic_stack(ProjectModel(root=Path(".")))

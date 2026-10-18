@@ -230,14 +230,25 @@ def is_generic_stack(content: str) -> bool:
     return any(line.strip() == GENERIC_STACK_HEADER for line in content.splitlines())
 
 
-def build_generic_stack(model: ProjectModel) -> str:
-    """Render a tech-stack.md from what the scanner detected (pure)."""
+NOT_SCANNED = "not scanned (--no-scan)"
+
+
+def build_generic_stack(model: ProjectModel, *, scanned: bool = True) -> str:
+    """Render a tech-stack.md from what the scanner detected (pure).
+
+    With `scanned=False` nothing was searched, so facts read "not scanned" instead of
+    claiming "not detected".
+    """
+
+    def value(category: str) -> str:
+        return _detected(model, category) if scanned else NOT_SCANNED
+
     lines = [
         GENERIC_STACK_HEADER,
-        f"- **Language:** {_detected(model, 'language')}.",
-        f"- **Package manager:** {_detected(model, 'package_manager')}.",
-        f"- **Framework:** {_detected(model, 'framework')}.",
-        f"- **Testing:** {_detected(model, 'testing')}.",
+        f"- **Language:** {value('language')}.",
+        f"- **Package manager:** {value('package_manager')}.",
+        f"- **Framework:** {value('framework')}.",
+        f"- **Testing:** {value('testing')}.",
         f"- **Convention:** {GENERIC_STACK_RULE}",
         "- **Version Control:** Git.",
     ]
@@ -245,7 +256,7 @@ def build_generic_stack(model: ProjectModel) -> str:
 
 
 SETUP_DOC_IDS = ("brief", "business", "data-model", "architecture")
-_CONTEXT_PRIORITIES = {"low", "medium", "high", "critical"}
+_CONTEXT_PRIORITIES = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
 
 
 @dataclass(frozen=True)
@@ -318,15 +329,21 @@ def load_setup_doc_banks(templates_dir: Path) -> dict[str, SetupDocBank]:
         max_chars = data.get("max_chars")
         if isinstance(max_chars, bool) or not isinstance(max_chars, int) or max_chars <= 0:
             raise _fail(path, "field 'max_chars' must be a positive integer.")
-        priority = _text(path, data, "context_priority")
+        priority = _text(path, data, "context_priority").upper()
         if priority not in _CONTEXT_PRIORITIES:
             raise _fail(path, f"context_priority must be one of {sorted(_CONTEXT_PRIORITIES)}.")
+        questions = _questions(path, data)
+        sections = _required_sections(path, data)
+        question_ids = {question.id for question in questions}
+        missing = [section.id for section in sections if section.id not in question_ids]
+        if missing:
+            raise _fail(path, f"required sections without a question of the same id: {', '.join(missing)}.")
         banks[doc_id] = SetupDocBank(
             id=doc_id,
             file=_text(path, data, "file"),
             title=_text(path, data, "title"),
-            questions=_questions(path, data),
-            required_sections=_required_sections(path, data),
+            questions=questions,
+            required_sections=sections,
             max_chars=max_chars,
             context_priority=priority,
         )

@@ -610,7 +610,7 @@ def init_project(args):
             model = scan.to_model() if scan is not None else ProjectModel(root=CURRENT_DIR)
             safe_write_text(
                 standards_dest / "tech-stack.md",
-                build_generic_stack(model),
+                build_generic_stack(model, scanned=scan is not None),
                 encoding="utf-8",
                 backup=True,
                 create_parents=True,

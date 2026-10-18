@@ -1,23 +1,23 @@
 {
   "schema_version": 1,
   "id": "business",
-  "file": "business.md",
+  "file": "docs/BUSINESS_RULES.md",
   "title": "Reglas de negocio",
-  "context_priority": "high",
-  "max_chars": 4000,
+  "context_priority": "HIGH",
+  "max_chars": 6000,
   "required_sections": [
     {
-      "id": "domain",
+      "id": "goal",
       "titles": [
-        "Dominio",
-        "Domain"
+        "Objetivo",
+        "Goal"
       ]
     },
     {
       "id": "rules",
       "titles": [
-        "Reglas",
-        "Rules"
+        "Reglas no negociables",
+        "Non-negotiable rules"
       ]
     },
     {
@@ -25,6 +25,13 @@
       "titles": [
         "Restricciones",
         "Constraints"
+      ]
+    },
+    {
+      "id": "assumptions",
+      "titles": [
+        "Supuestos",
+        "Assumptions"
       ]
     },
     {
@@ -37,8 +44,8 @@
   ],
   "questions": [
     {
-      "id": "domain",
-      "text": "¿En qué dominio o industria opera el producto?",
+      "id": "goal",
+      "text": "¿Qué objetivo de negocio persigue el producto?",
       "required": true
     },
     {
@@ -52,14 +59,14 @@
       "required": true
     },
     {
-      "id": "glossary",
-      "text": "¿Qué términos del negocio necesita conocer el agente?",
-      "required": false
+      "id": "assumptions",
+      "text": "¿Qué supuestos das por ciertos y aún no has validado?",
+      "required": true
     },
     {
-      "id": "model",
-      "text": "¿Cómo se monetiza o se mide el valor del producto?",
-      "required": false
+      "id": "glossary",
+      "text": "¿Qué términos del negocio necesita conocer el agente?",
+      "required": true
     }
   ]
 }

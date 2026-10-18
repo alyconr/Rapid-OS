@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "id": "data-model",
-  "file": "data-model.md",
+  "file": "docs/DATA_MODEL.md",
   "title": "Modelo de datos",
-  "context_priority": "medium",
-  "max_chars": 4000,
+  "context_priority": "MEDIUM",
+  "max_chars": 5000,
   "required_sections": [
     {
       "id": "entities",
@@ -14,17 +14,24 @@
       ]
     },
     {
-      "id": "relations",
+      "id": "relationships",
       "titles": [
         "Relaciones",
-        "Relations"
+        "Relationships"
       ]
     },
     {
-      "id": "sensitive",
+      "id": "invariants",
       "titles": [
-        "Datos sensibles",
-        "Sensitive data"
+        "Invariantes",
+        "Invariants"
+      ]
+    },
+    {
+      "id": "states",
+      "titles": [
+        "Estados",
+        "States"
       ]
     }
   ],
@@ -35,18 +42,23 @@
       "required": true
     },
     {
-      "id": "relations",
+      "id": "relationships",
       "text": "¿Cómo se relacionan entre sí?",
+      "required": true
+    },
+    {
+      "id": "invariants",
+      "text": "¿Qué condiciones deben cumplirse siempre sobre los datos?",
+      "required": true
+    },
+    {
+      "id": "states",
+      "text": "¿Qué estados tienen las entidades y cómo transitan?",
       "required": true
     },
     {
       "id": "sensitive",
       "text": "¿Qué datos son personales o sensibles?",
-      "required": true
-    },
-    {
-      "id": "storage",
-      "text": "¿Dónde se almacenan los datos (base de datos, archivos, servicios externos)?",
       "required": false
     }
   ]

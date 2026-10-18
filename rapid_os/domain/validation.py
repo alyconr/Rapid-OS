@@ -2096,14 +2096,15 @@ def validate_stack_topology(project_rapid_dir: Path, templates_dir: Path | None 
                 )
             )
         else:
-            diagnostics.append(
-                Diagnostic(
-                    ERROR,
-                    "RAPID404",
-                    f"{stack} stack requires backend/database capabilities and conflicts with {topology} topology.",
-                    stack_file,
+            if topology == "front-end-only" and stack in ("python-ai", "nodejs-ai"):
+                message = (
+                    f"{stack} stack requires backend/database capabilities and conflicts with "
+                    f"{topology} topology."
                 )
-            )
+            else:
+                compatible = ", ".join(catalog.compatible_topologies(stack))
+                message = f"{stack} is not compatible with {topology} (compatible: {compatible})."
+            diagnostics.append(Diagnostic(ERROR, "RAPID404", message, stack_file))
     if topology == "fullstack-baas" and stack == "python-ai":
         diagnostics.append(
             Diagnostic(

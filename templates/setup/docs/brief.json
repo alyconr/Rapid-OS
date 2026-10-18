@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
   "id": "brief",
-  "file": "brief.md",
-  "title": "Brief del proyecto",
-  "context_priority": "medium",
-  "max_chars": 3000,
+  "file": "docs/PRODUCT_BRIEF.md",
+  "title": "Brief del producto",
+  "context_priority": "HIGH",
+  "max_chars": 5000,
   "required_sections": [
     {
-      "id": "goal",
+      "id": "problem",
       "titles": [
-        "Objetivo",
-        "Goal"
+        "Problema",
+        "Problem"
       ]
     },
     {
@@ -26,19 +26,12 @@
         "Historias",
         "Stories"
       ]
-    },
-    {
-      "id": "out_of_scope",
-      "titles": [
-        "Fuera de alcance",
-        "Out of scope"
-      ]
     }
   ],
   "questions": [
     {
       "id": "problem",
-      "text": "¿Qué problema resuelve el proyecto y para quién?",
+      "text": "¿Qué problema resuelve el producto y para quién?",
       "required": true
     },
     {
@@ -52,13 +45,8 @@
       "required": true
     },
     {
-      "id": "non_goals",
-      "text": "¿Qué queda explícitamente fuera de alcance?",
-      "required": true
-    },
-    {
       "id": "success",
-      "text": "¿Cómo sabrás que el proyecto funciona (métrica o señal)?",
+      "text": "¿Cómo sabrás que el producto funciona (métrica o señal)?",
       "required": false
     }
   ]
