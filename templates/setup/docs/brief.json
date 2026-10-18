@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "id": "brief",
+  "file": "brief.md",
+  "title": "Brief del proyecto",
+  "context_priority": "medium",
+  "max_chars": 3000,
+  "required_sections": [
+    {
+      "id": "goal",
+      "titles": [
+        "Objetivo",
+        "Goal"
+      ]
+    },
+    {
+      "id": "users",
+      "titles": [
+        "Usuarios",
+        "Users"
+      ]
+    },
+    {
+      "id": "stories",
+      "titles": [
+        "Historias",
+        "Stories"
+      ]
+    },
+    {
+      "id": "out_of_scope",
+      "titles": [
+        "Fuera de alcance",
+        "Out of scope"
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "problem",
+      "text": "¿Qué problema resuelve el proyecto y para quién?",
+      "required": true
+    },
+    {
+      "id": "users",
+      "text": "¿Quiénes son los usuarios principales?",
+      "required": true
+    },
+    {
+      "id": "stories",
+      "text": "¿Qué historias debe cubrir la primera versión? Una por línea con el formato '- [ ] H001: <historia>'.",
+      "required": true
+    },
+    {
+      "id": "non_goals",
+      "text": "¿Qué queda explícitamente fuera de alcance?",
+      "required": true
+    },
+    {
+      "id": "success",
+      "text": "¿Cómo sabrás que el proyecto funciona (métrica o señal)?",
+      "required": false
+    }
+  ]
+}

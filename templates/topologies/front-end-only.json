@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "front-end-only",
+  "summary": "Frontend only, no owned backend.",
+  "fits": [
+    "landing pages",
+    "static or client-side apps"
+  ],
+  "avoid_if": [
+    "the product needs a backend or database of its own"
+  ]
+}

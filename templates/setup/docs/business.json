@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "id": "business",
+  "file": "business.md",
+  "title": "Reglas de negocio",
+  "context_priority": "high",
+  "max_chars": 4000,
+  "required_sections": [
+    {
+      "id": "domain",
+      "titles": [
+        "Dominio",
+        "Domain"
+      ]
+    },
+    {
+      "id": "rules",
+      "titles": [
+        "Reglas",
+        "Rules"
+      ]
+    },
+    {
+      "id": "constraints",
+      "titles": [
+        "Restricciones",
+        "Constraints"
+      ]
+    },
+    {
+      "id": "glossary",
+      "titles": [
+        "Glosario",
+        "Glossary"
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "domain",
+      "text": "¿En qué dominio o industria opera el producto?",
+      "required": true
+    },
+    {
+      "id": "rules",
+      "text": "¿Qué reglas de negocio no se pueden romper?",
+      "required": true
+    },
+    {
+      "id": "constraints",
+      "text": "¿Hay restricciones legales, de costo o de plazo?",
+      "required": true
+    },
+    {
+      "id": "glossary",
+      "text": "¿Qué términos del negocio necesita conocer el agente?",
+      "required": false
+    },
+    {
+      "id": "model",
+      "text": "¿Cómo se monetiza o se mide el valor del producto?",
+      "required": false
+    }
+  ]
+}

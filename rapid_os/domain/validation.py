@@ -38,6 +38,8 @@ from rapid_os.adapters.harness_registry import (
 from rapid_os.adapters.run_registry import RunRegistry
 from rapid_os.adapters.spec_registry import SpecRegistry
 from rapid_os.core.filesystem import ensure_path_within_root
+from rapid_os.core.paths import TEMPLATES_DIR
+from rapid_os.domain.catalog import CatalogError, is_generic_stack, load_catalog
 from rapid_os.domain.capabilities import (
     HarnessCapabilityError,
     HarnessIdentityError,
@@ -244,6 +246,28 @@ def validate_templates(templates_dir: Path):
     for template_file in _iter_template_files(templates_dir):
         diagnostics.extend(_validate_template_file(template_file))
 
+    try:
+        catalog = load_catalog(templates_dir)
+    except CatalogError as exc:
+        diagnostics.append(
+            Diagnostic(ERROR, "RAPID1401", str(exc).removeprefix("RAPID1401 "), templates_dir)
+        )
+    else:
+        for folder, ids in (
+            ("stacks", catalog.sidecarless_stacks),
+            ("topologies", catalog.sidecarless_topologies),
+        ):
+            for template_id in ids:
+                diagnostics.append(
+                    Diagnostic(
+                        WARNING,
+                        "RAPID1412",
+                        f"Template '{template_id}.md' has no .json sidecar; treating it as "
+                        "compatible with every topology except doc-site.",
+                        templates_dir / folder / f"{template_id}.json",
+                    )
+                )
+
     return ValidationReport(tuple(diagnostics))
 
 
@@ -270,7 +294,7 @@ def validate_project(
                 ),
             )
         )
-    compatibility_report = validate_stack_topology(project_rapid_dir)
+    compatibility_report = validate_stack_topology(project_rapid_dir, templates_dir)
     context_report = validate_composed_context(project_rapid_dir, current_dir)
     intelligence_report = validate_project_intelligence(project_rapid_dir, current_dir)
     spec_registry_report = validate_spec_registry(project_rapid_dir, current_dir)
@@ -2014,7 +2038,7 @@ def validate_project_config(config_file: Path, registry=DEFAULT_AGENT_REGISTRY):
     return ValidationReport(tuple(diagnostics))
 
 
-def validate_stack_topology(project_rapid_dir: Path):
+def validate_stack_topology(project_rapid_dir: Path, templates_dir: Path | None = None):
     standards_dir = project_rapid_dir / "standards"
     stack_file = standards_dir / "tech-stack.md"
     topology_file = standards_dir / "topology.md"
@@ -2046,33 +2070,40 @@ def validate_stack_topology(project_rapid_dir: Path):
             )
         )
 
-    if stack == "docs-modern" and topology and topology != "doc-site":
-        diagnostics.append(
-            Diagnostic(
-                ERROR,
-                "RAPID402",
-                "docs-modern stack should use doc-site topology.",
-                topology_file,
+    try:
+        catalog = load_catalog(templates_dir if templates_dir is not None else TEMPLATES_DIR)
+    except CatalogError:
+        # RAPID1401 is reported by validate_templates; skip compatibility checks here.
+        catalog = None
+
+    if catalog is not None and stack and topology and catalog.is_compatible(stack, topology) is False:
+        if topology == "doc-site":
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID403",
+                    "doc-site topology should use docs-modern stack.",
+                    stack_file,
+                )
             )
-        )
-    if topology == "doc-site" and stack and stack != "docs-modern":
-        diagnostics.append(
-            Diagnostic(
-                ERROR,
-                "RAPID403",
-                "doc-site topology should use docs-modern stack.",
-                stack_file,
+        elif catalog.compatible_topologies(stack) == ("doc-site",):
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID402",
+                    f"{stack} stack should use doc-site topology.",
+                    topology_file,
+                )
             )
-        )
-    if topology == "front-end-only" and stack in ("python-ai", "nodejs-ai"):
-        diagnostics.append(
-            Diagnostic(
-                ERROR,
-                "RAPID404",
-                f"{stack} stack requires backend/database capabilities and conflicts with front-end-only topology.",
-                stack_file,
+        else:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID404",
+                    f"{stack} stack requires backend/database capabilities and conflicts with {topology} topology.",
+                    stack_file,
+                )
             )
-        )
     if topology == "fullstack-baas" and stack == "python-ai":
         diagnostics.append(
             Diagnostic(
@@ -2323,6 +2354,8 @@ def validate_context_compilation(
 
 
 def infer_stack(content: str):
+    if is_generic_stack(content):
+        return "generic"
     normalized = content.lower()
     if "modern docs" in normalized or "docusaurus" in normalized:
         return "docs-modern"

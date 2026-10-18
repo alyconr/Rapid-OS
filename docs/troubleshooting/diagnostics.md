@@ -180,4 +180,9 @@ Cuando ejecutas `rapid validate`, `rapid scan`, o comandos de gobernanza, RAPID 
 | `RAPID1338` | ERROR | `.claude/settings.json` no se puede fusionar: JSON inválido, raíz que no es un objeto, `hooks` o `hooks.<Evento>` con un tipo inesperado, o error al escribirlo. El archivo no se modifica. | Corregir el archivo a mano (o restaurar el `.bak`) y repetir el comando. |
 | `RAPID1339` | WARNING | `rapid doctor`: hay hooks de Claude Code instalados pero `rapid` no se resuelve en el `PATH`; Claude Code trata el fallo como error no bloqueante y el run deja de reforzarse. | Instalar Rapid OS donde lo vea Claude Code (p. ej. `pipx install rapid-os`) o añadir su directorio de scripts al `PATH`. |
 
+## 10. Catálogo de stacks y topologías (`RAPID1400–RAPID1419`)
 
+| Código | Nivel | Significado | Acción |
+|---|---|---|---|
+| `RAPID1401` | ERROR | Sidecar de catálogo inválido bajo `templates/stacks/`, `templates/topologies/` o `templates/setup/`: JSON ilegible, `schema_version` distinto de 1, campo faltante o vacío, `id` distinto del nombre del archivo, topología desconocida en `compatible_topologies`, `default_topology` fuera de `compatible_topologies`, o banco de preguntas mal formado. `rapid init` aborta con este código en lugar de un traceback. | Corregir o restaurar el archivo indicado desde la instalación de Rapid OS, o reinstalar el paquete. |
+| `RAPID1412` | WARNING | Una plantilla de stack o topología (`.md`) no tiene su sidecar `.json`. La plantilla sigue siendo utilizable y se trata como compatible con todas las topologías excepto `doc-site`. | Añadir `templates/<stacks\|topologies>/<id>.json` para declarar `compatible_topologies` y `default_topology`; no es obligatorio. |
