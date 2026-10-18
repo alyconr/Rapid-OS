@@ -585,6 +585,7 @@ class V3ReleaseReadinessTests(unittest.TestCase):
             "shortcuts",
             "attach",
             "hook",
+            "setup",
         }
         self.assertEqual(registered_commands, expected_commands)
 
