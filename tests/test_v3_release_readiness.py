@@ -17,7 +17,8 @@ from rapid_os.cli.main import create_parser
 from rapid_os.core.paths import resolve_paths
 from rapid_os.domain.validation import validate_project
 
-VERSION = "3.1.0"
+VERSION = "3.1.0"  # latest stable release: installers, README, release notes
+PACKAGE_VERSION = "3.2.0.dev0"  # rapid_os.__version__ on main (development)
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -88,12 +89,12 @@ def _bootstrap_minimal_project(root: Path) -> None:
 
 class V3ReleaseReadinessTests(unittest.TestCase):
     def test_version_contract_and_cli_flag(self) -> None:
-        self.assertEqual(rapid_os.__version__, VERSION)
-        self.assertEqual(rapid.__version__, VERSION)
+        self.assertEqual(rapid_os.__version__, PACKAGE_VERSION)
+        self.assertEqual(rapid.__version__, PACKAGE_VERSION)
 
         code, out, err = _run_cli(["--version"])
         self.assertEqual(code, 0)
-        self.assertEqual(out.strip(), f"Rapid OS {VERSION}")
+        self.assertEqual(out.strip(), f"Rapid OS {PACKAGE_VERSION}")
         self.assertEqual(err, "")
 
     def test_end_to_end_positive_governance_loop_cli(self) -> None:
@@ -640,8 +641,8 @@ class V3ReleaseReadinessTests(unittest.TestCase):
             self.assertTrue((paths.templates_dir / "topologies").is_dir())
 
     def test_release_engineering_product_truth_contracts(self) -> None:
-        # 1. __version__ == VERSION
-        self.assertEqual(rapid_os.__version__, VERSION)
+        # 1. __version__ == PACKAGE_VERSION (main is a development version; VERSION is the stable tag)
+        self.assertEqual(rapid_os.__version__, PACKAGE_VERSION)
 
         # 2. pyproject classifiers match supported CI versions in .github/workflows/tests.yml
         pyproject_text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
@@ -662,8 +663,8 @@ class V3ReleaseReadinessTests(unittest.TestCase):
 
         # Verify CI builds wheel + sdist and tests installing the built wheel artifact
         self.assertIn("python -m build", workflow_text)
-        self.assertIn(f"dist/rapid_os-{VERSION}-py3-none-any.whl", workflow_text)
-        self.assertIn(f"dist/rapid_os-{VERSION}.tar.gz", workflow_text)
+        self.assertIn(f"dist/rapid_os-{PACKAGE_VERSION}-py3-none-any.whl", workflow_text)
+        self.assertIn(f"dist/rapid_os-{PACKAGE_VERSION}.tar.gz", workflow_text)
 
         # 3. Stable installers reference the release tag and do NOT update via origin main
         install_sh = (REPO_ROOT / "install.sh").read_text(encoding="utf-8")
