@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "id": "stack-questions",
+  "questions": [
+    {
+      "id": "product_type",
+      "text": "¿Qué tipo de producto es?",
+      "options": [
+        "web-app",
+        "landing-or-portfolio",
+        "documentation",
+        "api-or-agent",
+        "other"
+      ]
+    },
+    {
+      "id": "team_language",
+      "text": "¿En qué lenguaje trabaja el equipo?",
+      "options": [
+        "typescript",
+        "python",
+        "other"
+      ]
+    },
+    {
+      "id": "hosting",
+      "text": "¿Prefieres hosting gestionado o un backend como servicio (BaaS)?",
+      "options": [
+        "baas",
+        "self-hosted",
+        "undecided"
+      ]
+    },
+    {
+      "id": "relational_data",
+      "text": "¿El producto necesita datos relacionales?",
+      "options": [
+        "yes",
+        "no",
+        "unsure"
+      ]
+    },
+    {
+      "id": "ai",
+      "text": "¿Incluye funcionalidades de IA o agentes?",
+      "options": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "id": "realtime",
+      "text": "¿Necesita tiempo real (chat, colaboración, notificaciones en vivo)?",
+      "options": [
+        "yes",
+        "no"
+      ]
+    }
+  ]
+}

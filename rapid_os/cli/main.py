@@ -69,6 +69,12 @@ from rapid_os.adapters.spec_registry import SpecRegistry
 from rapid_os.core.process import run_npx_skills_add
 from rapid_os.core.text import read_text_best_effort
 from rapid_os.domain.agents import generate_agent_contexts
+from rapid_os.domain.catalog import (
+    GENERIC_STACK_ID,
+    CatalogError,
+    build_generic_stack,
+    load_catalog,
+)
 from rapid_os.domain.capabilities import (
     HARNESS_PROFILE_SCHEMA_VERSION,
     CapabilityResolver,
@@ -118,6 +124,7 @@ from rapid_os.domain.harnesses import (
     InvalidCapabilityResolutionError,
 )
 from rapid_os.domain.mcp import build_mcp_config
+from rapid_os.domain.project import ProjectModel
 from rapid_os.domain.scanner import (
     build_project_model,
     scan_project,
@@ -493,7 +500,7 @@ def init_project(args):
     elif use_suggestions and suggested_stack:
         stack_name = suggested_stack
     elif getattr(args, "yes", False):
-        stack_name = suggested_stack or "web-modern"
+        stack_name = suggested_stack or GENERIC_STACK_ID
     else:
         stacks_path = TEMPLATES_DIR / "stacks"
         if not stacks_path.exists():
@@ -514,6 +521,12 @@ def init_project(args):
             stack_name = stacks[0]
 
     try:
+        catalog = load_catalog(TEMPLATES_DIR)
+    except CatalogError as exc:
+        print_error(str(exc))
+        return
+
+    try:
         stack_name = validate_identifier(stack_name, "stack")
         stack_src = resolve_child_path(
             TEMPLATES_DIR / "stacks", f"{stack_name}.md", single_segment=True
@@ -522,7 +535,8 @@ def init_project(args):
         print_error(str(exc))
         return
 
-    if not stack_src.exists():
+    is_generic_stack = stack_name == GENERIC_STACK_ID
+    if not is_generic_stack and not stack_src.exists():
         print_error(f"Template de stack no encontrado: {stack_name} ({stack_src})")
         return
 
@@ -543,7 +557,13 @@ def init_project(args):
         if use_suggestions and suggested_topology in topos:
             topo_name = suggested_topology
         elif getattr(args, "yes", False):
-            topo_name = suggested_topology or (topos[0] if topos else None)
+            if catalog.is_compatible(stack_name, suggested_topology) is False:
+                suggested_topology = None
+            topo_name = (
+                suggested_topology
+                or catalog.default_topology_for_stack(stack_name)
+                or (topos[0] if topos else None)
+            )
         elif topos:
             print("\n🏗️  SELECCIONA TOPOLOGÍA:")
             for i, t in enumerate(topos, 1):
@@ -592,11 +612,21 @@ def init_project(args):
         archetype_dir = resolve_child_path(
             TEMPLATES_DIR / "archetypes", archetype, single_segment=True
         )
-        safe_copy_file(
-            stack_src,
-            standards_dest / "tech-stack.md",
-            backup=True,
-        )
+        if is_generic_stack:
+            model = scan.to_model() if scan is not None else ProjectModel(root=CURRENT_DIR)
+            safe_write_text(
+                standards_dest / "tech-stack.md",
+                build_generic_stack(model),
+                encoding="utf-8",
+                backup=True,
+                create_parents=True,
+            )
+        else:
+            safe_copy_file(
+                stack_src,
+                standards_dest / "tech-stack.md",
+                backup=True,
+            )
         rules_src = resolve_child_path(
             archetype_dir, "coding-rules.md", single_segment=True
         )

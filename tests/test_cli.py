@@ -11,6 +11,8 @@ from argparse import Namespace
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.catalog_fixtures import write_catalog_sidecars
+
 from rapid_os.cli import main as cli_main
 from rapid_os.cli.main import create_parser, parse_agent_selection, refine_standard
 from rapid_os.core.text import read_text_best_effort
@@ -311,6 +313,7 @@ def _create_full_init_templates(root: Path) -> Path:
     (templates / "archetypes" / "corporate" / "security.md").write_text(
         "corporate security rules", encoding="utf-8"
     )
+    write_catalog_sidecars(templates)
     return templates
 
 

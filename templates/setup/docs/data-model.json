@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "data-model",
+  "file": "data-model.md",
+  "title": "Modelo de datos",
+  "context_priority": "medium",
+  "max_chars": 4000,
+  "required_sections": [
+    "Entidades",
+    "Relaciones",
+    "Datos sensibles"
+  ],
+  "questions": [
+    {
+      "id": "entities",
+      "text": "¿Cuáles son las entidades principales y sus campos clave?",
+      "required": true
+    },
+    {
+      "id": "relations",
+      "text": "¿Cómo se relacionan entre sí?",
+      "required": true
+    },
+    {
+      "id": "sensitive",
+      "text": "¿Qué datos son personales o sensibles?",
+      "required": true
+    },
+    {
+      "id": "storage",
+      "text": "¿Dónde se almacenan los datos (base de datos, archivos, servicios externos)?",
+      "required": false
+    }
+  ]
+}

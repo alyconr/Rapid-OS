@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "fullstack-separated",
+  "summary": "Decoupled frontend and backend services.",
+  "fits": [
+    "teams with separate frontend and backend",
+    "API-first products"
+  ],
+  "avoid_if": [
+    "a small team that wants a single deployable"
+  ]
+}

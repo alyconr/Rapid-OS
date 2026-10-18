@@ -167,4 +167,8 @@ Cuando ejecutas `rapid validate`, `rapid scan`, o comandos de gobernanza, RAPID 
 | `RAPID1318` | ERROR | `rapid shortcuts` se invocó sin subcomando. | Usar `install`, `list` o `remove`. |
 | `RAPID1320` | ERROR | `rapid check --expect fail` ligado a una compuerta (`--gate`) o invocado sin una tarea válida (requiere `--task <id>` o exactamente una tarea `in_progress`). | Especificar `--task <task_id>` o verificar que haya exactamente una tarea `in_progress` en la sesión activa. No se permite ligar fallas esperadas a compuertas. |
 
+## 10. Catálogo de stacks y topologías (`RAPID1400–RAPID1419`)
 
+| Código | Nivel | Significado | Acción |
+|---|---|---|---|
+| `RAPID1401` | ERROR | Sidecar de catálogo inválido bajo `templates/stacks/`, `templates/topologies/` o `templates/setup/`: JSON ilegible, `schema_version` distinto de 1, campo faltante o vacío, `id` distinto del nombre del archivo, topología desconocida en `compatible_topologies`, `default_topology` fuera de `compatible_topologies`, o plantilla `.md` sin su `.json`. | Corregir o restaurar el archivo indicado desde la instalación de Rapid OS, o reinstalar el paquete. |

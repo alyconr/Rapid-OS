@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "brief",
+  "file": "brief.md",
+  "title": "Brief del proyecto",
+  "context_priority": "medium",
+  "max_chars": 3000,
+  "required_sections": [
+    "Problema",
+    "Usuarios",
+    "Alcance del MVP",
+    "Fuera de alcance"
+  ],
+  "questions": [
+    {
+      "id": "problem",
+      "text": "¿Qué problema resuelve el proyecto y para quién?",
+      "required": true
+    },
+    {
+      "id": "users",
+      "text": "¿Quiénes son los usuarios principales?",
+      "required": true
+    },
+    {
+      "id": "mvp",
+      "text": "¿Qué debe poder hacer la primera versión?",
+      "required": true
+    },
+    {
+      "id": "non_goals",
+      "text": "¿Qué queda explícitamente fuera de alcance?",
+      "required": true
+    },
+    {
+      "id": "success",
+      "text": "¿Cómo sabrás que el proyecto funciona (métrica o señal)?",
+      "required": false
+    }
+  ]
+}

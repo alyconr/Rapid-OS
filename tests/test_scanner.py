@@ -3,6 +3,8 @@ import io
 import json
 import tempfile
 import unittest
+
+from tests.catalog_fixtures import write_catalog_sidecars
 from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
@@ -48,6 +50,7 @@ def create_init_templates(root: Path):
     (templates / "archetypes" / "mvp" / "coding-rules.md").write_text(
         "rules", encoding="utf-8"
     )
+    write_catalog_sidecars(templates)
     return templates
 
 

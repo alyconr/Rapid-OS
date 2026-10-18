@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "fullstack-baas",
+  "summary": "Integrated web app on a serverless or BaaS backend.",
+  "fits": [
+    "MVPs",
+    "apps that can rely on managed auth and database"
+  ],
+  "avoid_if": [
+    "heavy custom backend logic",
+    "strict control of infrastructure"
+  ]
+}

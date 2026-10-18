@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "frontend-creative",
+  "summary": "Creative and motion-heavy frontend with 3D and animation.",
+  "language": "TypeScript",
+  "fits": [
+    "landing pages",
+    "portfolios",
+    "interactive 3D or motion experiences"
+  ],
+  "avoid_if": [
+    "the product is mostly data-heavy backend logic",
+    "a documentation site is the goal"
+  ],
+  "compatible_topologies": [
+    "front-end-only",
+    "fullstack-baas",
+    "fullstack-separated"
+  ],
+  "default_topology": "front-end-only"
+}

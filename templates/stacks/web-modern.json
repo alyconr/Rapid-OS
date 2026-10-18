@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "web-modern",
+  "summary": "Modern web application with Next.js and TypeScript.",
+  "language": "TypeScript",
+  "fits": [
+    "web applications",
+    "SaaS products",
+    "marketing sites with dynamic content"
+  ],
+  "avoid_if": [
+    "the team standardizes on another language",
+    "a documentation site is the goal"
+  ],
+  "compatible_topologies": [
+    "front-end-only",
+    "fullstack-baas",
+    "fullstack-separated"
+  ],
+  "default_topology": "fullstack-baas"
+}

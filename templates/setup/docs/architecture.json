@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "architecture",
+  "file": "architecture.md",
+  "title": "Arquitectura",
+  "context_priority": "high",
+  "max_chars": 4000,
+  "required_sections": [
+    "Componentes",
+    "Flujo de datos",
+    "Integraciones",
+    "Decisiones"
+  ],
+  "questions": [
+    {
+      "id": "components",
+      "text": "¿Qué componentes o servicios forman el sistema?",
+      "required": true
+    },
+    {
+      "id": "flow",
+      "text": "¿Cómo fluyen los datos entre ellos?",
+      "required": true
+    },
+    {
+      "id": "integrations",
+      "text": "¿Con qué servicios externos se integra?",
+      "required": false
+    },
+    {
+      "id": "decisions",
+      "text": "¿Qué decisiones de arquitectura ya están tomadas y por qué?",
+      "required": true
+    },
+    {
+      "id": "deploy",
+      "text": "¿Dónde y cómo se despliega?",
+      "required": false
+    }
+  ]
+}
