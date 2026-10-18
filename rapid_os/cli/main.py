@@ -3409,7 +3409,7 @@ def setup_command(args):
 
     action_name = getattr(args, "setup_action", None)
     if not action_name:
-        print("RAPID1401 Subcomando de setup requerido (next, show).", file=sys.stderr)
+        print("RAPID1413 Subcomando de setup requerido (next, show).", file=sys.stderr)
         sys.exit(1)
 
     catalog, doc_banks, stack_questions = _load_setup_inputs()

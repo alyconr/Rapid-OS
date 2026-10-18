@@ -487,11 +487,12 @@ class SetupCliTests(unittest.TestCase):
                     self.assertIn("RAPID1406", result.stderr)
                     self.assertNotIn("Traceback", result.stderr)
 
-    def test_setup_without_subcommand_is_rapid1401(self):
+    def test_setup_without_subcommand_is_rapid1413(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = run_rapid(tmp, "setup")
             self.assertEqual(result.returncode, 1)
-            self.assertIn("RAPID1401", result.stderr)
+            self.assertIn("RAPID1413", result.stderr)
+            self.assertNotIn("RAPID1401", result.stderr)
 
     def test_human_output_is_three_to_six_lines(self):
         with tempfile.TemporaryDirectory() as tmp:
