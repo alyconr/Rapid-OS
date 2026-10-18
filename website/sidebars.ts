@@ -11,6 +11,7 @@ const sidebars: SidebarsConfig = {
         'concepts/what-is-rapid-os',
         'concepts/why-rapid-os',
         'concepts/core-concepts',
+        'concepts/project-docs',
         'concepts/product-boundaries',
         'guides/use-cases',
       ],

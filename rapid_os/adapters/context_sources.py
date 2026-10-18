@@ -1,6 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
+from rapid_os.adapters.project_docs import ProjectDocs, load_project_docs
 from rapid_os.adapters.project_snapshot import (
     read_project_snapshot,
     resolve_project_snapshot_path,
@@ -36,6 +37,8 @@ class KnownContextSourceSpec:
     priority: ContextPriority
     tags: tuple[str, ...]
     under_rapid_dir: bool = False
+    # Onboarding document id: the file counts only with `rapid-doc: <id>` frontmatter.
+    managed_doc: str | None = None
 
 
 KNOWN_CONTEXT_SOURCE_SPECS: tuple[KnownContextSourceSpec, ...] = (
@@ -118,6 +121,38 @@ KNOWN_CONTEXT_SOURCE_SPECS: tuple[KnownContextSourceSpec, ...] = (
         priority=ContextPriority.MEDIUM,
         tags=("acceptance", "testing", "verification"),
         under_rapid_dir=False,
+    ),
+    KnownContextSourceSpec(
+        id="doc.brief",
+        kind=ContextSourceKind.PRODUCT,
+        relative_path="docs/PRODUCT_BRIEF.md",
+        priority=ContextPriority.HIGH,
+        tags=("product", "feature", "spec"),
+        managed_doc="brief",
+    ),
+    KnownContextSourceSpec(
+        id="doc.business",
+        kind=ContextSourceKind.BUSINESS,
+        relative_path="docs/BUSINESS_RULES.md",
+        priority=ContextPriority.HIGH,
+        tags=("business", "domain", "product"),
+        managed_doc="business",
+    ),
+    KnownContextSourceSpec(
+        id="doc.data-model",
+        kind=ContextSourceKind.DATA_MODEL,
+        relative_path="docs/DATA_MODEL.md",
+        priority=ContextPriority.MEDIUM,
+        tags=("data", "database", "backend", "domain"),
+        managed_doc="data-model",
+    ),
+    KnownContextSourceSpec(
+        id="doc.architecture",
+        kind=ContextSourceKind.ARCHITECTURE,
+        relative_path="docs/ARCHITECTURE.md",
+        priority=ContextPriority.HIGH,
+        tags=("architecture", "topology", "backend", "frontend"),
+        managed_doc="architecture",
     ),
     KnownContextSourceSpec(
         id="reference.vision",
@@ -254,6 +289,38 @@ class ContextSourceLoader:
             )
         return tuple(spec_sources), ()
 
+    @staticmethod
+    def _doc_source(
+        spec: KnownContextSourceSpec, project_docs: ProjectDocs, root: Path
+    ) -> ContextSource | None:
+        """An onboarding document as a context source, with its provenance in the content."""
+        doc = project_docs.managed.get(spec.managed_doc)
+        if doc is not None:
+            portable_path = normalize_evidence_path(doc.path, root)
+            return ContextSource(
+                id=spec.id,
+                kind=spec.kind,
+                content=doc.content,
+                path=portable_path,
+                priority=spec.priority,
+                required=False,
+                tags=spec.tags,
+                provenance=portable_path,
+            )
+        skipped = project_docs.skipped.get(spec.managed_doc)
+        if skipped is not None:
+            return ContextSource(
+                id=spec.id,
+                kind=spec.kind,
+                content=skipped.content,
+                path=".rapid-os/setup.json",
+                priority=spec.priority,
+                required=False,
+                tags=spec.tags,
+                provenance=".rapid-os/setup.json",
+            )
+        return None
+
     def load(
         self,
         project_root: Path,
@@ -262,6 +329,7 @@ class ContextSourceLoader:
         project_model: ProjectModel | None = None,
         request: ContextRequest | None = None,
         include_project_intelligence: bool = True,
+        templates_dir: Path | None = None,
     ) -> ContextDiscoveryResult:
         root = Path(project_root)
         rapid_dir = (
@@ -274,9 +342,15 @@ class ContextSourceLoader:
         load_errors: list[ContextSourceLoadError] = []
 
         use_registry_spec = bool(request is not None and request.spec_id is not None)
+        project_docs = load_project_docs(root, rapid_dir, templates_dir)
 
         for spec in KNOWN_CONTEXT_SOURCE_SPECS:
             if use_registry_spec and spec.id in LEGACY_SINGLETON_SPEC_IDS:
+                continue
+            if spec.managed_doc:
+                doc_source = self._doc_source(spec, project_docs, root)
+                if doc_source is not None:
+                    loaded_sources.append(doc_source)
                 continue
 
             base_dir = rapid_dir if spec.under_rapid_dir else root
@@ -334,6 +408,14 @@ class ContextSourceLoader:
                     provenance=portable_path,
                 )
             )
+
+        if project_docs.business_supersedes_legacy:
+            loaded_sources = [
+                replace(source, superseded_by="doc.business")
+                if source.id == "standard.business"
+                else source
+                for source in loaded_sources
+            ]
 
         if use_registry_spec and request is not None and request.spec_id is not None:
             reg_sources, reg_errors = self._load_selected_registry_spec_sources(

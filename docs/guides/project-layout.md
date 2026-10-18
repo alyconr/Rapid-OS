@@ -14,6 +14,7 @@ project/
 ├── .rapid-os/
 │   ├── config.json
 │   ├── project.json
+│   ├── setup.json                  (estado del onboarding; lo escribe `rapid setup`)
 │   ├── policy.json
 │   ├── capabilities.lock
 │   ├── standards/
@@ -43,6 +44,11 @@ project/
 │       └── hooks.log
 ├── .claude/skills/  .agents/skills/  .cursor/skills/  .github/prompts/   (shortcuts)
 ├── .claude/settings.json                                                 (hooks de Claude Code)
+├── docs/
+│   ├── PRODUCT_BRIEF.md            (doc del onboarding: brief)
+│   ├── BUSINESS_RULES.md           (doc del onboarding: business)
+│   ├── DATA_MODEL.md               (doc del onboarding: data-model)
+│   └── ARCHITECTURE.md             (doc del onboarding: architecture)
 ├── SPECS.md
 ├── TASKS.md
 ├── ACCEPTANCE.md
@@ -87,6 +93,19 @@ Los archivos de shortcuts y `.claude/settings.json` sí conviene versionarlos, p
 - `AGENTS.md`
 
 También mantiene estándares dentro de `.rapid-os/standards/`.
+
+## Documentos del onboarding
+
+Cuatro documentos de `docs/` entran al contexto como fuentes propias (`rapid context` y los archivos de agente), con la procedencia visible. Ver [Documentos del proyecto y su procedencia](../concepts/project-docs.md).
+
+| Fuente de contexto | Ruta | Prioridad | Tipo | Tags |
+| :--- | :--- | :--- | :--- | :--- |
+| `doc.brief` | `docs/PRODUCT_BRIEF.md` | alta | `product` | `product`, `feature`, `spec` |
+| `doc.business` | `docs/BUSINESS_RULES.md` | alta | `business` | `business`, `domain`, `product` |
+| `doc.data-model` | `docs/DATA_MODEL.md` | media | `data_model` | `data`, `database`, `backend`, `domain` |
+| `doc.architecture` | `docs/ARCHITECTURE.md` | alta | `architecture` | `architecture`, `topology`, `backend`, `frontend` |
+
+Un archivo de `docs/` cuenta **solo** si su frontmatter tiene `rapid-doc: <id>` con el id de la tabla (muchos repositorios ya tienen su propio `docs/`, y Rapid OS mismo lo tiene). El frontmatter nunca se inyecta en el contenido. La ruta y la prioridad salen de los bancos de `templates/setup/docs/`.
 
 ## Artefactos inmutables
 

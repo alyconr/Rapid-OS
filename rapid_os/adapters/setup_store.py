@@ -17,6 +17,7 @@ from rapid_os.adapters.project_commands import propose_test_command
 from rapid_os.core.config import inspect_project_config_file
 from rapid_os.core.harness_detect import detect_harness
 from rapid_os.domain.catalog import Catalog, SetupDocBank
+from rapid_os.domain.project_docs import is_managed, parse_doc_frontmatter
 from rapid_os.domain.project import ProjectModel
 from rapid_os.domain.setup import (
     ARCHETYPES,
@@ -25,10 +26,8 @@ from rapid_os.domain.setup import (
     SetupStateError,
     StackChoice,
 )
-from rapid_os.domain.validation import infer_stack, infer_topology
 
 SETUP_FILE_NAME = "setup.json"
-DOC_FRONTMATTER_KEY = "rapid-doc"
 ORIGIN_FILE = "setup.json"
 ORIGIN_DERIVED = "derived"
 ORIGIN_EMPTY = "empty"
@@ -69,6 +68,17 @@ def read_setup(
         proposed_test_command=tuple(proposed) if proposed else None,
         detected_agent=_detect_agent(config_file),
     )
+
+
+def read_setup_file(rapid_dir: Path) -> tuple[SetupState | None, str | None]:
+    """`(state, None)` when `setup.json` is valid, `(None, None)` when absent, `(None, error)` when not."""
+    setup_file = rapid_dir / SETUP_FILE_NAME
+    if not (setup_file.exists() or setup_file.is_symlink()):
+        return None, None
+    try:
+        return _load_file(setup_file), None
+    except SetupStateError as exc:
+        return None, str(exc)
 
 
 def _detect_agent(config_file: Path) -> str | None:
@@ -130,6 +140,8 @@ def _derive_state(
 def _derive_stack(content: str | None, catalog: Catalog) -> StackChoice | None:
     if content is None:
         return None
+    from rapid_os.domain.validation import infer_stack  # lazy: validation imports the adapters
+
     stack_id = infer_stack(content)
     if stack_id is None:
         return StackChoice("custom", "custom")
@@ -141,6 +153,8 @@ def _derive_stack(content: str | None, catalog: Catalog) -> StackChoice | None:
 def _derive_topology(content: str | None) -> str | None:
     if content is None:
         return None
+    from rapid_os.domain.validation import infer_topology  # lazy: validation imports the adapters
+
     return infer_topology(content) or "custom"
 
 
@@ -155,28 +169,13 @@ def _derive_archetype(content: str | None, templates_dir: Path) -> str | None:
     return "custom"
 
 
-def _parse_frontmatter(text: str) -> dict[str, str]:
-    normalized = text.replace("\r\n", "\n")
-    if not normalized.startswith("---\n"):
-        return {}
-    header, sep, _body = normalized[4:].partition("\n---")
-    if not sep:
-        return {}
-    fields: dict[str, str] = {}
-    for line in header.splitlines():
-        key, colon, value = line.partition(":")
-        if colon:
-            fields[key.strip()] = value.strip().strip("\"'")
-    return fields
-
-
 def _derive_doc(project_root: Path, doc_id: str, bank: SetupDocBank) -> DocState:
     """A doc counts only when it carries the `rapid-doc` frontmatter written by `rapid setup doc`."""
     text = _read_text(project_root / bank.file)
     if text is None:
         return DocState()
-    fields = _parse_frontmatter(text)
-    if fields.get(DOC_FRONTMATTER_KEY) != doc_id or fields.get("source") not in ("provided", "drafted"):
+    fields, _body = parse_doc_frontmatter(text)
+    if not is_managed(fields, doc_id):
         return DocState()
     return DocState(
         status=fields["source"],
