@@ -29,6 +29,7 @@ class CliSmokeTests(unittest.TestCase):
             set(subparsers.choices),
             {
                 "init",
+                "setup",
                 "skill",
                 "scope",
                 "spec",
