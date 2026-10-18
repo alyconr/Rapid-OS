@@ -60,6 +60,14 @@ def tree_snapshot(root):
 
 
 FULL_DOCS = {doc: DocState("provided", True, "x") for doc in BANKS}
+FULL_STATE = SetupState(
+    stack=StackChoice("generic", "generic"),
+    topology="fullstack-separated",
+    archetype="mvp",
+    agents=("cursor",),
+    test_command=(),
+    docs=FULL_DOCS,
+)
 
 
 class ConductorTests(unittest.TestCase):
@@ -181,6 +189,86 @@ class ConductorTests(unittest.TestCase):
             ["rapid", "setup", "doc", "brief", "--source", "<provided|drafted>", "--file", "-"],
         )
 
+    def test_every_action_carries_its_command_except_done(self):
+        project = model(("testing", "pytest"))
+        steps = [
+            (SetupState(), ["rapid", "setup", "set", "stack", "<id>"]),
+            (
+                SetupState(stack=StackChoice("generic", "generic")),
+                ["rapid", "setup", "set", "topology", "<id>"],
+            ),
+            (
+                SetupState(stack=StackChoice("generic", "generic"), topology="fullstack-separated"),
+                ["rapid", "setup", "set", "archetype", "<id>"],
+            ),
+            (
+                SetupState(
+                    stack=StackChoice("generic", "generic"),
+                    topology="fullstack-separated",
+                    archetype="mvp",
+                ),
+                ["rapid", "setup", "set", "agents", "<id,id>"],
+            ),
+            (
+                SetupState(
+                    stack=StackChoice("generic", "generic"),
+                    topology="fullstack-separated",
+                    archetype="mvp",
+                    agents=("cursor",),
+                ),
+                ["rapid", "setup", "set", "test-command", "<cmd>"],
+            ),
+            (FULL_STATE, ["rapid", "setup", "finish"]),
+        ]
+        for state, command in steps:
+            with self.subTest(command=command):
+                self.assertEqual(next_action(state, project).to_dict()["command"], command)
+        self.assertNotIn("command", next_action(SetupState(**{**FULL_STATE.__dict__, "finished": True})).to_dict())
+        self.assertEqual(
+            next_action(SetupState(), project).to_dict()["alt_command"],
+            ["rapid", "setup", "stack", "--custom", "--file", "-"],
+        )
+
+    def test_stack_options_carry_sidecar_lists(self):
+        options = {o["id"]: o for o in next_action(SetupState()).to_dict()["options"]}
+        entry = CATALOG.stacks["python-ai"]
+        self.assertEqual(options["python-ai"]["fits"], list(entry.fits))
+        self.assertEqual(options["python-ai"]["avoid_if"], list(entry.avoid_if))
+        self.assertEqual(options["python-ai"]["compatible_topologies"], list(entry.compatible_topologies))
+
+    def test_stack_without_sidecar_has_empty_lists(self):
+        import dataclasses
+
+        catalog = dataclasses.replace(CATALOG, sidecarless_stacks=("custom-stack",))
+        data = next_setup_action(
+            SetupState(), ProjectModel(root=Path(".")), catalog, BANKS
+        ).to_dict()
+        custom = next(o for o in data["options"] if o["id"] == "custom-stack")
+        self.assertEqual(
+            (custom["source"], custom["fits"], custom["avoid_if"], custom["compatible_topologies"]),
+            ("custom", [], [], []),
+        )
+
+    def test_test_command_and_agent_come_from_arguments(self):
+        state = SetupState(
+            stack=StackChoice("generic", "generic"),
+            topology="fullstack-separated",
+            archetype="mvp",
+        )
+        agents = next_setup_action(
+            state, ProjectModel(root=Path(".")), CATALOG, BANKS, agent_ids=AGENT_IDS, detected_agent="claude"
+        ).to_dict()
+        self.assertEqual((agents["kind"], agents["recommended"]), ("choose_agents", "claude"))
+        unknown = next_setup_action(
+            state, ProjectModel(root=Path(".")), CATALOG, BANKS, agent_ids=AGENT_IDS, detected_agent="nope"
+        ).to_dict()
+        self.assertIsNone(unknown["recommended"])
+        state = SetupState(**{**state.__dict__, "agents": ("cursor",)})
+        proposed = next_setup_action(
+            state, ProjectModel(root=Path(".")), CATALOG, BANKS, proposed_test_command=["npm", "test"]
+        ).to_dict()
+        self.assertEqual((proposed["kind"], proposed["recommended"]), ("set_test_command", ["npm", "test"]))
+
 
 class StateTests(unittest.TestCase):
     def test_round_trip(self):
@@ -211,7 +299,107 @@ class StateTests(unittest.TestCase):
             self.assertEqual(ctx.exception.code, "RAPID1406")
 
 
+class ProposeTestCommandTests(unittest.TestCase):
+    def js_repo(self, root, *, with_script):
+        (root / "tests").mkdir()
+        (root / "tests" / "a.test.js").write_text("", encoding="utf-8")
+        scripts = {"test": "jest"} if with_script else {}
+        (root / "package.json").write_text(json.dumps({"scripts": scripts}), encoding="utf-8")
+
+    def test_order_of_proposals(self):
+        from rapid_os.adapters.project_commands import propose_test_command
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.assertIsNone(propose_test_command(root, model()))
+            self.assertEqual(
+                propose_test_command(root, model(("testing", "pytest"), ("testing", "tests-directory"))),
+                ["python", "-m", "pytest"],
+            )
+            self.assertEqual(
+                propose_test_command(root, model(("testing", "tests-directory"), ("language", "python"))),
+                ["python", "-m", "unittest", "discover"],
+            )
+            self.assertIsNone(
+                propose_test_command(root, model(("testing", "tests-directory"), ("language", "javascript")))
+            )
+            (root / "package.json").write_text(json.dumps({"scripts": {"test": "x"}}), encoding="utf-8")
+            self.assertEqual(
+                propose_test_command(root, model(("testing", "pytest"))), ["npm", "test"]
+            )
+            (root / "package.json").write_text("{", encoding="utf-8")
+            self.assertIsNone(propose_test_command(root, model()))
+
+    def test_js_repo_with_test_script_gets_npm_test_in_init_and_setup_next(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            self.js_repo(project, with_script=True)
+            self.assertEqual(run_rapid(project, "init", "--yes").returncode, 0)
+            config = json.loads((project / ".rapid-os" / "config.json").read_text(encoding="utf-8"))
+            self.assertEqual(config["test_command"], ["npm", "test"])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            self.js_repo(project, with_script=True)
+            (project / ".rapid-os").mkdir()
+            state = SetupState(
+                stack=StackChoice("generic", "generic"),
+                topology="fullstack-separated",
+                archetype="mvp",
+                agents=("cursor",),
+            )
+            (project / ".rapid-os" / "setup.json").write_text(json.dumps(state.to_dict()), encoding="utf-8")
+            action = json.loads(run_rapid(project, "setup", "next", "--json").stdout)
+            self.assertEqual(action["kind"], "set_test_command")
+            self.assertEqual(action["recommended"], ["npm", "test"])
+
+    def test_js_repo_with_tests_dir_but_no_script_gets_none(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            self.js_repo(project, with_script=False)
+            self.assertEqual(run_rapid(project, "init", "--yes").returncode, 0)
+            config = json.loads((project / ".rapid-os" / "config.json").read_text(encoding="utf-8"))
+            self.assertNotIn("test_command", config)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            self.js_repo(project, with_script=False)
+            (project / ".rapid-os").mkdir()
+            state = SetupState(
+                stack=StackChoice("generic", "generic"),
+                topology="fullstack-separated",
+                archetype="mvp",
+                agents=("cursor",),
+            )
+            (project / ".rapid-os" / "setup.json").write_text(json.dumps(state.to_dict()), encoding="utf-8")
+            action = json.loads(run_rapid(project, "setup", "next", "--json").stdout)
+            self.assertEqual(action["kind"], "set_test_command")
+            self.assertIsNone(action["recommended"])
+
+
 class SetupCliTests(unittest.TestCase):
+    def test_choose_agents_recommends_the_detected_harness(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            (project / ".rapid-os").mkdir()
+            state = SetupState(
+                stack=StackChoice("generic", "generic"), topology="fullstack-separated", archetype="mvp"
+            )
+            (project / ".rapid-os" / "setup.json").write_text(json.dumps(state.to_dict()), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(REPO / "rapid.py"), "setup", "next", "--json"],
+                cwd=project, capture_output=True, text=True, encoding="utf-8",
+                env={**os.environ, "CLAUDECODE": "", "PYTHONPATH": str(REPO), "RAPID_HARNESS": "codex"},
+            )
+            self.assertEqual(json.loads(result.stdout)["recommended"], "codex")
+            clean_env = {k: v for k, v in os.environ.items() if k not in ("RAPID_HARNESS", "CLAUDE_CODE_CHILD_SESSION")}
+            clean = subprocess.run(
+                [sys.executable, str(REPO / "rapid.py"), "setup", "next", "--json"],
+                cwd=project, capture_output=True, text=True, encoding="utf-8",
+                env={**clean_env, "CLAUDECODE": "", "PYTHONPATH": str(REPO)},
+            )
+            self.assertIsNone(json.loads(clean.stdout)["recommended"])
+
     def test_empty_folder_returns_choose_stack_and_creates_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:
             before = tree_snapshot(tmp)
@@ -299,11 +487,11 @@ class SetupCliTests(unittest.TestCase):
                     self.assertIn("RAPID1406", result.stderr)
                     self.assertNotIn("Traceback", result.stderr)
 
-    def test_setup_without_subcommand_is_rapid1400(self):
+    def test_setup_without_subcommand_is_rapid1401(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = run_rapid(tmp, "setup")
             self.assertEqual(result.returncode, 1)
-            self.assertIn("RAPID1400", result.stderr)
+            self.assertIn("RAPID1401", result.stderr)
 
     def test_human_output_is_three_to_six_lines(self):
         with tempfile.TemporaryDirectory() as tmp:

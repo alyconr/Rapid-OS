@@ -7,13 +7,17 @@ flow gets a state derived from what is already on disk.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
 from rapid_os.adapters.agents import DEFAULT_AGENT_REGISTRY
+from rapid_os.adapters.project_commands import propose_test_command
 from rapid_os.core.config import inspect_project_config_file
+from rapid_os.core.harness_detect import detect_harness
 from rapid_os.domain.catalog import Catalog, SetupDocBank
+from rapid_os.domain.project import ProjectModel
 from rapid_os.domain.setup import (
     ARCHETYPES,
     DocState,
@@ -34,6 +38,9 @@ ORIGIN_EMPTY = "empty"
 class SetupSnapshot:
     state: SetupState
     origin: str
+    # Inputs for the pure conductor that need the filesystem or the environment.
+    proposed_test_command: tuple[str, ...] | None = None
+    detected_agent: str | None = None
 
 
 def read_setup(
@@ -43,17 +50,35 @@ def read_setup(
     templates_dir: Path,
     catalog: Catalog,
     doc_banks: Mapping[str, SetupDocBank],
+    project_model: ProjectModel | None = None,
 ) -> SetupSnapshot:
     """Return the persisted state, a state derived from disk, or the empty state."""
     setup_file = rapid_dir / SETUP_FILE_NAME
     if setup_file.exists() or setup_file.is_symlink():
-        return SetupSnapshot(_load_file(setup_file), ORIGIN_FILE)
-    if not rapid_dir.is_dir():
-        return SetupSnapshot(SetupState(), ORIGIN_EMPTY)
+        state, origin = _load_file(setup_file), ORIGIN_FILE
+    elif not rapid_dir.is_dir():
+        state, origin = SetupState(), ORIGIN_EMPTY
+    else:
+        state = _derive_state(project_root, rapid_dir, config_file, templates_dir, catalog, doc_banks)
+        origin = ORIGIN_DERIVED
+
+    proposed = propose_test_command(project_root, project_model) if project_model is not None else None
     return SetupSnapshot(
-        _derive_state(project_root, rapid_dir, config_file, templates_dir, catalog, doc_banks),
-        ORIGIN_DERIVED,
+        state,
+        origin,
+        proposed_test_command=tuple(proposed) if proposed else None,
+        detected_agent=_detect_agent(config_file),
     )
+
+
+def _detect_agent(config_file: Path) -> str | None:
+    """The harness named by the environment or the config; the cursor fallback is not a detection."""
+    config = inspect_project_config_file(config_file)
+    try:
+        detection = detect_harness(None, os.environ, config.config if config.is_valid else {})
+    except ValueError:
+        return None
+    return None if detection.source == "fallback" else detection.harness_id
 
 
 def _load_file(path: Path) -> SetupState:

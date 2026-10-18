@@ -30,6 +30,13 @@ LANGUAGE_MATCH_SCORE = 10
 FRAMEWORK_MATCH_SCORE = 20
 DOC_CHOICES = ("provided", "drafted", "skip")
 DOC_COMMAND = ("rapid", "setup", "doc", "<id>", "--source", "<provided|drafted>", "--file", "-")
+STACK_COMMAND = ("rapid", "setup", "set", "stack", "<id>")
+STACK_CUSTOM_COMMAND = ("rapid", "setup", "stack", "--custom", "--file", "-")
+TOPOLOGY_COMMAND = ("rapid", "setup", "set", "topology", "<id>")
+ARCHETYPE_COMMAND = ("rapid", "setup", "set", "archetype", "<id>")
+AGENTS_COMMAND = ("rapid", "setup", "set", "agents", "<id,id>")
+TEST_COMMAND_COMMAND = ("rapid", "setup", "set", "test-command", "<cmd>")
+FINISH_COMMAND = ("rapid", "setup", "finish")
 ARCHETYPE_SUMMARIES = {"mvp": "Speed first", "corporate": "Security first"}
 
 
@@ -41,8 +48,14 @@ def next_setup_action(
     *,
     stack_questions: Sequence[SetupQuestion] = (),
     agent_ids: Sequence[str] = (),
+    proposed_test_command: Sequence[str] | None = None,
+    detected_agent: str | None = None,
 ) -> SetupAction:
-    """Order: stack, topology, archetype, agents, test command, docs, finish, done."""
+    """Order: stack, topology, archetype, agents, test command, docs, finish, done.
+
+    Everything that needs the filesystem or the environment (the proposed test command, the
+    detected harness) arrives as an argument: this function reads nothing.
+    """
     if state.stack is None:
         return _choose_stack(project_model, catalog, stack_questions)
     if state.topology is None:
@@ -52,25 +65,29 @@ def next_setup_action(
             SetupActionKind.CHOOSE_ARCHETYPE,
             options=[{"id": a, "summary": ARCHETYPE_SUMMARIES[a]} for a in ARCHETYPES],
             recommended=None,
+            command=list(ARCHETYPE_COMMAND),
         )
     if not state.agents:
         return _action(
             SetupActionKind.CHOOSE_AGENTS,
             options=[{"id": agent_id} for agent_id in agent_ids],
-            recommended=None,
+            recommended=detected_agent if detected_agent in agent_ids else None,
+            command=list(AGENTS_COMMAND),
         )
     if state.test_command is None:
-        proposed = _propose_test_command(project_model)
         return _action(
             SetupActionKind.SET_TEST_COMMAND,
-            recommended=list(proposed) if proposed else None,
+            recommended=list(proposed_test_command) if proposed_test_command else None,
+            command=list(TEST_COMMAND_COMMAND),
         )
     for doc_id in SETUP_DOC_ORDER:
         if state.doc(doc_id).status == "pending":
             return _resolve_doc(doc_id, doc_banks[doc_id])
     unconfirmed = _unconfirmed_docs(state)
     if not state.finished:
-        return _action(SetupActionKind.FINISH, unconfirmed_docs=unconfirmed)
+        return _action(
+            SetupActionKind.FINISH, unconfirmed_docs=unconfirmed, command=list(FINISH_COMMAND)
+        )
     return _action(SetupActionKind.DONE, unconfirmed_docs=unconfirmed)
 
 
@@ -112,11 +129,23 @@ def _choose_stack(
             "summary": entry.summary,
             "language": entry.language,
             "score": _stack_score(entry, model),
+            "fits": list(entry.fits),
+            "avoid_if": list(entry.avoid_if),
+            "compatible_topologies": list(entry.compatible_topologies),
         }
         for entry in catalog.stacks.values()
     ]
     options += [
-        {"id": stack_id, "source": "custom", "summary": "", "language": "", "score": 0}
+        {
+            "id": stack_id,
+            "source": "custom",
+            "summary": "",
+            "language": "",
+            "score": 0,
+            "fits": [],
+            "avoid_if": [],
+            "compatible_topologies": [],
+        }
         for stack_id in catalog.sidecarless_stacks
     ]
     options.sort(key=lambda o: (-o["score"], o["source"] == "generic", o["id"]))
@@ -130,6 +159,8 @@ def _choose_stack(
         options=options,
         recommended=recommended,
         questions=[] if recommended else [_question(q) for q in questions],
+        command=list(STACK_COMMAND),
+        alt_command=list(STACK_CUSTOM_COMMAND),
     )
 
 
@@ -166,16 +197,8 @@ def _choose_topology(state: SetupState, model: ProjectModel, catalog: Catalog) -
         stack=stack_id,
         options=options,
         recommended=recommended,
+        command=list(TOPOLOGY_COMMAND),
     )
-
-
-def _propose_test_command(model: ProjectModel) -> tuple[str, ...] | None:
-    testing = set(model.values("testing"))
-    if "pytest" in testing:
-        return ("python", "-m", "pytest")
-    if "tests-directory" in testing:
-        return ("python", "-m", "unittest", "discover")
-    return None
 
 
 def _resolve_doc(doc_id: str, bank: SetupDocBank) -> SetupAction:

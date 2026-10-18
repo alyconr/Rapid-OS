@@ -69,6 +69,7 @@ from rapid_os.adapters.spec_registry import SpecRegistry
 from rapid_os.core.process import run_npx_skills_add
 from rapid_os.core.text import read_text_best_effort
 from rapid_os.domain.agents import generate_agent_contexts
+from rapid_os.adapters.project_commands import propose_test_command
 from rapid_os.domain.catalog import (
     GENERIC_STACK_ID,
     CatalogError,
@@ -434,29 +435,6 @@ def create_optional_docs_scaffold(input_fn=None):
     return written
 
 
-def _propose_test_command(scan) -> list[str] | None:
-    if scan is None:
-        return None
-    model = scan.to_model() if hasattr(scan, "to_model") else scan
-    facts = getattr(model, "facts", ())
-    testing_values = [f.value for f in facts if f.category == "testing"]
-    if "pytest" in testing_values:
-        return ["python", "-m", "pytest"]
-    if "tests-directory" in testing_values:
-        return ["python", "-m", "unittest", "discover"]
-    root = getattr(model, "root", CURRENT_DIR)
-    package_json = root / "package.json"
-    if package_json.exists():
-        try:
-            pkg_data = json.loads(package_json.read_text(encoding="utf-8"))
-            if isinstance(pkg_data, dict) and "scripts" in pkg_data and isinstance(pkg_data["scripts"], dict):
-                if "test" in pkg_data["scripts"]:
-                    return ["npm", "test"]
-        except Exception:
-            pass
-    return None
-
-
 def init_project(args):
     print_step("Inicializando Rapid OS...")
 
@@ -678,7 +656,10 @@ def init_project(args):
     if explicit_test_cmd:
         configured_test_cmd = shlex.split(explicit_test_cmd)
     else:
-        proposed_cmd = _propose_test_command(scan)
+        proposed_cmd = None
+        if scan is not None:
+            scan_model = scan.to_model() if hasattr(scan, "to_model") else scan
+            proposed_cmd = propose_test_command(scan_model.root, scan_model)
         if proposed_cmd is not None:
             cmd_display = " ".join(proposed_cmd)
             if getattr(args, "yes", False):
@@ -3428,13 +3409,20 @@ def setup_command(args):
 
     action_name = getattr(args, "setup_action", None)
     if not action_name:
-        print("RAPID1400 Subcomando de setup requerido (next, show).", file=sys.stderr)
+        print("RAPID1401 Subcomando de setup requerido (next, show).", file=sys.stderr)
         sys.exit(1)
 
     catalog, doc_banks, stack_questions = _load_setup_inputs()
     try:
+        project_model = scan_project(CURRENT_DIR).to_model()
         snapshot = read_setup(
-            CURRENT_DIR, PROJECT_RAPID_DIR, CONFIG_FILE, TEMPLATES_DIR, catalog, doc_banks
+            CURRENT_DIR,
+            PROJECT_RAPID_DIR,
+            CONFIG_FILE,
+            TEMPLATES_DIR,
+            catalog,
+            doc_banks,
+            project_model,
         )
     except SetupStateError as exc:
         print(str(exc), file=sys.stderr)
@@ -3455,7 +3443,6 @@ def setup_command(args):
         print(f"Docs: {docs}")
         return 0
 
-    project_model = scan_project(CURRENT_DIR).to_model()
     action = next_setup_action(
         snapshot.state,
         project_model,
@@ -3463,6 +3450,8 @@ def setup_command(args):
         doc_banks,
         stack_questions=stack_questions,
         agent_ids=DEFAULT_AGENT_REGISTRY.ids(),
+        proposed_test_command=snapshot.proposed_test_command,
+        detected_agent=snapshot.detected_agent,
     )
     if as_json:
         print(json.dumps(action.to_dict(), indent=2))
