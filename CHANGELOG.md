@@ -17,13 +17,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Documentos del onboarding en el contexto con su procedencia: fuentes `doc.brief`, `doc.business`, `doc.data-model` y `doc.architecture` (solo cuentan con frontmatter `rapid-doc: <id>`), banner de supuestos para borradores sin confirmar, línea "pregunta, no inventes" para docs omitidos, y `doc.business` por encima de `standards/business.md` (`standard.business` pasa a omitido con la razón `superseded by doc.business`). Tipos de fuente aditivos `product` y `data_model`. `rapid validate` emite `RAPID1400`, `RAPID1403`, `RAPID1404`, `RAPID1406`, `RAPID1408` y `RAPID1410`. Página `docs/concepts/project-docs.md`.
 
+### Changed
+- `main` pasa a la versión de desarrollo `3.2.0.dev0`. El release estable sigue siendo `v3.1.0` (rama `release/3.1`); los instaladores y la documentación de instalación siguen apuntando a ese tag.
+
 ### Fixed
 - `rapid init` sugería `python -m unittest discover` como comando de test en repositorios JavaScript con una carpeta `tests/`. Ahora una sola función (`propose_test_command`) la usan `init` y `setup`: `npm test` si `package.json` tiene `scripts.test`, pytest si se detecta, y `unittest discover` solo en proyectos Python con carpeta de tests; si no, ninguna sugerencia.
 - Corrección de comportamiento: `rapid init --yes` sin sugerencia del scanner ya no elige `web-modern` (Next.js) sino `generic`.
 
 ---
 
-## [3.1.0] - 2026-10-16
+## [3.1.0] - 2026-10-18
 
 ### Added
 - **Porcelain layer**: `rapid start`, `rapid next`, `rapid check`, `rapid task`, `rapid attach`, `rapid finish`, `rapid approve`, `rapid status` and `rapid abort` drive a governed run on top of the v3 plumbing. A pure Conductor (`next_action`) asks the `BehavioralEvaluator` what is missing and returns a `NextAction`; the active run lives in `.rapid-os/session.json`. Evidence producers: `rapid:check`, `rapid:start`, `rapid:finish`, `rapid:attach`.
