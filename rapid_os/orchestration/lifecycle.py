@@ -180,9 +180,24 @@ def execute_start(
             if "tasks" in spec_fields and "implementation_tasks" not in spec_fields:
                 spec_fields["implementation_tasks"] = spec_fields.pop("tasks")
 
-            created_spec = spec_reg.create(**spec_fields)
-            ready_spec = spec_reg.set_status(created_spec.id, "ready")
-            resolved_spec_id = ready_spec.id
+            existing = spec_reg.compare_existing(**spec_fields)
+            if existing is None:
+                created_spec = spec_reg.create(**spec_fields)
+                ready_spec = spec_reg.set_status(created_spec.id, "ready")
+                resolved_spec_id = ready_spec.id
+            else:
+                existing_record, identical = existing
+                if not identical or existing_record.status.value == "archived":
+                    return (
+                        1,
+                        f"RAPID1322 Spec '{existing_record.id}' already exists with different content "
+                        f"(or is archived). Reuse it with `rapid start {mode} --spec {existing_record.id}` "
+                        "or change the title/id in the spec file.",
+                    )
+                # Same identity and content: a previous `rapid start` created it and then failed.
+                if existing_record.status.value == "draft":
+                    existing_record = spec_reg.set_status(existing_record.id, "ready")
+                resolved_spec_id = existing_record.id
         else:
             # Neither --spec nor --spec-file: do NOT create anything, return author_spec
             action = next_action_without_run(mode, playbook)
@@ -429,6 +444,7 @@ def execute_start(
         playbook,
         evaluator=evaluator,
         test_command=test_cmd if isinstance(test_cmd, (list, tuple)) else None,
+        workspace_ready=bool(sess.workspace_path),
     )
     return 0, _decorate_action(action, sess)
 
@@ -475,6 +491,7 @@ def execute_next(
         playbook,
         evaluator=evaluator,
         test_command=test_cmd if isinstance(test_cmd, (list, tuple)) else None,
+        workspace_ready=bool(sess.workspace_path),
     )
     return 0, _decorate_action(action, sess)
 

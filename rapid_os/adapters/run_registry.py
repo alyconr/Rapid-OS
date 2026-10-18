@@ -107,6 +107,25 @@ def resolve_runs_root_dir(
     return root, contained_rapid, runs_dir
 
 
+
+def _missing_source_hint(exc: Exception) -> str:
+    """Name the missing standard file and how to create it (e.g. security.md for hardening)."""
+    from rapid_os.adapters.context_sources import KNOWN_CONTEXT_SOURCE_SPECS
+
+    kinds = tuple(getattr(exc, "missing_kinds", ()) or ())
+    ids = tuple(getattr(exc, "missing_source_ids", ()) or ())
+    files = []
+    for spec in KNOWN_CONTEXT_SOURCE_SPECS:
+        if spec.kind.value in kinds or spec.id in ids:
+            prefix = ".rapid-os/" if spec.under_rapid_dir else ""
+            files.append(prefix + spec.relative_path)
+    if not files:
+        return ""
+    return (
+        f" Missing file: {', '.join(files)}. Create it (run `rapid init` to generate the standards "
+        "from a template, or write it by hand) and repeat the command."
+    )
+
 class RunRegistry:
     """Filesystem-backed canonical Run Registry under `.rapid-os/runs/`."""
 
@@ -772,7 +791,7 @@ class RunRegistry:
             )
         except ValueError as exc:
             raise ContextSnapshotMismatchError(
-                f"Context compilation failed for run creation: {exc}"
+                f"Context compilation failed for run creation: {exc}{_missing_source_hint(exc)}"
             ) from exc
 
         # 4. Evaluate ExecutionPolicy

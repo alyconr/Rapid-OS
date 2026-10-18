@@ -33,6 +33,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `rapid finish` text mode no longer fails with `AttributeError` and prints the report revision and verdict.
 - Runs without a baseline gate (low-risk spikes) and isolated runs could never leave `prepared`.
 - `rapid finish` no longer attributes to the run the untracked files that existed before `rapid start`.
+- `rapid init --yes` without a scanner suggestion no longer picks the alphabetically first topology (`doc-site`) for every stack: the default topology is coherent with the stack (`doc-site` only with `docs-modern`, and `docs-modern` always with `doc-site`), so `rapid validate` no longer fails with `RAPID402`/`RAPID403`.
+- `rapid init` (also with `--yes`) creates `.rapid-os/standards/security.md` from a minimal template when it does not exist, so `rapid start hardening` can create the run; the `RAPID1004` message now names the missing file and how to create it.
+- `rapid start --spec-file` reuses a spec with the same identity and content when a previous start failed after creating it; with different content it exits with `RAPID1322` and suggests `rapid start <mode> --spec <id>` instead of an error without guidance.
+- The `feature` playbook's `author_spec` instruction now says `rapid start <modo> --spec-file -` instead of `rapid spec create`.
+- `rapid next` returns `blocked` with `rapid start --resume --worktree` when the contract requires an isolated workspace and the session has no worktree yet, like `rapid start`.
 - `rapid start` and `rapid approve` report expected failures (a missing context source, a closed stdin) with a RAPID code instead of a traceback.
 
 ### Security & Hardening
