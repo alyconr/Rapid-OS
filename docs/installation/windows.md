@@ -28,25 +28,24 @@ git --version
 
 ## 2. Método A: Instalador automático de PowerShell (Recomendado)
 
-El instalador oficial descarga el repositorio en `$HOME\.rapid-os`, fija la versión estable `v3.1.0` y registra la función `rapid` en tu perfil de PowerShell (`$PROFILE`):
+El instalador oficial descarga el repositorio en `$HOME\.rapid-os`, fija la versión estable `v3.1.1` e instala un ejecutable `rapid.exe` en tu PATH de usuario:
 
 ```powershell
-irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.ps1 | iex
+irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.ps1 | iex
 ```
 
 ### ¿Qué hace este script?
-1. Comprueba que `git` y `python` estén disponibles.
+1. Comprueba que `git` y `python` (3.10+) estén disponibles.
 2. Clona el repositorio oficial en `$HOME\.rapid-os`.
-3. Hace checkout de la versión estable `v3.1.0`.
-4. Añade a tu archivo de perfil `$PROFILE` la función:
-   ```powershell
-   function rapid { python "$InstallDir\rapid.py" $args }
-   ```
-5. Tras completarse, recarga tu perfil ejecutando:
-   ```powershell
-   . $PROFILE
-   ```
-   O simplemente reinicia tu ventana de PowerShell.
+3. Hace checkout de la versión estable `v3.1.1`.
+4. Crea un entorno de Python propio en `$HOME\.rapid-os\.venv` e instala Rapid OS en él.
+5. Copia `rapid.exe` a `$HOME\.rapid-os\bin` y añade esa carpeta a tu PATH de usuario. Solo `rapid.exe` queda en el PATH: el `python.exe` del entorno no reemplaza al tuyo.
+6. Si un instalador anterior dejó una función `rapid` en tu `$PROFILE`, la quita (con copia `.rapid-os.bak`).
+7. Abre una ventana nueva de PowerShell para que tome el PATH.
+
+:::warning Shortcuts y hooks necesitan `rapid` en el PATH
+Claude Code ejecuta los comandos de los shortcuts y los hooks en Git Bash, no en PowerShell. Por eso `rapid` tiene que ser un ejecutable en el PATH: una función de PowerShell o un `rapid` dentro de un `venv` activado solo en tu terminal no le llegan al agente. El instalador (Método A) y `pipx` lo resuelven; compruébalo dentro de Claude Code con `! which rapid`.
+:::
 
 :::tip Política de ejecución de PowerShell
 Si PowerShell muestra el error `Running scripts is disabled on this system`, ajusta la política de ejecución del usuario actual:
@@ -59,7 +58,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 ## 3. Método B: Instalación en un Entorno Virtual de Python (`venv`)
 
-Si prefieres aislar Rapid OS dentro de un entorno virtual de desarrollo:
+Si prefieres aislar Rapid OS dentro de un entorno virtual de desarrollo. Ten en cuenta que así `rapid` solo existe donde el `venv` está activado: para usar shortcuts y hooks con tu agente, usa el Método A o `pipx install git+https://github.com/alyconr/Rapid-OS.git@v3.1.1`.
 
 ```powershell
 # 1. Crear el entorno virtual
@@ -69,7 +68,7 @@ python -m venv rapid-env
 .\rapid-env\Scripts\Activate.ps1
 
 # 3. Instalar la versión estable desde GitHub
-python -m pip install git+https://github.com/alyconr/Rapid-OS.git@v3.1.0
+python -m pip install git+https://github.com/alyconr/Rapid-OS.git@v3.1.1
 
 # 4. Verificar
 rapid --version

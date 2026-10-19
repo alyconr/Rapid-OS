@@ -41,7 +41,7 @@ git --version
 Dentro de tu shell de WSL, ejecuta el script de instalación para Linux:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.sh | bash
+curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.sh | bash
 ```
 
 Una vez completado, actualiza la sesión de shell:
