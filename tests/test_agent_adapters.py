@@ -164,9 +164,48 @@ class AgentAdapterTests(unittest.TestCase):
 
             generate_quietly(generate_cursor_rules, "new", current_dir)
 
-            backups = list(current_dir.glob(".cursorrules.*.bak"))
+            # The backup lives in .rapid-os/backups, not in the project root.
+            self.assertEqual(list(current_dir.glob(".cursorrules.*.bak")), [])
+            backups = list((current_dir / ".rapid-os" / "backups").glob(".cursorrules.*.bak"))
             self.assertEqual(len(backups), 1)
             self.assertEqual(backups[0].read_text(encoding="utf-8"), "old")
+
+    def test_regenerating_without_changes_creates_no_backup(self):
+        with workspace_tempdir() as tmp:
+            current_dir = Path(tmp)
+            for _ in range(3):
+                generate_quietly(generate_claude_config, "same context", current_dir)
+
+            self.assertTrue((current_dir / "CLAUDE.md").is_file())
+            self.assertEqual(list(current_dir.glob("*.bak")), [])
+            self.assertEqual(list((current_dir / ".rapid-os").glob("backups/*")), [])
+
+    def test_backups_go_to_rapid_os_backups_and_only_the_latest_five_are_kept(self):
+        with workspace_tempdir() as tmp:
+            current_dir = Path(tmp)
+            for version in range(8):
+                generate_quietly(generate_claude_config, f"context {version}", current_dir)
+
+            self.assertEqual(list(current_dir.glob("*.bak")), [])
+            backups = sorted((current_dir / ".rapid-os" / "backups").glob("CLAUDE.md.*.bak"))
+            self.assertEqual(len(backups), 5)
+            contents = sorted(path.read_text(encoding="utf-8") for path in backups)
+            # 8 writes leave 7 backups of versions 0..6; the five most recent are 2..6.
+            self.assertEqual(
+                [text.rsplit("context ", 1)[1] for text in contents], ["2", "3", "4", "5", "6"]
+            )
+            self.assertIn("context 7", (current_dir / "CLAUDE.md").read_text(encoding="utf-8"))
+
+    def test_nested_agent_files_are_backed_up_by_name_in_the_same_folder(self):
+        with workspace_tempdir() as tmp:
+            current_dir = Path(tmp)
+            generate_quietly(generate_antigravity_config, "one", current_dir)
+            generate_quietly(generate_antigravity_config, "two", current_dir)
+
+            self.assertEqual(list((current_dir / ".agent" / "rules").glob("*.bak")), [])
+            self.assertEqual(
+                len(list((current_dir / ".rapid-os" / "backups").glob("constitution.md.*.bak"))), 1
+            )
 
 
 if __name__ == "__main__":

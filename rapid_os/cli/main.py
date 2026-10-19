@@ -3606,6 +3606,55 @@ def next_command(args):
     return 0
 
 
+STORY_TAG_PREFIX = "story:"
+NO_BASELINE_LINE = "Sin baseline: proyecto nuevo"
+
+
+def _baseline_waived(run_id):
+    """True when the run was created without `gate.baseline` (a brand-new project)."""
+    try:
+        return RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_contract(run_id).baseline_waived is not None
+    except Exception:
+        return False
+
+
+def _story_suggestions(run_id):
+    """Lines suggesting the person to tick the brief's stories that the finished run covered.
+
+    A spec cites a story with the tag `story:<ID>` (SpecRevision has no dedicated field).
+    Rapid OS never edits the brief: the person ticks the story.
+    """
+    from rapid_os.adapters.project_docs import load_banks
+
+    try:
+        contract = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_contract(run_id)
+        revision = SpecRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_revision(
+            contract.spec_id, revision=contract.spec_revision
+        )
+    except Exception:  # a suggestion must never break `rapid finish`
+        return []
+    story_ids = [
+        tag[len(STORY_TAG_PREFIX):].strip()
+        for tag in revision.tags
+        if tag.lower().startswith(STORY_TAG_PREFIX) and tag[len(STORY_TAG_PREFIX):].strip()
+    ]
+    brief = load_banks(TEMPLATES_DIR).get("brief")
+    brief_file = brief.file if brief is not None else "docs/PRODUCT_BRIEF.md"
+    # Spec tags are stored in lower case: show the id the way the brief writes it.
+    written = {}
+    if brief is not None:
+        from rapid_os.adapters.project_docs import load_project_docs
+        from rapid_os.domain.project_docs import open_stories
+
+        managed = load_project_docs(CURRENT_DIR, PROJECT_RAPID_DIR, TEMPLATES_DIR).managed.get("brief")
+        if managed is not None:
+            written = {story["id"].lower(): story["id"] for story in open_stories(managed.body, brief)}
+    return [
+        f"Marca {written.get(story_id.lower(), story_id.upper())} como hecha en {brief_file}"
+        for story_id in story_ids
+    ]
+
+
 def finish_command(args):
     """Execute rapid finish command."""
     from rapid_os.orchestration.actions import NextAction
@@ -3637,8 +3686,19 @@ def finish_command(args):
         return 0
 
     # result is EvaluationReport
+    suggestions = (
+        _story_suggestions(result.run_id)
+        if result.verdict.value in ("pass", "pass_with_waivers")
+        else []
+    )
+    no_baseline = _baseline_waived(result.run_id)
     if getattr(args, "json", False):
         print(json.dumps(result.to_dict(), indent=2))
+        # stdout stays the report alone; the notes go to stderr.
+        if no_baseline:
+            print(NO_BASELINE_LINE, file=sys.stderr)
+        for line in suggestions:
+            print(line, file=sys.stderr)
         sys.exit(code)
 
     # Reports are numbered by their file (0001.json, ...): the stored/latest one is the last.
@@ -3647,6 +3707,10 @@ def finish_command(args):
         f"Evaluation report {revision:04d} for run '{result.run_id}': "
         f"verdict {result.verdict.value.upper()}"
     )
+    if no_baseline:
+        print(NO_BASELINE_LINE)
+    for line in suggestions:
+        print(line)
     sys.exit(code)
 
 
@@ -3722,6 +3786,8 @@ def status_command(args):
                 "last_verdict": last_verdict,
             },
         }
+        if contract.baseline_waived is not None:
+            payload["run"]["baseline_waived"] = contract.baseline_waived
         print(json.dumps(payload, indent=2))
         return 0
 
@@ -3729,6 +3795,8 @@ def status_command(args):
     print(f"Session Run:   {record.id} ({state.status.value}, s{state.revision})")
     print(f"Mode/Harness:  {sess.mode} / {contract.harness}")
     print(f"Tasks:         {done_tasks}/{len(state.tasks)} terminal")
+    if contract.baseline_waived is not None:
+        print(f"Baseline:      {NO_BASELINE_LINE}")
     if last_verdict:
         print(f"Last Verdict:  {last_verdict.upper()}")
     return 0

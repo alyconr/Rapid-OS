@@ -117,8 +117,14 @@ def _refactor_regression(
     return None
 
 
-def next_action_without_run(mode: str, playbook: Playbook) -> NextAction:
-    """Return initial `author_spec` action when no active run exists."""
+def next_action_without_run(
+    mode: str, playbook: Playbook, seed: dict[str, object] | None = None
+) -> NextAction:
+    """Return initial `author_spec` action when no active run exists.
+
+    `seed` (optional) carries the open stories of the product brief; without it the action is
+    exactly what it always was.
+    """
     return NextAction(
         schema_version=1,
         run_id=None,
@@ -133,6 +139,7 @@ def next_action_without_run(mode: str, playbook: Playbook) -> NextAction:
         tasks_total=0,
         outcome=None,
         spec_template=dict(playbook.spec_template) if playbook.spec_template else None,
+        seed=dict(seed) if seed else None,
     )
 
 

@@ -14,6 +14,7 @@ from rapid_os.domain.context import (
     ContextManifest,
     ContextRequest,
 )
+from rapid_os.domain.policy import waive_baseline
 from rapid_os.domain.execution import (
     ALLOWED_POLICY_SOURCES,
     DEFAULT_EXECUTION_POLICY,
@@ -688,6 +689,7 @@ class RunRegistry:
         risk: RiskLevel | str | int | None = None,
         policy: ExecutionPolicy | None = None,
         policy_source: str | None = None,
+        baseline_waived: str | None = None,
     ) -> RunRecord:
         """Create a new Run bound to an exact `ready` SpecRevision, compiled context snapshot, project model, and policy decision."""
         # 1. Load and validate ready spec + full spec revision history
@@ -802,6 +804,9 @@ class RunRegistry:
             requested_risk=risk,
         )
 
+        if baseline_waived is not None:
+            decision = waive_baseline(decision, baseline_waived)
+
         # 5. Resolve deterministic Run ID
         if run_id is not None:
             resolved_run_id = validate_run_id(run_id)
@@ -828,6 +833,7 @@ class RunRegistry:
             policy_source=resolved_policy_source,
             decision=decision,
             harness=context_request.harness,
+            baseline_waived=baseline_waived,
         )
         initial_state = build_initial_run_state(contract)
         record = RunRecord(

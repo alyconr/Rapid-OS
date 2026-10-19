@@ -48,6 +48,8 @@ class NextAction:
     outcome: str | None = None
     spec_template: dict[str, object] | None = None
     workspace_path: str | None = None
+    # `author_spec` only: the open stories of the product brief (see adapters/project_docs.py).
+    seed: dict[str, object] | None = None
 
     def __post_init__(self):
         coerced_kind = ActionKind.coerce(self.kind)
@@ -79,6 +81,8 @@ class NextAction:
             payload["spec_template"] = dict(self.spec_template)
         if self.workspace_path is not None:
             payload["workspace_path"] = self.workspace_path
+        if self.seed is not None:
+            payload["seed"] = dict(self.seed)
         return payload
 
     def to_dict(self) -> dict[str, object]:

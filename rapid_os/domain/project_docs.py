@@ -128,3 +128,33 @@ def with_doc_status(text: str, status: str) -> str:
     else:
         header = f"{header}\nstatus: {status}"
     return text[: match.start("header")] + header + text[match.end("header"):]
+
+
+_STORY_RE = re.compile(r"^[ \t]*[-*][ \t]+\[ \][ \t]+([A-Za-z]+-?\d+)[ \t]*[:.\-–][ \t]*(\S.*?)[ \t]*$")
+_DONE_STORY_RE = re.compile(r"^[ \t]*[-*][ \t]+\[[xX]\]")
+
+
+def open_stories(body: str, bank: SetupDocBank) -> tuple[dict[str, str], ...]:
+    """Unchecked stories (`- [ ] H001: text`) of the brief's stories section, in order.
+
+    Only the section the bank calls `stories` counts; checked stories (`- [x]`) are skipped.
+    """
+    titles = {
+        title.strip().lower()
+        for section in bank.required_sections
+        if section.id == "stories"
+        for title in section.titles
+    }
+    stories: list[dict[str, str]] = []
+    inside = False
+    for line in normalize_newlines(body).split("\n"):
+        heading = _H2_RE.match(line)
+        if heading is not None:
+            inside = heading.group(1).strip().lower() in titles
+            continue
+        if not inside or _DONE_STORY_RE.match(line):
+            continue
+        match = _STORY_RE.match(line)
+        if match is not None:
+            stories.append({"id": match.group(1), "text": match.group(2)})
+    return tuple(stories)

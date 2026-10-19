@@ -4,8 +4,7 @@
   "summary": "Python AI agent service with FastAPI.",
   "language": "Python",
   "fits": [
-    "AI agents and data pipelines",
-    "Python teams building APIs"
+    "agentes de IA y pipelines de datos"
   ],
   "avoid_if": [
     "the project has no backend or database",

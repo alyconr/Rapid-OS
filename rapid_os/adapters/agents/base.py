@@ -17,6 +17,10 @@ class AgentOutput:
     encoding: str = "utf-8"
 
 
+AGENT_BACKUP_DIR = Path(".rapid-os") / "backups"
+AGENT_BACKUPS_KEPT = 5
+
+
 class AgentAdapter(ABC):
     """Base contract for agents that consume Rapid OS project context."""
 
@@ -72,11 +76,16 @@ class AgentAdapter(ABC):
                 )
 
             target = resolve_child_path(current_dir, relative_path)
+            # Regenerated on every change of the standards: the backups live in
+            # .rapid-os/backups (not in the project root), the 5 latest per file, and none
+            # when the content did not change.
             safe_write_text(
                 target,
                 rendered_outputs[relative_path],
                 encoding=output.encoding,
                 backup=True,
                 create_parents=True,
+                backup_dir=Path(current_dir) / AGENT_BACKUP_DIR,
+                keep_backups=AGENT_BACKUPS_KEPT,
             )
             print_success(output.success_message)

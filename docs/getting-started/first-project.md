@@ -56,8 +56,11 @@ La forma recomendada de empezar es dejar que tu agente conduzca el onboarding. T
 4. **Confirma lo que redactó.** Lo que escribe el agente queda como borrador (`status: draft`) y entra al contexto marcado como supuesto hasta que tú lo confirmes (`rapid setup doc business --confirm`); el agente solo lo ejecuta si se lo dices de forma explícita. Al terminar te resume lo decidido y ofrece `/rapid-feature` con la primera historia sin marcar del brief.
 
 ```text
+/rapid-feature                                   # propone la primera historia del brief
 /rapid-feature añadir una función validate_username a app.py
 ```
+
+Sin argumentos, `/rapid-feature` lee el brief que dejó el onboarding: `rapid next --json` entrega `action.seed` con las historias sin marcar (`- [ ] H001: ...`), el agente propone con cuál empezar (y por qué, si no es la primera) y espera tu confirmación antes de redactar la spec. Con un id (`/rapid-feature H002`) usa esa historia. Al terminar, `rapid finish` te sugiere marcarla como hecha en el brief; la marcas tú.
 
 El agente conduce el run (`rapid next` → `rapid start` → `rapid check` → `rapid finish`) y se detiene en `gate.final-verification`; tú ejecutas `rapid approve gate.final-verification` **en otra terminal**, fuera del agente. Detalle por harness en la [guía de shortcuts](../guides/shortcuts.md) y todos los comandos en la [referencia de `rapid setup`](../cli.md#onboarding-rapid-setup).
 

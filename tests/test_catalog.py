@@ -49,6 +49,11 @@ EXPECTED_STACK_TOPOLOGY = {
     ("python-ai", "front-end-only"): ["RAPID404"],
     ("python-ai", "fullstack-baas"): ["RAPID405"],
     ("python-ai", "fullstack-separated"): [],
+    # python-api (added with the catalog, not part of the 7cf4878 table): compatible with both backends.
+    ("python-api", "doc-site"): ["RAPID403"],
+    ("python-api", "front-end-only"): ["RAPID404"],
+    ("python-api", "fullstack-baas"): [],
+    ("python-api", "fullstack-separated"): [],
     ("web-modern", "doc-site"): ["RAPID403"],
     ("web-modern", "front-end-only"): [],
     ("web-modern", "fullstack-baas"): [],
@@ -139,13 +144,41 @@ class DefaultTopologyTests(unittest.TestCase):
     def test_matches_legacy_function_for_every_stack_and_suggestion(self):
         catalog = load_catalog(TEMPLATES)
         topologies = sorted(catalog.topologies)
-        for stack in sorted(p.stem for p in (TEMPLATES / "stacks").glob("*.md")):
+        # The oracle knows the stacks that existed in 7cf4878; later stacks have their own test.
+        for stack in sorted(LEGACY_DEFAULT_TOPOLOGY_BY_STACK):
             for suggestion in [None, *topologies]:
                 with self.subTest(stack=stack, suggestion=suggestion):
                     self.assertEqual(
                         catalog.default_topology_for_stack(stack, suggestion, topologies),
                         _legacy_default_topology(stack, suggestion, topologies),
                     )
+
+    def test_python_api_behaves_like_python_ai_but_without_ai(self):
+        catalog = load_catalog(TEMPLATES)
+        topologies = sorted(catalog.topologies)
+        for suggestion in [None, *topologies]:
+            with self.subTest(suggestion=suggestion):
+                self.assertEqual(
+                    catalog.default_topology_for_stack("python-api", suggestion, topologies),
+                    catalog.default_topology_for_stack("python-ai", suggestion, topologies),
+                )
+        entry = catalog.stacks["python-api"]
+        self.assertEqual(entry.compatible_topologies, ("fullstack-baas", "fullstack-separated"))
+        self.assertEqual(entry.default_topology, "fullstack-separated")
+        self.assertEqual(entry.fits, ("APIs de negocio en Python",))
+        self.assertEqual(catalog.stacks["python-ai"].fits, ("agentes de IA y pipelines de datos",))
+        text = (TEMPLATES / "stacks" / "python-api.md").read_text(encoding="utf-8")
+        for name in ("LangChain", "CrewAI"):
+            self.assertNotIn(name, text)
+        for name in ("FastAPI", "Pydantic V2", "SQLAlchemy 2", "Alembic", "PostgreSQL", "pytest", "httpx"):
+            self.assertIn(name, text)
+
+    def test_infer_stack_recognizes_python_api_before_python_ai(self):
+        from rapid_os.domain.validation import infer_stack
+
+        for stack in ("python-api", "python-ai"):
+            text = (TEMPLATES / "stacks" / f"{stack}.md").read_text(encoding="utf-8")
+            self.assertEqual(infer_stack(text), stack)
 
     def test_web_modern_defaults_to_fullstack_separated(self):
         catalog = load_catalog(TEMPLATES)

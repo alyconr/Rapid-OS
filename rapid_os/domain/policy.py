@@ -1351,3 +1351,28 @@ class ExecutionPolicyEvaluator:
             gates=tuple(ordered_gates),
             reasons=tuple(reasons),
         )
+
+
+BASELINE_WAIVER_REASONS: Mapping[str, str] = {
+    "empty_repository": "Baseline waived: the repository has no source code and no tests yet.",
+}
+
+
+def waive_baseline(decision: PolicyDecision, reason: str) -> PolicyDecision:
+    """The same decision without `gate.baseline` (a new project has nothing to take a baseline of).
+
+    Pure. The reason is recorded in the decision's `reasons`; the contract also records it in
+    its optional `baseline_waived` field.
+    """
+    if reason not in BASELINE_WAIVER_REASONS:
+        raise InvalidExecutionPolicyError(
+            f"Unknown baseline waiver '{reason}': expected one of {sorted(BASELINE_WAIVER_REASONS)}."
+        )
+    return PolicyDecision(
+        classification=decision.classification,
+        risk=decision.risk,
+        risk_signals=decision.risk_signals,
+        workspace=decision.workspace,
+        gates=tuple(g for g in decision.gates if g.id != "gate.baseline"),
+        reasons=(*decision.reasons, BASELINE_WAIVER_REASONS[reason]),
+    )

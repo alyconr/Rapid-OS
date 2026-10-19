@@ -1035,3 +1035,31 @@ def _has_frontend_without_backend(scan: ProjectModel | ProjectScan):
         and not bool(backend_frameworks & set(scan.values("framework")))
         and not scan.values("database")
     )
+
+
+# Extensions that count as source code. Configuration, documentation and data files do not.
+SOURCE_SUFFIXES = frozenset(
+    {
+        ".py", ".pyi", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".vue", ".svelte",
+        ".go", ".rs", ".java", ".kt", ".kts", ".scala", ".cs", ".rb", ".php", ".swift",
+        ".c", ".cc", ".cpp", ".h", ".hpp", ".m", ".mm", ".lua", ".dart", ".ex", ".exs", ".clj", ".sh",
+    }
+)
+
+
+def is_empty_repository(project_dir: Path) -> bool:
+    """A project that has no source code and no tests yet (a brand-new repository).
+
+    No source file outside `docs/`, hidden folders (`.rapid-os/`, `.claude/`, `.github/`...) and
+    the folders the scanner ignores, and the scanner detects no testing at all. Manifests such as
+    `pyproject.toml` are configuration, not code: they do not make a repository non-empty.
+    """
+    root = Path(project_dir)
+    files = _collect_files(root)
+    for path in files:
+        parts = _relative_parts(path, root)
+        if not parts or parts[0].startswith(".") or parts[0] == "docs":
+            continue
+        if path.suffix.lower() in SOURCE_SUFFIXES:
+            return False
+    return not _detect_testing(files, root, _load_package_manifests(files, root))
