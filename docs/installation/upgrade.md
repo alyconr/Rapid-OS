@@ -16,24 +16,24 @@ Si instalaste Rapid OS mediante el script oficial en `$HOME/.rapid-os`:
 ### En Windows (PowerShell)
 Vuelve a ejecutar el instalador oficial. El script detectará la carpeta existente y actualizará las etiquetas de Git:
 ```powershell
-irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.ps1 | iex
+irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.ps1 | iex
 ```
 
 O de forma manual desde el directorio de instalación:
 ```powershell
 git -C "$HOME\.rapid-os" fetch --tags --force origin
-git -C "$HOME\.rapid-os" checkout --detach v3.1.0
+git -C "$HOME\.rapid-os" checkout --detach v3.1.1
 ```
 
 ### En Linux y macOS (Bash/Zsh)
 ```bash
-curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.sh | bash
+curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.sh | bash
 ```
 
 O de forma manual:
 ```bash
 git -C "$HOME/.rapid-os" fetch --tags --force origin
-git -C "$HOME/.rapid-os" checkout --detach v3.1.0
+git -C "$HOME/.rapid-os" checkout --detach v3.1.1
 ```
 
 ---
@@ -47,7 +47,7 @@ Si instalaste Rapid OS dentro de un entorno virtual:
 source .venv/bin/activate  # O en Windows: .venv\Scripts\Activate.ps1
 
 # Actualizar el paquete desde el tag deseado
-python -m pip install --upgrade git+https://github.com/alyconr/Rapid-OS.git@v3.1.0
+python -m pip install --upgrade git+https://github.com/alyconr/Rapid-OS.git@v3.1.1
 ```
 
 ---
@@ -81,8 +81,8 @@ Rapid OS 3.1 añade la capa de intención (`rapid start|next|check|…`), los sh
 
 1. Actualiza el paquete y comprueba la versión:
    ```bash
-   python -m pip install --upgrade git+https://github.com/alyconr/Rapid-OS.git@v3.1.0
-   rapid --version   # Rapid OS 3.1.0
+   python -m pip install --upgrade git+https://github.com/alyconr/Rapid-OS.git@v3.1.1
+   rapid --version   # Rapid OS 3.1.1
    ```
 2. Reinstala los shortcuts en cada proyecto (idempotente; los archivos modificados a mano se respaldan como `.bak`):
    ```bash
@@ -98,4 +98,4 @@ Rapid OS 3.1 añade la capa de intención (`rapid start|next|check|…`), los sh
 5. Define `test_command` en `.rapid-os/config.json` (por ejemplo `"python -m unittest discover"`); `rapid check` lo usa cuando no se le pasa un comando.
 6. Verifica con `rapid doctor`.
 
-Detalles y límites conocidos en las [notas de la release v3.1.0](../release-v3.1.0.md).
+Detalles y límites conocidos en las [notas de la release v3.1.1](../release-v3.1.1.md).

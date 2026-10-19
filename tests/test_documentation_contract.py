@@ -121,7 +121,7 @@ class DocumentationContractTests(unittest.TestCase):
     def test_stable_vs_development_installation_distinct(self):
         """Installation docs clearly distinguish stable release from development checkout."""
         install_index = (DOCS / "installation" / "index.md").read_text(encoding="utf-8")
-        self.assertIn("v3.1.0", install_index)
+        self.assertIn("v3.1.1", install_index)
         self.assertIn("main", install_index)
         self.assertIn("Estable", install_index)
         self.assertIn("Desarrollo", install_index)
@@ -535,7 +535,7 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertLess(navbar.index("label: 'Shortcuts'"), navbar.index("label: 'Modos'"))
         self.assertIn("{label: 'Shortcuts', to: '/guides/shortcuts'}", footer)
         self.assertIn("{label: 'Arquitectura de orquestación', to: '/architecture/orchestration'}", footer)
-        self.assertIn("{label: 'Release v3.1.0', to: '/release-v3.1.0'}", footer)
+        self.assertIn("{label: 'Release v3.1.1', to: '/release-v3.1.1'}", footer)
 
     def test_orchestration_architecture_covers_the_porcelain_design(self):
         text = (DOCS / "architecture" / "orchestration.md").read_text(encoding="utf-8")
@@ -623,10 +623,13 @@ class DocumentationContractTests(unittest.TestCase):
 
     def test_changelog_has_an_empty_unreleased_and_the_3_1_0_section(self):
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertLess(changelog.index("## [Unreleased]"), changelog.index("## [3.1.0] - "))
+        self.assertLess(changelog.index("## [Unreleased]"), changelog.index("## [3.1.1] - "))
+        self.assertLess(changelog.index("## [3.1.1] - "), changelog.index("## [3.1.0] - "))
         self.assertLess(changelog.index("## [3.1.0] - "), changelog.index("## [3.0.0]"))
-        between = changelog[changelog.index("## [Unreleased]"):changelog.index("## [3.1.0] - ")]
+        between = changelog[changelog.index("## [Unreleased]"):changelog.index("## [3.1.1] - ")]
         self.assertNotIn("###", between)  # [Unreleased] starts empty after the release
+        patch = changelog[changelog.index("## [3.1.1] - "):changelog.index("## [3.1.0] - ")]
+        self.assertIn("real `rapid` executable on `PATH`", patch)
         released = changelog[changelog.index("## [3.1.0] - "):changelog.index("## [3.0.0]")]
         for needle in ("Porcelain layer", "ruleset v2", "Five engineering modes", "Shortcuts", "RAPID1321",
                        "Claude Code hooks", "`rapid approve` hardened", "ancestor process", "best-effort",

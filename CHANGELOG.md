@@ -10,6 +10,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [3.1.1] - 2026-10-19
+
+### Fixed
+- Stable installers now put a real `rapid` executable on `PATH` instead of a shell alias (`install.sh`) or a PowerShell profile function (`install.ps1`). Shortcuts and Claude Code hooks run `rapid` from the agent's non-interactive shell (Git Bash on Windows), which sees neither, and failed with `rapid: command not found`. `install.sh` installs into `~/.rapid-os/.venv` and links `~/.local/bin/rapid`; `install.ps1` installs into `$HOME\.rapid-os\.venv` and puts `rapid.exe` in `$HOME\.rapid-os\bin` on the user `PATH`. Both remove the alias or function left by earlier installers (with a `.rapid-os.bak` backup).
+- Installation docs and troubleshooting explain that shortcuts and hooks need `rapid` on `PATH`.
+
+---
+
 ## [3.1.0] - 2026-10-18
 
 ### Added

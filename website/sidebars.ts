@@ -144,6 +144,7 @@ const sidebars: SidebarsConfig = {
       label: 'Operación y release',
       items: [
         'release-v3.0.0',
+        'release-v3.1.1',
         'release-v3.1.0',
         'release-checklist',
         'audit/documentation-scope',
