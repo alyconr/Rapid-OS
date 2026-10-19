@@ -8,6 +8,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Sidecar JSON por stack y topología (`templates/stacks/<id>.json`, `templates/topologies/<id>.json`) y módulo `rapid_os.domain.catalog` que los carga y valida (`RAPID1401`). `default_topology_for_stack` y la compatibilidad de `validate_stack_topology` leen ahora `compatible_topologies` y `default_topology`; el comportamiento de los 5 stacks existentes no cambia. Una plantilla sin sidecar es `RAPID1412` (aviso) y se trata como compatible con todas las topologías excepto `doc-site`.
+- Stack `generic`: `rapid init` genera `tech-stack.md` con el lenguaje, gestor de paquetes, framework y testing detectados por el scanner y la regla de seguir las convenciones del repositorio. `infer_stack` lo reconoce por su línea de encabezado exacta (`# TECH STACK: GENERIC`).
+- Bancos de preguntas como datos en `templates/setup/` (`docs/{brief,business,data-model,architecture}.json` y `stack-questions.json`), incluidos en sdist y wheel.
+
+- `rapid setup next|show [--json]`: conductor de onboarding puro y de solo lectura (`rapid_os/domain/setup.py`, `rapid_os/orchestration/setup_conductor.py`, `rapid_os/adapters/setup_store.py`). Indica la siguiente decisión (stack, topología, arquetipo, agentes, comando de test, documentos, finish) y deriva el estado del disco en proyectos inicializados antes; nunca escribe, ni `.rapid-os/setup.json`. Códigos `RAPID1406` (estado inválido), `RAPID1413` (subcomando, clave o valor inválido) y, reservado, `RAPID1400` (INFO "Setup válido").
+
+### Changed
+- `main` pasa a la versión de desarrollo `3.2.0.dev0`. El release estable sigue siendo `v3.1.0` (rama `release/3.1`); los instaladores y la documentación de instalación siguen apuntando a ese tag.
+
+### Fixed
+- `rapid init` sugería `python -m unittest discover` como comando de test en repositorios JavaScript con una carpeta `tests/`. Ahora una sola función (`propose_test_command`) la usan `init` y `setup`: `npm test` si `package.json` tiene `scripts.test`, pytest si se detecta, y `unittest discover` solo en proyectos Python con carpeta de tests; si no, ninguna sugerencia.
+- Corrección de comportamiento: `rapid init --yes` sin sugerencia del scanner ya no elige `web-modern` (Next.js) sino `generic`.
+
 ---
 
 ## [3.1.1] - 2026-10-19

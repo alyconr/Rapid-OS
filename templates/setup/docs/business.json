@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "id": "business",
+  "file": "docs/BUSINESS_RULES.md",
+  "title": "Reglas de negocio",
+  "context_priority": "HIGH",
+  "max_chars": 6000,
+  "required_sections": [
+    {
+      "id": "goal",
+      "titles": [
+        "Objetivo",
+        "Goal"
+      ]
+    },
+    {
+      "id": "rules",
+      "titles": [
+        "Reglas no negociables",
+        "Non-negotiable rules"
+      ]
+    },
+    {
+      "id": "constraints",
+      "titles": [
+        "Restricciones",
+        "Constraints"
+      ]
+    },
+    {
+      "id": "assumptions",
+      "titles": [
+        "Supuestos",
+        "Assumptions"
+      ]
+    },
+    {
+      "id": "glossary",
+      "titles": [
+        "Glosario",
+        "Glossary"
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "goal",
+      "text": "¿Qué objetivo de negocio persigue el producto?",
+      "required": true
+    },
+    {
+      "id": "rules",
+      "text": "¿Qué reglas de negocio no se pueden romper?",
+      "required": true
+    },
+    {
+      "id": "constraints",
+      "text": "¿Hay restricciones legales, de costo o de plazo?",
+      "required": true
+    },
+    {
+      "id": "assumptions",
+      "text": "¿Qué supuestos das por ciertos y aún no has validado?",
+      "required": true
+    },
+    {
+      "id": "glossary",
+      "text": "¿Qué términos del negocio necesita conocer el agente?",
+      "required": true
+    }
+  ]
+}

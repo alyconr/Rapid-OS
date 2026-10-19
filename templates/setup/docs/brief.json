@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "id": "brief",
+  "file": "docs/PRODUCT_BRIEF.md",
+  "title": "Brief del producto",
+  "context_priority": "HIGH",
+  "max_chars": 5000,
+  "required_sections": [
+    {
+      "id": "problem",
+      "titles": [
+        "Problema",
+        "Problem"
+      ]
+    },
+    {
+      "id": "users",
+      "titles": [
+        "Usuarios",
+        "Users"
+      ]
+    },
+    {
+      "id": "stories",
+      "titles": [
+        "Historias",
+        "Stories"
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "problem",
+      "text": "¿Qué problema resuelve el producto y para quién?",
+      "required": true
+    },
+    {
+      "id": "users",
+      "text": "¿Quiénes son los usuarios principales?",
+      "required": true
+    },
+    {
+      "id": "stories",
+      "text": "¿Qué historias debe cubrir la primera versión? Una por línea con el formato '- [ ] H001: <historia>'.",
+      "required": true
+    },
+    {
+      "id": "success",
+      "text": "¿Cómo sabrás que el producto funciona (métrica o señal)?",
+      "required": false
+    }
+  ]
+}

@@ -69,6 +69,13 @@ from rapid_os.adapters.spec_registry import SpecRegistry
 from rapid_os.core.process import run_npx_skills_add
 from rapid_os.core.text import read_text_best_effort
 from rapid_os.domain.agents import generate_agent_contexts
+from rapid_os.adapters.project_commands import propose_test_command
+from rapid_os.domain.catalog import (
+    GENERIC_STACK_ID,
+    CatalogError,
+    build_generic_stack,
+    load_catalog,
+)
 from rapid_os.domain.capabilities import (
     HARNESS_PROFILE_SCHEMA_VERSION,
     CapabilityResolver,
@@ -118,6 +125,7 @@ from rapid_os.domain.harnesses import (
     InvalidCapabilityResolutionError,
 )
 from rapid_os.domain.mcp import build_mcp_config
+from rapid_os.domain.project import ProjectModel
 from rapid_os.domain.scanner import (
     build_project_model,
     scan_project,
@@ -427,62 +435,6 @@ def create_optional_docs_scaffold(input_fn=None):
     return written
 
 
-def _propose_test_command(scan) -> list[str] | None:
-    if scan is None:
-        return None
-    model = scan.to_model() if hasattr(scan, "to_model") else scan
-    facts = getattr(model, "facts", ())
-    testing_values = [f.value for f in facts if f.category == "testing"]
-    if "pytest" in testing_values:
-        return ["python", "-m", "pytest"]
-    if "tests-directory" in testing_values:
-        return ["python", "-m", "unittest", "discover"]
-    root = getattr(model, "root", CURRENT_DIR)
-    package_json = root / "package.json"
-    if package_json.exists():
-        try:
-            pkg_data = json.loads(package_json.read_text(encoding="utf-8"))
-            if isinstance(pkg_data, dict) and "scripts" in pkg_data and isinstance(pkg_data["scripts"], dict):
-                if "test" in pkg_data["scripts"]:
-                    return ["npm", "test"]
-        except Exception:
-            pass
-    return None
-
-
-DEFAULT_TOPOLOGY_BY_STACK = {
-    "docs-modern": "doc-site",
-    "python-ai": "fullstack-separated",
-    "nodejs-ai": "fullstack-separated",
-    "web-modern": "fullstack-separated",
-    "frontend-creative": "front-end-only",
-}
-
-
-def default_topology_for_stack(stack_name, suggested_topology, topologies):
-    """Topology for `rapid init --yes` when nothing was asked: coherent with the stack.
-
-    `doc-site` is only valid with `docs-modern` (and `docs-modern` needs `doc-site`), so the
-    alphabetical first template can never be the default. A scanner suggestion is kept only when
-    it does not contradict the chosen stack.
-    """
-    if stack_name == "docs-modern":
-        return "doc-site" if "doc-site" in topologies else None
-    if (
-        suggested_topology in topologies
-        and suggested_topology != "doc-site"
-        and not (suggested_topology == "front-end-only" and stack_name in ("python-ai", "nodejs-ai"))
-    ):
-        return suggested_topology
-    required = DEFAULT_TOPOLOGY_BY_STACK.get(stack_name)
-    if required in topologies:
-        return required
-    for name in topologies:
-        if name != "doc-site":
-            return name
-    return None
-
-
 def init_project(args):
     print_step("Inicializando Rapid OS...")
 
@@ -526,7 +478,7 @@ def init_project(args):
     elif use_suggestions and suggested_stack:
         stack_name = suggested_stack
     elif getattr(args, "yes", False):
-        stack_name = suggested_stack or "web-modern"
+        stack_name = suggested_stack or GENERIC_STACK_ID
     else:
         stacks_path = TEMPLATES_DIR / "stacks"
         if not stacks_path.exists():
@@ -547,6 +499,12 @@ def init_project(args):
             stack_name = stacks[0]
 
     try:
+        catalog = load_catalog(TEMPLATES_DIR)
+    except CatalogError as exc:
+        print_error(str(exc))
+        return
+
+    try:
         stack_name = validate_identifier(stack_name, "stack")
         stack_src = resolve_child_path(
             TEMPLATES_DIR / "stacks", f"{stack_name}.md", single_segment=True
@@ -555,7 +513,8 @@ def init_project(args):
         print_error(str(exc))
         return
 
-    if not stack_src.exists():
+    is_generic_stack = stack_name == GENERIC_STACK_ID and not stack_src.exists()
+    if not is_generic_stack and not stack_src.exists():
         print_error(f"Template de stack no encontrado: {stack_name} ({stack_src})")
         return
 
@@ -576,7 +535,7 @@ def init_project(args):
         if use_suggestions and suggested_topology in topos:
             topo_name = suggested_topology
         elif getattr(args, "yes", False):
-            topo_name = default_topology_for_stack(stack_name, suggested_topology, topos)
+            topo_name = catalog.default_topology_for_stack(stack_name, suggested_topology, topos)
         elif topos:
             print("\n🏗️  SELECCIONA TOPOLOGÍA:")
             for i, t in enumerate(topos, 1):
@@ -625,11 +584,21 @@ def init_project(args):
         archetype_dir = resolve_child_path(
             TEMPLATES_DIR / "archetypes", archetype, single_segment=True
         )
-        safe_copy_file(
-            stack_src,
-            standards_dest / "tech-stack.md",
-            backup=True,
-        )
+        if is_generic_stack:
+            model = scan.to_model() if scan is not None else ProjectModel(root=CURRENT_DIR)
+            safe_write_text(
+                standards_dest / "tech-stack.md",
+                build_generic_stack(model, scanned=scan is not None),
+                encoding="utf-8",
+                backup=True,
+                create_parents=True,
+            )
+        else:
+            safe_copy_file(
+                stack_src,
+                standards_dest / "tech-stack.md",
+                backup=True,
+            )
         rules_src = resolve_child_path(
             archetype_dir, "coding-rules.md", single_segment=True
         )
@@ -687,7 +656,10 @@ def init_project(args):
     if explicit_test_cmd:
         configured_test_cmd = shlex.split(explicit_test_cmd)
     else:
-        proposed_cmd = _propose_test_command(scan)
+        proposed_cmd = None
+        if scan is not None:
+            scan_model = scan.to_model() if hasattr(scan, "to_model") else scan
+            proposed_cmd = propose_test_command(scan_model.root, scan_model)
         if proposed_cmd is not None:
             cmd_display = " ".join(proposed_cmd)
             if getattr(args, "yes", False):
@@ -1416,7 +1388,7 @@ def doctor_command(args):
         report = report.merge(
             validate_project_standards(PROJECT_RAPID_DIR),
             validate_project_config(CONFIG_FILE, DEFAULT_AGENT_REGISTRY),
-            validate_stack_topology(PROJECT_RAPID_DIR),
+            validate_stack_topology(PROJECT_RAPID_DIR, TEMPLATES_DIR),
             validate_composed_context(PROJECT_RAPID_DIR, CURRENT_DIR),
             validate_project_intelligence(PROJECT_RAPID_DIR, CURRENT_DIR),
             validate_spec_registry(PROJECT_RAPID_DIR, CURRENT_DIR),
@@ -3384,6 +3356,110 @@ def start_command(args):
     return 0
 
 
+def _load_setup_inputs():
+    """Catalog, doc banks and stack questions; a broken sidecar is reported as RAPID1401."""
+    from rapid_os.domain.catalog import load_catalog, load_setup_doc_banks, load_stack_questions
+
+    try:
+        return (
+            load_catalog(TEMPLATES_DIR),
+            load_setup_doc_banks(TEMPLATES_DIR),
+            load_stack_questions(TEMPLATES_DIR),
+        )
+    except CatalogError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
+
+
+def _format_setup_action(action) -> list[str]:
+    data = action.to_dict()
+    kind = data["kind"]
+    lines = [f"Setup next: {kind}"]
+    if kind == "choose_stack":
+        facts = ", ".join(f"{f['category']}={f['value']}" for f in data["facts"]) or "none detected"
+        top = ", ".join(f"{o['id']} ({o['score']})" for o in data["options"][:4])
+        lines += [f"Detected: {facts}", f"Options: {top}", f"Recommended: {data['recommended'] or 'none'}"]
+    elif kind == "choose_topology":
+        lines += [
+            f"Stack: {data['stack']}",
+            f"Options: {', '.join(o['id'] for o in data['options'])}",
+            f"Recommended: {data['recommended'] or 'none'}",
+        ]
+    elif kind in ("choose_archetype", "choose_agents"):
+        lines.append(f"Options: {', '.join(o['id'] for o in data['options'])}")
+    elif kind == "set_test_command":
+        proposed = " ".join(data["recommended"]) if data["recommended"] else "none detected"
+        lines.append(f"Suggested test command: {proposed}")
+    elif kind == "resolve_doc":
+        lines += [
+            f"Document: {data['doc']} -> {data['target']}",
+            f"Choices: {', '.join(data['choices'])} (max {data['max_chars']} chars)",
+            f"Command: {' '.join(data['command'])}",
+        ]
+    elif data.get("unconfirmed_docs"):
+        lines.append(f"Unconfirmed drafts: {', '.join(data['unconfirmed_docs'])}")
+    return lines
+
+
+def setup_command(args):
+    """Execute rapid setup next|show. Both are read-only: not even setup.json is written."""
+    from rapid_os.adapters.setup_store import read_setup
+    from rapid_os.domain.setup import SetupStateError
+    from rapid_os.orchestration.setup_conductor import next_setup_action
+
+    action_name = getattr(args, "setup_action", None)
+    if not action_name:
+        print("RAPID1413 Subcomando de setup requerido (next, show).", file=sys.stderr)
+        sys.exit(1)
+
+    catalog, doc_banks, stack_questions = _load_setup_inputs()
+    try:
+        project_model = scan_project(CURRENT_DIR).to_model()
+        snapshot = read_setup(
+            CURRENT_DIR,
+            PROJECT_RAPID_DIR,
+            CONFIG_FILE,
+            TEMPLATES_DIR,
+            catalog,
+            doc_banks,
+            project_model,
+        )
+    except SetupStateError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
+
+    as_json = getattr(args, "json", False)
+    if action_name == "show":
+        state = snapshot.state.to_dict()
+        if as_json:
+            print(json.dumps({"origin": snapshot.origin, "state": state}, indent=2))
+            return 0
+        stack = state["stack"]["id"] if state["stack"] else "-"
+        docs = ", ".join(f"{k}={v['status']}" for k, v in state["docs"].items()) or "-"
+        test_command = " ".join(state["test_command"]) if state["test_command"] else "-"
+        print(f"Setup state ({snapshot.origin}): finished={str(state['finished']).lower()}")
+        print(f"Stack: {stack}  Topology: {state['topology'] or '-'}  Archetype: {state['archetype'] or '-'}")
+        print(f"Agents: {', '.join(state['agents']) or '-'}  Test command: {test_command}")
+        print(f"Docs: {docs}")
+        return 0
+
+    action = next_setup_action(
+        snapshot.state,
+        project_model,
+        catalog,
+        doc_banks,
+        stack_questions=stack_questions,
+        agent_ids=DEFAULT_AGENT_REGISTRY.ids(),
+        proposed_test_command=snapshot.proposed_test_command,
+        detected_agent=snapshot.detected_agent,
+    )
+    if as_json:
+        print(json.dumps(action.to_dict(), indent=2))
+        return 0
+    print("\n".join(_format_setup_action(action)))
+    return 0
+
+
 def next_command(args):
     """Execute rapid next command."""
     from rapid_os.orchestration.lifecycle import execute_next
@@ -4496,6 +4572,20 @@ def create_parser():
     )
     abort_p.add_argument("--reason", dest="reason", help="Cancellation reason.")
 
+    # rapid setup
+    setup_p = subparsers.add_parser(
+        "setup",
+        help="Read the onboarding state and its next decision (next/show are read-only).",
+        description="Inspect the onboarding: which decision comes next. next and show never write, not even .rapid-os/setup.json.",
+    )
+    setup_sub = setup_p.add_subparsers(dest="setup_action")
+    for _name, _help in (
+        ("next", "Print the next onboarding decision (read-only)."),
+        ("show", "Print the onboarding state, persisted or derived from disk (read-only)."),
+    ):
+        _sp = setup_sub.add_parser(_name, help=_help, description=_help)
+        _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
+
     # rapid shortcuts
     shortcuts_p = subparsers.add_parser(
         "shortcuts",
@@ -4572,6 +4662,8 @@ def main(argv=None):
         hook_command(args)
     elif args.command == "shortcuts":
         shortcuts_command(args)
+    elif args.command == "setup":
+        setup_command(args)
     elif args.command == "check":
         check_command(args)
     elif args.command == "task":

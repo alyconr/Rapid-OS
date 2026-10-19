@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "id": "architecture",
+  "file": "docs/ARCHITECTURE.md",
+  "title": "Arquitectura",
+  "context_priority": "HIGH",
+  "max_chars": 4000,
+  "required_sections": [
+    {
+      "id": "decision",
+      "titles": [
+        "Decisión",
+        "Decision"
+      ]
+    },
+    {
+      "id": "rationale",
+      "titles": [
+        "Por qué",
+        "Rationale"
+      ]
+    },
+    {
+      "id": "alternatives",
+      "titles": [
+        "Alternativas descartadas",
+        "Rejected alternatives"
+      ]
+    },
+    {
+      "id": "consequences",
+      "titles": [
+        "Consecuencias",
+        "Consequences"
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "decision",
+      "text": "¿Qué decisión de arquitectura se tomó?",
+      "required": true
+    },
+    {
+      "id": "rationale",
+      "text": "¿Por qué se tomó esa decisión?",
+      "required": true
+    },
+    {
+      "id": "alternatives",
+      "text": "¿Qué alternativas se descartaron y por qué?",
+      "required": true
+    },
+    {
+      "id": "consequences",
+      "text": "¿Qué consecuencias tiene la decisión (costos, límites, riesgos)?",
+      "required": true
+    },
+    {
+      "id": "integrations",
+      "text": "¿Con qué servicios externos se integra?",
+      "required": false
+    }
+  ]
+}

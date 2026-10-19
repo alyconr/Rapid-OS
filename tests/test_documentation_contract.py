@@ -621,13 +621,11 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertIn("/guides/shortcuts", suite)
         self.assertIn("/architecture/orchestration", suite)
 
-    def test_changelog_has_an_empty_unreleased_and_the_3_1_0_section(self):
+    def test_changelog_has_unreleased_and_the_3_1_0_section(self):
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
         self.assertLess(changelog.index("## [Unreleased]"), changelog.index("## [3.1.1] - "))
         self.assertLess(changelog.index("## [3.1.1] - "), changelog.index("## [3.1.0] - "))
         self.assertLess(changelog.index("## [3.1.0] - "), changelog.index("## [3.0.0]"))
-        between = changelog[changelog.index("## [Unreleased]"):changelog.index("## [3.1.1] - ")]
-        self.assertNotIn("###", between)  # [Unreleased] starts empty after the release
         patch = changelog[changelog.index("## [3.1.1] - "):changelog.index("## [3.1.0] - ")]
         self.assertIn("real `rapid` executable on `PATH`", patch)
         released = changelog[changelog.index("## [3.1.0] - "):changelog.index("## [3.0.0]")]
