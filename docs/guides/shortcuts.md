@@ -5,7 +5,7 @@ description: Instala y usa los comandos /rapid-<modo> en Claude Code, Codex, Cur
 
 # Shortcuts por harness
 
-Los **shortcuts** son el flujo principal de Rapid OS: un comando por modo (`/rapid-feature`, `/rapid-bugfix`…) que tu agente de código ejecuta para llevar el trabajo de principio a fin dentro de un run gobernado. Tú describes el objetivo; el shortcut le enseña al agente el bucle (`rapid next` → `rapid start` → `rapid check` → `rapid finish`) y se detiene cuando hace falta una persona.
+Los **shortcuts** son el flujo principal de Rapid OS. El primero es `/rapid-init`: tu agente conduce todo el onboarding del proyecto con `rapid setup` (stack, topología, arquetipo, agentes, comando de test y documentos). Después hay un comando por modo (`/rapid-feature`, `/rapid-bugfix`…) que tu agente ejecuta para llevar el trabajo de principio a fin dentro de un run gobernado. Tú describes el objetivo; el shortcut le enseña al agente el bucle (`rapid next` → `rapid start` → `rapid check` → `rapid finish`) y se detiene cuando hace falta una persona.
 
 Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) siguen disponibles como **Modo avanzado**: CI, depuración y auditoría. Están descritos en la [referencia de CLI](../cli.md) y en el flujo manual de cada [guía de modo](./modes/index.md).
 
@@ -17,8 +17,13 @@ rapid init --shortcuts                 # 1. inicializa el proyecto e instala los
 Después, en tu agente:
 
 ```text
+/rapid-init API de facturación para pymes, en Python   # onboarding (en Codex: $rapid-init)
 /rapid-feature añadir exportación CSV al informe mensual
 ```
+
+:::note `rapid` debe estar en el `PATH`
+Los shortcuts y los hooks ejecutan `rapid` desde el shell del agente. Si no se resuelve, `rapid init` y `rapid doctor` avisan con `RAPID1414` (no es un error: exit 0). Instálalo con el instalador o con `pipx install rapid-os`.
+:::
 
 ---
 
@@ -32,6 +37,8 @@ rapid shortcuts install                                 # para los harness de "t
 rapid shortcuts install --harness claude --harness codex
 rapid shortcuts install --harness claude --hooks        # además, los hooks de Claude Code
 rapid shortcuts install --harness claude --dry-run --json   # qué escribiría, sin escribir
+rapid shortcuts install --harness claude --only rapid-init   # solo un shortcut
+rapid shortcuts install --global --harness claude --only rapid-init   # en tu carpeta de usuario (ver abajo)
 rapid shortcuts list                                    # estado de cada archivo: installed, outdated, missing, unmanaged
 rapid shortcuts remove --harness codex                  # quita solo lo generado
 ```
@@ -41,6 +48,20 @@ rapid shortcuts remove --harness codex                  # quita solo lo generado
 - La instalación es **idempotente**: si el contenido es igual no escribe; si es distinto, guarda una copia `.bak` antes de reemplazar.
 - `rapid init --shortcuts` **no** instala hooks; se piden con `--hooks` (en `rapid init` o en `rapid shortcuts install`).
 - Se omiten los shortcuts de los modos que no tengan playbook en `templates/modes/` (`RAPID1315`); hoy existen los cinco.
+
+### Instalación a nivel usuario (`--global`)
+
+`rapid shortcuts install --global --harness <id> [--only rapid-init]` escribe los shortcuts en la carpeta de skills de **tu usuario** (bajo tu carpeta personal), así `/rapid-init` funciona en cualquier proyecto sin instalarlo en cada uno. Necesita `--harness` (no lee la config de ningún proyecto), no admite `--hooks`, y `list` y `remove` aceptan el mismo `--global`. Solo está disponible donde la documentación oficial del harness da la carpeta:
+
+| Harness | Carpeta de usuario | Fuente |
+| :--- | :--- | :--- |
+| `claude` | `~/.claude/skills/<nombre>/SKILL.md` | [Skills de Claude Code](https://code.claude.com/docs/en/skills) |
+| `codex` | `~/.agents/skills/<nombre>/SKILL.md` | [Skills de Codex](https://learn.chatgpt.com/docs/build-skills) |
+| `cursor` | `~/.cursor/skills/<nombre>/SKILL.md` | [Skills de Cursor](https://cursor.com/docs/context/skills) |
+| `antigravity` | `~/.gemini/config/skills/<nombre>/SKILL.md` (Antigravity App e IDE; el CLI de Antigravity lee `~/.gemini/antigravity-cli/skills/`, que `--global` no escribe) | [Skills de Antigravity](https://antigravity.google/docs/skills) |
+| `vscode` | **No soportado**: la documentación de los prompt files solo dice «Your user data (specific to your VS Code profile)», sin una ruta. | [Prompt files de VS Code](https://code.visualstudio.com/docs/copilot/customization/prompt-files) |
+
+Pedir `--global` para `vscode` (solo o junto a otros) da `RAPID1413` y no escribe nada. `install.sh` e `install.ps1` ofrecen este paso al terminar (solo si hay una terminal interactiva, y nunca por defecto).
 
 ### Reinstalar tras actualizar Rapid OS
 
@@ -61,11 +82,18 @@ Todo sale de los adaptadores de `rapid_os/adapters/agents/`; cada fila cita la d
 
 | Harness (`--harness`) | Carpeta que se genera | Cómo se invoca | Documentación oficial |
 | :--- | :--- | :--- | :--- |
-| `claude` (Claude Code) | `.claude/skills/<nombre>/SKILL.md` | `/rapid-feature <objetivo>`; al escribir `/rapid-` aparecen los 8 | [Skills de Claude Code](https://code.claude.com/docs/en/skills) |
-| `codex` (Codex) | `.agents/skills/<nombre>/SKILL.md` | `$rapid-feature <objetivo>`, o elegirlo desde `/skills` | [Skills de Codex](https://developers.openai.com/codex/skills) |
+| `claude` (Claude Code) | `.claude/skills/<nombre>/SKILL.md` | `/rapid-init`, `/rapid-feature <objetivo>`; al escribir `/rapid-` aparecen los 9 | [Skills de Claude Code](https://code.claude.com/docs/en/skills) |
+| `codex` (Codex) | `.agents/skills/<nombre>/SKILL.md` | `$rapid-init`, `$rapid-feature <objetivo>`, o elegirlo desde `/skills` | [Skills de Codex](https://learn.chatgpt.com/docs/build-skills) |
 | `antigravity` (Google Antigravity) | `.agents/skills/<nombre>/SKILL.md` (la misma carpeta que Codex) | `/rapid-feature <objetivo>` | [Skills de Antigravity](https://antigravity.google/docs/skills) |
 | `cursor` (Cursor) | `.cursor/skills/<nombre>/SKILL.md` | `/rapid-feature <objetivo>` en el chat del Agent | [Skills de Cursor](https://cursor.com/docs/context/skills) |
 | `vscode` (VS Code / Copilot) | `.github/prompts/<nombre>.prompt.md` (prompt files) | `/rapid-feature <objetivo>` en el chat | [Prompt files de VS Code](https://code.visualstudio.com/docs/copilot/customization/prompt-files) |
+
+Qué hace cada harness con el shortcut:
+
+| Harness | Ejecuta solo el `context-command` | Hooks |
+| :--- | :--- | :--- |
+| `claude` | **Sí**: `` !`rapid setup next --json` `` (o `rapid next --json`) corre antes del prompt; si falla, el skill se aborta. | **Solo aquí** (`--hooks`). |
+| `codex`, `antigravity`, `cursor`, `vscode` | No: el texto le pide al agente que ejecute el comando él mismo. | No hay hooks de Rapid OS. |
 
 Detalles que conviene conocer:
 
@@ -93,10 +121,11 @@ Por eso, seleccionar `cursor` o `vscode` **junto con** `claude`, `codex` o `anti
 
 ---
 
-## 3. Los 8 shortcuts
+## 3. Los 9 shortcuts
 
 | Shortcut | Qué hace | Argumento |
 | :--- | :--- | :--- |
+| `rapid-init` | Conduce el onboarding del proyecto con `rapid setup`: decisiones, documentos (borrador, pegado u omitido) y cierre. Nunca confirma un borrador por ti. | Descripción del proyecto (opcional). |
 | `rapid-feature` | Implementa una funcionalidad con un run gobernado (modo `feature`). | Objetivo de la funcionalidad. |
 | `rapid-bugfix` | Corrige un bug: reproduce primero con un test en rojo (modo `bugfix`). | Descripción del bug. |
 | `rapid-refactor` | Refactoriza sin que bajen los tests que pasan (modo `refactor`). | Alcance del refactor. |
@@ -125,6 +154,8 @@ El motivo de la última regla: aprobar un gate humano, abortar un run o registra
 ---
 
 ## 5. Aprobación humana
+
+Los shortcuts piden aprobación **solo cuando `action.kind` es `await_human_approval`**. `awaiting_human` lista los gates humanos del contrato desde el inicio del run, así que con tareas abiertas ya trae `gate.final-verification`: pedirla entonces da `RAPID1014` (y `rapid approve` añade una línea con la tarea que sigue en curso). Cuando llega el momento, el agente te da el comando exacto con el id del gate y tú lo ejecutas en otra terminal, fuera del agente.
 
 `/rapid-approve` **no aprueba nada**. Lee `rapid status --json`, te muestra los gates humanos pendientes con la evidencia que los respalda y te da el comando exacto para tu terminal:
 
@@ -161,6 +192,8 @@ El catálogo completo de códigos está en [diagnósticos](../troubleshooting/di
 | `RAPID1308` | Ya hay un run activo sin terminar. | Continúa con `/rapid-next`, o cancélalo tú con `rapid abort` en tu terminal. |
 | `RAPID1310` | `rapid approve` sin TTY, desde el modo `!` de Claude Code o con `claude` como ancestro. | Ejecútalo en tu propia terminal (sección 5). |
 | `RAPID1312` | No hay harness seleccionado para instalar. | `--harness <id>` o `rapid init --agents <lista>`. |
+| `RAPID1413` | `--global` para un harness sin carpeta de usuario documentada (`vscode`), sin `--harness` o con `--hooks`; o un `--only` con un shortcut inexistente. No se escribe nada. | Instalar en el proyecto (sin `--global`), o pasar `--harness` y un nombre de la tabla de la sección 3. |
+| `RAPID1414` | Aviso: `rapid` no está en el `PATH` y hay shortcuts o hooks instalados. | Instalar Rapid OS con el instalador o con `pipx install rapid-os`. |
 | `RAPID1315` | Un shortcut de modo se omitió porque ese modo no tiene playbook. | Informativo; vuelve a ejecutar `rapid shortcuts install` cuando exista. |
 | `RAPID1320` | `rapid check --expect fail` sin tarea (o ligado a un gate). | Indica `--task T001` o deja exactamente una tarea en curso. |
 | `RAPID1321` | Aviso: la selección deja el mismo `/rapid-*` en dos carpetas que Cursor o VS Code leen. | Instala solo la combinación recomendada en el aviso (ver «Si combinas harnesses»); no bloquea nada. |

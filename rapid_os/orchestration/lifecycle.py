@@ -822,7 +822,15 @@ def execute_approve(
         try:
             enforce_gate_transition_preconditions(current_state, gate_st)
         except ExecutionError as exc:
-            return 1, f"{exc.code} {exc}"
+            message = f"{exc.code} {exc}"
+            # RAPID1014 names the open tasks for machines; add the sentence a person can act on.
+            for task in current_state.tasks:
+                if task.status.value == "in_progress":
+                    message += (
+                        f"\n{task.id} sigue en curso; espera a que el agente ejecute "
+                        f"`rapid task done {task.id}`."
+                    )
+            return 1, message
 
     reviewer_name = reviewer.strip() if reviewer and reviewer.strip() else None
     if reviewer_name is None:

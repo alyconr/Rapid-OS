@@ -149,6 +149,55 @@ def resolve_harness_ids(
     return tuple(h for h in supported if h in set(requested))
 
 
+SCOPES = ("project", "global")
+
+
+def select_templates(
+    templates: Sequence[ShortcutTemplate], only: Iterable[str] | None
+) -> tuple[ShortcutTemplate, ...]:
+    """Keep only the named shortcuts (`--only`); an unknown name is RAPID1413."""
+    if not only:
+        return tuple(templates)
+    wanted = list(dict.fromkeys(only))
+    known = {t.name for t in templates}
+    unknown = [name for name in wanted if name not in known]
+    if unknown:
+        raise ShortcutError(
+            "RAPID1413",
+            f"Unknown shortcut for --only: {', '.join(unknown)}. Known: {', '.join(sorted(known))}.",
+        )
+    return tuple(t for t in templates if t.name in set(wanted))
+
+
+def ensure_global_supported(
+    harness_ids: Sequence[str], registry: AgentRegistry = DEFAULT_AGENT_REGISTRY
+) -> None:
+    """`--global` needs a documented user-level folder; otherwise RAPID1413 and nothing is written."""
+    unsupported = [h for h in harness_ids if registry.get(h).global_skills_root is None]
+    if unsupported:
+        details = "; ".join(
+            f"{h}: no user-level folder is documented ({registry.get(h).global_docs_url})"
+            for h in unsupported
+        )
+        raise ShortcutError(
+            "RAPID1413",
+            f"--global is not supported for {', '.join(unsupported)}. {details}. "
+            "Install it in the project instead (without --global).",
+        )
+
+
+def _adapter_outputs(
+    registry: AgentRegistry,
+    harness_id: str,
+    templates: Sequence[ShortcutTemplate],
+    scope: str,
+) -> Mapping[Path, str]:
+    adapter = registry.get(harness_id)
+    if scope == "global":
+        return adapter.global_shortcut_outputs(templates)
+    return adapter.shortcut_outputs(templates)
+
+
 def _target(project_root: Path, relative: Path) -> Path:
     try:
         target = resolve_child_path(project_root, relative)
@@ -172,13 +221,14 @@ def _outputs_by_path(
     harness_ids: Sequence[str],
     templates: Sequence[ShortcutTemplate],
     registry: AgentRegistry,
+    scope: str = "project",
 ) -> dict[Path, tuple[str, list[str], str]]:
     """Merge adapter outputs by path (Codex and Antigravity share `.agents/skills`)."""
     merged: dict[Path, tuple[str, list[str], str]] = {}
     by_name = {t.name: t for t in templates}
     ordered = [h for h in registry.ids() if h in set(harness_ids)]  # stable owner order
     for harness_id in ordered:
-        rendered: Mapping[Path, str] = registry.get(harness_id).shortcut_outputs(templates)
+        rendered: Mapping[Path, str] = _adapter_outputs(registry, harness_id, templates, scope)
         for relative, content in rendered.items():
             shortcut = _shortcut_of(relative, by_name)
             if relative in merged:
@@ -205,10 +255,16 @@ def build_plan(
     harness_ids: Sequence[str],
     templates_dir: Path,
     registry: AgentRegistry = DEFAULT_AGENT_REGISTRY,
+    *,
+    scope: str = "project",
+    only: Iterable[str] | None = None,
 ) -> InstallPlan:
-    templates = load_templates(templates_dir)
+    """With `scope="global"`, `project_root` is the home directory."""
+    if scope == "global":
+        ensure_global_supported(harness_ids, registry)
+    templates = select_templates(load_templates(templates_dir), only)
     available, skipped = split_available(templates, templates_dir)
-    merged = _outputs_by_path(harness_ids, available, registry)
+    merged = _outputs_by_path(harness_ids, available, registry, scope)
 
     files: list[PlannedFile] = []
     warnings: list[str] = []
@@ -261,13 +317,18 @@ def list_entries(
     harness_ids: Sequence[str],
     templates_dir: Path,
     registry: AgentRegistry = DEFAULT_AGENT_REGISTRY,
+    *,
+    scope: str = "project",
+    only: Iterable[str] | None = None,
 ) -> tuple[tuple[ListEntry, ...], tuple[SkippedShortcut, ...]]:
-    templates = load_templates(templates_dir)
+    if scope == "global":
+        ensure_global_supported(harness_ids, registry)
+    templates = select_templates(load_templates(templates_dir), only)
     available, skipped = split_available(templates, templates_dir)
     entries: list[ListEntry] = []
     for harness_id in harness_ids:
         by_name = {t.name: t for t in available}
-        for relative, content in registry.get(harness_id).shortcut_outputs(available).items():
+        for relative, content in _adapter_outputs(registry, harness_id, available, scope).items():
             existing = _read_existing(_target(project_root, relative))
             if existing is None:
                 state = "missing"
@@ -288,11 +349,16 @@ def plan_removal(
     harness_ids: Sequence[str],
     templates_dir: Path,
     registry: AgentRegistry = DEFAULT_AGENT_REGISTRY,
+    *,
+    scope: str = "project",
+    only: Iterable[str] | None = None,
 ) -> tuple[RemovalEntry, ...]:
+    if scope == "global":
+        ensure_global_supported(harness_ids, registry)
     # All templates, not only the available ones: modes whose playbook disappeared
     # must still be removable.
-    templates = load_templates(templates_dir)
-    merged = _outputs_by_path(harness_ids, templates, registry)
+    templates = select_templates(load_templates(templates_dir), only)
+    merged = _outputs_by_path(harness_ids, templates, registry, scope)
     entries: list[RemovalEntry] = []
     for relative in sorted(merged, key=lambda p: p.as_posix()):
         _, owners, shortcut = merged[relative]

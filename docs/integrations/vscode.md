@@ -39,7 +39,7 @@ Salida canónica:
 
 ## Flujo principal: shortcuts
 
-La forma recomendada de trabajar con VS Code y Copilot es con los shortcuts `/rapid-<modo>`. Los 8 shortcuts, el bucle que siguen, la aprobación humana y los errores frecuentes están en la [guía de shortcuts](../guides/shortcuts.md).
+La forma recomendada de trabajar con VS Code y Copilot es con los shortcuts `/rapid-<modo>`. Los 9 shortcuts, el bucle que siguen, la aprobación humana y los errores frecuentes están en la [guía de shortcuts](../guides/shortcuts.md).
 
 ### Instalación
 
@@ -48,7 +48,7 @@ rapid init --shortcuts                                # al inicializar el proyec
 rapid shortcuts install --harness vscode              # en un proyecto ya inicializado
 ```
 
-Genera `.github/prompts/rapid-*.prompt.md` (los 8 shortcuts como *prompt files*; [documentación](https://code.visualstudio.com/docs/copilot/customization/prompt-files)). Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`.
+Genera `.github/prompts/rapid-*.prompt.md` (los 9 shortcuts como *prompt files*; [documentación](https://code.visualstudio.com/docs/copilot/customization/prompt-files)). Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`.
 
 ### Invocación
 

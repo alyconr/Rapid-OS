@@ -24,6 +24,12 @@ class AgentAdapter(ABC):
     name: str
     metadata: Mapping[str, str] = {}
     outputs: tuple[AgentOutput, ...] = ()
+    # Folder (relative to the project root) where `shortcut_outputs` writes, and the documented
+    # user-level folder (relative to the home directory) with the page that documents it. A
+    # harness without a documented user-level folder has `global_skills_root = None`.
+    skills_root: tuple[str, ...] | None = None
+    global_skills_root: tuple[str, ...] | None = None
+    global_docs_url: str | None = None
 
     @property
     def output_files(self):
@@ -38,6 +44,21 @@ class AgentAdapter(ABC):
     ) -> Mapping[Path, str]:
         """Return `/rapid-<modo>` shortcut files keyed by relative path (none by default)."""
         return {}
+
+    def global_shortcut_outputs(
+        self, shortcuts: Sequence[ShortcutTemplate]
+    ) -> Mapping[Path, str]:
+        """The same shortcut files, keyed by path relative to the home directory."""
+        if self.global_skills_root is None or self.skills_root is None:
+            return {}
+        project_root = self.skills_root
+        remapped = {}
+        for relative, content in self.shortcut_outputs(shortcuts).items():
+            parts = relative.parts
+            if parts[: len(project_root)] != project_root:
+                raise ValueError(f"Shortcut path '{relative}' is outside '{'/'.join(project_root)}'.")
+            remapped[Path(*self.global_skills_root, *parts[len(project_root):])] = content
+        return remapped
 
     def activate(self, context: str, current_dir: Path) -> None:
         """Render and place the adapter outputs in a project directory."""

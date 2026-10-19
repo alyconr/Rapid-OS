@@ -86,3 +86,17 @@ if ($ProfilePath -and (Test-Path $ProfilePath) -and (Select-String -Path $Profil
 $Installed = & (Join-Path $BinDir "rapid.exe") --version; Assert-LastExit "rapid --version"
 Write-Host "✅ $Installed installed at $BinDir\rapid.exe" -ForegroundColor Green
 Write-Host "👉 Open a new terminal before using 'rapid'. Launch your coding agent (claude, codex, cursor...) from a terminal where 'rapid --version' works."
+
+# Opt-in, never by default and never without a terminal: /rapid-init in your user-level skills
+# folder, so it works in every project. Supported: claude, codex, cursor, antigravity.
+if (-not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected) {
+    $Harnesses = Read-Host "Install /rapid-init for your coding agents in your home folder (all projects)? Harnesses (comma-separated: claude,codex,cursor,antigravity) or Enter for none"
+    if ($Harnesses -and $Harnesses.Trim()) {
+        $HarnessArgs = @()
+        foreach ($H in ($Harnesses -split "[,\s]+" | Where-Object { $_ })) { $HarnessArgs += @("--harness", $H) }
+        & (Join-Path $BinDir "rapid.exe") shortcuts install --global --only rapid-init @HarnessArgs
+        if ($LASTEXITCODE -ne 0) { Write-Host "WARNING: Could not install /rapid-init; run 'rapid shortcuts install --global --only rapid-init --harness <id>' later." }
+    }
+} else {
+    Write-Host "Tip: 'rapid shortcuts install --global --only rapid-init --harness claude' installs /rapid-init for all your projects."
+}
