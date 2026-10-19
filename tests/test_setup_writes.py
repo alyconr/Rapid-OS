@@ -114,7 +114,15 @@ class SetDecisionTests(SetupWriteBase):
         result = rapid(self.root, "setup", "set", "stack", "python-ai", "--json")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("doc-site", result.stderr)
-        self.assertEqual(json.loads(result.stdout)["kind"], "choose_topology")
+        data = json.loads(result.stdout)
+        self.assertEqual(data["kind"], "choose_topology")
+        self.assertEqual(
+            data["notes"], ["Topology 'doc-site' does not fit stack 'python-ai'; it is undecided again."]
+        )
+
+    def test_notes_are_omitted_from_the_json_when_there_are_none(self):
+        result = rapid(self.root, "setup", "set", "stack", "python-ai", "--json")
+        self.assertNotIn("notes", json.loads(result.stdout))
 
     def test_test_command_none_is_a_decision(self):
         decide_everything(self.root)

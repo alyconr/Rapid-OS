@@ -37,7 +37,7 @@ sha256: <hash del cuerpo>
 | :--- | :--- | :--- |
 | Confirmado | `source: provided`, o `source: drafted` con `status: confirmed` | El cuerpo, sin banner: es una regla. |
 | Supuesto | `source: drafted` con `status: draft` | El cuerpo bajo la línea `> Supuestos redactados por el agente, no confirmados por la persona.` |
-| Omitido | `docs.<id>.status` es `skipped` en `.rapid-os/setup.json` | Una sola línea: `No hay <título> definido: pregunta, no inventes.` |
+| Omitido | `docs.<id>.status` es `skipped` en `.rapid-os/setup.json` | Una sola línea: `<título>: sin definir. Pregunta, no inventes.` |
 
 La misma regla aplica en `rapid context` y en los archivos de agente (`CLAUDE.md`, `.cursorrules`, ...). Un borrador solo deja de ser supuesto cuando una persona lo confirma de forma explícita.
 

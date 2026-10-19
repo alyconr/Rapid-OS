@@ -62,7 +62,7 @@ def with_provenance(fields: Mapping[str, str], body: str) -> str:
 
 
 def skipped_line(title: str) -> str:
-    return f"No hay {title} definido: pregunta, no inventes."
+    return f"{title}: sin definir. Pregunta, no inventes."
 
 
 def normalize_body(text: str) -> str:

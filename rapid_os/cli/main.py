@@ -3534,7 +3534,7 @@ def setup_command(args):
                 apply.update_gitignore(CURRENT_DIR)
                 state = dc_replace(state, finished=True)
                 write_setup(PROJECT_RAPID_DIR, state)
-            return state, "Setup finished."
+            return state, "Setup finished.", ()
         state, summary, notes, touched_docs = _setup_write(
             args, action_name, snapshot.state, catalog, doc_banks
         )
@@ -3543,16 +3543,17 @@ def setup_command(args):
         if touched_docs and apply.project_has_standards(PROJECT_RAPID_DIR, CONFIG_FILE):
             for warning in apply.regenerate_agent_context(CURRENT_DIR, PROJECT_RAPID_DIR, CONFIG_FILE):
                 print(f"WARNING {warning}", file=sys.stderr)
-        return state, summary
+        return state, summary, notes
 
     summary = None
+    notes = ()
     state = snapshot.state
     if action_name != "next":
         # JSON mode keeps stdout for the JSON alone: the agent files report on stderr.
         quiet = contextlib.redirect_stdout(sys.stderr) if as_json else contextlib.nullcontext()
         try:
             with quiet:
-                state, summary = write_section()
+                state, summary, notes = write_section()
         except apply.SetupApplyError as exc:
             print("\n".join(exc.lines), file=sys.stderr)
             sys.exit(1)
@@ -3562,7 +3563,10 @@ def setup_command(args):
 
     action = next_action(state)
     if as_json:
-        print(json.dumps(action.to_dict(), indent=2))
+        payload = action.to_dict()
+        if notes:
+            payload["notes"] = list(notes)
+        print(json.dumps(payload, indent=2))
         return 0
     if summary:
         print(summary)
