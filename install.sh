@@ -28,6 +28,8 @@ echo "🚀 Installing Rapid OS ${RAPID_VERSION} (stable release)..."
 
 if [ -d "$INSTALL_DIR/.git" ]; then
     echo "🔄 Fetching tags and checking out Rapid OS ${RAPID_VERSION} in $INSTALL_DIR..."
+    # Installers before v3.1.1 ran `chmod +x rapid.py`; ignore that mode change so checkout works.
+    git -C "$INSTALL_DIR" config core.fileMode false
     git -C "$INSTALL_DIR" fetch --tags --force origin
     git -C "$INSTALL_DIR" checkout --detach "$RAPID_VERSION"
 elif [ -e "$INSTALL_DIR" ]; then
@@ -40,8 +42,6 @@ else
     git -C "$INSTALL_DIR" fetch --tags --force origin
     git -C "$INSTALL_DIR" checkout --detach "$RAPID_VERSION"
 fi
-
-chmod +x "$INSTALL_DIR/rapid.py"
 
 # Keep the private environment out of `git status` in the checkout.
 if ! grep -qx ".venv/" "$INSTALL_DIR/.git/info/exclude" 2>/dev/null; then
