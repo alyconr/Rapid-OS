@@ -17,7 +17,7 @@ from rapid_os.cli.main import create_parser
 from rapid_os.core.paths import resolve_paths
 from rapid_os.domain.validation import validate_project
 
-VERSION = "3.1.0"  # latest stable release: installers, README, release notes
+VERSION = "3.1.1"  # latest stable release: installers, README, release notes
 PACKAGE_VERSION = "3.2.0.dev0"  # rapid_os.__version__ on main (development)
 
 

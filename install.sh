@@ -2,8 +2,10 @@
 set -euo pipefail
 
 REPO_URL="https://github.com/alyconr/Rapid-OS.git"
-RAPID_VERSION="v3.1.0"
+RAPID_VERSION="v3.1.1"
 INSTALL_DIR="$HOME/.rapid-os"
+VENV_DIR="$INSTALL_DIR/.venv"
+BIN_DIR="$HOME/.local/bin"
 
 echo "🔍 Checking dependencies..."
 
@@ -14,6 +16,11 @@ fi
 
 if ! command -v python3 &> /dev/null; then
     echo "❌ Error: Python 3 is not installed. Please install Python 3.10+ first."
+    exit 1
+fi
+
+if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)'; then
+    echo "❌ Error: Rapid OS needs Python 3.10 or newer (found $(python3 --version 2>&1))."
     exit 1
 fi
 
@@ -36,6 +43,28 @@ fi
 
 chmod +x "$INSTALL_DIR/rapid.py"
 
+# Keep the private environment out of `git status` in the checkout.
+if ! grep -qx ".venv/" "$INSTALL_DIR/.git/info/exclude" 2>/dev/null; then
+    echo ".venv/" >> "$INSTALL_DIR/.git/info/exclude"
+fi
+
+# A real `rapid` executable, not a shell alias: coding harnesses (Claude Code, Codex, Cursor...)
+# and their hooks run commands in non-interactive shells, where aliases do not exist.
+if [ ! -x "$VENV_DIR/bin/python" ]; then
+    echo "📦 Creating a private Python environment in $VENV_DIR..."
+    if ! python3 -m venv "$VENV_DIR"; then
+        echo "❌ Error: could not create a Python virtual environment."
+        echo "   On Debian/Ubuntu install it with: sudo apt install python3-venv"
+        exit 1
+    fi
+fi
+
+echo "📦 Installing the rapid command..."
+"$VENV_DIR/bin/python" -m pip install --quiet --disable-pip-version-check -e "$INSTALL_DIR"
+
+mkdir -p "$BIN_DIR"
+ln -sf "$VENV_DIR/bin/rapid" "$BIN_DIR/rapid"
+
 SHELL_RC="$HOME/.bashrc"
 [ -f "$HOME/.zshrc" ] && SHELL_RC="$HOME/.zshrc"
 
@@ -43,14 +72,31 @@ if [ ! -f "$SHELL_RC" ]; then
     touch "$SHELL_RC"
 fi
 
-if ! grep -q "alias rapid=" "$SHELL_RC"; then
-    {
-        echo ""
-        echo "# Rapid OS CLI"
-        echo "alias rapid='python3 \"$INSTALL_DIR/rapid.py\"'"
-    } >> "$SHELL_RC"
-    echo "✅ Alias added to $SHELL_RC"
-    echo "👉 Run: source \"$SHELL_RC\" (or 'python3 -m pip install \"$INSTALL_DIR\"') to start using 'rapid'."
-else
-    echo "✅ Rapid OS ${RAPID_VERSION} is ready."
+# Installers before v3.1.1 added an alias that shadows the executable in interactive shells.
+if grep -q "^alias rapid=" "$SHELL_RC"; then
+    cp "$SHELL_RC" "$SHELL_RC.rapid-os.bak"
+    grep -v -e "^alias rapid=" -e "^# Rapid OS CLI$" "$SHELL_RC.rapid-os.bak" > "$SHELL_RC"
+    echo "🧹 Removed the old 'rapid' alias from $SHELL_RC (backup: $SHELL_RC.rapid-os.bak)."
 fi
+
+NEEDS_NEW_TERMINAL=0
+case ":$PATH:" in
+    *":$BIN_DIR:"*) ;;
+    *)
+        if ! grep -q 'Rapid OS: user bin on PATH' "$SHELL_RC"; then
+            {
+                echo ""
+                echo "# Rapid OS: user bin on PATH"
+                echo 'export PATH="$HOME/.local/bin:$PATH"'
+            } >> "$SHELL_RC"
+            echo "✅ Added $BIN_DIR to PATH in $SHELL_RC"
+        fi
+        NEEDS_NEW_TERMINAL=1
+        ;;
+esac
+
+echo "✅ $("$BIN_DIR/rapid" --version) installed at $BIN_DIR/rapid"
+if [ "$NEEDS_NEW_TERMINAL" -eq 1 ]; then
+    echo "👉 Open a new terminal (or run: source \"$SHELL_RC\") before using 'rapid'."
+fi
+echo "👉 Launch your coding agent (claude, codex, cursor...) from a terminal where 'rapid --version' works."

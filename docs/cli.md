@@ -6,7 +6,7 @@ All commands operate on the **current working directory** as the target project 
 
 ## Global Options
 
-- `--version`: Print `Rapid OS 3.1.0` and exit (`0`).
+- `--version`: Print `Rapid OS 3.1.1` and exit (`0`).
 - `-h`, `--help`: Show command help and exit (`0`).
 
 ```bash

@@ -34,20 +34,19 @@ git --version
 Abre la aplicación Terminal y ejecuta:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.sh | bash
+curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.sh | bash
 ```
 
 ### Comportamiento del script en macOS:
 - Descarga el repositorio en `~/.rapid-os`.
-- Fija la versión estable `v3.1.0`.
-- Detecta automáticamente el shell por defecto de macOS (`zsh`) y escribe el alias en `~/.zshrc`:
-  ```bash
-  alias rapid='python3 "$HOME/.rapid-os/rapid.py"'
-  ```
-- Recarga tu configuración ejecutando:
-  ```bash
-  source ~/.zshrc
-  ```
+- Fija la versión estable `v3.1.1`.
+- Crea un entorno de Python propio en `~/.rapid-os/.venv`, instala Rapid OS en él y enlaza el ejecutable en `~/.local/bin/rapid`.
+- Si `~/.local/bin` no está en tu PATH, lo añade a `~/.zshrc` (el shell por defecto de macOS), y quita el `alias rapid=` de instaladores anteriores.
+- Abre una terminal nueva, o ejecuta `source ~/.zshrc`.
+
+:::warning Shortcuts y hooks necesitan `rapid` en el PATH
+Los agentes y sus hooks no ven alias de shell: lanza tu agente desde una terminal donde `rapid --version` funcione.
+:::
 
 ---
 
@@ -63,7 +62,7 @@ python3 -m venv ~/.virtualenvs/rapid-env
 source ~/.virtualenvs/rapid-env/bin/activate
 
 # 3. Instalar la versión estable
-pip install git+https://github.com/alyconr/Rapid-OS.git@v3.1.0
+pip install git+https://github.com/alyconr/Rapid-OS.git@v3.1.1
 
 # 4. Probar
 rapid --version
