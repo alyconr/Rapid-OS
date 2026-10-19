@@ -5,6 +5,7 @@ Pure: no I/O. A document counts as managed only when its frontmatter says `rapid
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass
 from typing import Mapping
@@ -16,6 +17,10 @@ DOC_SOURCES = ("provided", "drafted")
 DRAFT_BANNER = "> Supuestos redactados por el agente, no confirmados por la persona."
 
 _FRONTMATTER_RE = re.compile(r"\A---\n(?:(?P<header>.*?)\n)?---[ \t]*(?:\n|\Z)", re.DOTALL)
+_RAW_FRONTMATTER_RE = re.compile(
+    r"\A---\r?\n(?:(?P<header>.*?)\r?\n)?---[ \t]*(?:\r?\n|\Z)", re.DOTALL
+)
+_STATUS_LINE_RE = re.compile(r"^status:[^\r\n]*", re.MULTILINE)
 _H2_RE = re.compile(r"^## (?!#)(.*?)\s*$", re.MULTILINE)
 
 
@@ -87,3 +92,39 @@ def validate_doc_body(body: str, bank: SetupDocBank) -> tuple[DocIssue, ...]:
             )
         )
     return tuple(issues)
+
+
+def normalize_newlines(text: str) -> str:
+    return text.replace("\r\n", "\n")
+
+
+def body_sha256(body: str) -> str:
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
+def prepare_body(text: str) -> str:
+    """The body as it is stored: LF newlines and exactly one final newline; nothing else changes."""
+    body = normalize_newlines(text)
+    return body.rstrip("\n") + "\n" if body.strip() else ""
+
+
+def render_managed_doc(doc_id: str, source: str, status: str, body: str) -> str:
+    """Frontmatter (`rapid-doc`, `source`, `status`, `sha256` of the body) followed by the body."""
+    header = (
+        f"---\n{DOC_FRONTMATTER_KEY}: {doc_id}\nsource: {source}\nstatus: {status}\n"
+        f"sha256: {body_sha256(body)}\n---\n"
+    )
+    return header + body
+
+
+def with_doc_status(text: str, status: str) -> str:
+    """Change only the `status:` frontmatter line; the body stays byte for byte."""
+    match = _RAW_FRONTMATTER_RE.match(text)
+    if match is None or match.group("header") is None:
+        raise ValueError("the document has no frontmatter to update.")
+    header = match.group("header")
+    if _STATUS_LINE_RE.search(header):
+        header = _STATUS_LINE_RE.sub(f"status: {status}", header, count=1)
+    else:
+        header = f"{header}\nstatus: {status}"
+    return text[: match.start("header")] + header + text[match.end("header"):]

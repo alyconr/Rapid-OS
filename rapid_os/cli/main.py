@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 import json
 import shutil
 import os
@@ -173,93 +174,6 @@ from rapid_os.domain.validation import (
 EXIT_TOKENS = {"0", "q", "quit", "exit", "salir", "cancelar"}
 SUPPORTED_ARCHETYPES = ("mvp", "corporate")
 
-OPTIONAL_DOC_TEMPLATES = {
-    "BUSINESS_RULES.md": """# Business Rules
-
-## Purpose
-Describe the business rules this project must obey.
-
-## Business goals
-- TODO: List the business outcomes this software supports.
-
-## Non-negotiable rules
-- TODO: Add rules that must not be violated.
-
-## Constraints
-- TODO: Document operational, legal, budget, timing, or platform constraints.
-
-## Assumptions
-- TODO: List assumptions that should be confirmed.
-
-## Glossary
-- TODO: Define business terms and acronyms.
-""",
-    "SPECS.md": """# Specs
-
-## Objective
-Describe the feature or project objective.
-
-## Scope
-- TODO: List what is included.
-
-## Out of scope
-- TODO: List what is explicitly excluded.
-
-## Functional flow
-- TODO: Describe the expected user or system flow.
-
-## Acceptance criteria
-- TODO: Add testable acceptance criteria.
-
-## Dependencies
-- TODO: List systems, services, data, or people required.
-
-## Risks
-- TODO: Capture implementation and product risks.
-""",
-    "USER_STORIES.md": """# User Stories
-
-## Actor
-TODO: Identify the user, role, or system actor.
-
-## User story
-As a TODO, I want TODO, so that TODO.
-
-## Expected value
-- TODO: Explain the value delivered.
-
-## Acceptance criteria
-- TODO: Add criteria that prove the story is complete.
-
-## Priority
-TODO: Set priority or sequencing notes.
-
-## Notes
-TODO: Add open details, links, or follow-up questions.
-""",
-    "DATA_MODEL.md": """# Data Model
-
-## Entities
-- TODO: List domain entities.
-
-## Attributes
-- TODO: Describe important fields for each entity.
-
-## Relationships
-- TODO: Describe relationships between entities.
-
-## Validation rules
-- TODO: Add required fields, formats, ranges, and invariants.
-
-## Enums / constants
-- TODO: List known states, types, or fixed values.
-
-## Open questions
-- TODO: Capture unresolved modeling decisions.
-""",
-}
-
-
 def is_exit_token(value):
     return value.strip().lower() in EXIT_TOKENS
 
@@ -390,52 +304,153 @@ def confirm_scan_suggestions(scan, suggestions, stack_override=None):
     return response != "n"
 
 
-def create_optional_docs_scaffold(input_fn=None):
-    wants_docs = prompt_yes_no(
-        "Do you want to create optional documentation scaffolding in /docs?",
-        default=False,
-        input_fn=input_fn,
-    )
-    if wants_docs is None:
-        print_warning("Documentacion opcional cancelada.")
-        return []
-    if not wants_docs:
-        return []
+INIT_DOCS_PENDING_MESSAGE = "Completa la documentación con /rapid-init o rapid setup next"
+RAPID_NOT_ON_PATH_MESSAGE = (
+    "RAPID1414 Los shortcuts y hooks ejecutan rapid desde el shell del agente, y rapid no está "
+    "en el PATH. Instálalo con el instalador o con pipx."
+)
 
-    selected = []
-    for filename in OPTIONAL_DOC_TEMPLATES:
-        should_create = prompt_yes_no(
-            f"Create docs/{filename}?",
-            default=False,
-            input_fn=input_fn,
-        )
-        if should_create is None:
-            print_warning("Documentacion opcional cancelada; no se escribieron docs.")
-            return []
-        if should_create:
-            selected.append(filename)
 
-    if not selected:
-        return []
+def _warn_if_rapid_not_on_path():
+    """RAPID1414: shortcuts and hooks run `rapid` from the agent's shell. Warning only."""
+    if shutil.which("rapid") is None:
+        print_warning(RAPID_NOT_ON_PATH_MESSAGE)
+        return True
+    return False
 
-    docs_dir = CURRENT_DIR / "docs"
-    docs_dir.mkdir(parents=True, exist_ok=True)
-    written = []
-    for filename in selected:
-        target = resolve_child_path(docs_dir, filename, single_segment=True)
-        safe_write_text(
-            target,
-            OPTIONAL_DOC_TEMPLATES[filename],
-            encoding="utf-8",
-            backup=True,
-            create_parents=True,
-        )
-        print_success(f"docs/{filename} creado")
-        written.append(target)
-    return written
+
+def _read_doc_file(path_str):
+    """`(text, "")` for a readable file, `(None, reason)` otherwise. Never raises."""
+    if not path_str:
+        return None, "La ruta está vacía."
+    local_path = Path(path_str).expanduser()
+    if local_path.is_dir():
+        return None, f"'{local_path}' es un directorio, no un archivo."
+    if not local_path.is_file():
+        return None, f"No existe el archivo '{local_path}'."
+    try:
+        text = local_path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError) as exc:
+        return None, f"No se pudo leer '{local_path}': {exc}"
+    if not text.strip():
+        return None, f"'{local_path}' está vacío."
+    return text, ""
+
+
+def _read_multiline(message):
+    """Text typed in the terminal; two empty lines in a row (or EOF) end it."""
+    print(message)
+    lines = []
+    blanks = 0
+    while True:
+        try:
+            line = input()
+        except (EOFError, StopIteration):
+            break
+        blanks = blanks + 1 if not line.strip() else 0
+        if blanks >= 2:
+            break
+        lines.append(line)
+    return "\n".join(lines).strip("\n")
+
+
+def _ask_init_doc(bank):
+    """What to do with one onboarding document: `(status, text)`.
+
+    Without more input (EOF) the document stays pending: leaving it for the agent is the safe
+    answer, so a piped `rapid init` never fails here nor invents anything.
+    """
+
+    def ask(message):
+        try:
+            return input(message).strip()
+        except (EOFError, StopIteration):
+            return None
+
+    while True:
+        print(f"\n📄 {bank.title} ({bank.file})")
+        print(" 1) Pegar o importar un archivo (.md, .txt)")
+        print(" 2) Escribirlo aquí (termina con dos líneas vacías)")
+        print(" 3) Dejarlo para tu agente (/rapid-init)")
+        print(" 4) Omitir")
+        choice = ask("Opción [3]: ")
+        if choice in (None, "", "3"):
+            return "pending", None
+        if choice == "4":
+            return "skipped", None
+        if choice == "1":
+            while True:
+                raw = ask("📂 Ruta del archivo (.md, .txt; 0 para volver): ")
+                if raw is None or is_exit_token(raw):
+                    break
+                cleaned = raw.replace("'", "").replace('"', "")
+                text, reason = _read_doc_file(cleaned)
+                if text is not None:
+                    print_success(f"Leído correctamente: {Path(cleaned).name}")
+                    return "provided", text
+                print_warning(f"{reason} Prueba con otra ruta.")
+        elif choice == "2":
+            text = _read_multiline(f"Escribe {bank.title.lower()} (dos líneas vacías para terminar):")
+            if text.strip():
+                return "provided", text
+            print_warning("No escribiste nada.")
+        else:
+            print_warning("Opción no válida. Usa 1, 2, 3 o 4.")
+
+
+def _collect_init_docs(args, banks, kept):
+    """`{doc_id: (status, text)}`; status is provided, pending, skipped or keep (already resolved)."""
+    from rapid_os.domain.setup import SETUP_DOC_ORDER
+
+    business_file = getattr(args, "business_file", None)
+    business_text = None
+    if business_file:
+        business_text, reason = _read_doc_file(business_file.replace("'", "").replace('"', ""))
+        if business_text is None:
+            print_error(f"RAPID1413 --business-file: {reason}")
+
+    choices = {}
+    for doc_id in SETUP_DOC_ORDER:
+        if doc_id == "business" and business_text is not None:
+            choices[doc_id] = ("provided", business_text)
+        elif doc_id in kept:
+            print(f"ℹ️  {banks[doc_id].file} ya está resuelto; se conserva.")
+            choices[doc_id] = ("keep", None)
+        elif getattr(args, "skip_docs", False):
+            choices[doc_id] = ("skipped", None)
+        elif getattr(args, "yes", False):
+            choices[doc_id] = ("pending", None)
+        else:
+            if not choices:
+                print("\n--- DOCUMENTACIÓN DEL PROYECTO ---")
+            choices[doc_id] = _ask_init_doc(banks[doc_id])
+    return choices
+
+
+def _init_doc_banks():
+    """Question banks of the onboarding documents; `{}` when the templates do not carry them."""
+    from rapid_os.domain.catalog import load_setup_doc_banks
+
+    if not (TEMPLATES_DIR / "setup" / "docs").is_dir():
+        return {}
+    try:
+        return load_setup_doc_banks(TEMPLATES_DIR)
+    except CatalogError as exc:
+        print_error(str(exc))
 
 
 def init_project(args):
+    from dataclasses import replace as dc_replace
+
+    from rapid_os.adapters.setup_store import read_setup, write_setup
+    from rapid_os.domain.setup import DocState, SetupState, SetupStateError, StackChoice
+    from rapid_os.orchestration.setup_apply import (
+        SetupApplyError,
+        apply_setup,
+        update_gitignore,
+        write_doc,
+    )
+
     print_step("Inicializando Rapid OS...")
 
     def safe_prompt(prompt_msg: str, default: str = "", flag_hint: str = "") -> str:
@@ -547,17 +562,6 @@ def init_project(args):
             except (ValueError, IndexError):
                 topo_name = topos[0]
 
-    if topo_name:
-        try:
-            topo_name = validate_identifier(topo_name, "topology")
-            topo_src = resolve_child_path(
-                topologies_path, f"{topo_name}.md", single_segment=True
-            )
-            safe_copy_file(topo_src, standards_dest / "topology.md", backup=True)
-        except (ValueError, OSError) as exc:
-            print_error(f"No se pudo copiar la topologia '{topo_name}': {exc}")
-            return
-
     # 3. Arquetipo
     explicit_archetype = getattr(args, "archetype", None)
     if explicit_archetype:
@@ -579,46 +583,6 @@ def init_project(args):
         print(" 2) corporate  (Seguridad)")
         sel = safe_prompt("Opción [1]: ", default="1", flag_hint="--archetype {mvp,corporate}")
         archetype = "corporate" if sel == "2" else "mvp"
-
-    try:
-        archetype_dir = resolve_child_path(
-            TEMPLATES_DIR / "archetypes", archetype, single_segment=True
-        )
-        if is_generic_stack:
-            model = scan.to_model() if scan is not None else ProjectModel(root=CURRENT_DIR)
-            safe_write_text(
-                standards_dest / "tech-stack.md",
-                build_generic_stack(model, scanned=scan is not None),
-                encoding="utf-8",
-                backup=True,
-                create_parents=True,
-            )
-        else:
-            safe_copy_file(
-                stack_src,
-                standards_dest / "tech-stack.md",
-                backup=True,
-            )
-        rules_src = resolve_child_path(
-            archetype_dir, "coding-rules.md", single_segment=True
-        )
-        if rules_src.exists():
-            safe_copy_file(rules_src, standards_dest / "coding-rules.md", backup=True)
-        sec_src = resolve_child_path(
-            archetype_dir, "security.md", single_segment=True
-        )
-        if sec_src.exists():
-            safe_copy_file(sec_src, standards_dest / "security.md", backup=True)
-        elif not (standards_dest / "security.md").exists():
-            # `rapid start hardening` requires a security standard: start from a minimal template.
-            minimal_security = resolve_child_path(
-                TEMPLATES_DIR / "archetypes", "default-security.md", single_segment=True
-            )
-            if minimal_security.exists():
-                safe_copy_file(minimal_security, standards_dest / "security.md", backup=True)
-    except (ValueError, OSError) as exc:
-        print_error(f"No se pudieron inicializar los estandares del proyecto: {exc}")
-        return
 
     # 4. Agentes
     explicit_agents = getattr(args, "agents", None)
@@ -674,158 +638,106 @@ def init_project(args):
                     if custom_input:
                         configured_test_cmd = shlex.split(custom_input)
 
-    config_data: dict[str, object] = {"tools": selected_tools}
-    if configured_test_cmd is not None:
-        config_data["test_command"] = configured_test_cmd
-    save_project_config(config_data, PROJECT_RAPID_DIR, CONFIG_FILE)
+    # 7. Documentación del proyecto (brief, negocio, modelo de datos, arquitectura)
+    banks = _init_doc_banks()
+    kept = {}
+    if banks:
+        try:
+            previous = read_setup(
+                CURRENT_DIR, PROJECT_RAPID_DIR, CONFIG_FILE, TEMPLATES_DIR, catalog, banks
+            )
+            kept = {
+                doc_id: previous.state.doc(doc_id)
+                for doc_id in banks
+                if previous.state.doc(doc_id).status != "pending"
+            }
+        except SetupStateError:
+            kept = {}
+    doc_choices = _collect_init_docs(args, banks, kept) if banks else {}
 
-    # 7. Negocio (Smart Import)
-    biz_content = ""
-    if not getattr(args, "yes", False):
-        print("\n--- CONFIGURACIÓN DE NEGOCIO ---")
-        biz_templates_path = TEMPLATES_DIR / "business"
-        if not biz_templates_path.exists():
-            biz_templates_path.mkdir(parents=True, exist_ok=True)
-        biz_files = sorted([f.stem for f in biz_templates_path.glob("*.md")])
-
-        if not biz_files:
-            print("ℹ️  No hay plantillas guardadas.")
-            if safe_prompt("¿Importar archivo (md/txt)? [Y/n]: ", default="n", flag_hint="--yes").lower() != "n":
-                path_str = (
-                    safe_prompt("📂 Arrastra el archivo (.md, .txt): ", default="", flag_hint="--yes")
-                    .replace("'", "")
-                    .replace('"', "")
-                )
-                local_path = Path(path_str)
-                if local_path.exists():
-                    try:
-                        biz_content = local_path.read_text(encoding="utf-8")
-                        print_success(f"Leído correctamente: {local_path.name}")
-
-                        if safe_prompt("¿Guardar como plantilla? [y/N]: ", default="n", flag_hint="--yes").lower() == "y":
-                            tpl_name = safe_prompt("Nombre plantilla: ", default="", flag_hint="--yes")
-                            safe_tpl_name = validate_identifier(
-                                tpl_name, "business template"
-                            )
-                            tpl_target = resolve_child_path(
-                                biz_templates_path,
-                                f"{safe_tpl_name}.md",
-                                single_segment=True,
-                            )
-                            safe_write_text(
-                                tpl_target,
-                                biz_content,
-                                encoding="utf-8",
-                                backup=True,
-                            )
-                    except (OSError, UnicodeDecodeError, ValueError) as e:
-                        print_error(f"No se pudo procesar la plantilla de negocio: {e}")
-                        sys.exit(1)
-                else:
-                    rules = safe_prompt("Archivo no existe. Escribe reglas manuales: ", default="", flag_hint="--yes")
-                    if rules:
-                        biz_content = f"# BUSINESS RULES\n{rules}"
-            else:
-                rules = safe_prompt("Escribe reglas manuales: ", default="", flag_hint="--yes")
-                if rules:
-                    biz_content = f"# BUSINESS RULES\n{rules}"
-        else:
-            print(" 1) Escribir manual")
-            print(" 2) Importar archivo local (.md, .txt)")
-            for i, b in enumerate(biz_files, 1):
-                print(f" {i + 2}) {b}")
-            opcion = safe_prompt("Opción [1]: ", default="1", flag_hint="--yes")
-
-            if opcion == "2":
-                path_str = (
-                    safe_prompt("📂 Arrastra el archivo (.md, .txt): ", default="", flag_hint="--yes")
-                    .replace("'", "")
-                    .replace('"', "")
-                )
-                local_path = Path(path_str)
-                if local_path.exists():
-                    try:
-                        biz_content = local_path.read_text(encoding="utf-8")
-                        print_success(f"Leído correctamente: {local_path.name}")
-                    except (OSError, UnicodeDecodeError) as e:
-                        print_error(f"Error leyendo archivo: {e}")
-                        return
-            elif opcion.isdigit() and int(opcion) > 2:
-                idx = int(opcion) - 3
-                if 0 <= idx < len(biz_files):
-                    try:
-                        selected_biz = validate_identifier(
-                            biz_files[idx], "business template"
-                        )
-                        biz_path = resolve_child_path(
-                            biz_templates_path,
-                            f"{selected_biz}.md",
-                            single_segment=True,
-                        )
-                        biz_content = biz_path.read_text(encoding="utf-8")
-                    except (OSError, UnicodeDecodeError, ValueError) as e:
-                        print_error(f"Error leyendo plantilla de negocio: {e}")
-                        return
-
-            if (
-                not biz_content
-                and opcion != "2"
-                and not (opcion.isdigit() and int(opcion) > 2)
-            ):
-                rules = safe_prompt("Reglas manuales: ", default="", flag_hint="--yes")
-                if rules:
-                    biz_content = f"# BUSINESS RULES\n{rules}"
-
-    if biz_content:
-        safe_write_text(
-            standards_dest / "business.md",
-            biz_content,
-            encoding="utf-8",
-            backup=True,
+    # Same state and same writes as `rapid setup`: nothing below is specific to init.
+    registry_ids = set(DEFAULT_AGENT_REGISTRY.ids())
+    stack_source = (
+        "generic"
+        if is_generic_stack
+        else "catalog"
+        if stack_name in catalog.stacks
+        else "custom"
+    )
+    docs = {}
+    for doc_id, (status, _text) in doc_choices.items():
+        if status == "keep":
+            docs[doc_id] = kept[doc_id]
+        elif status == "skipped":
+            docs[doc_id] = DocState("skipped", False, "")
+        elif status == "pending":
+            docs[doc_id] = DocState()
+    state = SetupState(
+        stack=StackChoice(stack_name, stack_source),
+        topology=topo_name,
+        archetype=archetype,
+        agents=tuple(tool for tool in selected_tools if tool in registry_ids),
+        test_command=tuple(configured_test_cmd or ()),
+        docs=docs,
+    )
+    scan_model = (
+        (scan.to_model() if hasattr(scan, "to_model") else scan) if scan is not None else None
+    )
+    try:
+        for doc_id, (status, text) in doc_choices.items():
+            if status == "provided":
+                state = write_doc(CURRENT_DIR, state, banks[doc_id], source="provided", text=text)
+                print_success(f"{banks[doc_id].file} creado")
+        apply_setup(
+            CURRENT_DIR,
+            PROJECT_RAPID_DIR,
+            CONFIG_FILE,
+            TEMPLATES_DIR,
+            state,
+            catalog,
+            scan_model=scan_model,
+            scanned=scan is not None,
+            extra_tools=tuple(tool for tool in selected_tools if tool not in registry_ids),
+            regenerate=False,
         )
-
-    if not getattr(args, "yes", False):
-        create_optional_docs_scaffold()
+    except SetupApplyError as exc:
+        print_error(" ".join(exc.lines))
+        return
+    pending_docs = [doc_id for doc_id, doc in state.docs.items() if doc.status == "pending"]
+    if banks:
+        state = dc_replace(state, finished=not pending_docs)
+        write_setup(PROJECT_RAPID_DIR, state)
     regenerate_context()
-    _offer_shortcuts(args, selected_tools, safe_prompt)
-    _install_hooks_for_init(args, selected_tools)
+    installed_agent_hooks = _offer_shortcuts(args, selected_tools, safe_prompt)
+    installed_agent_hooks = _install_hooks_for_init(args, selected_tools) or installed_agent_hooks
+    if installed_agent_hooks:
+        _warn_if_rapid_not_on_path()
 
     # Update .gitignore if present in project root
     gitignore_path = CURRENT_DIR / ".gitignore"
     if gitignore_path.exists():
-        try:
-            gi_content = gitignore_path.read_text(encoding="utf-8")
-            gi_lines = [line.strip() for line in gi_content.splitlines()]
-            to_append = []
-            if ".rapid-os/session.json" not in gi_lines:
-                to_append.append(".rapid-os/session.json")
-            if ".rapid-os/scratch/" not in gi_lines and ".rapid-os/scratch" not in gi_lines:
-                to_append.append(".rapid-os/scratch/")
-            if to_append:
-                do_update = False
-                if getattr(args, "yes", False):
-                    do_update = True
-                else:
-                    ans = safe_prompt(
-                        "\n¿Añadir archivos de sesión y scratch a .gitignore? [Y/n]: ",
-                        default="y",
-                        flag_hint="--yes",
-                    )
-                    if ans.lower() != "n":
-                        do_update = True
-                if do_update:
-                    extra_text = "\n" + "\n".join(to_append) + "\n"
-                    safe_append_text(gitignore_path, extra_text, encoding="utf-8")
-        except Exception:
-            pass
+        do_update = False
+        if getattr(args, "yes", False):
+            do_update = True
+        else:
+            ans = safe_prompt(
+                "\n¿Añadir archivos de sesión y scratch a .gitignore? [Y/n]: ",
+                default="y",
+                flag_hint="--yes",
+            )
+            do_update = ans.lower() != "n"
+        if do_update:
+            update_gitignore(CURRENT_DIR)
 
     print("\n🚀 ¡Rapid OS activo!")
+    if pending_docs:
+        print(INIT_DOCS_PENDING_MESSAGE)
 
 
 def _install_hooks_for_init(args, selected_tools):
     """`rapid init --hooks`: only with the explicit flag, never as a side effect of --shortcuts."""
     if not getattr(args, "hooks", False):
-        return
+        return False
     from rapid_os.adapters import claude_hooks
     from rapid_os.adapters.shortcut_installer import ShortcutError
 
@@ -834,8 +746,9 @@ def _install_hooks_for_init(args, selected_tools):
         claude_hooks.apply_plan(CURRENT_DIR, plan)
     except ShortcutError as exc:
         print_warning(str(exc))
-        return
+        return False
     print_success(f"Hooks de Claude Code: {plan.action} ({plan.path.as_posix()}).")
+    return True
 
 
 def _offer_shortcuts(args, selected_tools, prompt):
@@ -855,17 +768,18 @@ def _offer_shortcuts(args, selected_tools, prompt):
         accepted = answer.lower() in {"y", "yes", "s", "si", "sí"}
     if not accepted:
         print("\nTip: 'rapid shortcuts install' crea los comandos /rapid-<modo> en tus agentes.")
-        return
+        return False
     try:
         harness_ids = resolve_harness_ids(None, selected_tools)
         _warn_folder_overlaps(harness_ids)
         plan, written = _install_shortcuts(harness_ids, dry_run=False)
     except ShortcutError as exc:
         print_warning(str(exc))
-        return
+        return False
     print_success(f"Shortcuts instalados: {len(written)} archivo(s) escritos.")
     for warning in plan.warnings:
         print_warning(warning)
+    return True
 
 
 def manage_skills(args):
@@ -1306,6 +1220,23 @@ def validate_command(args):
     sys.exit(render_validation_report(report, args.json, args.strict))
 
 
+def _agent_shortcuts_or_hooks_installed():
+    """True when the project has /rapid-<mode> shortcuts or Rapid OS hooks that call `rapid`."""
+    from rapid_os.adapters.claude_hooks import hooks_installed
+    from rapid_os.adapters.shortcut_installer import ShortcutError, list_entries, resolve_harness_ids
+
+    if hooks_installed(CURRENT_DIR):
+        return True
+    try:
+        tools = load_project_config(CONFIG_FILE).get("tools", [])
+        entries, _skipped = list_entries(
+            CURRENT_DIR, resolve_harness_ids(None, tools), TEMPLATES_DIR
+        )
+    except (ShortcutError, OSError, ValueError):
+        return False
+    return any(entry.state in ("installed", "outdated") for entry in entries)
+
+
 def doctor_command(args):
     diagnostics = [
         Diagnostic(INFO, "RAPID900", f"Current directory: {CURRENT_DIR}", CURRENT_DIR),
@@ -1370,6 +1301,17 @@ def doctor_command(args):
                 "the hooks cannot start (Claude Code treats that as a non-blocking error) and the run is not enforced.",
                 CURRENT_DIR / ".claude" / "settings.json",
                 hint="Install Rapid OS where Claude Code can find it (for example 'pipx install rapid-os') or add its scripts directory to PATH.",
+            )
+        )
+
+    if shutil.which("rapid") is None and _agent_shortcuts_or_hooks_installed():
+        diagnostics.append(
+            Diagnostic(
+                WARNING,
+                "RAPID1414",
+                RAPID_NOT_ON_PATH_MESSAGE.removeprefix("RAPID1414 "),
+                CURRENT_DIR,
+                hint="Install Rapid OS with the installer or with 'pipx install rapid-os'.",
             )
         )
 
@@ -3391,6 +3333,10 @@ def _format_setup_action(action) -> list[str]:
         proposed = " ".join(data["recommended"]) if data["recommended"] else "none detected"
         lines.append(f"Suggested test command: {proposed}")
     elif kind == "resolve_doc":
+        if data.get("legacy_source"):
+            lines.append(
+                f"Legacy source: {data['legacy_source']} (import with: rapid setup doc {data['doc']} --from-legacy)"
+            )
         lines += [
             f"Document: {data['doc']} -> {data['target']}",
             f"Choices: {', '.join(data['choices'])} (max {data['max_chars']} chars)",
@@ -3401,15 +3347,125 @@ def _format_setup_action(action) -> list[str]:
     return lines
 
 
+SETUP_SUBCOMMANDS = "next, show, set, stack, doc, finish"
+
+
+def _read_setup_input(source):
+    """Text from `--file -` (stdin) or from a file path. RAPID1413 when it cannot be read."""
+    from rapid_os.orchestration.setup_apply import SetupApplyError
+
+    if not source:
+        raise SetupApplyError("RAPID1413", "Missing --file (use '-' to read the text from stdin).")
+    try:
+        if source == "-":
+            stream = getattr(sys.stdin, "buffer", None)
+            raw = stream.read() if stream is not None else sys.stdin.read()
+        else:
+            path = Path(source)
+            if not path.is_file():
+                raise SetupApplyError("RAPID1413", f"'{source}' is not a file.")
+            raw = path.read_bytes()
+        return raw.decode("utf-8-sig") if isinstance(raw, bytes) else raw
+    except (OSError, UnicodeDecodeError) as exc:
+        raise SetupApplyError("RAPID1413", f"Cannot read the text from '{source}': {exc}") from exc
+
+
+def _setup_doc_mode(args):
+    """The one thing `rapid setup doc` was asked to do, or RAPID1413."""
+    from rapid_os.orchestration.setup_apply import SetupApplyError
+
+    flags = [
+        name
+        for name in ("skip", "confirm", "reopen", "from_legacy")
+        if getattr(args, name, False)
+    ]
+    writes = bool(getattr(args, "source", None) or getattr(args, "file", None))
+    if len(flags) + (1 if writes else 0) != 1:
+        raise SetupApplyError(
+            "RAPID1413",
+            "Choose exactly one of: --source <provided|drafted> --file <path|->, --skip, --confirm, "
+            "--reopen or --from-legacy.",
+        )
+    if flags:
+        return flags[0]
+    if not (getattr(args, "source", None) and getattr(args, "file", None)):
+        raise SetupApplyError("RAPID1413", "Writing a document needs both --source and --file.")
+    return "write"
+
+
+def _setup_write(args, action_name, state, catalog, doc_banks):
+    """Run one writing subcommand. Returns `(new_state, summary, notes, touched_docs)`."""
+    from rapid_os.adapters.setup_store import write_setup
+    from rapid_os.orchestration import setup_apply as apply
+
+    if action_name == "set":
+        key = getattr(args, "key", None)
+        new_state, notes = apply.set_decision(
+            state, key, getattr(args, "value", None), catalog, DEFAULT_AGENT_REGISTRY.ids()
+        )
+        write_setup(PROJECT_RAPID_DIR, new_state)
+        return new_state, f"Setup: {key} = {args.value.strip()}", notes, False
+
+    if action_name == "stack":
+        if not getattr(args, "custom", False):
+            raise apply.SetupApplyError(
+                "RAPID1413", "Use 'rapid setup stack --custom --file -' (a catalog stack: 'rapid setup set stack <id>')."
+            )
+        text = _read_setup_input(getattr(args, "file", None))
+        new_state = apply.write_custom_stack(PROJECT_RAPID_DIR, state, catalog, text)
+        write_setup(PROJECT_RAPID_DIR, new_state)
+        return new_state, "Setup: stack = custom (.rapid-os/standards/tech-stack.md)", (), False
+
+    if action_name == "doc":
+        doc_id = getattr(args, "doc_id", None)
+        bank = doc_banks.get(doc_id)
+        if bank is None:
+            raise apply.SetupApplyError(
+                "RAPID1413", f"Unknown document '{doc_id}'. Use one of: {', '.join(doc_banks)}."
+            )
+        mode = _setup_doc_mode(args)
+        replace_existing = getattr(args, "replace", False)
+        if replace_existing and mode not in ("write", "from_legacy"):
+            raise apply.SetupApplyError("RAPID1413", "--replace only goes with writing a document or --from-legacy.")
+        if mode == "write":
+            text = _read_setup_input(args.file)
+            new_state = apply.write_doc(
+                CURRENT_DIR, state, bank, source=args.source, text=text, replace_existing=replace_existing
+            )
+            summary = f"Setup: {bank.file} written ({args.source})"
+        elif mode == "from_legacy":
+            new_state = apply.import_legacy_business(
+                CURRENT_DIR, PROJECT_RAPID_DIR, state, bank, replace_existing=replace_existing
+            )
+            summary = f"Setup: {bank.file} imported from .rapid-os/standards/business.md"
+        elif mode == "confirm":
+            new_state = apply.confirm_doc(CURRENT_DIR, state, bank)
+            summary = f"Setup: {bank.file} confirmed"
+        elif mode == "skip":
+            new_state = apply.skip_doc(CURRENT_DIR, state, bank)
+            summary = f"Setup: {bank.id} skipped"
+        else:
+            new_state = apply.reopen_doc(CURRENT_DIR, state, bank)
+            summary = f"Setup: {bank.id} reopened"
+        write_setup(PROJECT_RAPID_DIR, new_state)
+        return new_state, summary, (), True
+
+    raise apply.SetupApplyError("RAPID1413", f"Unknown setup subcommand '{action_name}'.")
+
+
 def setup_command(args):
-    """Execute rapid setup next|show. Both are read-only: not even setup.json is written."""
-    from rapid_os.adapters.setup_store import read_setup
+    """Execute rapid setup. next and show are read-only; set, stack, doc and finish write."""
+    from dataclasses import replace as dc_replace
+
+    from rapid_os.adapters.project_docs import legacy_business_source
+    from rapid_os.adapters.setup_store import read_setup, write_setup
     from rapid_os.domain.setup import SetupStateError
+    from rapid_os.orchestration import setup_apply as apply
     from rapid_os.orchestration.setup_conductor import next_setup_action
 
     action_name = getattr(args, "setup_action", None)
     if not action_name:
-        print("RAPID1413 Subcomando de setup requerido (next, show).", file=sys.stderr)
+        print(f"RAPID1413 Subcomando de setup requerido ({SETUP_SUBCOMMANDS}).", file=sys.stderr)
         sys.exit(1)
 
     catalog, doc_banks, stack_questions = _load_setup_inputs()
@@ -3443,19 +3499,73 @@ def setup_command(args):
         print(f"Docs: {docs}")
         return 0
 
-    action = next_setup_action(
-        snapshot.state,
-        project_model,
-        catalog,
-        doc_banks,
-        stack_questions=stack_questions,
-        agent_ids=DEFAULT_AGENT_REGISTRY.ids(),
-        proposed_test_command=snapshot.proposed_test_command,
-        detected_agent=snapshot.detected_agent,
-    )
+    def next_action(state):
+        return next_setup_action(
+            state,
+            project_model,
+            catalog,
+            doc_banks,
+            stack_questions=stack_questions,
+            agent_ids=DEFAULT_AGENT_REGISTRY.ids(),
+            proposed_test_command=snapshot.proposed_test_command,
+            detected_agent=snapshot.detected_agent,
+            legacy_business=legacy_business_source(CURRENT_DIR, PROJECT_RAPID_DIR, doc_banks["business"]),
+        )
+
+    def write_section():
+        """The writing subcommands. Returns `(state, summary)`."""
+        if action_name == "finish":
+            state = snapshot.state
+            apply.ensure_finishable(next_action(state))
+            if not state.finished:
+                result = apply.apply_setup(
+                    CURRENT_DIR,
+                    PROJECT_RAPID_DIR,
+                    CONFIG_FILE,
+                    TEMPLATES_DIR,
+                    state,
+                    catalog,
+                    scan_model=project_model,
+                    scanned=True,
+                    only_changes=True,
+                )
+                for warning in result.warnings:
+                    print(f"WARNING {warning}", file=sys.stderr)
+                apply.update_gitignore(CURRENT_DIR)
+                state = dc_replace(state, finished=True)
+                write_setup(PROJECT_RAPID_DIR, state)
+            return state, "Setup finished."
+        state, summary, notes, touched_docs = _setup_write(
+            args, action_name, snapshot.state, catalog, doc_banks
+        )
+        for note in notes:
+            print(f"NOTE {note}", file=sys.stderr)
+        if touched_docs and apply.project_has_standards(PROJECT_RAPID_DIR, CONFIG_FILE):
+            for warning in apply.regenerate_agent_context(CURRENT_DIR, PROJECT_RAPID_DIR, CONFIG_FILE):
+                print(f"WARNING {warning}", file=sys.stderr)
+        return state, summary
+
+    summary = None
+    state = snapshot.state
+    if action_name != "next":
+        # JSON mode keeps stdout for the JSON alone: the agent files report on stderr.
+        quiet = contextlib.redirect_stdout(sys.stderr) if as_json else contextlib.nullcontext()
+        try:
+            with quiet:
+                state, summary = write_section()
+        except apply.SetupApplyError as exc:
+            print("\n".join(exc.lines), file=sys.stderr)
+            sys.exit(1)
+        except OSError as exc:
+            print(f"RAPID1413 Cannot write the setup files: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+    action = next_action(state)
     if as_json:
         print(json.dumps(action.to_dict(), indent=2))
         return 0
+    if summary:
+        print(summary)
     print("\n".join(_format_setup_action(action)))
     return 0
 
@@ -4044,6 +4154,18 @@ def create_parser():
         action="store_true",
         help="Install the /rapid-<mode> shortcuts for the selected agents without asking (writes state).",
     )
+    init.add_argument(
+        "--business-file",
+        dest="business_file",
+        metavar="PATH",
+        help="Import this file as docs/BUSINESS_RULES.md, provided by a person and stored as is (writes state).",
+    )
+    init.add_argument(
+        "--skip-docs",
+        dest="skip_docs",
+        action="store_true",
+        help="Skip the project documents (brief, business rules, data model, architecture) instead of leaving them pending.",
+    )
 
     scan = subparsers.add_parser(
         "scan",
@@ -4575,8 +4697,11 @@ def create_parser():
     # rapid setup
     setup_p = subparsers.add_parser(
         "setup",
-        help="Read the onboarding state and its next decision (next/show are read-only).",
-        description="Inspect the onboarding: which decision comes next. next and show never write, not even .rapid-os/setup.json.",
+        help="Drive the onboarding: next/show read it, set/stack/doc/finish write it.",
+        description=(
+            "Complete the onboarding with commands only. next and show never write, not even "
+            ".rapid-os/setup.json; set, stack, doc and finish write it atomically and return the next decision."
+        ),
     )
     setup_sub = setup_p.add_subparsers(dest="setup_action")
     for _name, _help in (
@@ -4585,6 +4710,59 @@ def create_parser():
     ):
         _sp = setup_sub.add_parser(_name, help=_help, description=_help)
         _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    _sp = setup_sub.add_parser(
+        "set",
+        help="Record a decision: stack, topology, archetype, agents or test-command (writes state).",
+        description=(
+            "Record one onboarding decision in .rapid-os/setup.json. Standards are written by 'rapid setup finish'. "
+            "Keys: stack <id>, topology <id>, archetype <mvp|corporate>, agents <id,id>, test-command '<cmd>' ('none' for no command)."
+        ),
+    )
+    _sp.add_argument("key", nargs="?", help="stack, topology, archetype, agents or test-command.")
+    _sp.add_argument("value", nargs="?", help="Value of the decision.")
+    _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    _sp = setup_sub.add_parser(
+        "stack",
+        help="Store a tech-stack.md written by your agent (writes state).",
+        description=(
+            "Read a tech-stack.md from --file (use - for stdin) with the sections Runtime, Framework and Testing, "
+            "write it to .rapid-os/standards/tech-stack.md and record stack.source = custom."
+        ),
+    )
+    _sp.add_argument("--custom", action="store_true", help="Use a stack written by the agent instead of a catalog stack.")
+    _sp.add_argument("--file", dest="file", metavar="PATH", help="File with the tech-stack.md, or - for stdin.")
+    _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    _sp = setup_sub.add_parser(
+        "doc",
+        help="Write, skip, confirm or reopen a project document (writes state).",
+        description=(
+            "Write docs/<FILE>.md for brief, business, data-model or architecture. The agent sends only the body; "
+            "Rapid OS adds the frontmatter (rapid-doc, source, status, sha256) and keeps a .bak of the previous file. "
+            "provided => confirmed; drafted => draft until --confirm."
+        ),
+    )
+    _sp.add_argument("doc_id", help="brief, business, data-model or architecture.")
+    _sp.add_argument("--source", choices=("provided", "drafted"), help="Who wrote the body: the person (provided) or the agent (drafted).")
+    _sp.add_argument("--file", dest="file", metavar="PATH", help="File with the body, or - for stdin.")
+    _sp.add_argument("--replace", action="store_true", help="Let a draft replace content a person provided, or import over an existing file.")
+    _sp.add_argument("--skip", action="store_true", help="Record that the document is not needed.")
+    _sp.add_argument("--confirm", action="store_true", help="A person confirms a draft; only the status changes.")
+    _sp.add_argument("--reopen", action="store_true", help="Return a skipped document to pending, or a confirmed draft to draft.")
+    _sp.add_argument("--from-legacy", dest="from_legacy", action="store_true", help="Import .rapid-os/standards/business.md as docs/BUSINESS_RULES.md (business only).")
+    _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    _sp = setup_sub.add_parser(
+        "finish",
+        help="Apply the decisions to the project and close the onboarding (writes state).",
+        description=(
+            "When no decision is left (RAPID1407 otherwise), copy stack, topology, archetype and security to "
+            ".rapid-os/standards, save the config, rebuild the agent files and mark the setup finished. Idempotent."
+        ),
+    )
+    _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
 
     # rapid shortcuts
     shortcuts_p = subparsers.add_parser(

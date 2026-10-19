@@ -418,6 +418,8 @@ class SetupCliTests(unittest.TestCase):
             (project / "tests").mkdir()
             (project / "tests" / "test_a.py").write_text("", encoding="utf-8")
             self.assertEqual(run_rapid(project, "init", "--yes").returncode, 0)
+            # A project initialized before the setup flow has no setup.json.
+            (project / ".rapid-os" / "setup.json").unlink()
             before = tree_snapshot(project)
 
             result = run_rapid(project, "setup", "next", "--json")
@@ -446,6 +448,8 @@ class SetupCliTests(unittest.TestCase):
             (project / "tests").mkdir()
             (project / "tests" / "test_a.py").write_text("", encoding="utf-8")
             self.assertEqual(run_rapid(project, "init", "--yes").returncode, 0)
+            # A project initialized before the setup flow has no setup.json.
+            (project / ".rapid-os" / "setup.json").unlink()
             docs = project / "docs"
             docs.mkdir()
             (docs / "PRODUCT_BRIEF.md").write_text("# hand written, no frontmatter\n", encoding="utf-8")

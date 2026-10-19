@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -253,6 +254,28 @@ def build_generic_stack(model: ProjectModel, *, scanned: bool = True) -> str:
         "- **Version Control:** Git.",
     ]
     return "\n".join(lines) + "\n"
+
+
+CUSTOM_STACK_ID = "custom"
+CUSTOM_STACK_SECTIONS = ("Runtime", "Framework", "Testing")
+
+
+def missing_custom_stack_sections(text: str) -> tuple[str, ...]:
+    """Sections a harness-written tech-stack.md must carry (RAPID1409 when any is missing).
+
+    A section is a heading (`## Runtime`) or a labelled line (`- **Runtime:** ...`, `Runtime: ...`).
+    """
+    missing = []
+    for section in CUSTOM_STACK_SECTIONS:
+        label = re.escape(section)
+        pattern = re.compile(
+            rf"^[ \t]*(?:#{{1,6}}[ \t]+(?:\*\*|__)?{label}\b"
+            rf"|(?:[-*+][ \t]+)?(?:\*\*|__)?{label}[ \t]*(?:\*\*|__)?[ \t]*:)",
+            re.IGNORECASE | re.MULTILINE,
+        )
+        if not pattern.search(text):
+            missing.append(section)
+    return tuple(missing)
 
 
 SETUP_DOC_IDS = ("brief", "business", "data-model", "architecture")

@@ -123,3 +123,18 @@ def load_project_docs(
             if not (doc_id == "business" and _legacy_business_has_content(rapid_dir)):
                 skipped[doc_id] = SkippedDoc(doc_id, bank)
     return ProjectDocs(banks, managed, skipped, state, error)
+
+
+def legacy_business_source(project_root: Path, rapid_dir: Path, bank: SetupDocBank) -> str | None:
+    """Project-relative path of a legacy `standards/business.md` that can be imported, else None.
+
+    Importable means: it has content and `docs/BUSINESS_RULES.md` does not exist yet.
+    """
+    project_root = Path(project_root)
+    if (project_root / bank.file).exists() or not _legacy_business_has_content(rapid_dir):
+        return None
+    legacy = Path(rapid_dir) / "standards" / "business.md"
+    try:
+        return legacy.relative_to(project_root).as_posix()
+    except ValueError:
+        return legacy.as_posix()
