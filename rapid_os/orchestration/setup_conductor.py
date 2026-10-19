@@ -50,6 +50,7 @@ def next_setup_action(
     agent_ids: Sequence[str] = (),
     proposed_test_command: Sequence[str] | None = None,
     detected_agent: str | None = None,
+    legacy_business: str | None = None,
 ) -> SetupAction:
     """Order: stack, topology, archetype, agents, test command, docs, finish, done.
 
@@ -82,7 +83,7 @@ def next_setup_action(
         )
     for doc_id in SETUP_DOC_ORDER:
         if state.doc(doc_id).status == "pending":
-            return _resolve_doc(doc_id, doc_banks[doc_id])
+            return _resolve_doc(doc_id, doc_banks[doc_id], legacy_business)
     unconfirmed = _unconfirmed_docs(state)
     if not state.finished:
         return _action(
@@ -201,8 +202,9 @@ def _choose_topology(state: SetupState, model: ProjectModel, catalog: Catalog) -
     )
 
 
-def _resolve_doc(doc_id: str, bank: SetupDocBank) -> SetupAction:
+def _resolve_doc(doc_id: str, bank: SetupDocBank, legacy_business: str | None) -> SetupAction:
     command = [doc_id if token == "<id>" else token for token in DOC_COMMAND]
+    extra = {"legacy_source": legacy_business} if doc_id == "business" and legacy_business else {}
     return _action(
         SetupActionKind.RESOLVE_DOC,
         doc=doc_id,
@@ -212,4 +214,5 @@ def _resolve_doc(doc_id: str, bank: SetupDocBank) -> SetupAction:
         required_sections=[{"id": s.id, "titles": list(s.titles)} for s in bank.required_sections],
         max_chars=bank.max_chars,
         command=command,
+        **extra,
     )

@@ -291,60 +291,6 @@ class PathContainmentSecurityTests(unittest.TestCase):
                         self.assertEqual(ctx.exception.code, 1)
                     self.assertTrue(victim_file.exists())
 
-    def test_business_template_save_blocks_path_traversal(self):
-        with workspace_tempdir() as tmp:
-            root = Path(tmp)
-            project = root / "project"
-            project.mkdir()
-            templates = root / "templates"
-            for dirname in ("stacks", "topologies", "archetypes", "business"):
-                (templates / dirname).mkdir(parents=True)
-            (templates / "stacks" / "web-modern.md").write_text(
-                "# web-modern\n", encoding="utf-8"
-            )
-            (templates / "topologies" / "front-end-only.md").write_text(
-                "# front-end-only\n", encoding="utf-8"
-            )
-            (templates / "archetypes" / "mvp").mkdir()
-            (templates / "archetypes" / "mvp" / "coding-rules.md").write_text(
-                "rules", encoding="utf-8"
-            )
-            imported_biz = root / "rules.md"
-            imported_biz.write_text("# My Business Rules\n", encoding="utf-8")
-
-            inputs = iter(
-                [
-                    "1",  # topology
-                    "1",  # agents
-                    "",  # research tools
-                    "y",  # import file
-                    str(imported_biz),  # file path
-                    "y",  # save as business template
-                    "../../escaped_template",  # malicious template name
-                ]
-            )
-            args = argparse.Namespace(
-                stack="web-modern",
-                archetype="mvp",
-                no_scan=True,
-            )
-
-            with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
-                cli_main, "PROJECT_RAPID_DIR", project / ".rapid-os"
-            ), patch.object(
-                cli_main, "CONFIG_FILE", project / ".rapid-os" / "config.json"
-            ), patch.object(
-                cli_main, "TEMPLATES_DIR", templates
-            ), patch(
-                "builtins.input", lambda prompt="": next(inputs)
-            ), contextlib.redirect_stdout(io.StringIO()):
-                with self.assertRaises(SystemExit) as ctx:
-                    cli_main.init_project(args)
-                self.assertEqual(ctx.exception.code, 1)
-
-            self.assertFalse((root / "escaped_template.md").exists())
-            self.assertEqual(list((templates / "business").glob("*.md")), [])
-
     def test_deploy_assistant_blocks_unsafe_target_names(self):
         with workspace_tempdir() as tmp:
             root = Path(tmp)

@@ -203,7 +203,7 @@ Este proyecto está construido utilizando tecnologías nativas para asegurar má
   - _Remoto_: Acceso directo al ecosistema de la comunidad (`npx skills`) para instalar miles de herramientas.
   - _Local_: Usa tus propios templates privados (`templates/skills`) para estandarizar flujos de tu equipo.
 - **🤖 Multi-Agente Modular**: No más ruido. Elige exactamente qué archivos de configuración generar: Cursor (`.cursorrules`), Claude Code (`CLAUDE.md`), Google Antigravity (`.agent/rules`), VS Code (`INSTRUCTIONS.md`) o Codex (`AGENTS.md`). La generación usa adaptadores internos para mantener cada agente aislado y listo para crecer sin cambiar tus comandos.
-- **🧠 Contexto de Negocio Inteligente**: Importa tus reglas de negocio desde archivos Markdown (`.md`) existentes o guárdalas como Plantillas reutilizables para futuros proyectos.
+- **🧠 Contexto de Negocio Inteligente**: Las reglas de negocio viven en `docs/BUSINESS_RULES.md`: pegadas por ti, redactadas por el agente o omitidas, siempre con su procedencia visible (un borrador del agente entra al contexto como supuesto hasta que lo confirmas). Sin plantillas reutilizables.
 - **🏗️ Topologías Arquitectónicas**: Define si tu proyecto es Frontend Only, BaaS (Supabase), Fullstack Separado o **Sitio de Documentación** para evitar alucinaciones de código.
 - **🔌 Herramientas MCP (Model Context Protocol)**: Configura automáticamente servidores de base de datos (Postgres/Supabase) y herramientas de investigación (Context7, Firecrawl).
 - **🖼️ Contexto de Referencia Visual (Vision)**: Registra capturas de pantalla en `references/` junto con una descripción humana en `references/VISION_CONTEXT.md` y reensambla el contexto de agentes.
@@ -337,9 +337,8 @@ $rapid-feature añadir exportación CSV al informe mensual     #    Codex
     - **Scanner seguro**: Rapid OS revisa señales locales como `package.json`, `tsconfig.json`, Docker, tests, monorepo, base de datos y provider de deploy para sugerir stack/topología. Nada se aplica sin confirmación.
     - **Tech Stack**: Define las tecnologías permitidas (ej. "Solo React Functional Components").
     - **Arquetipo**: "Corporate" para código estricto con tests, o "MVP" para velocidad.
-    - **Reglas de Negocio**: Importa tus documentos existentes o extráelos de tu cabeza.
+    - **Documentación del proyecto**: Para cada documento (brief, reglas de negocio, modelo de datos y arquitectura) eliges: 1) pegar o importar un archivo, 2) escribirlo ahí mismo, 3) dejarlo para tu agente (`/rapid-init`) u 4) omitirlo. Con `--business-file <ruta>` importas las reglas de negocio sin preguntar.
     - **Capacidades de Investigación**: Activa `Context7` (Docs) y `Firecrawl` (Web Scraping) para que tu IA pueda investigar librerías y sitios web por sí misma.
-    - **Documentación opcional**: Al final puedes crear scaffolding starter en `docs/` para `BUSINESS_RULES.md`, `SPECS.md`, `USER_STORIES.md` y `DATA_MODEL.md`. Cada archivo se confirma por separado y crea backup antes de sobrescribir.
 
 > **Para Refactorización**: Al ejecutar esto en un proyecto legacy, Rapid OS inyectará un archivo `.cursorrules` o `.agent` que obligará a la IA a respetar los nuevos estándares en cualquier refactorización futura, evitando que imite el código antiguo ("code drift").
 
@@ -366,10 +365,10 @@ rapid init --archetype mvp
 
 Si sientes que tu Agente (Cursor/Claude) ignora tus reglas o las malinterpreta, usa `rapid refine` para mejorar la documentación con ayuda de la IA.
 
-1.  Identifica el archivo de reglas problemático (ej. `standards/business.md`).
+1.  Identifica el archivo de reglas problemático (ej. `docs/BUSINESS_RULES.md`).
 2.  Ejecuta:
     ```bash
-    rapid refine .rapid-os/standards/business.md
+    rapid refine docs/BUSINESS_RULES.md
     ```
 3.  **Copia el Mega-Prompt** que aparecerá en tu terminal.
 4.  **Pégalo en tu Chat** con la IA.
@@ -465,37 +464,43 @@ rapid init
 - **Versionado**: Estructura de carpetas optimizada para versionado semántico de documentación.
 - **Topología**: `doc-site` organiza tu proyecto con carpetas específicas para `docs`, `blog`, `src/components` y `static` assets.
 
-### 🧩 Estándares Universales (business.md)
+### 🧩 Reglas de Negocio (`docs/BUSINESS_RULES.md`)
 
-Rapid OS incluye por defecto un **Meta-Framework de Negocio** (`.rapid-os/standards/business.md`) que actúa como la "Constitución" de tu proyecto.
+Las reglas de negocio de tu proyecto viven en `docs/BUSINESS_RULES.md`, el equivalente a la "Constitución" de tu proyecto. Rapid OS escribe el archivo con un frontmatter (`rapid-doc`, `source`, `status`, `sha256`) que dice quién lo redactó:
 
-Este archivo ya no es solo para Rapid OS; es una guía universal que define:
+- **Aportado por ti** (`source: provided`): se guarda tal cual y cuenta como confirmado.
+- **Redactado por el agente** (`source: drafted`): queda como borrador y llega al contexto marcado como supuesto hasta que lo confirmes con `rapid setup doc business --confirm`.
+- **Omitido**: el agente recibe la línea `Reglas de negocio: sin definir. Pregunta, no inventes.`
 
-- **Axiomas de Valor**: Qué problema resuelves y por qué te deben comprar.
-- **Funnel Universal**: Cómo adquieres, activas y retienes clientes.
-- **Modelo de Negocio**: Definición clara de cómo generas ingresos (SaaS, E-com, etc.).
+Un buen documento define: qué problema resuelves y por qué te deben comprar, cómo adquieres, activas y retienes clientes, y cómo generas ingresos (SaaS, E-com, etc.).
 
-> **Tip**: Puedes editar este archivo para adaptarlo a tu nicho, pero mantén la estructura para que la IA entienda tus prioridades.
+> **Legado**: `.rapid-os/standards/business.md` (de versiones anteriores) se sigue leyendo. Para pasarlo al documento nuevo: `rapid setup doc business --from-legacy` (no borra el original).
 
 ### 🔄 Cómo Actualizar tus Reglas de Negocio
 
-Si necesitas modificar tus reglas existentes, tienes dos caminos desde la CLI:
+Si necesitas modificar tus reglas existentes, tienes tres caminos desde la CLI:
 
 1.  **Opción A: `rapid refine` (Recomendada para Mejorar)**
     Si ya tienes reglas pero quieres que la IA las profesionalice y elimine ambigüedades:
 
     ```bash
-    rapid refine .rapid-os/standards/business.md
+    rapid refine docs/BUSINESS_RULES.md
     ```
 
     _Genera un prompt para que tu IA reescriba las reglas con nivel Senior._
 
-2.  **Opción B: `rapid init` (Para Re-importar o Cambiar)**
-    Si quieres importar un archivo nuevo o reescribirlas desde cero:
+2.  **Opción B: aportar un archivo nuevo**
+    Si quieres reemplazar las reglas por un archivo tuyo:
     ```bash
-    rapid init
+    rapid setup doc business --source provided --file <archivo>
     ```
-    _Al llegar a la sección de Negocio, selecciona importar un nuevo `.txt`/`.md` o escribir nuevas reglas manuales. Esto sobrescribirá el archivo actual._
+    _Reemplaza el documento y guarda un `.bak` del anterior._
+
+3.  **Opción C: que el agente las redacte de nuevo**
+    ```bash
+    rapid setup doc business --reopen
+    ```
+    _Devuelve el documento a pendiente (si estaba omitido) o a borrador (si estaba confirmado) para que tu agente lo redacte de nuevo con `/rapid-init`. Un documento que aportaste tú se reemplaza con la opción B._
 
 ---
 
@@ -888,7 +893,7 @@ Lo que Rapid OS **ES** y lo que **NO ES**:
     # Selecciona Stack: "docs-modern"
     ```
 2.  **Definición de Reglas**:
-    - Editas `.rapid-os/standards/business.md` con: _"El tono de voz debe ser amigable pero técnico. Usar diagramas Mermaid para flujos complejos."_
+    - Editas `docs/BUSINESS_RULES.md` con: _"El tono de voz debe ser amigable pero técnico. Usar diagramas Mermaid para flujos complejos."_
 3.  **Ejecución**:
     - Abres tu editor con Cursor/Claude.
     - Prompt: _"Crea una página 'Getting Started' que explique cómo instalar la SDK, incluyendo un diagrama de flujo de autenticación."_

@@ -37,9 +37,28 @@ sha256: <hash del cuerpo>
 | :--- | :--- | :--- |
 | Confirmado | `source: provided`, o `source: drafted` con `status: confirmed` | El cuerpo, sin banner: es una regla. |
 | Supuesto | `source: drafted` con `status: draft` | El cuerpo bajo la línea `> Supuestos redactados por el agente, no confirmados por la persona.` |
-| Omitido | `docs.<id>.status` es `skipped` en `.rapid-os/setup.json` | Una sola línea: `No hay <título> definido: pregunta, no inventes.` |
+| Omitido | `docs.<id>.status` es `skipped` en `.rapid-os/setup.json` | Una sola línea: `<título>: sin definir. Pregunta, no inventes.` |
 
 La misma regla aplica en `rapid context` y en los archivos de agente (`CLAUDE.md`, `.cursorrules`, ...). Un borrador solo deja de ser supuesto cuando una persona lo confirma de forma explícita.
+
+## Cómo se escriben
+
+Los documentos los escribe Rapid OS, no el agente: el agente envía solo el **cuerpo** y `rapid setup doc` añade el frontmatter, calcula el `sha256` del cuerpo y guarda un `.bak` del archivo anterior.
+
+```bash
+# Lo redactó el agente: status: draft hasta que una persona lo confirme.
+printf '%s' "$BODY" | rapid setup doc business --source drafted --file -
+# Lo aportó la persona: se guarda tal cual, status: confirmed.
+rapid setup doc business --source provided --file notas.md
+# La persona revisó el borrador: solo cambia el status, el cuerpo no se toca.
+rapid setup doc business --confirm
+```
+
+- Un borrador (`drafted`) debe traer todas las secciones requeridas y caber en `max_chars`; si no, `rapid setup doc` lo rechaza con `RAPID1403`/`RAPID1404` (exit 1, no se escribe nada). Lo que aporta la persona (`provided`) no se valida.
+- Un borrador no reemplaza un documento que aportó una persona (ni un archivo escrito a mano) sin `--replace` (`RAPID1405`).
+- `--skip` y `--reopen` registran que un documento no hace falta, o lo devuelven a pendiente; `--confirm` y `--reopen` también regeneran `CLAUDE.md`, `.cursorrules`, ... cuando el proyecto ya tiene estándares.
+- Un proyecto anterior con `standards/business.md` lo importa con `rapid setup doc business --from-legacy` (como `provided`; el original no se borra).
+- `rapid init` usa la misma lógica: cada documento se importa, se escribe en la terminal, se deja pendiente para el agente (`/rapid-init`) o se omite. Con `--yes` quedan pendientes.
 
 ## Convivencia con `standards/business.md`
 
@@ -51,9 +70,9 @@ Si existen `standards/business.md` y `doc.business`, gana `doc.business`: el man
 | :--- | :--- | :--- |
 | `RAPID1400` | INFO | `.rapid-os/setup.json` existe y es válido. |
 | `RAPID1406` | ERROR | `.rapid-os/setup.json` existe y no es válido. |
-| `RAPID1408` | WARNING | Un documento redactado por el agente sigue sin confirmar. |
-| `RAPID1403` | WARNING | Un documento redactado por el agente no tiene una sección requerida (un encabezado `## ` con cualquiera de sus títulos, sin distinguir mayúsculas). |
-| `RAPID1404` | WARNING | Un documento redactado por el agente supera `max_chars` de su banco. |
+| `RAPID1408` | WARNING | Un documento redactado por el agente sigue sin confirmar (uno por documento). |
+| `RAPID1403` | WARNING | Un documento redactado por el agente no tiene una sección requerida (un encabezado `## ` con cualquiera de sus títulos, sin distinguir mayúsculas). En `rapid setup doc` es un rechazo, no un aviso. |
+| `RAPID1404` | WARNING | Un documento redactado por el agente supera `max_chars` de su banco. En `rapid setup doc` es un rechazo, no un aviso. |
 | `RAPID1410` | WARNING | `standards/business.md` y `docs/BUSINESS_RULES.md` difieren. |
 
 `RAPID1403` y `RAPID1404` solo se evalúan en documentos `drafted`: lo que la persona pegó no se valida. Detalle en [Diagnósticos](../troubleshooting/diagnostics.md).

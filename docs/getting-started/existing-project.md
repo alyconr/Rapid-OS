@@ -101,6 +101,10 @@ Para establecer los estándares del proyecto y los archivos de contexto para cod
 rapid init
 ```
 
+### Documentación del proyecto y reglas de negocio previas
+
+`rapid init` también pregunta por los cuatro documentos del proyecto (`docs/PRODUCT_BRIEF.md`, `docs/BUSINESS_RULES.md`, `docs/DATA_MODEL.md`, `docs/ARCHITECTURE.md`); si ya los resolviste en una ejecución anterior, los conserva. Si tu proyecto venía de una versión anterior con `.rapid-os/standards/business.md`, `rapid setup next` lo ofrece como `legacy_source` y `rapid setup doc business --from-legacy` lo importa como documento aportado por una persona, sin borrar el original. Para un proyecto que ya existe, `rapid setup finish` solo escribe los estándares que cambiaron: no pisa los que ya expresan tu decisión.
+
 ### Protección de archivos existentes con `.bak`
 Si tu proyecto ya cuenta con archivos como `.cursorrules`, `CLAUDE.md`, `INSTRUCTIONS.md` o `.rapid-os/config.json`:
 - Rapid OS **no los elimina sin aviso**.

@@ -187,7 +187,7 @@ class ContextProvenanceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = make_project(Path(tmp))
             write_setup(root, **{"data-model": "skipped"})
-            line = "No hay Modelo de datos definido: pregunta, no inventes."
+            line = "Modelo de datos: sin definir. Pregunta, no inventes."
             self.assertIn(line, compiled_content(root).content)
             self.assertIn(line, compose_project_context(root / ".rapid-os", root))
 

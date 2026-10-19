@@ -102,6 +102,13 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertIn("rapid start --worktree", boundaries)
         self.assertIn("rapid abort` nunca lo elimina", boundaries)
         self.assertIn("no instala shortcuts de harness por su cuenta", boundaries)
+        # Onboarding: what rapid setup / rapid init write, and that nothing is confirmed for the person.
+        self.assertIn("nunca marca como confirmado lo que la persona no confirmó", concept)
+        self.assertIn("rapid setup doc <id> --confirm", concept)
+        self.assertIn("rapid setup finish", concept)
+        self.assertIn("no confirma por la persona ni crea documentación por su cuenta", boundaries)
+        self.assertIn("`source: drafted` y `status: draft`", boundaries)
+        self.assertIn("andamiaje `todo` de `docs/`", boundaries)
         self.assertIn("nunca aprueban gates humanos", boundaries)
         self.assertIn("no invoca automáticamente", boundaries)
         self.assertIn("no utiliza llm-as-a-judge", boundaries)

@@ -254,43 +254,6 @@ class CliInteractiveUxTests(unittest.TestCase):
             self.assertFalse((root / "references").exists())
             self.assertIn("cancelada", output.getvalue())
 
-    def test_optional_docs_scaffold_creates_selected_docs_and_backup(self):
-        repo_root = Path(__file__).resolve().parents[1]
-        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
-            root = Path(temp_dir)
-            docs_dir = root / "docs"
-            docs_dir.mkdir()
-            existing = docs_dir / "BUSINESS_RULES.md"
-            existing.write_text("old", encoding="utf-8")
-            answers = iter(["y", "y", "n", "n", "n"])
-
-            with patch.object(cli_main, "CURRENT_DIR", root), contextlib.redirect_stdout(
-                io.StringIO()
-            ):
-                written = cli_main.create_optional_docs_scaffold(
-                    input_fn=lambda _prompt: next(answers)
-                )
-
-            self.assertEqual([path.name for path in written], ["BUSINESS_RULES.md"])
-            self.assertIn("## Purpose", existing.read_text(encoding="utf-8"))
-            self.assertTrue(list(docs_dir.glob("BUSINESS_RULES.md.*.bak")))
-            self.assertFalse((docs_dir / "SPECS.md").exists())
-
-    def test_optional_docs_scaffold_cancel_writes_nothing(self):
-        repo_root = Path(__file__).resolve().parents[1]
-        with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
-            root = Path(temp_dir)
-
-            with patch.object(cli_main, "CURRENT_DIR", root), contextlib.redirect_stdout(
-                io.StringIO()
-            ):
-                written = cli_main.create_optional_docs_scaffold(
-                    input_fn=lambda _prompt: "cancelar"
-                )
-
-            self.assertEqual(written, [])
-            self.assertFalse((root / "docs").exists())
-
 
 def _create_full_init_templates(root: Path) -> Path:
     templates = root / "templates"
@@ -474,7 +437,8 @@ class CliArchetypeAndHardeningTests(unittest.TestCase):
             ), contextlib.redirect_stdout(io.StringIO()):
                 cli_main.init_project(args)
 
-            for fname in ("tech-stack.md", "topology.md", "coding-rules.md", "business.md"):
+            # The business rules are now docs/BUSINESS_RULES.md; init no longer rewrites standards/business.md.
+            for fname in ("tech-stack.md", "topology.md", "coding-rules.md"):
                 self.assertTrue(list(standards.glob(f"{fname}.*.bak")), fname)
 
             deploy_file = project / "DEPLOY.md"

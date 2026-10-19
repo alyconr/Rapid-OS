@@ -76,6 +76,25 @@ rapid init --archetype mvp --no-scan
 
 *(También puedes ejecutar simplemente `rapid init` para utilizar el asistente interactivo).*
 
+Además de los estándares, `rapid init` te pregunta por cuatro documentos del proyecto (`docs/PRODUCT_BRIEF.md`, `docs/BUSINESS_RULES.md`, `docs/DATA_MODEL.md` y `docs/ARCHITECTURE.md`). Para cada uno puedes: 1) importar un archivo, 2) escribirlo ahí mismo (termina con dos líneas vacías), 3) dejarlo para tu agente (`/rapid-init`) u 4) omitirlo. Con `--yes` quedan pendientes, y puedes pasar `--business-file <ruta>` para importar las reglas de negocio o `--skip-docs` para omitir los cuatro. Si quedan pendientes, `init` termina con `Completa la documentación con /rapid-init o rapid setup next`.
+
+### Completar el onboarding solo con `rapid setup`
+
+Un agente puede hacer todo el onboarding sin preguntas interactivas: `rapid setup next --json` dice qué decisión sigue y cada comando devuelve la siguiente.
+
+```bash
+rapid setup set stack python-ai
+rapid setup set topology fullstack-separated
+rapid setup set archetype mvp
+rapid setup set agents claude
+rapid setup set test-command "python -m unittest discover"
+rapid setup doc business --source drafted --file negocio.md   # solo el cuerpo; queda como borrador
+rapid setup doc brief --skip
+rapid setup finish
+```
+
+Lo que el agente redacta queda como borrador (`status: draft`) y entra al contexto marcado como supuesto hasta que lo confirmes con `rapid setup doc business --confirm`. Más detalle en la [referencia de la CLI](../cli.md#onboarding-rapid-setup).
+
 ### ¿Qué ocurre internamente?
 Rapid OS genera la estructura fundamental de gobernanza y archivos de contexto para los principales agentes de IA:
 

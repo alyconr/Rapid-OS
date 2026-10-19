@@ -1,7 +1,7 @@
-"""Read-only access to the onboarding state (`.rapid-os/setup.json`).
+"""Access to the onboarding state (`.rapid-os/setup.json`).
 
-Nothing here writes: when `setup.json` does not exist, a project initialized before the setup
-flow gets a state derived from what is already on disk.
+Reading never writes: when `setup.json` does not exist, a project initialized before the setup
+flow gets a state derived from what is already on disk. `write_setup` is the only writer.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from typing import Mapping
 from rapid_os.adapters.agents import DEFAULT_AGENT_REGISTRY
 from rapid_os.adapters.project_commands import propose_test_command
 from rapid_os.core.config import inspect_project_config_file
+from rapid_os.core.filesystem import safe_write_text
 from rapid_os.core.harness_detect import detect_harness
 from rapid_os.domain.catalog import Catalog, SetupDocBank
 from rapid_os.domain.project_docs import is_managed, parse_doc_frontmatter
@@ -79,6 +80,29 @@ def read_setup_file(rapid_dir: Path) -> tuple[SetupState | None, str | None]:
         return _load_file(setup_file), None
     except SetupStateError as exc:
         return None, str(exc)
+
+
+def write_setup(rapid_dir: Path, state: SetupState) -> Path:
+    """Atomically write `setup.json`, creating `.rapid-os/` when it does not exist."""
+    return safe_write_text(
+        rapid_dir / SETUP_FILE_NAME,
+        json.dumps(state.to_dict(), indent=2) + "\n",
+        encoding="utf-8",
+        backup=False,
+        create_parents=True,
+    )
+
+
+def derive_state(
+    project_root: Path,
+    rapid_dir: Path,
+    config_file: Path,
+    templates_dir: Path,
+    catalog: Catalog,
+    doc_banks: Mapping[str, SetupDocBank],
+) -> SetupState:
+    """The state that the files on disk already express (what `rapid setup` would derive)."""
+    return _derive_state(project_root, rapid_dir, config_file, templates_dir, catalog, doc_banks)
 
 
 def _detect_agent(config_file: Path) -> str | None:
