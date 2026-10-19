@@ -112,7 +112,7 @@ Rapid OS `v3.1.0` is complete and preserves full backward compatibility with all
 | Porcelain layer (v3.1) | Complete | `rapid start`, `next`, `check`, `task`, `attach`, `finish`, `approve`, `status` and `abort` drive a governed run on top of the plumbing; a pure Conductor asks the `BehavioralEvaluator` what is missing; `.rapid-os/session.json` remembers the active run. |
 | Behavioral ruleset v2 (v3.1) | Complete | `rapid check --expect fail` (`expectation: "fail"` produces a `reproduction.<task>` assertion) and `harness:*` producers can no longer close human gates; `--ruleset 1` remains available and v1 reports stay valid. |
 | Engineering modes (v3.1) | Complete | Playbooks for `feature`, `bugfix`, `refactor`, `hardening` (isolated worktree with `rapid start --worktree`) and `research` (`rapid attach`). |
-| Shortcuts (v3.1) | Complete | `rapid shortcuts install\|list\|remove` and `rapid init --shortcuts` generate eight `/rapid-<mode>` shortcuts for Claude Code, Codex, Antigravity, Cursor and VS Code; `RAPID1321` warns about overlapping folders. |
+| Shortcuts (v3.1) | Complete | `rapid shortcuts install\|list\|remove` and `rapid init --shortcuts` generate nine shortcuts (`/rapid-init` plus one per mode and three helpers) for Claude Code, Codex, Antigravity, Cursor and VS Code; `RAPID1321` warns about overlapping folders. |
 | Claude Code hooks (v3.1) | Complete | `rapid hook stop\|pre-tool` installed with `--hooks`: keep the agent working until a person is needed and deny reserved commands and edits inside `.rapid-os/`. |
 | Hardened human approval (v3.1) | Complete | `rapid approve` requires a TTY, refuses agent sessions and Claude Code ancestors (`RAPID1310`), and supports `--waive` / `--reject`. Best-effort: see the known limits in the release notes. |
 | MCP abstraction | Complete | Structured MCP model with editor-specific rendering and package metadata. |
@@ -311,11 +311,12 @@ rapid shortcuts install         #    (en un proyecto ya inicializado; admite --h
 ```
 
 ```text
-/rapid-feature añadir exportación CSV al informe mensual     # 2. Claude Code, Cursor, Antigravity, VS Code
+/rapid-init API de facturación para pymes                    # 2. onboarding conducido por tu agente (Codex: $rapid-init)
+/rapid-feature añadir exportación CSV al informe mensual     # 3. Claude Code, Cursor, Antigravity, VS Code
 $rapid-feature añadir exportación CSV al informe mensual     #    Codex
 ```
 
-- Hay un shortcut por modo (`/rapid-feature`, `-bugfix`, `-refactor`, `-hardening`, `-research`) y tres de apoyo (`/rapid-next`, `/rapid-status`, `/rapid-approve`).
+- `/rapid-init` conduce el onboarding con `rapid setup` (también a nivel usuario: `rapid shortcuts install --global --harness <id> --only rapid-init`). Hay un shortcut por modo (`/rapid-feature`, `-bugfix`, `-refactor`, `-hardening`, `-research`) y tres de apoyo (`/rapid-next`, `/rapid-status`, `/rapid-approve`).
 - El agente sigue el bucle `rapid next --json` → `rapid start` → `rapid task` / `rapid check` → `rapid finish`, y se detiene cuando hace falta una persona. Entonces tú ejecutas `rapid approve <gate>` **en tu terminal**: el agente nunca aprueba, aborta ni edita `.rapid-os/`.
 - Detalle por harness (carpeta generada e invocación), aprobación humana y errores frecuentes: [Shortcuts por harness](https://alyconr.github.io/Rapid-OS/guides/shortcuts).
 - Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) siguen disponibles como **Modo avanzado** para CI, depuración y auditoría: ver [CLI Command Reference](#cli-reference).

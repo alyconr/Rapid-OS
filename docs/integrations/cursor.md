@@ -41,7 +41,7 @@ Para que el modelo en Cursor respete automáticamente las reglas de RAPID OS, ag
 
 ## Flujo principal: shortcuts
 
-La forma recomendada de trabajar con Cursor es con los shortcuts `/rapid-<modo>`. Los 8 shortcuts, el bucle que siguen, la aprobación humana y los errores frecuentes están en la [guía de shortcuts](../guides/shortcuts.md).
+La forma recomendada de trabajar con Cursor es con los shortcuts `/rapid-<modo>`. Los 9 shortcuts, el bucle que siguen, la aprobación humana y los errores frecuentes están en la [guía de shortcuts](../guides/shortcuts.md).
 
 ### Instalación
 
@@ -50,7 +50,7 @@ rapid init --shortcuts                                # al inicializar el proyec
 rapid shortcuts install --harness cursor              # en un proyecto ya inicializado
 ```
 
-Genera `.cursor/skills/rapid-*/SKILL.md` (los 8 shortcuts; [documentación de skills de Cursor](https://cursor.com/docs/context/skills)). Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`. `.cursorrules` sigue aportando las reglas del proyecto.
+Genera `.cursor/skills/rapid-*/SKILL.md` (los 9 shortcuts; [documentación de skills de Cursor](https://cursor.com/docs/context/skills)). Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`. `.cursorrules` sigue aportando las reglas del proyecto.
 
 ### Invocación
 

@@ -41,7 +41,7 @@ Para sobreescribir estas capacidades y declarar que tu entorno local autoriza la
 
 ## Flujo principal: shortcuts
 
-La forma recomendada de trabajar con Codex es con los shortcuts de Rapid OS. Los 8 shortcuts, el bucle que siguen, la aprobación humana y los errores frecuentes están en la [guía de shortcuts](../guides/shortcuts.md).
+La forma recomendada de trabajar con Codex es con los shortcuts de Rapid OS. Los 9 shortcuts, el bucle que siguen, la aprobación humana y los errores frecuentes están en la [guía de shortcuts](../guides/shortcuts.md).
 
 ### Instalación
 
@@ -50,7 +50,7 @@ rapid init --shortcuts                                # al inicializar el proyec
 rapid shortcuts install --harness codex               # en un proyecto ya inicializado
 ```
 
-Genera `.agents/skills/rapid-*/SKILL.md` (los 8 shortcuts; [documentación de skills de Codex](https://developers.openai.com/codex/skills)). Es la misma carpeta que usa Antigravity: si seleccionas ambos, se escribe una sola vez. Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`.
+Genera `.agents/skills/rapid-*/SKILL.md` (los 9 shortcuts; [documentación de skills de Codex](https://learn.chatgpt.com/docs/build-skills)). Es la misma carpeta que usa Antigravity: si seleccionas ambos, se escribe una sola vez. Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`.
 
 ### Invocación
 

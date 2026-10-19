@@ -17,19 +17,53 @@ En este tutorial aprenderás a gobernar un proyecto desde cero utilizando el CLI
 
 ---
 
-## Camino principal: shortcuts
+## Camino principal: `/rapid-init`
 
-La forma recomendada de trabajar es con los shortcuts: inicializas el proyecto con tu agente y le pides el trabajo.
+La forma recomendada de empezar es dejar que tu agente conduzca el onboarding. Tú solo decides; el agente ejecuta `rapid setup` por ti.
 
-```bash
-rapid init --agents claude --shortcuts
-```
+1. **Instala el shortcut** (una vez; funciona en una carpeta vacía):
+
+   ```bash
+   mkdir hello-rapid && cd hello-rapid
+   rapid shortcuts install --harness claude          # solo en este proyecto
+   # o, para todos tus proyectos: rapid shortcuts install --global --harness claude --only rapid-init
+   # o, si además quieres los estándares ya: rapid init --agents claude --shortcuts
+   ```
+
+   Cambia `claude` por tu harness (`codex`, `cursor`, `antigravity`, `vscode`; `--global` no está disponible para `vscode`). Los shortcuts ejecutan `rapid` desde el shell del agente, así que `rapid --version` debe funcionar en esa terminal; si `rapid` no está en el `PATH`, `rapid doctor` avisa con `RAPID1414`.
+
+2. **Escribe en tu agente** una descripción del proyecto (en Codex, `$rapid-init`):
+
+   ```text
+   /rapid-init una API en Python para validar nombres de usuario
+   ```
+
+3. **Responde a sus propuestas.** El agente lee `rapid setup next --json` y recorre, en orden: stack, topología, arquetipo, agentes, comando de test y los cuatro documentos del proyecto (brief, reglas de negocio, modelo de datos y arquitectura). Para cada decisión te propone una opción recomendada y una alternativa; para cada documento puedes pegar el contenido, pedirle que lo redacte (te muestra el borrador completo antes de guardarlo) u omitirlo.
+
+   Por debajo ejecuta comandos como estos, que también puedes usar tú:
+
+   ```bash
+   rapid setup set stack python-ai
+   rapid setup set topology fullstack-separated
+   rapid setup set archetype mvp
+   rapid setup set agents claude
+   rapid setup set test-command "python -m unittest discover"
+   rapid setup doc business --source drafted --file -   # el cuerpo por stdin; queda como borrador
+   rapid setup doc brief --skip
+   rapid setup finish
+   ```
+
+4. **Confirma lo que redactó.** Lo que escribe el agente queda como borrador (`status: draft`) y entra al contexto marcado como supuesto hasta que tú lo confirmes (`rapid setup doc business --confirm`); el agente solo lo ejecuta si se lo dices de forma explícita. Al terminar te resume lo decidido y ofrece `/rapid-feature` con la primera historia sin marcar del brief.
 
 ```text
 /rapid-feature añadir una función validate_username a app.py
 ```
 
-El agente conduce el run (`rapid next` → `rapid start` → `rapid check` → `rapid finish`) y se detiene en `gate.final-verification`; tú ejecutas `rapid approve gate.final-verification` en tu terminal. Detalle por harness en la [guía de shortcuts](../guides/shortcuts.md).
+El agente conduce el run (`rapid next` → `rapid start` → `rapid check` → `rapid finish`) y se detiene en `gate.final-verification`; tú ejecutas `rapid approve gate.final-verification` **en otra terminal**, fuera del agente. Detalle por harness en la [guía de shortcuts](../guides/shortcuts.md) y todos los comandos en la [referencia de `rapid setup`](../cli.md#onboarding-rapid-setup).
+
+:::note Sin agente: `rapid init`
+`rapid init` hace lo mismo desde la terminal, con preguntas interactivas (Paso 2). Es la alternativa cuando no usas un agente o prefieres responder tú; deja los documentos que no resuelvas como pendientes para `/rapid-init`.
+:::
 
 ## Modo avanzado (comandos v3)
 
@@ -66,9 +100,9 @@ echo '# Hello Rapid Project\nProyecto de demostración para Rapid OS.' > README.
 
 ---
 
-## Paso 2: Inicializar RAPID OS (`rapid init`)
+## Paso 2: Inicializar RAPID OS (alternativa: `rapid init`)
 
-Ejecuta el comando de inicialización en la raíz del proyecto:
+Si no usaste `/rapid-init`, ejecuta el comando de inicialización en la raíz del proyecto:
 
 ```bash
 rapid init --archetype mvp --no-scan
@@ -77,23 +111,6 @@ rapid init --archetype mvp --no-scan
 *(También puedes ejecutar simplemente `rapid init` para utilizar el asistente interactivo).*
 
 Además de los estándares, `rapid init` te pregunta por cuatro documentos del proyecto (`docs/PRODUCT_BRIEF.md`, `docs/BUSINESS_RULES.md`, `docs/DATA_MODEL.md` y `docs/ARCHITECTURE.md`). Para cada uno puedes: 1) importar un archivo, 2) escribirlo ahí mismo (termina con dos líneas vacías), 3) dejarlo para tu agente (`/rapid-init`) u 4) omitirlo. Con `--yes` quedan pendientes, y puedes pasar `--business-file <ruta>` para importar las reglas de negocio o `--skip-docs` para omitir los cuatro. Si quedan pendientes, `init` termina con `Completa la documentación con /rapid-init o rapid setup next`.
-
-### Completar el onboarding solo con `rapid setup`
-
-Un agente puede hacer todo el onboarding sin preguntas interactivas: `rapid setup next --json` dice qué decisión sigue y cada comando devuelve la siguiente.
-
-```bash
-rapid setup set stack python-ai
-rapid setup set topology fullstack-separated
-rapid setup set archetype mvp
-rapid setup set agents claude
-rapid setup set test-command "python -m unittest discover"
-rapid setup doc business --source drafted --file negocio.md   # solo el cuerpo; queda como borrador
-rapid setup doc brief --skip
-rapid setup finish
-```
-
-Lo que el agente redacta queda como borrador (`status: draft`) y entra al contexto marcado como supuesto hasta que lo confirmes con `rapid setup doc business --confirm`. Más detalle en la [referencia de la CLI](../cli.md#onboarding-rapid-setup).
 
 ### ¿Qué ocurre internamente?
 Rapid OS genera la estructura fundamental de gobernanza y archivos de contexto para los principales agentes de IA:

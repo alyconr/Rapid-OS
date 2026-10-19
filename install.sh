@@ -100,3 +100,22 @@ if [ "$NEEDS_NEW_TERMINAL" -eq 1 ]; then
     echo "👉 Open a new terminal (or run: source \"$SHELL_RC\") before using 'rapid'."
 fi
 echo "👉 Launch your coding agent (claude, codex, cursor...) from a terminal where 'rapid --version' works."
+
+# Opt-in, never by default and never without a terminal: /rapid-init in your user-level skills
+# folder, so it works in every project. Supported: claude, codex, cursor, antigravity.
+# With `curl | bash` stdin is the pipe, so the answer is read from the controlling terminal.
+# [ -r /dev/tty ] can be true without a terminal (cron, containers), hence the open test.
+if [ -r /dev/tty ] && (: < /dev/tty) 2>/dev/null; then
+    printf '%s' "👉 Install /rapid-init for your coding agents in your home folder (all projects)? Harnesses (comma-separated: claude,codex,cursor,antigravity) or Enter for none: "
+    read -r RAPID_INIT_HARNESSES < /dev/tty || RAPID_INIT_HARNESSES=""
+    if [ -n "$RAPID_INIT_HARNESSES" ]; then
+        HARNESS_ARGS=""
+        for H in $(echo "$RAPID_INIT_HARNESSES" | tr ',' ' '); do
+            HARNESS_ARGS="$HARNESS_ARGS --harness $H"
+        done
+        # shellcheck disable=SC2086
+        "$BIN_DIR/rapid" shortcuts install --global --only rapid-init $HARNESS_ARGS || echo "WARNING: Could not install /rapid-init; run 'rapid shortcuts install --global --only rapid-init --harness <id>' later."
+    fi
+else
+    echo "👉 Tip: 'rapid shortcuts install --global --only rapid-init --harness claude' installs /rapid-init for all your projects."
+fi

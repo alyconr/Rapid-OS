@@ -35,7 +35,7 @@ Desde la raíz de tu repositorio (con al menos un commit):
 rapid init --shortcuts
 ```
 
-Esto crea `.rapid-os/` (estándares y `config.json`) y genera los 8 shortcuts `/rapid-*` para los agentes que elijas. Añade a `.gitignore` el estado local de la sesión:
+Esto crea `.rapid-os/` (estándares y `config.json`) y genera los 9 shortcuts `/rapid-*` para los agentes que elijas. Añade a `.gitignore` el estado local de la sesión:
 
 ```gitignore
 .rapid-os/session.json

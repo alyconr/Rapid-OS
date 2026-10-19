@@ -15,6 +15,11 @@ from rapid_os.domain.shortcuts import ShortcutTemplate
 class CursorAdapter(AgentAdapter):
     id = "cursor"
     name = "Cursor"
+    skills_root = (".cursor", "skills")
+    # "User-level (global) on the local machine": ~/.agents/skills/ and ~/.cursor/skills/
+    # https://cursor.com/docs/context/skills
+    global_skills_root = (".cursor", "skills")
+    global_docs_url = "https://cursor.com/docs/context/skills"
     metadata = {"activation": "Project root .cursorrules"}
     outputs = (
         AgentOutput(Path(".cursorrules"), "Generado: .cursorrules"),
@@ -42,6 +47,11 @@ class CursorAdapter(AgentAdapter):
 class ClaudeAdapter(AgentAdapter):
     id = "claude"
     name = "Claude Code"
+    skills_root = (".claude", "skills")
+    # "Personal skills live at ~/.claude/skills/<skill-name>/SKILL.md"
+    # https://code.claude.com/docs/en/skills
+    global_skills_root = (".claude", "skills")
+    global_docs_url = "https://code.claude.com/docs/en/skills"
     metadata = {"activation": "Project root CLAUDE.md"}
     outputs = (
         AgentOutput(Path("CLAUDE.md"), "Generado: CLAUDE.md"),
@@ -82,6 +92,13 @@ class ClaudeAdapter(AgentAdapter):
 class AntigravityAdapter(AgentAdapter):
     id = "antigravity"
     name = "Google Antigravity"
+    skills_root = (".agents", "skills")
+    # Global skills "available across all projects on your workstation": the Antigravity App and
+    # IDE read ~/.gemini/config/skills/ (the Antigravity CLI reads ~/.gemini/antigravity-cli/skills/,
+    # which --global does not write).
+    # https://antigravity.google/docs/skills
+    global_skills_root = (".gemini", "config", "skills")
+    global_docs_url = "https://antigravity.google/docs/skills"
     metadata = {"activation": "Always-on project constitution rule"}
     outputs = (
         AgentOutput(
@@ -115,6 +132,12 @@ class AntigravityAdapter(AgentAdapter):
 class VSCodeAdapter(AgentAdapter):
     id = "vscode"
     name = "VS Code / Copilot"
+    skills_root = (".github", "prompts")
+    # No user-level folder to write: the documentation says user prompt files live in "Your user
+    # data (specific to your VS Code profile)" without naming a path, so --global is unsupported.
+    # https://code.visualstudio.com/docs/copilot/customization/prompt-files
+    global_skills_root = None
+    global_docs_url = "https://code.visualstudio.com/docs/copilot/customization/prompt-files"
     metadata = {"activation": "Project root INSTRUCTIONS.md"}
     outputs = (
         AgentOutput(Path("INSTRUCTIONS.md"), "Generado: INSTRUCTIONS.md"),
@@ -152,6 +175,11 @@ class VSCodeAdapter(AgentAdapter):
 class CodexAdapter(AgentAdapter):
     id = "codex"
     name = "Codex"
+    skills_root = (".agents", "skills")
+    # The USER row of the skill locations table is $HOME/.agents/skills
+    # https://learn.chatgpt.com/docs/build-skills (formerly https://developers.openai.com/codex/skills)
+    global_skills_root = (".agents", "skills")
+    global_docs_url = "https://learn.chatgpt.com/docs/build-skills"
     metadata = {
         "activation": "Project root AGENTS.md",
         "scope": "repository",

@@ -39,7 +39,7 @@ Perfil declarativo:
 
 ## Flujo principal: shortcuts
 
-La forma recomendada de trabajar con Claude Code es con los shortcuts `/rapid-<modo>`. Los 8 shortcuts, el bucle que siguen, la aprobación humana y los errores frecuentes están en la [guía de shortcuts](../guides/shortcuts.md).
+La forma recomendada de trabajar con Claude Code es con los shortcuts `/rapid-<modo>`. Los 9 shortcuts, el bucle que siguen, la aprobación humana y los errores frecuentes están en la [guía de shortcuts](../guides/shortcuts.md).
 
 ### Instalación
 
@@ -49,7 +49,7 @@ rapid shortcuts install --harness claude              # en un proyecto ya inicia
 rapid shortcuts install --harness claude --hooks      # además, los hooks (sección 6)
 ```
 
-Genera `.claude/skills/rapid-*/SKILL.md` (los 8 shortcuts; [documentación de skills](https://code.claude.com/docs/en/skills)). Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`.
+Genera `.claude/skills/rapid-*/SKILL.md` (los 9 shortcuts; [documentación de skills](https://code.claude.com/docs/en/skills)). Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`.
 
 ### Invocación
 

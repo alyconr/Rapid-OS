@@ -41,13 +41,13 @@ class ShortcutRenderingTests(unittest.TestCase):
 
     def test_one_template_per_shortcut(self):
         self.assertEqual(tuple(t.name for t in self.templates), SHORTCUT_NAMES)
-        self.assertEqual(len(SHORTCUT_NAMES), 8)
+        self.assertEqual(len(SHORTCUT_NAMES), 9)
 
     def test_golden_files_per_harness_and_shortcut(self):
         update = os.environ.get("RAPID_UPDATE_GOLDEN") == "1"
         for harness in HARNESSES:
             outputs = DEFAULT_AGENT_REGISTRY.get(harness).shortcut_outputs(self.templates)
-            self.assertEqual(len(outputs), 8, harness)
+            self.assertEqual(len(outputs), 9, harness)
             for relative, content in outputs.items():
                 golden = GOLDEN / harness / relative
                 with self.subTest(harness=harness, path=relative.as_posix()):
@@ -143,7 +143,7 @@ class ShortcutInstallerTests(unittest.TestCase):
 
         plan = installer.build_plan(self.root, ("claude",), templates)
         names = {f.shortcut for f in plan.files}
-        self.assertEqual(names, {"rapid-feature", "rapid-next", "rapid-status", "rapid-approve"})
+        self.assertEqual(names, {"rapid-init", "rapid-feature", "rapid-next", "rapid-status", "rapid-approve"})
         self.assertEqual(
             sorted(s.shortcut for s in plan.skipped),
             ["rapid-bugfix", "rapid-hardening", "rapid-refactor", "rapid-research"],
@@ -234,14 +234,14 @@ class ShortcutInstallerTests(unittest.TestCase):
 
     def test_codex_and_antigravity_share_agents_skills_once(self):
         plan = self.plan(("codex", "antigravity"))
-        self.assertEqual(len(plan.files), 8)
+        self.assertEqual(len(plan.files), 9)
         for planned in plan.files:
             self.assertTrue(planned.path.as_posix().startswith(".agents/skills/"))
             self.assertEqual(planned.harnesses, ("antigravity", "codex"))  # registry order
 
         with mock.patch.object(installer, "safe_write_text", wraps=installer.safe_write_text) as writer:
             installer.apply_plan(self.root, plan)
-        self.assertEqual(writer.call_count, 8)
+        self.assertEqual(writer.call_count, 9)
 
     def test_remove_only_deletes_marked_files(self):
         installer.apply_plan(self.root, self.plan(("claude", "codex")))
@@ -361,7 +361,7 @@ class ShortcutCliTests(unittest.TestCase):
         listed = json.loads(self.rapid("shortcuts", "list", "--harness", "claude", "--json").stdout)
         self.assertTrue(all(e["state"] == "installed" for e in listed["shortcuts"]))
         self.assertEqual(listed["skipped"], [])
-        self.assertEqual(len(listed["shortcuts"]), 8)
+        self.assertEqual(len(listed["shortcuts"]), 9)
 
         removed = self.rapid("shortcuts", "remove", "--harness", "claude", "--json")
         self.assertEqual(removed.returncode, 0, removed.stderr)

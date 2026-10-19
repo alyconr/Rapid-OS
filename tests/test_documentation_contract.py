@@ -109,6 +109,11 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertIn("no confirma por la persona ni crea documentación por su cuenta", boundaries)
         self.assertIn("`source: drafted` y `status: draft`", boundaries)
         self.assertIn("andamiaje `todo` de `docs/`", boundaries)
+        # Shortcuts: --global is the only way Rapid OS writes outside the project.
+        self.assertIn("rapid shortcuts install --global", concept)
+        self.assertIn("rapid shortcuts install --global", boundaries)
+        self.assertIn("nunca por defecto", concept)
+        self.assertIn("nunca por defecto", boundaries)
         self.assertIn("nunca aprueban gates humanos", boundaries)
         self.assertIn("no invoca automáticamente", boundaries)
         self.assertIn("no utiliza llm-as-a-judge", boundaries)
@@ -460,7 +465,7 @@ class DocumentationContractTests(unittest.TestCase):
 
         guide = (DOCS / "guides" / "shortcuts.md").read_text(encoding="utf-8")
         templates = load_templates(ROOT / "templates")
-        self.assertEqual(len(templates), 8)
+        self.assertEqual(len(templates), 9)
         for template in templates:
             self.assertIn(f"`{template.name}`", guide)
         for adapter in DEFAULT_AGENT_REGISTRY.adapters():
@@ -475,7 +480,7 @@ class DocumentationContractTests(unittest.TestCase):
     def test_shortcuts_guide_problem_codes_exist_in_the_diagnostics_catalog(self):
         guide = (DOCS / "guides" / "shortcuts.md").read_text(encoding="utf-8")
         diagnostics = (DOCS / "troubleshooting" / "diagnostics.md").read_text(encoding="utf-8")
-        for code in ("1301", "1307", "1308", "1310", "1312", "1315", "1320", "1321", "1337", "1339"):
+        for code in ("1301", "1307", "1308", "1310", "1312", "1315", "1320", "1321", "1337", "1339", "1413", "1414"):
             with self.subTest(code=code):
                 self.assertIn(f"| `RAPID{code}` |", guide)
                 self.assertIn(f"| `RAPID{code}` |", diagnostics)

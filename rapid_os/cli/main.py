@@ -305,6 +305,16 @@ def confirm_scan_suggestions(scan, suggestions, stack_override=None):
 
 
 INIT_DOCS_PENDING_MESSAGE = "Completa la documentación con /rapid-init o rapid setup next"
+
+
+def _init_pending_message(selected_tools):
+    """Codex invokes skills with `$`, every other harness with `/`."""
+    others = [tool for tool in selected_tools if tool in DEFAULT_AGENT_REGISTRY.ids() and tool != "codex"]
+    if "codex" not in selected_tools:
+        return INIT_DOCS_PENDING_MESSAGE
+    if not others:
+        return INIT_DOCS_PENDING_MESSAGE.replace("/rapid-init", "$rapid-init")
+    return INIT_DOCS_PENDING_MESSAGE.replace("/rapid-init", "/rapid-init (o $rapid-init en Codex)")
 RAPID_NOT_ON_PATH_MESSAGE = (
     "RAPID1414 Los shortcuts y hooks ejecutan rapid desde el shell del agente, y rapid no está "
     "en el PATH. Instálalo con el instalador o con pipx."
@@ -731,7 +741,7 @@ def init_project(args):
 
     print("\n🚀 ¡Rapid OS activo!")
     if pending_docs:
-        print(INIT_DOCS_PENDING_MESSAGE)
+        print(_init_pending_message(selected_tools))
 
 
 def _install_hooks_for_init(args, selected_tools):
@@ -3930,12 +3940,16 @@ def _warn_folder_overlaps(harness_ids):
     return overlaps
 
 
-def _install_shortcuts(harness_ids, *, dry_run):
-    """Plan and (unless dry_run) write shortcuts. Returns (plan, written paths)."""
+def _install_shortcuts(harness_ids, *, dry_run, scope="project", only=None):
+    """Plan and (unless dry_run) write shortcuts. Returns (plan, written paths).
+
+    With `scope="global"` the files go under the user's home directory.
+    """
     from rapid_os.adapters.shortcut_installer import apply_plan, build_plan
 
-    plan = build_plan(CURRENT_DIR, harness_ids, TEMPLATES_DIR)
-    written = () if dry_run else apply_plan(CURRENT_DIR, plan)
+    root = Path.home() if scope == "global" else CURRENT_DIR
+    plan = build_plan(root, harness_ids, TEMPLATES_DIR, scope=scope, only=only)
+    written = () if dry_run else apply_plan(root, plan)
     return plan, written
 
 
@@ -3995,13 +4009,20 @@ def shortcuts_command(args):
 
     as_json = getattr(args, "json", False)
     dry_run = getattr(args, "dry_run", False)
+    scope = "global" if getattr(args, "global_scope", False) else "project"
+    only = getattr(args, "only", None)
+    root = Path.home() if scope == "global" else CURRENT_DIR
 
     try:
+        if scope == "global" and getattr(args, "hooks", False):
+            raise ShortcutError("RAPID1413", "--hooks writes the project's .claude/settings.json and cannot be combined with --global.")
+        if scope == "global" and not getattr(args, "harness", None):
+            raise ShortcutError("RAPID1413", "--global needs --harness <id>: there is no project config to choose the harnesses from.")
         # A missing config would otherwise yield the generic default tools; only an explicit
         # --harness or a project config may decide where shortcut files are written.
         config_tools = (
             _load_config_with_warning(CONFIG_FILE).get("tools", [])
-            if Path(CONFIG_FILE).exists()
+            if scope == "project" and Path(CONFIG_FILE).exists()
             else []
         )
         harness_ids = resolve_harness_ids(getattr(args, "harness", None), config_tools)
@@ -4010,8 +4031,8 @@ def shortcuts_command(args):
             from rapid_os.adapters import claude_hooks
 
             hooks_plan = _plan_claude_hooks("install", harness_ids) if getattr(args, "hooks", False) else None
-            plan, written = _install_shortcuts(harness_ids, dry_run=dry_run)
-            overlaps = _warn_folder_overlaps(harness_ids)
+            plan, written = _install_shortcuts(harness_ids, dry_run=dry_run, scope=scope, only=only)
+            overlaps = _warn_folder_overlaps(harness_ids) if scope == "project" else []
             if hooks_plan is not None and not dry_run:
                 claude_hooks.apply_plan(CURRENT_DIR, hooks_plan)
             if as_json:
@@ -4019,6 +4040,7 @@ def shortcuts_command(args):
                     "schema_version": 1,
                     "command": "install",
                     "dry_run": dry_run,
+                    **({"scope": "global"} if scope == "global" else {}),
                     "harnesses": list(plan.harnesses),
                     "files": [_shortcut_entry_json(f) for f in plan.files],
                     "skipped": _skipped_json(plan.skipped),
@@ -4041,8 +4063,8 @@ def shortcuts_command(args):
             return 0
 
         if action == "list":
-            entries, skipped = list_entries(CURRENT_DIR, harness_ids, TEMPLATES_DIR)
-            overlaps = _warn_folder_overlaps(harness_ids)
+            entries, skipped = list_entries(root, harness_ids, TEMPLATES_DIR, scope=scope, only=only)
+            overlaps = _warn_folder_overlaps(harness_ids) if scope == "project" else []
             if as_json:
                 payload = {
                     "schema_version": 1,
@@ -4069,8 +4091,8 @@ def shortcuts_command(args):
         from rapid_os.adapters import claude_hooks
 
         hooks_plan = _plan_claude_hooks("remove", harness_ids) if getattr(args, "hooks", False) else None
-        entries = plan_removal(CURRENT_DIR, harness_ids, TEMPLATES_DIR)
-        removed = () if dry_run else apply_removal(CURRENT_DIR, entries)
+        entries = plan_removal(root, harness_ids, TEMPLATES_DIR, scope=scope, only=only)
+        removed = () if dry_run else apply_removal(root, entries)
         if hooks_plan is not None and not dry_run:
             claude_hooks.apply_plan(CURRENT_DIR, hooks_plan)
         warnings = [
@@ -4789,6 +4811,19 @@ def create_parser():
         )
         _sp.add_argument("--dry-run", dest="dry_run", action="store_true", help="Show what would change without writing or deleting.")
         _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
+        _sp.add_argument(
+            "--global",
+            dest="global_scope",
+            action="store_true",
+            help="Use the user-level skills folder of each harness (in your home directory) instead of the project; needs --harness.",
+        )
+        _sp.add_argument(
+            "--only",
+            action="append",
+            dest="only",
+            metavar="SHORTCUT",
+            help="Only this shortcut (repeatable), e.g. --only rapid-init.",
+        )
         if _name != "list":
             _sp.add_argument(
                 "--hooks",
