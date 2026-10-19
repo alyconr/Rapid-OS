@@ -166,6 +166,12 @@ class FinishStoryHintTests(unittest.TestCase):
             if action["kind"] == "await_human_approval":
                 gate = action["gate_ids"][0]
                 break
+            if action["kind"] == "implement_task":
+                # Do the task like an agent would: change a real project file (the run records it
+                # at `finish`; do not rely on `rapid check` leaving bytecode behind).
+                feature = self.root / "app" / "listado.py"
+                feature.parent.mkdir(parents=True, exist_ok=True)
+                feature.write_text("def listar():\n    return []\n", encoding="utf-8")
             for key in ("command", "after"):
                 if action.get(key):
                     self.assertEqual(rapid(self.root, *action[key][1:]).returncode, 0)
