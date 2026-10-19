@@ -12,34 +12,37 @@ Esta guía recopila los errores más habituales reportados durante la instalaci�
 ## 1. El comando `rapid` no se reconoce (*command not found*)
 
 ### Causa
-El alias o función de shell no se ha cargado en la sesión actual de la terminal, o el ejecutable no se encuentra en el `PATH`.
+Desde la v3.1.1 los instaladores dejan un ejecutable `rapid` en el `PATH` (`~/.local/bin/rapid` en Linux/macOS/WSL, `$HOME\.rapid-os\bin\rapid.exe` en Windows). Si no se reconoce, la terminal se abrió antes de la instalación o esa carpeta no está en el `PATH`.
 
 ### Solución
 
-- **En Windows (PowerShell):**
-  Recarga tu perfil ejecutando:
+- **En Windows (PowerShell):** abre una ventana nueva y comprueba:
   ```powershell
-  . $PROFILE
+  Get-Command rapid                                   # ...\.rapid-os\bin\rapid.exe
+  [Environment]::GetEnvironmentVariable("Path", "User") -split ";" | Select-String rapid-os
   ```
-  O comprueba si la función está presente en tu perfil:
-  ```powershell
-  Get-Content $PROFILE
-  ```
-  Si no está, puedes añadirla manualmente:
-  ```powershell
-  Add-Content -Path $PROFILE -Value "`nfunction rapid { python `"$HOME\.rapid-os\rapid.py`" `$args }"
+  Si la carpeta no aparece, vuelve a ejecutar el instalador.
+
+- **En Linux / macOS / WSL:** abre una terminal nueva (o `source ~/.bashrc` / `source ~/.zshrc`) y comprueba:
+  ```bash
+  command -v rapid        # ~/.local/bin/rapid
+  ls -l ~/.local/bin/rapid
   ```
 
-- **En Linux / macOS / WSL:**
-  Recarga la configuración de tu terminal:
-  ```bash
-  source ~/.bashrc   # En Linux o WSL
-  source ~/.zshrc    # En macOS o zsh
-  ```
-  O comprueba que el alias esté presente en el archivo:
-  ```bash
-  grep "alias rapid=" ~/.bashrc
-  ```
+---
+
+## 1.1. `rapid` funciona en tu terminal pero no dentro del agente (*rapid: command not found* en un shortcut o hook)
+
+### Síntoma
+Un shortcut como `/rapid-feature` falla en su primer paso con `rapid: command not found`, o un hook de Claude Code no encuentra `rapid`.
+
+### Causa
+El agente ejecuta comandos en su propio shell no interactivo (Claude Code usa Git Bash en Windows). Ese shell no ve alias, funciones de `$PROFILE` ni un `venv` activado solo en tu terminal. Los instaladores anteriores a v3.1.1 configuraban un alias o una función, que tiene este problema.
+
+### Solución
+1. Instala con el instalador v3.1.1 o con `pipx install git+https://github.com/alyconr/Rapid-OS.git@v3.1.1`.
+2. Abre una terminal nueva, comprueba `rapid --version` y lanza el agente desde ella.
+3. Dentro de Claude Code, `! which rapid` debe encontrarlo.
 
 ---
 
@@ -59,7 +62,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 Luego vuelve a ejecutar el instalador:
 ```powershell
-irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.ps1 | iex
+irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.ps1 | iex
 ```
 
 ---

@@ -6,7 +6,7 @@ Este runbook describe el procedimiento formal, seguro y determinista para public
 
 ## 1. Alcance y Gobernanza
 
-- **Portal:** Documentación canónica de RAPID OS v3.1.0.
+- **Portal:** Documentación canónica de RAPID OS v3.1.1.
 - **Framework:** Docusaurus 3 con Node.js 20.
 - **Hosting:** GitHub Pages (`alyconr.github.io/Rapid-OS/`).
 - **Mecanismo:** Despliegue desacoplado mediante GitHub Actions (`.github/workflows/docs-deploy.yml`).

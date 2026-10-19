@@ -231,27 +231,27 @@ Asegúrate de tener instalado:
 
 ### Install <a name="install"></a>
 
-#### Stable Release (`v3.1.0`)
+#### Stable Release (`v3.1.1`)
 
-Una vez publicado el tag estable `v3.1.0`, utiliza los instaladores anclados a ese release reproducible:
+Una vez publicado el tag estable `v3.1.1`, utiliza los instaladores anclados a ese release reproducible:
 
-- **Opción A: Instalación estándar de paquete Python (`pip` / `venv`) en el tag `v3.1.0`**:
+- **Opción A: Instalación estándar de paquete Python (`pip` / `venv`) en el tag `v3.1.1`**:
   ```bash
-  git clone --branch v3.1.0 https://github.com/alyconr/Rapid-OS.git
+  git clone --branch v3.1.1 https://github.com/alyconr/Rapid-OS.git
   cd Rapid-OS
   python -m pip install .
   rapid --version
   ```
-- **Opción B: Linux, macOS o WSL (Stable `v3.1.0`)**:
+- **Opción B: Linux, macOS o WSL (Stable `v3.1.1`)**:
   ```bash
-  curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.sh | bash
+  curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.sh | bash
   ```
-- **Opción C: Windows PowerShell (Stable `v3.1.0`)**:
+- **Opción C: Windows PowerShell (Stable `v3.1.1`)**:
   ```powershell
-  irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.ps1 | iex
+  irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.ps1 | iex
   ```
 
-Reinicia tu terminal después de la instalación para cargar el comando `rapid` y verifica con `rapid --version` (`Rapid OS 3.1.0`).
+Reinicia tu terminal después de la instalación para cargar el comando `rapid` y verifica con `rapid --version` (`Rapid OS 3.1.1`).
 
 #### Development (`latest development version` on `main`)
 
@@ -268,25 +268,25 @@ python -m pip install -e .
 
 ### Update <a name="update"></a>
 
-#### Actualizar a la versión estable `v3.1.0`
+#### Actualizar a la versión estable `v3.1.1`
 
-- **Windows PowerShell (Stable `v3.1.0`)**:
+- **Windows PowerShell (Stable `v3.1.1`)**:
   ```powershell
   git -C "$HOME\.rapid-os" fetch --tags --force origin
-  git -C "$HOME\.rapid-os" checkout --detach v3.1.0
+  git -C "$HOME\.rapid-os" checkout --detach v3.1.1
   ```
   O ejecutando el instalador estable:
   ```powershell
-  irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.ps1 | iex
+  irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.ps1 | iex
   ```
-- **Linux, macOS o WSL (Stable `v3.1.0`)**:
+- **Linux, macOS o WSL (Stable `v3.1.1`)**:
   ```bash
   git -C "$HOME/.rapid-os" fetch --tags --force origin
-  git -C "$HOME/.rapid-os" checkout --detach v3.1.0
+  git -C "$HOME/.rapid-os" checkout --detach v3.1.1
   ```
   O ejecutando el instalador estable:
   ```bash
-  curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.sh | bash
+  curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.sh | bash
   ```
 
 #### Actualizar un entorno de desarrollo (`latest development version` en `main`)

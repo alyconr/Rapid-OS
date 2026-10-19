@@ -39,25 +39,24 @@ git --version
 
 ## 2. Método A: Instalador automático Shell (Recomendado)
 
-El script de instalación clona el repositorio en `~/.rapid-os`, fija la versión estable `v3.1.0` y añade un alias seguro en tu archivo `~/.bashrc` o `~/.zshrc`:
+El script de instalación clona el repositorio en `~/.rapid-os`, fija la versión estable `v3.1.1` e instala un ejecutable `rapid` en `~/.local/bin`:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.0/install.sh | bash
+curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.sh | bash
 ```
 
 ### ¿Qué realiza el instalador?
 1. Verifica la existencia de `python3` (3.10+) y `git`.
 2. Clona el repositorio en `$HOME/.rapid-os`.
-3. Hace checkout seguro de la versión `v3.1.0`.
-4. Asigna permisos de ejecución a `rapid.py`.
-5. Agrega el alias a tu archivo de inicio de shell (`~/.bashrc` o `~/.zshrc`):
-   ```bash
-   alias rapid='python3 "$HOME/.rapid-os/rapid.py"'
-   ```
-6. Aplica los cambios inmediatamente o ejecuta:
-   ```bash
-   source ~/.bashrc   # o source ~/.zshrc
-   ```
+3. Hace checkout seguro de la versión `v3.1.1`.
+4. Crea un entorno de Python propio en `$HOME/.rapid-os/.venv` e instala Rapid OS en él (en Debian/Ubuntu necesita el paquete `python3-venv`).
+5. Enlaza `~/.local/bin/rapid` a ese entorno y, si `~/.local/bin` no está en tu PATH, lo añade a `~/.bashrc` o `~/.zshrc`.
+6. Si un instalador anterior dejó un `alias rapid=` en ese archivo, lo quita (con copia `.rapid-os.bak`).
+7. Abre una terminal nueva, o ejecuta `source ~/.bashrc` (o `source ~/.zshrc`).
+
+:::warning Shortcuts y hooks necesitan `rapid` en el PATH
+Los agentes (Claude Code, Codex, Cursor...) y sus hooks ejecutan comandos en shells no interactivos, donde no existen los alias. Por eso `rapid` tiene que ser un ejecutable en el PATH de la terminal desde la que lanzas el agente. Compruébalo con `bash -c 'command -v rapid'`.
+:::
 
 :::warning No uses sudo pip install
 No utilices `sudo pip install` para instalar paquetes en el sistema global. Utiliza el script instalador o un entorno virtual (`venv`).
@@ -77,7 +76,7 @@ python3 -m venv ~/.venvs/rapid-env
 source ~/.venvs/rapid-env/bin/activate
 
 # 3. Instalar Rapid OS desde GitHub
-pip install git+https://github.com/alyconr/Rapid-OS.git@v3.1.0
+pip install git+https://github.com/alyconr/Rapid-OS.git@v3.1.1
 
 # 4. Comprobar instalación
 rapid --version

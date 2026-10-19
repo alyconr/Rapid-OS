@@ -19,14 +19,14 @@ flowchart TD
     A -->|Entorno Python existente / pip| C[Instalación vía pip / venv]
     A -->|Contribución al proyecto| D[Instalación de Desarrollo editable]
 
-    B --> E[Descarga y configura ~/.rapid-os con alias 'rapid']
+    B --> E[Descarga ~/.rapid-os y deja el ejecutable 'rapid' en el PATH]
     C --> F[Instala binario 'rapid' en el entorno de Python]
     D --> G[git clone + pip install -e .]
 ```
 
 ### 1. Instalador rápido por sistema operativo (Recomendado)
 
-Los instaladores automatizados clonan el repositorio en `~/.rapid-os`, fijan la versión estable y configuran el comando `rapid` en tu terminal:
+Los instaladores automatizados clonan el repositorio en `~/.rapid-os`, fijan la versión estable e instalan un ejecutable `rapid` en tu PATH. Es el método recomendado si vas a usar shortcuts o hooks: los agentes solo encuentran `rapid` si es un ejecutable en el PATH, no un alias ni un `venv` activado en otra terminal.
 
 - **[Instalación en Windows](./windows.md):** Script de PowerShell optimizado para Windows 10/11.
 - **[Instalación en Linux](./linux.md):** Script Bash compatible con Ubuntu, Debian, Fedora, Arch y derivados.
@@ -43,7 +43,7 @@ python -m venv .venv
 source .venv/bin/activate  # En Windows: .venv\Scripts\Activate.ps1
 
 # Instalar desde el repositorio o paquete
-python -m pip install git+https://github.com/alyconr/Rapid-OS.git@v3.1.0
+python -m pip install git+https://github.com/alyconr/Rapid-OS.git@v3.1.1
 ```
 
 ---
@@ -51,7 +51,7 @@ python -m pip install git+https://github.com/alyconr/Rapid-OS.git@v3.1.0
 ## Diferencia entre versión Estable y Desarrollo
 
 :::info Canales de instalación
-- **Versión Estable (`v3.1.0`):** Pinned al tag oficial [`v3.1.0`](https://github.com/alyconr/Rapid-OS/releases/tag/v3.1.0). Recomendada para producción y equipos de desarrollo.
+- **Versión Estable (`v3.1.1`):** Pinned al tag oficial [`v3.1.1`](https://github.com/alyconr/Rapid-OS/releases/tag/v3.1.1). Recomendada para producción y equipos de desarrollo.
 - **Versión de Desarrollo (`main`):** Obtenida mediante checkout de la rama `main` en desarrollo activo. Contiene las últimas características antes de su empaquetado formal.
 :::
 

@@ -17,7 +17,7 @@ from rapid_os.cli.main import create_parser
 from rapid_os.core.paths import resolve_paths
 from rapid_os.domain.validation import validate_project
 
-VERSION = "3.1.0"
+VERSION = "3.1.1"
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
