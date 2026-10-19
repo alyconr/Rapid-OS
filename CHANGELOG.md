@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - `rapid setup next|show [--json]`: conductor de onboarding puro y de solo lectura (`rapid_os/domain/setup.py`, `rapid_os/orchestration/setup_conductor.py`, `rapid_os/adapters/setup_store.py`). Indica la siguiente decisión (stack, topología, arquetipo, agentes, comando de test, documentos, finish) y deriva el estado del disco en proyectos inicializados antes; nunca escribe, ni `.rapid-os/setup.json`. Códigos `RAPID1406` (estado inválido), `RAPID1413` (subcomando, clave o valor inválido) y, reservado, `RAPID1400` (INFO "Setup válido").
 
+- Documentos del onboarding en el contexto con su procedencia: fuentes `doc.brief`, `doc.business`, `doc.data-model` y `doc.architecture` (solo cuentan con frontmatter `rapid-doc: <id>`), banner de supuestos para borradores sin confirmar, línea "pregunta, no inventes" para docs omitidos, y `doc.business` por encima de `standards/business.md` (`standard.business` pasa a omitido con la razón `superseded by doc.business`). Tipos de fuente aditivos `product` y `data_model`. `rapid validate` emite `RAPID1400`, `RAPID1403`, `RAPID1404`, `RAPID1406`, `RAPID1408` y `RAPID1410`. Página `docs/concepts/project-docs.md`.
+
 ### Changed
 - `main` pasa a la versión de desarrollo `3.2.0.dev0`. El release estable sigue siendo `v3.1.0` (rama `release/3.1`); los instaladores y la documentación de instalación siguen apuntando a ese tag.
 

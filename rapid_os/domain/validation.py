@@ -310,6 +310,7 @@ def validate_project(
         project_rapid_dir,
         current_dir,
     )
+    docs_report = validate_project_docs(project_rapid_dir, current_dir, templates_dir)
     return template_report.merge(
         standards_report,
         config_report,
@@ -323,7 +324,65 @@ def validate_project(
         capability_lock_report,
         evidence_registry_report,
         eval_registry_report,
+        docs_report,
     )
+
+
+def validate_project_docs(
+    project_rapid_dir: Path, current_dir: Path, templates_dir: Path | None = None
+):
+    """setup.json validity (RAPID1400/1406) and the onboarding documents (RAPID1403/1404/1408/1410)."""
+    # Lazy: the adapters import this module.
+    from rapid_os.adapters.project_docs import load_project_docs
+    from rapid_os.domain.project_docs import normalize_body, validate_doc_body
+
+    root, rapid_dir = _resolve_root_and_rapid_dir(project_rapid_dir, current_dir)
+    docs = load_project_docs(root, rapid_dir, templates_dir)
+    setup_file = rapid_dir / "setup.json"
+    diagnostics = []
+
+    if docs.setup_error is not None:
+        diagnostics.append(
+            Diagnostic(ERROR, "RAPID1406", docs.setup_error.removeprefix("RAPID1406 "), setup_file)
+        )
+    elif docs.setup_state is not None:
+        diagnostics.append(Diagnostic(INFO, "RAPID1400", "Setup válido", setup_file))
+
+    for doc_id, doc in docs.managed.items():
+        if doc.unconfirmed_draft:
+            diagnostics.append(
+                Diagnostic(
+                    WARNING,
+                    "RAPID1408",
+                    f"Document '{doc_id}' ({doc.bank.file}) is a draft that no person has confirmed; "
+                    "it reaches the agent as an assumption.",
+                    doc.path,
+                )
+            )
+        if doc.source == "drafted":
+            # What a person pasted is not validated; what the agent drafted is.
+            for issue in validate_doc_body(doc.body, doc.bank):
+                diagnostics.append(Diagnostic(WARNING, issue.code, issue.message, doc.path))
+
+    business = docs.managed.get("business")
+    legacy = rapid_dir / "standards" / "business.md"
+    if business is not None and legacy.is_file():
+        try:
+            legacy_text = legacy.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            legacy_text = None
+        if legacy_text is not None and normalize_body(legacy_text) != normalize_body(business.body):
+            diagnostics.append(
+                Diagnostic(
+                    WARNING,
+                    "RAPID1410",
+                    f"standards/business.md and {business.bank.file} differ; {business.bank.file} "
+                    "wins and the legacy standard is left out of the context.",
+                    legacy,
+                )
+            )
+
+    return ValidationReport(tuple(diagnostics))
 
 
 def _resolve_root_and_rapid_dir(

@@ -70,6 +70,8 @@ class ContextSourceKind(str, Enum):
     REFERENCE = "reference"
     CUSTOM = "custom"
     PROJECT_INTELLIGENCE = "project_intelligence"
+    PRODUCT = "product"
+    DATA_MODEL = "data_model"
 
     @classmethod
     def coerce(cls, value: object) -> "ContextSourceKind":
@@ -175,6 +177,8 @@ DEFAULT_PRECEDENCE_ORDER: tuple[ContextSourceKind, ...] = (
     ContextSourceKind.REFERENCE,
     ContextSourceKind.CUSTOM,
     ContextSourceKind.PROJECT_INTELLIGENCE,
+    ContextSourceKind.PRODUCT,
+    ContextSourceKind.DATA_MODEL,
 )
 
 DEFAULT_KIND_PRIORITIES: Mapping[ContextSourceKind, ContextPriority] = {
@@ -192,6 +196,8 @@ DEFAULT_KIND_PRIORITIES: Mapping[ContextSourceKind, ContextPriority] = {
     ContextSourceKind.DESIGN: ContextPriority.LOW,
     ContextSourceKind.REFERENCE: ContextPriority.LOW,
     ContextSourceKind.CUSTOM: ContextPriority.LOW,
+    ContextSourceKind.PRODUCT: ContextPriority.HIGH,
+    ContextSourceKind.DATA_MODEL: ContextPriority.MEDIUM,
 }
 
 DEFAULT_MODE_REQUIRED_KINDS: Mapping[ContextMode, tuple[ContextSourceKind, ...]] = {
@@ -215,6 +221,7 @@ DEFAULT_MODE_PREFERRED_KINDS: Mapping[ContextMode, tuple[ContextSourceKind, ...]
         ContextSourceKind.SPEC,
         ContextSourceKind.ACCEPTANCE,
         ContextSourceKind.PROJECT_INTELLIGENCE,
+        ContextSourceKind.DATA_MODEL,
     ),
     ContextMode.FEATURE: (
         ContextSourceKind.TASK_CONSTRAINTS,
@@ -230,6 +237,8 @@ DEFAULT_MODE_PREFERRED_KINDS: Mapping[ContextMode, tuple[ContextSourceKind, ...]
         ContextSourceKind.DESIGN,
         ContextSourceKind.REFERENCE,
         ContextSourceKind.PROJECT_INTELLIGENCE,
+        ContextSourceKind.PRODUCT,
+        ContextSourceKind.DATA_MODEL,
     ),
     ContextMode.HARDENING: (
         ContextSourceKind.TASK_CONSTRAINTS,
@@ -252,6 +261,7 @@ DEFAULT_MODE_PREFERRED_KINDS: Mapping[ContextMode, tuple[ContextSourceKind, ...]
         ContextSourceKind.TASKS,
         ContextSourceKind.ACCEPTANCE,
         ContextSourceKind.PROJECT_INTELLIGENCE,
+        ContextSourceKind.DATA_MODEL,
     ),
     ContextMode.RESEARCH: (
         ContextSourceKind.TASK_CONSTRAINTS,
@@ -262,6 +272,7 @@ DEFAULT_MODE_PREFERRED_KINDS: Mapping[ContextMode, tuple[ContextSourceKind, ...]
         ContextSourceKind.SPEC,
         ContextSourceKind.REFERENCE,
         ContextSourceKind.PROJECT_INTELLIGENCE,
+        ContextSourceKind.PRODUCT,
     ),
     ContextMode.GENERAL: (
         ContextSourceKind.TASK_CONSTRAINTS,
@@ -278,6 +289,8 @@ DEFAULT_MODE_PREFERRED_KINDS: Mapping[ContextMode, tuple[ContextSourceKind, ...]
         ContextSourceKind.DESIGN,
         ContextSourceKind.REFERENCE,
         ContextSourceKind.CUSTOM,
+        ContextSourceKind.PRODUCT,
+        ContextSourceKind.DATA_MODEL,
     ),
 }
 
@@ -398,6 +411,8 @@ class ContextSource:
     tags: tuple[str, ...] = ()
     provenance: str = ""
     fragments: tuple[ContextFragment, ...] = ()
+    # Id of the source that replaces this one: it is listed as skipped, never compiled.
+    superseded_by: str | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "id", validate_context_id(self.id, "ContextSource.id"))
@@ -1290,6 +1305,8 @@ SECTION_TITLES_BY_KIND: Mapping[ContextSourceKind, str] = {
     ContextSourceKind.REFERENCE: "Visual & Reference Context",
     ContextSourceKind.CUSTOM: "Additional Context",
     ContextSourceKind.PROJECT_INTELLIGENCE: "Project Intelligence",
+    ContextSourceKind.PRODUCT: "Product Brief",
+    ContextSourceKind.DATA_MODEL: "Data Model",
 }
 
 
@@ -1507,6 +1524,22 @@ class ContextResolver:
 
         seen_fragment_ids: set[str] = set()
         for src in canonical_sources:
+            if src.superseded_by:
+                skipped_entries.append(
+                    ManifestEntry(
+                        source_id=src.id,
+                        kind=src.kind.value,
+                        selected=False,
+                        reason=f"superseded by {src.superseded_by}",
+                        priority=int(src.priority),
+                        required=False,
+                        path=src.path,
+                        chars=len(src.content),
+                        precedence=policy.precedence_rank(src.kind),
+                        provenance=src.provenance,
+                    )
+                )
+                continue
             for raw_frag in src.to_fragments():
                 if raw_frag.id in seen_fragment_ids:
                     raise ValueError(
