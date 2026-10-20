@@ -14,6 +14,7 @@ from rapid_os.core.filesystem import ensure_path_within_root
 from rapid_os.domain.catalog import CatalogError, SetupDocBank, load_setup_doc_banks
 from rapid_os.domain.project_docs import (
     is_managed,
+    open_stories,
     is_unconfirmed_draft,
     parse_doc_frontmatter,
     skipped_line,
@@ -138,3 +139,32 @@ def legacy_business_source(project_root: Path, rapid_dir: Path, bank: SetupDocBa
         return legacy.relative_to(project_root).as_posix()
     except ValueError:
         return legacy.as_posix()
+
+
+def build_brief_seed(
+    project_root: Path, rapid_dir: Path, templates_dir: Path | None = None
+) -> dict[str, object] | None:
+    """Hand-off from the onboarding to the first feature: the open stories of the brief.
+
+    None when there is no managed brief or no story left to do (the `author_spec` action then
+    has no `seed`). Reads only; marking stories as done is the person's job.
+    """
+    docs = load_project_docs(project_root, rapid_dir, templates_dir)
+    brief = docs.managed.get("brief")
+    if brief is None:
+        return None
+    stories = open_stories(brief.body, brief.bank)
+    if not stories:
+        return None
+
+    def doc_path(doc_id: str) -> str | None:
+        doc = docs.managed.get(doc_id)
+        return doc.bank.file if doc is not None else None
+
+    return {
+        "source": brief.bank.file,
+        "confirmed": not brief.unconfirmed_draft,
+        "stories": [dict(story) for story in stories],
+        "business_doc": doc_path("business"),
+        "data_model_doc": doc_path("data-model"),
+    }

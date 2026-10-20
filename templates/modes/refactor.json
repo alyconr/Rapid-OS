@@ -23,7 +23,7 @@
   },
   "instructions": {
     "author_spec": "Redacta la especificación del refactor siguiendo spec_template. La baseline es obligatoria: es la referencia de no regresión.",
-    "run_baseline": "La baseline es obligatoria en un refactor: ejecuta los tests antes de tocar el código. Si salen en rojo, arregla la causa o ejecuta rapid abort.",
+    "run_baseline": "La baseline es obligatoria en un refactor: ejecuta los tests antes de tocar el código. Si salen en rojo, arregla la causa o ejecuta rapid abort. Si el repo tiene código pero no tests, crea un test que pase en una tarea, o usa el modo research.",
     "activate": "El baseline fue verificado satisfactoriamente. Activa el run para comenzar la ejecución de tareas.",
     "implement_task": "Implementa solo la tarea indicada sin cambiar el comportamiento observable. Corre los tests con rapid check; los tests pasados nunca pueden bajar respecto a la baseline.",
     "verify": "Ejecuta las verificaciones automáticas de machine gates o capacidades requeridas.",

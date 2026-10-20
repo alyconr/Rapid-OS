@@ -23,6 +23,30 @@ Qué hace su playbook (`templates/modes/feature.json` y las reglas del Conductor
 - Riesgo medio por defecto: la baseline se verifica y registra al iniciar (`gate.baseline`), las tareas se verifican con `rapid check`, y quedan `gate.tests` y `gate.final-verification` (humano).
 - El bucle es implementar cada tarea → `rapid check -- <test_command>` → `rapid finish`; la aprobación final la das tú en tu terminal.
 
+### En un proyecto nuevo (sin código ni tests)
+
+Si el repositorio no tiene código fuente (fuera de `docs/` y las carpetas ocultas) ni tests, no hay nada de lo que tomar una baseline: el comando de tests saldría en rojo antes de empezar. En ese caso `rapid start feature`:
+
+- añade como primera tarea `T001: Scaffold mínimo con un test que pase`; tus tareas pasan a `T002…`, en el texto y en el contrato, y `rapid start` lo avisa en `notes` (por ejemplo `T001→T002`), que el agente te explica; usa siempre los ids que da `rapid next`;
+- crea el contrato **sin `gate.baseline`** y con el campo opcional `baseline_waived: "empty_repository"`; el run arranca activo;
+- cierra la tarea del scaffold con un `rapid check` en verde; a partir de ahí los tests son los de tu proyecto.
+
+`rapid status` y `rapid finish` muestran `Sin baseline: proyecto nuevo`. Un repositorio con código pero sin tests conserva la baseline: crea un test que pase en una tarea, o usa el modo `research`. Los modos `bugfix`, `refactor` y `hardening` no arrancan en un repositorio vacío (`RAPID1413`: no hay código que arreglar, refactorizar o endurecer; usa `/rapid-feature`).
+
+### La primera funcionalidad sale del brief
+
+Si hiciste el onboarding con `/rapid-init` (o `rapid setup`), el brief (`docs/PRODUCT_BRIEF.md`) tiene una sección de historias con el formato `- [ ] H001: ...`. Cuando no hay un run activo, `rapid next` añade a la acción `author_spec` el campo opcional `seed` con **todas** las historias sin marcar, en orden, y los documentos de negocio y de modelo de datos si existen (referencia: [`rapid next`](../../cli.md#rapid-next)).
+
+```text
+/rapid-feature              # sin argumentos: propone la historia que conviene empezar y espera tu confirmación
+/rapid-feature H002         # con un id: usa esa historia
+```
+
+- Sin argumentos, el agente propone una historia entre las que quedan y, si no es la primera, te explica en una frase por qué (por ejemplo, por dependencias). Redacta la spec solo después de que lo confirmes.
+- Copia a `business_rules` de la spec las reglas relevantes de `docs/BUSINESS_RULES.md`, citando el documento, y etiqueta la spec con `story:<id>`.
+- Si el brief sigue siendo un borrador sin confirmar (`seed.confirmed` es `false`), el agente te avisa de que parte de supuestos.
+- Al terminar, `rapid finish` sugiere `Marca H002 como hecha en docs/PRODUCT_BRIEF.md`. **No la marca por ti**: edita el brief tú. Un run cubre una historia.
+
 El resto de esta guía describe el mismo ciclo con comandos v3 (**Modo avanzado**), útil para CI, depuración y auditoría.
 
 ---

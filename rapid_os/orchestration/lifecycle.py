@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import replace
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 from typing import Any, Sequence
@@ -36,7 +37,11 @@ from rapid_os.domain.execution import (
     TaskStatus,
     WorkspaceRequirement,
 )
-from rapid_os.domain.execution import enforce_gate_transition_preconditions, validate_gate_transition
+from rapid_os.domain.execution import (
+    BASELINE_WAIVER_EMPTY_REPOSITORY,
+    enforce_gate_transition_preconditions,
+    validate_gate_transition,
+)
 from rapid_os.domain.policy import ExecutionError
 from rapid_os.domain.scanner import build_project_model
 from rapid_os.orchestration.actions import ActionKind, NextAction
@@ -58,6 +63,71 @@ from rapid_os.orchestration.session import (
     save_session,
 )
 from rapid_os.orchestration.workspace import WorkspaceError, create_run_worktree
+
+
+SCAFFOLD_TASK_TEXT = "Scaffold mínimo con un test que pase"
+# Modes that need existing code: in a brand-new repository they cannot start.
+EMPTY_REPO_REFUSED_VERBS = {
+    "bugfix": "arreglar",
+    "refactor": "refactorizar",
+    "hardening": "endurecer",
+}
+_TASK_PREFIX_RE = re.compile(r"^T\d+\s*[:.\-]\s*")
+
+
+def has_scaffold_task(tasks) -> bool:
+    return bool(tasks) and SCAFFOLD_TASK_TEXT in str(tasks[0])
+
+
+def with_scaffold_task(tasks) -> list[str]:
+    """The scaffold as the first task. Contract task ids start at T001, so the scaffold is T001
+    and the written `T00n:` prefixes of the other tasks move down by one to keep matching."""
+    if has_scaffold_task(tasks):
+        return list(tasks)
+    renumbered = []
+    for index, task in enumerate(tasks, start=2):
+        text = str(task)
+        renumbered.append(
+            f"T{index:03d}: {text[_TASK_PREFIX_RE.match(text).end():]}" if _TASK_PREFIX_RE.match(text) else text
+        )
+    return [f"T001: {SCAFFOLD_TASK_TEXT}", *renumbered]
+
+
+def scaffold_notes(original, injected) -> tuple[str, ...]:
+    """What the scaffold changed in the task list the agent wrote, so nobody is surprised.
+
+    Contract task ids start at T001, so the scaffold takes T001 and the written `T00n:`
+    prefixes move down: the note maps them (`T001→T002`).
+    """
+    moved = []
+    for before, after in zip(original, injected[1:]):
+        old, new = re.match(r"T\d+", str(before)), re.match(r"T\d+", str(after))
+        if old and new and old.group(0) != new.group(0):
+            moved.append(f"{old.group(0)}→{new.group(0)}")
+    note = (
+        f"Proyecto nuevo (sin código ni tests): Rapid OS añadió la tarea T001, «{SCAFFOLD_TASK_TEXT}», "
+        "y el run no tiene baseline."
+    )
+    if moved:
+        note += f" Tus tareas se renumeraron para coincidir con el run: {', '.join(moved)}."
+    return (note,)
+
+
+def _author_spec_action(
+    mode: str,
+    playbook: Playbook,
+    project_root: Path,
+    project_rapid_dir: Path,
+    templates_dir: Path | None,
+) -> NextAction:
+    """`author_spec`, with the brief's open stories as `seed` for the feature mode."""
+    seed = None
+    if mode == "feature":
+        # Lazy: the adapters import the orchestration package.
+        from rapid_os.adapters.project_docs import build_brief_seed
+
+        seed = build_brief_seed(project_root, project_rapid_dir, templates_dir)
+    return next_action_without_run(mode, playbook, seed)
 
 
 def _decorate_action(action: NextAction, sess: Session | None) -> NextAction:
@@ -131,6 +201,21 @@ def execute_start(
 
     playbook = load_playbook(mode, templates_dir=templates_dir)
 
+    # A brand-new repository (no source code, no tests) has nothing to fix, refactor or harden,
+    # and nothing to take a baseline of: only `feature` starts there, with a scaffold task.
+    empty_repository = False
+    baseline_waived: str | None = None
+    run_notes: tuple[str, ...] = ()
+    if not resume:
+        from rapid_os.domain.scanner import is_empty_repository
+
+        empty_repository = is_empty_repository(project_root)
+        if empty_repository and mode in EMPTY_REPO_REFUSED_VERBS:
+            return (
+                1,
+                f"RAPID1413 No hay código que {EMPTY_REPO_REFUSED_VERBS[mode]}; usa /rapid-feature",
+            )
+
     # 1.c Ensure .rapid-os/project.json exists
     snapshot_path = resolve_project_snapshot_path(project_rapid_dir)
     if not snapshot_path.exists():
@@ -151,6 +236,9 @@ def execute_start(
                     f"Spec '{spec_id}' is in status '{rec.status.value}', expected 'ready'.",
                 )
             resolved_spec_id = rec.id
+            if empty_repository and mode == "feature":
+                if has_scaffold_task(spec_reg.get_revision(rec.id).implementation_tasks):
+                    baseline_waived = BASELINE_WAIVER_EMPTY_REPOSITORY
         elif spec_file:
             raw_json: str
             if spec_file == "-":
@@ -180,6 +268,13 @@ def execute_start(
             if "tasks" in spec_fields and "implementation_tasks" not in spec_fields:
                 spec_fields["implementation_tasks"] = spec_fields.pop("tasks")
 
+            if empty_repository and mode == "feature":
+                written_tasks = list(spec_fields.get("implementation_tasks") or [])
+                spec_fields["implementation_tasks"] = with_scaffold_task(written_tasks)
+                if not has_scaffold_task(written_tasks):
+                    run_notes = scaffold_notes(written_tasks, spec_fields["implementation_tasks"])
+                baseline_waived = BASELINE_WAIVER_EMPTY_REPOSITORY
+
             existing = spec_reg.compare_existing(**spec_fields)
             if existing is None:
                 created_spec = spec_reg.create(**spec_fields)
@@ -200,7 +295,7 @@ def execute_start(
                 resolved_spec_id = existing_record.id
         else:
             # Neither --spec nor --spec-file: do NOT create anything, return author_spec
-            action = next_action_without_run(mode, playbook)
+            action = _author_spec_action(mode, playbook, project_root, project_rapid_dir, templates_dir)
             return 0, action
 
         # 1.e Run creation
@@ -213,6 +308,7 @@ def execute_start(
             record = run_reg.create(
                 spec_id=resolved_spec_id,
                 harness=detection.harness_id,
+                baseline_waived=baseline_waived,
             )
         except ExecutionError as exc:
             # Expected failures (e.g. a required context source is missing for the mode).
@@ -446,6 +542,8 @@ def execute_start(
         test_command=test_cmd if isinstance(test_cmd, (list, tuple)) else None,
         workspace_ready=bool(sess.workspace_path),
     )
+    if run_notes:
+        action = replace(action, notes=run_notes)
     return 0, _decorate_action(action, sess)
 
 
@@ -465,7 +563,7 @@ def execute_next(
     if not sess or not sess.active_run_id:
         mode = "feature"
         playbook = load_playbook(mode, templates_dir=templates_dir)
-        action = next_action_without_run(mode, playbook)
+        action = _author_spec_action(mode, playbook, project_root, project_rapid_dir, templates_dir)
         return 0, action
 
     run_reg = RunRegistry(project_root, project_rapid_dir)
@@ -478,7 +576,7 @@ def execute_next(
     except Exception:
         mode = sess.mode or "feature"
         playbook = load_playbook(mode, templates_dir=templates_dir)
-        action = next_action_without_run(mode, playbook)
+        action = _author_spec_action(mode, playbook, project_root, project_rapid_dir, templates_dir)
         return 0, action
 
     playbook = load_playbook(sess.mode, templates_dir=templates_dir)

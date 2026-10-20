@@ -102,16 +102,53 @@ def safe_rmtree_child(root, target_path) -> None:
         shutil.rmtree(resolved_target)
 
 
-def create_backup(file_path, timestamp=None):
-    """Crea una copia de seguridad con timestamp si el archivo existe."""
+def create_backup(file_path, timestamp=None, backup_dir=None):
+    """Crea una copia de seguridad con timestamp si el archivo existe.
+
+    Sin `backup_dir` la copia queda junto al archivo (`<archivo>.<timestamp>.bak`). Con
+    `backup_dir` se guarda ahi y nunca pisa una copia anterior del mismo segundo.
+    """
     path = Path(file_path)
     if not path.exists():
         return None
 
     timestamp = int(time.time()) if timestamp is None else timestamp
-    backup_path = path.parent / f"{path.name}.{timestamp}.bak"
+    if backup_dir is None:
+        backup_path = path.parent / f"{path.name}.{timestamp}.bak"
+    else:
+        directory = Path(backup_dir)
+        directory.mkdir(parents=True, exist_ok=True)
+        # A new copy is always the newest one, even when several fall in the same second.
+        timestamp = max(timestamp, _latest_backup_stamp(path.name, directory) + 1)
+        backup_path = directory / f"{path.name}.{timestamp}.bak"
     shutil.copy(path, backup_path)
     return backup_path
+
+
+def _backup_stamps(file_name, directory):
+    pattern = re.compile(rf"^{re.escape(file_name)}\.(\d+)\.bak$")
+    found = []
+    for candidate in Path(directory).iterdir():
+        match = pattern.match(candidate.name)
+        if match and candidate.is_file():
+            found.append((int(match.group(1)), candidate))
+    return found
+
+
+def _latest_backup_stamp(file_name, directory):
+    return max((stamp for stamp, _path in _backup_stamps(file_name, directory)), default=-1)
+
+
+def prune_backups(file_name, backup_dir, keep):
+    """Deja solo las `keep` copias mas recientes de `file_name` en `backup_dir`."""
+    if not Path(backup_dir).is_dir():
+        return
+    found = _backup_stamps(file_name, backup_dir)
+    for _stamp, candidate in sorted(found, key=lambda item: item[0])[: max(len(found) - keep, 0)]:
+        try:
+            candidate.unlink()
+        except OSError:
+            pass
 
 
 def safe_write_text(
@@ -123,8 +160,14 @@ def safe_write_text(
     create_parents: bool = True,
     allow_overwrite: bool = True,
     timestamp=None,
+    backup_dir=None,
+    keep_backups=None,
 ) -> Path:
-    """Atomically write UTF-8 text to `file_path` with optional overwrite protection, backup, and parent creation."""
+    """Atomically write UTF-8 text to `file_path` with optional overwrite protection, backup, and parent creation.
+
+    With `backup_dir` the backup goes there instead of next to the file, none is made when the
+    content does not change, and `keep_backups` bounds how many copies of the file are kept.
+    """
     target = Path(file_path)
     if not allow_overwrite and (target.exists() or target.is_symlink()):
         raise FileExistsError(f"Refusing to overwrite existing file: {target}")
@@ -150,7 +193,17 @@ def safe_write_text(
             raise FileExistsError(f"Refusing to overwrite existing file: {target}")
 
         if backup and target.exists():
-            create_backup(target, timestamp=timestamp)
+            if backup_dir is None:
+                create_backup(target, timestamp=timestamp)
+            else:
+                try:
+                    unchanged = target.read_text(encoding=encoding) == content
+                except (OSError, UnicodeDecodeError):
+                    unchanged = False
+                if not unchanged:
+                    create_backup(target, timestamp=timestamp, backup_dir=backup_dir)
+                    if keep_backups is not None:
+                        prune_backups(target.name, backup_dir, keep_backups)
 
         os.replace(temp_path, target)
         temp_path = None

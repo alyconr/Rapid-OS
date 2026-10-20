@@ -18,7 +18,7 @@ SPEC = {
     "acceptance_criteria": ["unsafe input is rejected"],
     "tasks": ["T001: Validate input"],
 }
-STACKS = ("docs-modern", "frontend-creative", "nodejs-ai", "python-ai", "web-modern")
+STACKS = ("docs-modern", "frontend-creative", "nodejs-ai", "python-ai", "python-api", "web-modern")
 
 
 class ProjectCase(unittest.TestCase):

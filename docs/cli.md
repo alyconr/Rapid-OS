@@ -373,6 +373,12 @@ Each mode has its own playbook in `templates/modes/` (`spec_template` and per-ac
 | `hardening` | Risk is `high`, so the contract requires an isolated workspace (see `--worktree`) and a `gate.review`. |
 | `research` | Spike: low risk, no baseline and no mandatory tests. Findings are recorded with `rapid attach`. |
 
+A **brand-new repository** (no source code outside `docs/` and hidden folders, and no tests: `pyproject.toml` or `package.json` alone are configuration, not code) changes `rapid start`:
+
+- `feature` adds the scaffold as the first task, `T001: Scaffold mínimo con un test que pase` (the tasks you wrote move down one number so the text keeps matching the contract ids), and the contract has **no `gate.baseline`**: there is nothing to take a baseline of. The run starts `active` and `rapid start` reports what changed in the optional top-level `notes[]` of its output (`Nota: ...` in text mode), including the renumbering (`T001→T002, T002→T003`); `rapid next` always gives the run's ids. The scaffold task is closed with a green `rapid check`, and the contract records the reason in the optional field `baseline_waived: "empty_repository"` (also in `rapid status --json` under `run`). The field is omitted from every other contract, so contracts of projects with code or tests are unchanged. `rapid status` and `rapid finish` print `Sin baseline: proyecto nuevo` (on stderr with `finish --json`). With `--spec <id>` the waiver only applies when that spec already starts with the scaffold task.
+- `bugfix`, `refactor` and `hardening` fail with `RAPID1413` and write nothing: `No hay código que <arreglar|refactorizar|endurecer>; usa /rapid-feature`. `research` is not affected.
+- A repository with code but no tests keeps `gate.baseline`; the `run_baseline` instruction suggests creating a passing test in a task, or using the `research` mode.
+
 Options:
 - `--worktree`: When the contract requires `isolated_required`, create a git worktree at `../<repo>-<run-id>` on branch `rapid/<run-id>` from `HEAD`. The ledger (`.rapid-os/`, `session.json`) stays in the main repository; `session.json` stores `workspace_path`, `rapid check`/`rapid task done` run the commands in that directory, `rapid finish` collects the changes from it, and the run records `workspace` evidence with `mode: isolated` (which acknowledges `gate.workspace-isolation`). Without the flag the run stops at `blocked` and `rapid next` proposes `rapid start --resume --worktree`. The flag has no effect when the contract does not require isolation. Uncommitted changes of the main checkout are not part of the worktree (it starts from `HEAD`). `rapid abort` keeps the worktree on disk.
 - `--spec-file`: if a spec with the same identity (`id` or title) and the same content already exists (a previous `rapid start` created it and then failed, e.g. `RAPID1004`), it is reused; if the content differs, `rapid start` exits with `RAPID1322` and suggests `rapid start <mode> --spec <id>`.
@@ -385,6 +391,13 @@ Query the deterministic next workflow action without mutating state. When a huma
 rapid next [--json]
 ```
 
+With no active run, `rapid next` (and `rapid start feature` without a spec) returns `author_spec`. When the project has a product brief written by `rapid setup doc brief` (`docs/PRODUCT_BRIEF.md`, with `rapid-doc` frontmatter) that still has open stories, the `feature` action carries an optional `seed` object, omitted otherwise, so the output without a brief is exactly the same as before:
+
+- `seed.source`: the brief (`docs/PRODUCT_BRIEF.md`).
+- `seed.confirmed`: `false` while the brief is an unconfirmed draft (an assumption), `true` when a person provided or confirmed it.
+- `seed.stories[]`: `{id, text}` for every unchecked story (`- [ ] H001: ...`) of the stories section, in order. They are all listed, not only the first, so the agent can pick the one that makes sense to start with (for dependencies).
+- `seed.business_doc`, `seed.data_model_doc`: `docs/BUSINESS_RULES.md` and `docs/DATA_MODEL.md` when those documents exist, otherwise `null`.
+
 ### `rapid finish`
 Collect repository changes, evaluate machine gates, and close the run.
 
@@ -392,7 +405,7 @@ Collect repository changes, evaluate machine gates, and close the run.
 rapid finish [--json]
 ```
 
-In text mode it prints the report revision and the verdict (`Evaluation report 0001 for run '<run-id>': verdict PASS`). Finishing a run that already ended is idempotent and records no new evidence or report: it prints the stored verdict (the latest report) and exits 0 only if that verdict is `pass` or `pass_with_waivers`, otherwise 1; a run that ended without a report (for example `cancelled` or `failed`) prints `already ended (<outcome>)` on stderr and exits 1.
+In text mode it prints the report revision and the verdict (`Evaluation report 0001 for run '<run-id>': verdict PASS`). When the verdict is `pass` or `pass_with_waivers` and the run's spec cites a story with the tag `story:<ID>` (for example `story:H002`), it adds the line `Marca H002 como hecha en docs/PRODUCT_BRIEF.md` (on stderr with `--json`, so stdout stays the report): Rapid OS never ticks the story in the brief, the person does. Finishing a run that already ended is idempotent and records no new evidence or report: it prints the stored verdict (the latest report) and exits 0 only if that verdict is `pass` or `pass_with_waivers`, otherwise 1; a run that ended without a report (for example `cancelled` or `failed`) prints `already ended (<outcome>)` on stderr and exits 1.
 
 ### `rapid approve`
 Review a human gate. Without arguments it lists the pending human gates of the active run (read-only; no TTY needed). With a gate id it approves it, or with `--waive` / `--reject` waives or rejects it. Changing a gate requires an interactive terminal (TTY) and cannot be executed inside agent child sessions (`CLAUDE_CODE_CHILD_SESSION == 1`) nor under an agent harness: if any ancestor process is Claude Code (`claude`/`claude.exe`), it fails with `RAPID1310` even with a TTY and without the session variables (unreadable ancestry never rejects; `rapid doctor` reports it with `RAPID1319`). Without a TTY every case fails with `RAPID1310` (a stdin closed during the confirmation, EOF, is reported the same way).

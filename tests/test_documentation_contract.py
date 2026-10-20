@@ -114,6 +114,11 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertIn("rapid shortcuts install --global", boundaries)
         self.assertIn("nunca por defecto", concept)
         self.assertIn("nunca por defecto", boundaries)
+        # Brief stories and agent-file backups.
+        self.assertIn("no marca las historias del brief como hechas", concept)
+        self.assertIn(".rapid-os/backups/", concept)
+        self.assertIn("no marca historias del brief", boundaries)
+        self.assertIn(".rapid-os/backups/", boundaries)
         self.assertIn("nunca aprueban gates humanos", boundaries)
         self.assertIn("no invoca automáticamente", boundaries)
         self.assertIn("no utiliza llm-as-a-judge", boundaries)

@@ -2155,7 +2155,7 @@ def validate_stack_topology(project_rapid_dir: Path, templates_dir: Path | None 
                 )
             )
         else:
-            if topology == "front-end-only" and stack in ("python-ai", "nodejs-ai"):
+            if topology == "front-end-only" and stack in ("python-ai", "python-api", "nodejs-ai"):
                 message = (
                     f"{stack} stack requires backend/database capabilities and conflicts with "
                     f"{topology} topology."
@@ -2417,6 +2417,8 @@ def infer_stack(content: str):
     if is_generic_stack(content):
         return "generic"
     normalized = content.lower()
+    if "python api" in normalized:
+        return "python-api"
     if "modern docs" in normalized or "docusaurus" in normalized:
         return "docs-modern"
     if "python ai agent" in normalized or "fastapi" in normalized:

@@ -222,6 +222,16 @@ CANONICAL_EXECUTION_CONTRACT_KEYS = frozenset(
 )
 
 
+# Why a contract may omit `gate.baseline`. Optional in the contract: omitted from its canonical
+# dict (and digest) unless set, so every other contract keeps its content byte for byte.
+BASELINE_WAIVER_EMPTY_REPOSITORY = "empty_repository"
+ALLOWED_BASELINE_WAIVERS = frozenset({BASELINE_WAIVER_EMPTY_REPOSITORY})
+BASELINE_GATE_ID = "gate.baseline"
+
+# Present in the dict only when used (invariant: existing contracts do not change).
+OPTIONAL_EXECUTION_CONTRACT_KEYS = frozenset({"baseline_waived"})
+
+
 ALLOWED_POLICY_SOURCES = frozenset(
     {
         "default",
@@ -260,6 +270,7 @@ class ExecutionContract:
     gates: tuple[GateRequirement, ...]
     tasks: tuple[TaskContract, ...]
     contract_digest: str = ""
+    baseline_waived: str | None = None
 
     def __post_init__(self):
         if (
@@ -429,6 +440,17 @@ class ExecutionContract:
                 )
         object.__setattr__(self, "tasks", tasks_tuple)
 
+        if self.baseline_waived is not None:
+            if self.baseline_waived not in ALLOWED_BASELINE_WAIVERS:
+                raise InvalidExecutionContractError(
+                    f"Invalid ExecutionContract.baseline_waived '{self.baseline_waived}': "
+                    f"expected one of {sorted(ALLOWED_BASELINE_WAIVERS)}."
+                )
+            if any(gate.id == BASELINE_GATE_ID for gate in gates_tuple):
+                raise InvalidExecutionContractError(
+                    "ExecutionContract.baseline_waived is set but 'gate.baseline' is still required."
+                )
+
         computed_digest = self._compute_contract_digest()
         if self.contract_digest:
             validated_digest = _validate_sha256(
@@ -443,7 +465,7 @@ class ExecutionContract:
 
     def _canonical_digest_payload(self) -> dict[str, object]:
         """Return canonical contract payload (excluding `run_id` and `contract_digest`) so identical inputs yield the same contract digest."""
-        return {
+        payload = {
             "schema_version": self.schema_version,
             "spec_id": self.spec_id,
             "spec_revision": self.spec_revision,
@@ -462,12 +484,15 @@ class ExecutionContract:
             "gates": [g.to_dict() for g in self.gates],
             "tasks": [t.to_dict() for t in self.tasks],
         }
+        if self.baseline_waived is not None:
+            payload["baseline_waived"] = self.baseline_waived
+        return payload
 
     def _compute_contract_digest(self) -> str:
         return sha256_canonical_json(self._canonical_digest_payload())
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        payload = {
             "schema_version": self.schema_version,
             "run_id": self.run_id,
             "spec_id": self.spec_id,
@@ -488,6 +513,9 @@ class ExecutionContract:
             "tasks": [t.to_dict() for t in self.tasks],
             "contract_digest": self.contract_digest,
         }
+        if self.baseline_waived is not None:
+            payload["baseline_waived"] = self.baseline_waived
+        return payload
 
     def to_json(self, indent: int = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
@@ -503,7 +531,7 @@ class ExecutionContract:
             raise InvalidExecutionContractError(
                 "ExecutionContract payload must be a JSON object."
             )
-        unknown = set(payload.keys()) - CANONICAL_EXECUTION_CONTRACT_KEYS
+        unknown = set(payload.keys()) - CANONICAL_EXECUTION_CONTRACT_KEYS - OPTIONAL_EXECUTION_CONTRACT_KEYS
         if unknown:
             raise InvalidExecutionContractError(
                 f"Unexpected fields in ExecutionContract: {sorted(unknown)}."
@@ -553,6 +581,7 @@ class ExecutionContract:
             gates=gates,
             tasks=tasks,
             contract_digest=raw_contract_digest,
+            baseline_waived=payload.get("baseline_waived"),  # type: ignore[arg-type]
         )
 
     @classmethod
@@ -585,6 +614,7 @@ def build_execution_contract(
     policy_source: str = "default",
     decision: PolicyDecision | None = None,
     harness: str = "cursor",
+    baseline_waived: str | None = None,
 ) -> ExecutionContract:
     """Deterministically build an `ExecutionContract` from a `SpecRevision`, `CompiledContext`, `ProjectModel`, and `ExecutionPolicy`."""
     if not isinstance(spec, SpecRevision):
@@ -642,6 +672,7 @@ def build_execution_contract(
         workspace=resolved_decision.workspace,
         gates=resolved_decision.gates,
         tasks=derive_task_contracts(spec),
+        baseline_waived=baseline_waived,
     )
 
 

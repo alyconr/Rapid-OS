@@ -23,7 +23,7 @@
   },
   "instructions": {
     "author_spec": "Redacta la especificación del bug siguiendo spec_template. La primera tarea (T001) debe ser 'Reproducir con un test en rojo'; la baseline se toma al iniciar, ANTES de escribir ese test.",
-    "run_baseline": "Ejecuta la verificación de baseline antes de escribir cualquier test de reproducción. Si el comando sale en rojo, el repositorio no está sano antes de empezar; arregla la causa o ejecuta rapid abort.",
+    "run_baseline": "Ejecuta la verificación de baseline antes de escribir cualquier test de reproducción. Si el comando sale en rojo, el repositorio no está sano antes de empezar; arregla la causa o ejecuta rapid abort. Si el repo tiene código pero no tests, crea un test que pase en una tarea, o usa el modo research.",
     "activate": "El baseline fue verificado satisfactoriamente. Activa el run para comenzar la ejecución de tareas.",
     "implement_task": "Implementa solo la tarea indicada. T001: escribe un test que falle por el bug y regístralo con rapid check --expect fail; la corrección va en la tarea siguiente. Corre los tests con rapid check.",
     "verify": "Ejecuta las verificaciones automáticas de machine gates o capacidades requeridas.",
