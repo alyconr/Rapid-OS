@@ -51,7 +51,15 @@ from rapid_os.domain.setup import ARCHETYPES, DocState, SetupAction, SetupAction
 
 DECISION_KEYS = ("stack", "topology", "archetype", "agents", "test-command")
 NO_TEST_COMMAND = "none"
-GITIGNORE_ENTRIES = (".rapid-os/session.json", ".rapid-os/scratch/", ".rapid-os/backups/")
+GITIGNORE_ENTRIES = (
+    ".rapid-os/session.json",
+    ".rapid-os/scratch/",
+    ".rapid-os/backups/",
+    # Tool artifacts: not writes of the project (see rapid_os.domain.file_changes).
+    "__pycache__/",
+    "*.pyc",
+    ".pytest_cache/",
+)
 
 
 class SetupApplyError(ValueError):

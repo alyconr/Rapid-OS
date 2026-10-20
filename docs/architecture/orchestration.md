@@ -146,7 +146,7 @@ Cada verbo que registra evidencia lo hace con un productor identificable:
 | :--- | :--- | :--- |
 | `rapid:check` | `rapid check`, `rapid task done`, baseline de `rapid start` | `test_result` o `command_result`, con el log como artefacto |
 | `rapid:start` | `rapid start` | `workspace` (`current` o `isolated`) |
-| `rapid:finish` | `rapid finish` | `file_change` con los archivos modificados por el run |
+| `rapid:finish` | `rapid finish` | `file_change` con los archivos modificados por el run, sin `.rapid-os/` ni artefactos de herramientas (`__pycache__`, `*.pyc`, `.pytest_cache`...); sin cambios reales no se registra |
 | `rapid:attach` | `rapid attach` | `artifact` con el archivo adjunto, ligado a una tarea |
 | `user` | `rapid approve` | `review` con el resultado y el revisor |
 | `harness:<id>` | un harness externo, vía `rapid evidence add` | cualquiera; ver el ruleset v2 |

@@ -132,6 +132,8 @@ Registra las rutas relativas de los archivos tocados durante la implementación.
 
 **Campos requeridos de `payload`**: `paths` (lista de rutas relativas POSIX no vacía).
 
+**Qué cuenta cuando la registra `rapid finish`** (`producer: rapid:finish`): los archivos versionados que cambiaron desde el `HEAD` del inicio del run (`git diff --name-only`) más los archivos nuevos sin versionar que no existían al empezar, sin `.rapid-os/` y **sin los artefactos que generan las herramientas**: cualquier ruta con un segmento exacto `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `.tox`, `.nox`, `node_modules`, `.venv` o `venv`, y los archivos `*.pyc`, `*.pyo`, `.coverage` y `.coverage.*`. Se comparan segmentos completos (`my__pycache__notes.md` sí cuenta) y se ignoran aunque el proyecto no tenga `.gitignore`. Si tras filtrar no queda ningún cambio, `rapid finish` no registra `file_change` y la capability `repository.write` queda sin evidencia: el veredicto no es `pass`. Que correr los tests deje `__pycache__` no es haber escrito en el proyecto.
+
 **Archivo `file-change-evidence.json`**:
 ```json
 {
