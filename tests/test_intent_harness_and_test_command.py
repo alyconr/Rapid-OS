@@ -82,6 +82,11 @@ class IntentHarnessAndTestCommandTests(unittest.TestCase):
                 env={},
             )
             self.assertEqual(code, 0, err)
+            # Two harnesses in `tools` name no single one: the fallback (RAPID1300) still applies.
+            config_path = root / ".rapid-os" / "config.json"
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            config["tools"] = ["cursor", "claude"]
+            config_path.write_text(json.dumps(config), encoding="utf-8")
             _create_ready_spec(root)
 
             # Ensure clean env without markers or RAPID_HARNESS

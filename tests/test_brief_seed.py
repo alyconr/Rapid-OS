@@ -180,6 +180,7 @@ class FinishStoryHintTests(unittest.TestCase):
             "import sys, unittest.mock as mock, rapid_os.cli.main as m; "
             f"sys.argv = ['rapid', 'approve', '{gate}']; "
             "mock.patch('sys.stdin.isatty', return_value=True).start(); "
+            "mock.patch('rapid_os.orchestration.lifecycle.stdin_is_windows_nul', return_value=False).start(); "
             "mock.patch('rapid_os.orchestration.lifecycle.read_ancestry', "
             "return_value=__import__('rapid_os.core.ancestry', fromlist=['x']).AncestryResult(())).start(); "
             f"mock.patch('builtins.input', return_value='aprobar {gate}').start(); sys.exit(m.main())"
@@ -189,20 +190,30 @@ class FinishStoryHintTests(unittest.TestCase):
         result = subprocess.run([sys.executable, "-c", approve], cwd=self.root, capture_output=True, text=True, env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_finish_suggests_ticking_the_story_and_never_edits_the_brief(self):
+    def test_finish_ticks_the_story_of_a_passing_run(self):
+        write_doc(self.root, "docs/PRODUCT_BRIEF.md", "brief", BRIEF_BODY)
+        self.run_to_the_end(["story:H002"])
+        finished = rapid(self.root, "finish")
+        self.assertEqual(finished.returncode, 0, finished.stderr)
+        self.assertIn("H002 marcada como hecha en docs/PRODUCT_BRIEF.md", finished.stdout)
+        text = (self.root / "docs" / "PRODUCT_BRIEF.md").read_text(encoding="utf-8")
+        self.assertIn("- [x] H002: Listar talleres", text)
+        self.assertIn("- [ ] H003: Inscribirse", text)
+
+    def test_no_tick_only_suggests_and_never_edits_the_brief(self):
         write_doc(self.root, "docs/PRODUCT_BRIEF.md", "brief", BRIEF_BODY)
         before = (self.root / "docs" / "PRODUCT_BRIEF.md").read_text(encoding="utf-8")
         self.run_to_the_end(["story:H002"])
-        finished = rapid(self.root, "finish")
+        finished = rapid(self.root, "finish", "--no-tick")
         self.assertEqual(finished.returncode, 0, finished.stderr)
         self.assertIn("Marca H002 como hecha en docs/PRODUCT_BRIEF.md", finished.stdout)
         self.assertEqual((self.root / "docs" / "PRODUCT_BRIEF.md").read_text(encoding="utf-8"), before)
 
-    def test_json_keeps_stdout_as_the_report_and_without_a_story_there_is_no_hint(self):
-        self.run_to_the_end(["story:H002"])
+    def test_json_keeps_stdout_as_the_report_and_the_hint_goes_to_stderr(self):
+        self.run_to_the_end(["story:H002"])  # no brief: nothing to tick, the person is told
         as_json = rapid(self.root, "finish", "--json")
         self.assertEqual(json.loads(as_json.stdout)["verdict"], "pass")
-        self.assertIn("Marca H002 como hecha", as_json.stderr)
+        self.assertIn("H002", as_json.stderr)
 
     def test_a_spec_without_a_story_tag_gets_no_hint(self):
         self.run_to_the_end(["backend"])

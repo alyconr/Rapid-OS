@@ -45,7 +45,7 @@ Si hiciste el onboarding con `/rapid-init` (o `rapid setup`), el brief (`docs/PR
 - Sin argumentos, el agente propone una historia entre las que quedan y, si no es la primera, te explica en una frase por qué (por ejemplo, por dependencias). Redacta la spec solo después de que lo confirmes.
 - Copia a `business_rules` de la spec las reglas relevantes de `docs/BUSINESS_RULES.md`, citando el documento, y etiqueta la spec con `story:<id>`.
 - Si el brief sigue siendo un borrador sin confirmar (`seed.confirmed` es `false`), el agente te avisa de que parte de supuestos.
-- Al terminar, `rapid finish` sugiere `Marca H002 como hecha en docs/PRODUCT_BRIEF.md`. **No la marca por ti**: edita el brief tú. Un run cubre una historia.
+- Si la spec viene de una historia del brief, el agente añade el tag `story:<ID>` (por ejemplo `story:H002`). Cuando `rapid finish` termina en PASS, marca esa historia por ti (`H002 marcada como hecha en docs/PRODUCT_BRIEF.md`): cambia solo la línea `- [ ] H002:` a `- [x] H002:`, deja copia en `.rapid-os/backups/` y no cambia `source` ni `status` del brief. Con otro veredicto dice `H002 se marcará cuando el run pase`; con `rapid finish --no-tick` solo sugiere `Marca H002 como hecha`. Un run cubre una historia.
 
 El resto de esta guía describe el mismo ciclo con comandos v3 (**Modo avanzado**), útil para CI, depuración y auditoría.
 

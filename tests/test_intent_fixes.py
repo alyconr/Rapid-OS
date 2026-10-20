@@ -213,6 +213,7 @@ class FakeClaudeProcessTests(unittest.TestCase):
             "import sys, unittest.mock as mock, rapid_os.cli.main as m; "
             "sys.argv = ['rapid', 'approve', 'gate.final-verification']; "
             "mock.patch('sys.stdin.isatty', return_value=True).start(); "
+            "mock.patch('rapid_os.orchestration.lifecycle.stdin_is_windows_nul', return_value=False).start(); "
             "mock.patch('builtins.input', return_value='aprobar gate.final-verification').start(); "
             "sys.exit(m.main())"
         )

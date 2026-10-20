@@ -68,6 +68,30 @@ class HarnessDetectTests(unittest.TestCase):
         self.assertIsNotNone(detection.warning)
         self.assertIn("RAPID1300", detection.warning)
 
+    def test_single_supported_tool_in_config_is_the_harness(self):
+        detection = detect_harness(explicit=None, env={}, config={"tools": ["codex"]})
+        self.assertEqual(detection.harness_id, "codex")
+        self.assertEqual(detection.source, "config_tools")
+        self.assertIsNone(detection.warning)
+
+    def test_default_harness_wins_over_tools(self):
+        detection = detect_harness(
+            explicit=None, env={}, config={"tools": ["codex"], "default_harness": "claude"}
+        )
+        self.assertEqual((detection.harness_id, detection.source), ("claude", "config"))
+
+    def test_several_tools_fall_back_and_the_warning_lists_them(self):
+        detection = detect_harness(explicit=None, env={}, config={"tools": ["codex", "claude"]})
+        self.assertEqual(detection.harness_id, "cursor")
+        self.assertEqual(detection.source, "fallback")
+        self.assertIn("RAPID1300", detection.warning)
+        self.assertIn("codex, claude", detection.warning)
+
+    def test_unknown_or_malformed_tools_are_ignored(self):
+        for tools in (["nope"], "codex", [1, None], []):
+            detection = detect_harness(explicit=None, env={}, config={"tools": tools})
+            self.assertEqual(detection.source, "fallback", tools)
+
     def test_invalid_harness_id_raises_identity_error(self):
         with self.assertRaises(HarnessIdentityError):
             detect_harness(

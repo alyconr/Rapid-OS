@@ -121,19 +121,24 @@ def resolve_git_untracked(cwd: Path | str | None = None) -> tuple[str, ...] | No
 
 def observed_changes(
     cwd: Path | str,
-    start_head: str,
+    start_head: str | None,
     pre_existing_untracked: Iterable[str] = (),
 ) -> list[str]:
     """Files the run changed in the project: `git diff` since `start_head` plus the files that
     are untracked now and were not before, without `.rapid-os/` and without tool artifacts.
 
+    In a repository without commits `start_head` is None: there is no diff to take, so the
+    files in the index plus the untracked ones (minus the ones already untracked at start)
+    are the run's changes.
+
     The one place that decides this, so `rapid start` (which records what was already untracked)
     and `rapid finish` (which subtracts it) agree. Returns [] when git cannot answer.
     """
     already = set(pre_existing_untracked)
+    git_args = ["git", "diff", "--name-only", start_head] if start_head else ["git", "ls-files"]
     try:
         proc = subprocess.run(
-            ["git", "diff", "--name-only", start_head],
+            git_args,
             cwd=str(cwd),
             capture_output=True,
             text=True,
@@ -143,10 +148,13 @@ def observed_changes(
         untracked = resolve_git_untracked(cwd) or ()
     except Exception:
         return []
+    if proc.returncode != 0:
+        return []
     changed: list[str] = []
-    for path in [normalize_path(line) for line in proc.stdout.splitlines()] + [
-        u for u in untracked if u not in already
-    ]:
+    listed = [normalize_path(line) for line in proc.stdout.splitlines()]
+    if not start_head:
+        listed = [path for path in listed if path not in already]
+    for path in listed + [u for u in untracked if u not in already]:
         if (
             path
             and not path.startswith(".rapid-os/")
