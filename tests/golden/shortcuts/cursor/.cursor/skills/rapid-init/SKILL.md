@@ -24,4 +24,4 @@ Conduces el onboarding de Rapid OS con `rapid setup`. La descripción del proyec
    - Si lo omite: ejecuta `rapid setup doc <id> --skip`.
 5. Usa la descripción del usuario para no repetir preguntas que ya respondió.
 6. Nunca edites `.rapid-os/` ni `docs/` directamente: todo se escribe con `rapid setup`. Nunca ejecutes la inicialización interactiva de Rapid OS: exige la terminal de la persona.
-7. Cuando `action.kind` sea `done`: resume lo decidido, lista `unconfirmed_docs` si los hay (siguen como supuestos hasta que la persona los confirme) y ofrece `/rapid-feature` con la primera historia sin marcar del brief.
+7. Cuando `action.kind` sea `done`: resume lo decidido, lista `unconfirmed_docs` si los hay (siguen como supuestos hasta que la persona los confirme) y ofrece `/rapid-feature` con la primera historia sin marcar del brief (en Codex el shortcut se invoca como `$rapid-feature`; en Codex CLI, `/` no lista los skills).

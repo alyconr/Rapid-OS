@@ -1310,7 +1310,7 @@ def doctor_command(args):
                 "Claude Code hooks are installed in .claude/settings.json but 'rapid' is not on PATH; "
                 "the hooks cannot start (Claude Code treats that as a non-blocking error) and the run is not enforced.",
                 CURRENT_DIR / ".claude" / "settings.json",
-                hint="Install Rapid OS where Claude Code can find it (for example 'pipx install rapid-os') or add its scripts directory to PATH.",
+                hint="Install Rapid OS where Claude Code can find it (for example 'pipx install git+https://github.com/alyconr/Rapid-OS.git') or add its scripts directory to PATH.",
             )
         )
 
@@ -1321,7 +1321,7 @@ def doctor_command(args):
                 "RAPID1414",
                 RAPID_NOT_ON_PATH_MESSAGE.removeprefix("RAPID1414 "),
                 CURRENT_DIR,
-                hint="Install Rapid OS with the installer or with 'pipx install rapid-os'.",
+                hint="Install Rapid OS with the installer or with 'pipx install git+https://github.com/alyconr/Rapid-OS.git'.",
             )
         )
 

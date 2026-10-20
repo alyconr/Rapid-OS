@@ -14,4 +14,4 @@ Resume para la persona el estado del run activo a partir de la salida de `rapid 
 - Tareas completadas frente al total, y la tarea en curso.
 - Gates pendientes, cuáles esperan aprobación humana, y el último veredicto.
 
-Si `session` es `null`, indica que no hay run activo y sugiere `/rapid-feature` u otro `/rapid-<modo>`. Este comando es de solo lectura: no ejecutes nada más y no edites `.rapid-os/`.
+Si `session` es `null`, indica que no hay run activo y sugiere `/rapid-feature` u otro `/rapid-<modo>` (en Codex: `$rapid-feature` o `$rapid-<modo>`). Este comando es de solo lectura: no ejecutes nada más y no edites `.rapid-os/`.

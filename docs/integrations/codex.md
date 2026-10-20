@@ -52,13 +52,26 @@ rapid shortcuts install --harness codex               # en un proyecto ya inicia
 
 Genera `.agents/skills/rapid-*/SKILL.md` (los 9 shortcuts; [documentación de skills de Codex](https://learn.chatgpt.com/docs/build-skills)). Es la misma carpeta que usa Antigravity: si seleccionas ambos, se escribe una sola vez. Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`.
 
-### Invocación
+### Invocación: Codex CLI y extensión de IDE
 
-En Codex se invocan con `$` o desde `/skills`:
+Los shortcuts son *skills* de Codex. Según la [documentación oficial de skills](https://learn.chatgpt.com/docs/build-skills): "In Codex CLI or the IDE extension, run `/skills` or type `$` to mention a skill". Por eso la forma que funciona en todas las variantes de Codex es `$`:
 
 ```text
+$rapid-init API de facturación para pymes, en Python
 $rapid-feature añadir exportación CSV al informe mensual
 ```
+
+| Variante de Codex | Cómo invocar un shortcut | Qué muestra `/` |
+| --- | --- | --- |
+| **Codex CLI** (`codex` en una terminal) | `$rapid-<modo>`, o elegirlo desde `/skills` | Solo los comandos propios de Codex (`/model`, `/skills`…). **`/rapid-*` no aparece**: escribe `$`. |
+| **Extensión de Codex para VS Code** | `$rapid-<modo>` o `/skills`; en la extensión también aparecen al escribir `/` | Comandos de Codex y, en la extensión, los skills. |
+
+Las dos variantes leen la misma carpeta (`.agents/skills/` del proyecto, y `~/.agents/skills/` si instalaste con `--global`), así que no hace falta instalar nada distinto para cada una. Si `$` no muestra los `rapid-*`:
+
+1. Abre Codex desde la raíz del proyecto (Codex busca `.agents/skills` desde el directorio de trabajo hacia la raíz del repositorio).
+2. Comprueba que existan: `rapid shortcuts list --harness codex`.
+3. Comprueba que `rapid` esté en el `PATH` de esa terminal (`rapid --version`): el skill le pide a Codex ejecutarlo.
+4. Si actualizaste Rapid OS o los instalaste con Codex abierto, reinicia la sesión de Codex.
 
 `$rapid-approve` **no aprueba**: muestra los gates pendientes y la evidencia, y te da el comando para tu terminal. `rapid approve` exige una terminal interactiva tuya y falla con `RAPID1310` si lo lanza un agente. El archivo `AGENTS.md` generado por `rapid init` sigue aportando el contexto del proyecto.
 
