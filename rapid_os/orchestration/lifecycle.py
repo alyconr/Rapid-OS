@@ -59,6 +59,7 @@ from rapid_os.orchestration.session import (
     clear_session,
     load_session,
     resolve_git_head,
+    git_trust_command,
     git_work_tree_state,
     observed_changes,
     resolve_git_untracked,
@@ -216,8 +217,16 @@ def execute_start(
     playbook = load_playbook(mode, templates_dir=templates_dir)
 
     # A run's changes are observed with git: without it the run could never pass.
-    if not resume and git_work_tree_state(project_root) != "inside":
-        return 1, NOT_A_GIT_REPOSITORY_MESSAGE
+    if not resume:
+        git_state = git_work_tree_state(project_root)
+        if git_state == "untrusted":
+            return (
+                1,
+                "RAPID1416 git no confía en esta carpeta (dubious ownership), así que Rapid OS no puede "
+                f"observar los cambios. Ejecuta: {git_trust_command(project_root)}",
+            )
+        if git_state != "inside":
+            return 1, NOT_A_GIT_REPOSITORY_MESSAGE
 
     # A brand-new repository (no source code, no tests) has nothing to fix, refactor or harden,
     # and nothing to take a baseline of: only `feature` starts there, with a scaffold task.
@@ -803,7 +812,10 @@ def unverified_reason(report, project_root: Path | str) -> str | None:
     )
     if observed is None or observed.status.value != "unverified":
         return None
-    if git_work_tree_state(project_root) != "inside":
+    git_state = git_work_tree_state(project_root)
+    if git_state == "untrusted":
+        return "No se observaron cambios de archivos: git no confía en esta carpeta (dubious ownership)"
+    if git_state != "inside":
         return "No se observaron cambios de archivos: la carpeta no es un repositorio git"
     return (
         "No se observaron cambios de archivos: git funciona pero el run no cambió ningún archivo "

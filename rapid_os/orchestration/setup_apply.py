@@ -51,7 +51,7 @@ from rapid_os.domain.project_docs import (
     validate_doc_body,
     with_doc_status,
 )
-from rapid_os.orchestration.session import git_work_tree_state
+from rapid_os.orchestration.session import git_trust_command, git_work_tree_state
 from rapid_os.domain.setup import ARCHETYPES, DocState, SetupAction, SetupActionKind, SetupState, StackChoice
 
 DECISION_KEYS = ("stack", "topology", "archetype", "agents", "test-command")
@@ -410,6 +410,11 @@ def ensure_git_repository(project_root: Path) -> GitSetup:
         return GitSetup()
     if state == "missing":
         return GitSetup(warning=GIT_MISSING_WARNING)
+    if state == "untrusted":
+        # There is a repository git does not trust: `git init` would not fix it.
+        return GitSetup(
+            warning=f"git no confía en esta carpeta (dubious ownership). Ejecuta: {git_trust_command(root)}"
+        )
     branch = _git_default_branch(root)
     try:
         # `-c` keeps `git init` from reading an invalid `init.defaultBranch` the person left behind.

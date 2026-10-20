@@ -362,5 +362,108 @@ class UnverifiedReasonTests(unittest.TestCase):
         )
 
 
+DUBIOUS = (
+    "fatal: detected dubious ownership in repository at 'C:/work/app'\n"
+    "To add an exception for this directory, call:\n\n"
+    "\tgit config --global --add safe.directory C:/work/app\n"
+)
+
+
+def fake_git(rev_parse_stderr, calls=None):
+    """A `subprocess.run` where `git rev-parse` fails with the given stderr and nothing else runs."""
+
+    def run(argv, *args, **kwargs):
+        if calls is not None:
+            calls.append(list(argv))
+        if argv[:2] == ["git", "rev-parse"]:
+            return subprocess.CompletedProcess(argv, 128, stdout="", stderr=rev_parse_stderr)
+        raise AssertionError(f"unexpected command: {argv}")
+
+    return run
+
+
+class UntrustedRepositoryTests(unittest.TestCase):
+    """git refuses the folder ("dubious ownership"): not a repository to create, a trust to grant."""
+
+    def state(self, stderr):
+        with mock.patch("subprocess.run", side_effect=fake_git(stderr)):
+            return git_work_tree_state(".")
+
+    def test_dubious_ownership_and_safe_directory_are_untrusted(self):
+        self.assertEqual(self.state(DUBIOUS), "untrusted")
+        self.assertEqual(self.state("fatal: unsafe, add it to safe.directory"), "untrusted")
+
+    def test_outside_and_missing_are_unchanged(self):
+        self.assertEqual(self.state("fatal: not a git repository (or any of the parent directories): .git"), "outside")
+        with mock.patch("subprocess.run", side_effect=FileNotFoundError("git")):
+            self.assertEqual(git_work_tree_state("."), "missing")
+
+    def test_ensure_does_not_run_git_init_and_names_the_command_with_gits_path(self):
+        calls = []
+        with mock.patch("subprocess.run", side_effect=fake_git(DUBIOUS, calls)):
+            result = ensure_git_repository(Path("C:/work/app"))
+        self.assertTrue(all(argv[:2] == ["git", "rev-parse"] for argv in calls), calls)
+        self.assertIsNone(result.note)
+        self.assertEqual(
+            result.warning,
+            "git no confía en esta carpeta (dubious ownership). Ejecuta: "
+            "git config --global --add safe.directory C:/work/app",
+        )
+
+    def test_without_a_path_in_the_message_it_uses_the_projects_with_slashes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("subprocess.run", side_effect=fake_git("fatal: detected dubious ownership")):
+                result = ensure_git_repository(Path(tmp))
+            self.assertIn(f"safe.directory {Path(tmp).as_posix()}", result.warning)
+            self.assertNotIn("\\", result.warning)
+
+    def test_start_says_rapid1416_with_safe_directory_and_creates_nothing(self):
+        from rapid_os.orchestration.lifecycle import execute_start
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".rapid-os" / "standards").mkdir(parents=True)
+            with mock.patch("subprocess.run", side_effect=fake_git(DUBIOUS)):
+                code, message = execute_start(
+                    root, root / ".rapid-os", "feature", spec_file="-", stdin_content=json.dumps(SPEC)
+                )
+            self.assertEqual(code, 1)
+            self.assertTrue(message.startswith("RAPID1416 git no confía en esta carpeta (dubious ownership)"), message)
+            self.assertIn("git config --global --add safe.directory C:/work/app", message)
+            self.assertNotIn("git init", message)
+            runs = root / ".rapid-os" / "runs"
+            self.assertFalse(runs.exists() and any(runs.iterdir()))
+            self.assertFalse((root / ".rapid-os" / "session.json").exists())
+
+    def test_start_outside_keeps_the_text_it_had(self):
+        from rapid_os.orchestration.lifecycle import execute_start
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".rapid-os" / "standards").mkdir(parents=True)
+            with mock.patch("subprocess.run", side_effect=fake_git("fatal: not a git repository")):
+                code, message = execute_start(
+                    root, root / ".rapid-os", "feature", spec_file="-", stdin_content=json.dumps(SPEC)
+                )
+        self.assertEqual(code, 1)
+        self.assertIn("RAPID1416 Rapid OS observa los cambios del run con git y esta carpeta no es un repositorio", message)
+        self.assertIn("Ejecuta: git init", message)
+
+    def test_unverified_reason_for_an_untrusted_folder(self):
+        report = SimpleNamespace(
+            verdict=SimpleNamespace(value="unverified"),
+            assertions=(
+                SimpleNamespace(
+                    id="capability.repository.write.observed", status=SimpleNamespace(value="unverified")
+                ),
+            ),
+        )
+        with mock.patch("subprocess.run", side_effect=fake_git(DUBIOUS)):
+            self.assertEqual(
+                unverified_reason(report, "."),
+                "No se observaron cambios de archivos: git no confía en esta carpeta (dubious ownership)",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

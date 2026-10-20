@@ -38,6 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 - Una carpeta sin git llega a PASS sin que la persona sepa que hace falta `git init`: `rapid setup finish` y `rapid init` crean el repositorio (`ensure_git_repository`: `git init` y `symbolic-ref HEAD` a `init.defaultBranch` o `main`, sin commits; nunca anida un repositorio dentro de otro; sin git instalado solo avisa). `/rapid-init` se lo cuenta a la persona.
+- Una carpeta con repositorio en la que git no confía (`detected dubious ownership`) tiene su propio estado, `untrusted`, en `git_work_tree_state`: `setup finish` no ejecuta `git init` y avisa con `git config --global --add safe.directory <ruta>`, `rapid start` falla con `RAPID1416` y ese mismo comando, y `rapid finish` lo nombra en `unverified_reason`.
 - `rapid start` falla al principio con `RAPID1416` si la carpeta no es un repositorio git (antes de crear el run y de `RAPID1413`), en lugar de crear un run que no puede observar cambios.
 - `rapid finish` explica un `UNVERIFIED` por falta de escrituras (`No se observaron cambios de archivos: <causa>`; campo opcional `unverified_reason` en `--json`).
 - `/rapid-feature` pide no escribir una tarea de scaffold en un proyecto nuevo: Rapid OS añade `T001`.
