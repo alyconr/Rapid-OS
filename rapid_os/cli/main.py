@@ -3305,6 +3305,8 @@ def start_command(args):
 
     cmd_str = f" -> {' '.join(res.command)}" if res.command else ""
     print(f"Next: {res.kind.value}{cmd_str}")
+    for note in res.notes:
+        print(f"Nota: {note}")
     return 0
 
 

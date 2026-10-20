@@ -12,7 +12,12 @@ from pathlib import Path
 
 from rapid_os.domain.execution import CANONICAL_EXECUTION_CONTRACT_KEYS, ExecutionContract
 from rapid_os.domain.scanner import is_empty_repository
-from rapid_os.orchestration.lifecycle import SCAFFOLD_TASK_TEXT, has_scaffold_task, with_scaffold_task
+from rapid_os.orchestration.lifecycle import (
+    SCAFFOLD_TASK_TEXT,
+    has_scaffold_task,
+    scaffold_notes,
+    with_scaffold_task,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = {
@@ -106,6 +111,19 @@ class ScaffoldTaskTests(unittest.TestCase):
         once = with_scaffold_task(["T001: Hacer A"])
         self.assertEqual(with_scaffold_task(once), once)
 
+    def test_the_note_maps_every_renumbered_task(self):
+        written = ["T001: Registro", "T002: Login", "Sin número"]
+        (note,) = scaffold_notes(written, with_scaffold_task(written))
+        self.assertIn("T001", note)
+        self.assertIn(SCAFFOLD_TASK_TEXT, note)
+        self.assertIn("T001→T002, T002→T003", note)
+
+    def test_the_note_without_written_numbers_only_announces_the_scaffold(self):
+        written = ["Registro", "Login"]
+        (note,) = scaffold_notes(written, with_scaffold_task(written))
+        self.assertIn(SCAFFOLD_TASK_TEXT, note)
+        self.assertNotIn("renumeraron", note)
+
     def test_an_empty_task_list_becomes_just_the_scaffold(self):
         self.assertEqual(with_scaffold_task([]), [f"T001: {SCAFFOLD_TASK_TEXT}"])
 
@@ -143,6 +161,12 @@ class StartInADifferentRepositoryTests(unittest.TestCase):
         # The contract still verifies (digest and consistency).
         ExecutionContract.from_dict(contract)
 
+        # `rapid start` says what changed in the task list the agent wrote.
+        notes = json.loads(started.stdout)["notes"]
+        self.assertEqual(len(notes), 1)
+        self.assertIn("T001→T002, T002→T003", notes[0])
+        self.assertIn(SCAFFOLD_TASK_TEXT, notes[0])
+
         status = rapid(self.root, "status")
         self.assertIn("Sin baseline: proyecto nuevo", status.stdout)
         as_json = json.loads(rapid(self.root, "status", "--json").stdout)
@@ -161,6 +185,7 @@ class StartInADifferentRepositoryTests(unittest.TestCase):
         self.assertIn("gate.baseline", [g["id"] for g in contract["gates"]])
         self.assertEqual([t["description"] for t in contract["tasks"]], ["T001: Hacer A", "T002: Hacer B"])
         self.assertNotIn("Sin baseline", rapid(self.root, "status").stdout)
+        self.assertNotIn("notes", json.loads(started.stdout))
 
     def test_repository_with_tests_has_the_contract_it_always_had(self):
         (self.root / "tests").mkdir()

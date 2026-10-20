@@ -93,6 +93,26 @@ def with_scaffold_task(tasks) -> list[str]:
     return [f"T001: {SCAFFOLD_TASK_TEXT}", *renumbered]
 
 
+def scaffold_notes(original, injected) -> tuple[str, ...]:
+    """What the scaffold changed in the task list the agent wrote, so nobody is surprised.
+
+    Contract task ids start at T001, so the scaffold takes T001 and the written `T00n:`
+    prefixes move down: the note maps them (`T001→T002`).
+    """
+    moved = []
+    for before, after in zip(original, injected[1:]):
+        old, new = re.match(r"T\d+", str(before)), re.match(r"T\d+", str(after))
+        if old and new and old.group(0) != new.group(0):
+            moved.append(f"{old.group(0)}→{new.group(0)}")
+    note = (
+        f"Proyecto nuevo (sin código ni tests): Rapid OS añadió la tarea T001, «{SCAFFOLD_TASK_TEXT}», "
+        "y el run no tiene baseline."
+    )
+    if moved:
+        note += f" Tus tareas se renumeraron para coincidir con el run: {', '.join(moved)}."
+    return (note,)
+
+
 def _author_spec_action(
     mode: str,
     playbook: Playbook,
@@ -185,6 +205,7 @@ def execute_start(
     # and nothing to take a baseline of: only `feature` starts there, with a scaffold task.
     empty_repository = False
     baseline_waived: str | None = None
+    run_notes: tuple[str, ...] = ()
     if not resume:
         from rapid_os.domain.scanner import is_empty_repository
 
@@ -248,9 +269,10 @@ def execute_start(
                 spec_fields["implementation_tasks"] = spec_fields.pop("tasks")
 
             if empty_repository and mode == "feature":
-                spec_fields["implementation_tasks"] = with_scaffold_task(
-                    list(spec_fields.get("implementation_tasks") or [])
-                )
+                written_tasks = list(spec_fields.get("implementation_tasks") or [])
+                spec_fields["implementation_tasks"] = with_scaffold_task(written_tasks)
+                if not has_scaffold_task(written_tasks):
+                    run_notes = scaffold_notes(written_tasks, spec_fields["implementation_tasks"])
                 baseline_waived = BASELINE_WAIVER_EMPTY_REPOSITORY
 
             existing = spec_reg.compare_existing(**spec_fields)
@@ -520,6 +542,8 @@ def execute_start(
         test_command=test_cmd if isinstance(test_cmd, (list, tuple)) else None,
         workspace_ready=bool(sess.workspace_path),
     )
+    if run_notes:
+        action = replace(action, notes=run_notes)
     return 0, _decorate_action(action, sess)
 
 

@@ -50,6 +50,8 @@ class NextAction:
     workspace_path: str | None = None
     # `author_spec` only: the open stories of the product brief (see adapters/project_docs.py).
     seed: dict[str, object] | None = None
+    # Facts about this start the person should know (for example a renumbered task list).
+    notes: tuple[str, ...] = ()
 
     def __post_init__(self):
         coerced_kind = ActionKind.coerce(self.kind)
@@ -86,7 +88,7 @@ class NextAction:
         return payload
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        payload = {
             "schema_version": self.schema_version,
             "run_id": self.run_id,
             "mode": self.mode,
@@ -99,3 +101,6 @@ class NextAction:
             },
             "outcome": self.outcome if self.kind == ActionKind.DONE else None,
         }
+        if self.notes:
+            payload["notes"] = list(self.notes)
+        return payload

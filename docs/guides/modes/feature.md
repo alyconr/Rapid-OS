@@ -27,7 +27,7 @@ Qué hace su playbook (`templates/modes/feature.json` y las reglas del Conductor
 
 Si el repositorio no tiene código fuente (fuera de `docs/` y las carpetas ocultas) ni tests, no hay nada de lo que tomar una baseline: el comando de tests saldría en rojo antes de empezar. En ese caso `rapid start feature`:
 
-- añade como primera tarea `T001: Scaffold mínimo con un test que pase` (tus tareas pasan a `T002…` en el texto, igual que en el contrato);
+- añade como primera tarea `T001: Scaffold mínimo con un test que pase`; tus tareas pasan a `T002…`, en el texto y en el contrato, y `rapid start` lo avisa en `notes` (por ejemplo `T001→T002`), que el agente te explica; usa siempre los ids que da `rapid next`;
 - crea el contrato **sin `gate.baseline`** y con el campo opcional `baseline_waived: "empty_repository"`; el run arranca activo;
 - cierra la tarea del scaffold con un `rapid check` en verde; a partir de ahí los tests son los de tu proyecto.
 
