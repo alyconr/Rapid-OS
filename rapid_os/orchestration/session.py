@@ -165,6 +165,25 @@ def observed_changes(
     return changed
 
 
+def git_work_tree_state(cwd: Path | str | None = None) -> str:
+    """Whether `cwd` is inside a git work tree: `inside`, `outside` or `missing` (git not installed).
+
+    A folder inside a parent repository is `inside`: Rapid OS never nests repositories.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=str(cwd) if cwd else None,
+            capture_output=True,
+            text=True,
+            check=False,
+            shell=False,
+        )
+    except OSError:
+        return "missing"
+    return "inside" if proc.returncode == 0 and proc.stdout.strip() == "true" else "outside"
+
+
 def resolve_git_head(cwd: Path | str | None = None) -> str | None:
     """Safely resolve current git HEAD commit hash, returning None if not in git or on error."""
     try:

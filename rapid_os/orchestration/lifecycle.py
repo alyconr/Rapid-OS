@@ -59,6 +59,7 @@ from rapid_os.orchestration.session import (
     clear_session,
     load_session,
     resolve_git_head,
+    git_work_tree_state,
     observed_changes,
     resolve_git_untracked,
     save_session,
@@ -66,6 +67,10 @@ from rapid_os.orchestration.session import (
 from rapid_os.orchestration.workspace import WorkspaceError, create_run_worktree
 
 
+NOT_A_GIT_REPOSITORY_MESSAGE = (
+    "RAPID1416 Rapid OS observa los cambios del run con git y esta carpeta no es un repositorio. "
+    "Ejecuta: git init  (o rapid setup finish, que lo crea)"
+)
 SCAFFOLD_TASK_TEXT = "Scaffold mínimo con un test que pase"
 # Modes that need existing code: in a brand-new repository they cannot start.
 EMPTY_REPO_REFUSED_VERBS = {
@@ -209,6 +214,10 @@ def execute_start(
                 pass
 
     playbook = load_playbook(mode, templates_dir=templates_dir)
+
+    # A run's changes are observed with git: without it the run could never pass.
+    if not resume and git_work_tree_state(project_root) != "inside":
+        return 1, NOT_A_GIT_REPOSITORY_MESSAGE
 
     # A brand-new repository (no source code, no tests) has nothing to fix, refactor or harden,
     # and nothing to take a baseline of: only `feature` starts there, with a scaffold task.
@@ -779,6 +788,27 @@ def _list_pending_human_gates(project_rapid_dir: Path, project_root: Path) -> tu
     header = f"Pending human gates for run '{sess.active_run_id}':"
     footer = "Approve with: rapid approve <gate-id>   (waive: --waive --reason TEXT; reject: --reject --reason TEXT)"
     return 0, "\n".join([header, *lines, footer])
+
+
+def unverified_reason(report, project_root: Path | str) -> str | None:
+    """Why an UNVERIFIED report has no write observation, or None when that is not the cause.
+
+    Only when the verdict is `unverified` and `capability.repository.write.observed` did not
+    pass: the folder is not a git repository, or git works and the run changed no project file.
+    """
+    if report.verdict.value != "unverified":
+        return None
+    observed = next(
+        (a for a in report.assertions if a.id == "capability.repository.write.observed"), None
+    )
+    if observed is None or observed.status.value != "unverified":
+        return None
+    if git_work_tree_state(project_root) != "inside":
+        return "No se observaron cambios de archivos: la carpeta no es un repositorio git"
+    return (
+        "No se observaron cambios de archivos: git funciona pero el run no cambió ningún archivo "
+        "del proyecto (fuera de .rapid-os/ y de artefactos de herramientas)"
+    )
 
 
 def stdin_is_windows_nul() -> bool:

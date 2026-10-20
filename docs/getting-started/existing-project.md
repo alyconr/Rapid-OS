@@ -9,7 +9,7 @@ Adoptar Rapid OS en un repositorio que ya se encuentra en producción o desarrol
 
 ## Con shortcuts
 
-Con shortcuts no necesitas recorrer los pasos de abajo a mano. Desde la raíz del repositorio (con al menos un commit):
+Con shortcuts no necesitas recorrer los pasos de abajo a mano. Desde la raíz del repositorio (si la carpeta aún no es un repositorio git, el onboarding lo crea; no hace falta ningún commit):
 
 ```bash
 cd /ruta/a/tu-proyecto-existente

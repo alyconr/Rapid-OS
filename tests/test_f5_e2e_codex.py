@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from rapid_os.adapters.evidence_registry import EvidenceRegistry
@@ -435,10 +436,6 @@ class EmptyFolderEndToEndTests(SetupAfterFinishTests):
         self.assertIn("source: drafted\nstatus: draft", text)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class StdinNulTests(unittest.TestCase):
     """Windows reports a stdin redirected to NUL as a terminal; approve must not believe it."""
 
@@ -456,17 +453,21 @@ class StdinNulTests(unittest.TestCase):
     def test_a_pipe_is_never_nul(self):
         self.assertEqual(self.probe(input=""), "False")
 
+    @unittest.skipUnless(sys.platform == "win32", "NUL reports isatty() only on Windows")
     def test_approve_on_nul_stdin_fails_before_touching_the_ledger(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = subprocess.run(
-                [sys.executable, "-m", "rapid_os.cli.main", "approve", "gate.final-verification"],
-                cwd=tmp, stdin=subprocess.DEVNULL, capture_output=True, text=True,
-                env={
-                    **{k: v for k, v in os.environ.items() if k not in ("CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION")},
-                    "PYTHONPATH": str(ROOT),
-                },
-            )
-        self.assertEqual(result.returncode, 1)
-        if sys.platform == "win32":
-            self.assertIn("RAPID1310", result.stderr)
-            self.assertIn("Stdin is not a TTY", result.stderr)
+        from rapid_os.core.ancestry import AncestryResult
+        from rapid_os.orchestration.lifecycle import execute_approve
+
+        with tempfile.TemporaryDirectory() as tmp, open(os.devnull, encoding="utf-8") as nul:
+            # In process, with no agent among the ancestors: only the TTY check can refuse.
+            with mock.patch("sys.stdin", nul):
+                code, message = execute_approve(
+                    Path(tmp), Path(tmp) / ".rapid-os", "gate.final-verification",
+                    environ={}, ancestry=AncestryResult(()),
+                )
+        self.assertEqual(code, 1)
+        self.assertIn("RAPID1310", message)
+        self.assertIn("Stdin is not a TTY", message)
+
+if __name__ == "__main__":
+    unittest.main()
