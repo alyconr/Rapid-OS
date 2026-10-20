@@ -82,6 +82,12 @@ def read_setup_file(rapid_dir: Path) -> tuple[SetupState | None, str | None]:
         return None, str(exc)
 
 
+def load_setup_file(rapid_dir: Path) -> SetupState | None:
+    """The persisted state, or None when `.rapid-os/setup.json` does not exist."""
+    setup_file = Path(rapid_dir) / SETUP_FILE_NAME
+    return _load_file(setup_file) if setup_file.exists() else None
+
+
 def write_setup(rapid_dir: Path, state: SetupState) -> Path:
     """Atomically write `setup.json`, creating `.rapid-os/` when it does not exist."""
     return safe_write_text(

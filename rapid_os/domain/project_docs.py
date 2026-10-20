@@ -94,6 +94,23 @@ def validate_doc_body(body: str, bank: SetupDocBank) -> tuple[DocIssue, ...]:
     return tuple(issues)
 
 
+_LOST_CHAR_RE = re.compile(r"[^\W\d_]\?[^\W\d_]|(?<![\w¿?])\?[^\W\d_]")
+_NOT_PROSE_RE = re.compile(r"```.*?```|`[^`\n]*`|\S+://\S+", re.DOTALL)
+LOST_CHARACTERS_MESSAGE = (
+    "El texto perdió caracteres (acentos o ñ convertidos en '?'); "
+    "envíalo con --file desde un archivo UTF-8"
+)
+
+
+def has_lost_characters(body: str) -> bool:
+    """A '?' between two letters ("vac?os") or opening a word ("?xito"): what a non-UTF-8 pipe
+    leaves of "vacíos" and "éxito". A question mark that closes a word ("¿Listo?") is not flagged.
+
+    Code and URLs are left out, where `a?b` is legitimate (a query string, a regex).
+    """
+    return _LOST_CHAR_RE.search(_NOT_PROSE_RE.sub(" ", body)) is not None
+
+
 def normalize_newlines(text: str) -> str:
     return text.replace("\r\n", "\n")
 
@@ -158,3 +175,47 @@ def open_stories(body: str, bank: SetupDocBank) -> tuple[dict[str, str], ...]:
         if match is not None:
             stories.append({"id": match.group(1), "text": match.group(2)})
     return tuple(stories)
+
+
+_STORY_LINE_RE = re.compile(r"^([ \t]*[-*][ \t]+\[)([ xX])(\][ \t]+)([A-Za-z]+-?\d+)(?=[ \t]*[:.\-–])")
+_SHA_LINE_RE = re.compile(r"^sha256:[^\r\n]*", re.MULTILINE)
+
+
+def mark_story_done(text: str, bank: SetupDocBank, story_id: str) -> tuple[str, str, str]:
+    """Tick one story of the brief: `- [ ] H001: ...` becomes `- [x] H001: ...`, nothing else.
+
+    `text` is the whole document. Only the stories section counts, and the story id is matched
+    without regard to case. Returns `(new_text, outcome, written_id)`: outcome is `marked`,
+    `already_done` or `not_found`, and `new_text` is `text` unless it was marked, in which case
+    the frontmatter `sha256` follows the new body (`source` and `status` stay as they are).
+    """
+    titles = {
+        title.strip().lower()
+        for section in bank.required_sections
+        if section.id == "stories"
+        for title in section.titles
+    }
+    frontmatter = _RAW_FRONTMATTER_RE.match(text)
+    start = frontmatter.end() if frontmatter is not None else 0
+    lines = text[start:].splitlines(keepends=True)
+    inside = False
+    for index, raw in enumerate(lines):
+        line = raw.rstrip("\r\n")
+        heading = _H2_RE.match(line)
+        if heading is not None:
+            inside = heading.group(1).strip().lower() in titles
+            continue
+        match = _STORY_LINE_RE.match(line) if inside else None
+        if match is None or match.group(4).lower() != story_id.strip().lower():
+            continue
+        if match.group(2) != " ":
+            return text, "already_done", match.group(4)
+        lines[index] = f"{match.group(1)}x{line[match.end(2):]}{raw[len(line):]}"
+        body = "".join(lines)
+        header = text[:start]
+        if frontmatter is not None and frontmatter.group("header") is not None:
+            sha_line = f"sha256: {body_sha256(normalize_newlines(body))}"
+            if _SHA_LINE_RE.search(header):
+                header = _SHA_LINE_RE.sub(sha_line, header, count=1)
+        return header + body, "marked", match.group(4)
+    return text, "not_found", story_id.strip()

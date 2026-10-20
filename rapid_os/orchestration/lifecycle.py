@@ -80,9 +80,14 @@ def has_scaffold_task(tasks) -> bool:
     return bool(tasks) and SCAFFOLD_TASK_TEXT in str(tasks[0])
 
 
-def with_scaffold_task(tasks) -> list[str]:
+SCAFFOLD_TEST_COMMAND_HINT = "Configura el comando con rapid setup set test-command <cmd> antes de cerrarla"
+
+
+def with_scaffold_task(tasks, *, needs_test_command: bool = False) -> list[str]:
     """The scaffold as the first task. Contract task ids start at T001, so the scaffold is T001
-    and the written `T00n:` prefixes of the other tasks move down by one to keep matching."""
+    and the written `T00n:` prefixes of the other tasks move down by one to keep matching.
+
+    Without a `test_command` the task says how to set one: `rapid task done` needs it."""
     if has_scaffold_task(tasks):
         return list(tasks)
     renumbered = []
@@ -91,7 +96,10 @@ def with_scaffold_task(tasks) -> list[str]:
         renumbered.append(
             f"T{index:03d}: {text[_TASK_PREFIX_RE.match(text).end():]}" if _TASK_PREFIX_RE.match(text) else text
         )
-    return [f"T001: {SCAFFOLD_TASK_TEXT}", *renumbered]
+    scaffold = f"T001: {SCAFFOLD_TASK_TEXT}"
+    if needs_test_command:
+        scaffold += f". {SCAFFOLD_TEST_COMMAND_HINT}"
+    return [scaffold, *renumbered]
 
 
 def scaffold_notes(original, injected) -> tuple[str, ...]:
@@ -271,7 +279,10 @@ def execute_start(
 
             if empty_repository and mode == "feature":
                 written_tasks = list(spec_fields.get("implementation_tasks") or [])
-                spec_fields["implementation_tasks"] = with_scaffold_task(written_tasks)
+                scaffold_config = load_project_config(config_file or (project_rapid_dir / "config.json"))
+                spec_fields["implementation_tasks"] = with_scaffold_task(
+                    written_tasks, needs_test_command=not scaffold_config.get("test_command")
+                )
                 if not has_scaffold_task(written_tasks):
                     run_notes = scaffold_notes(written_tasks, spec_fields["implementation_tasks"])
                 baseline_waived = BASELINE_WAIVER_EMPTY_REPOSITORY
@@ -654,8 +665,9 @@ def execute_finish(
                 f"RAPID1335 Workspace '{diff_cwd}' of run '{run_id}' no longer exists. "
                 "Restore it with 'git worktree add' or run 'rapid abort'.",
             )
-    if start_head:
-        # Tool artifacts (`__pycache__`, `*.pyc`...) are not writes of the project.
+    # A repository without commits has no start_head, but its untracked files are still changes.
+    # Tool artifacts (`__pycache__`, `*.pyc`...) are not writes of the project.
+    if start_head or sess.start_untracked is not None:
         changed_files = observed_changes(diff_cwd, start_head, sess.start_untracked or ())
 
     if changed_files:
@@ -769,6 +781,29 @@ def _list_pending_human_gates(project_rapid_dir: Path, project_root: Path) -> tu
     return 0, "\n".join([header, *lines, footer])
 
 
+def stdin_is_windows_nul() -> bool:
+    """True when stdin is the Windows NUL device, which reports `isatty() == True`.
+
+    A console is the only character device where `GetConsoleMode` succeeds, so a character
+    device that fails it is NUL: no person is there to confirm, and the TTY check must say so
+    before the ledger is touched. False everywhere else and whenever it cannot be told.
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+        import msvcrt
+
+        file_type_char = 2
+        handle = ctypes.c_void_p(msvcrt.get_osfhandle(sys.stdin.fileno()))
+        kernel32 = ctypes.windll.kernel32
+        if kernel32.GetFileType(handle) != file_type_char:
+            return False
+        return not kernel32.GetConsoleMode(handle, ctypes.byref(ctypes.c_uint32()))
+    except Exception:
+        return False
+
+
 def execute_approve(
     project_root: Path,
     project_rapid_dir: Path,
@@ -827,7 +862,7 @@ def execute_approve(
         )
 
     # TTY check comes before touching the ledger so every mutating case fails the same way.
-    tty_active = sys.stdin.isatty() if is_tty is None else is_tty
+    tty_active = (sys.stdin.isatty() and not stdin_is_windows_nul()) if is_tty is None else is_tty
     if not tty_active:
         return (
             1,

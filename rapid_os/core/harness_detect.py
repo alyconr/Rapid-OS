@@ -35,7 +35,13 @@ def detect_harness(
        - CLAUDE_CODE_CHILD_SESSION == "1" -> 'claude' (Claude Code official documentation:
          exported to Bash tool commands and hooks; see https://code.claude.com/docs/en/env-vars)
     4. Project config 'default_harness' from .rapid-os/config.json
-    5. Fallback 'cursor' with WARNING RAPID1300
+    4b. Project config 'tools' naming exactly one supported harness (source 'config_tools')
+    5. Fallback 'cursor' with WARNING RAPID1300 (it lists the harnesses of 'tools', if any)
+
+    Codex has no marker here: its documentation (https://developers.openai.com/codex/environment-variables)
+    lists only variables for Codex itself (CODEX_HOME, CODEX_API_KEY); CODEX_THREAD_ID, which it adds
+    to the commands it runs, appears only in a GitHub discussion
+    (https://github.com/openai/codex/discussions/26901), so it is not relied on.
     """
     # 1. Explicit flag
     if explicit is not None and str(explicit).strip():
@@ -64,9 +70,34 @@ def detect_harness(
         resolved_id = validate_harness_id(str(default_harness).strip())
         return HarnessDetection(harness_id=resolved_id, source="config")
 
+    # 4b. A project that lists one supported harness in 'tools' works with that one.
+    listed = _supported_tools(config.get("tools"))
+    if len(listed) == 1:
+        return HarnessDetection(harness_id=listed[0], source="config_tools")
+
     # 5. Fallback to cursor with warning
+    warning = WARNING_RAPID1300
+    if listed:
+        warning += (
+            f" The project's 'tools' lists {', '.join(listed)}: "
+            "pick the one you are working in."
+        )
     return HarnessDetection(
         harness_id=FALLBACK_HARNESS_ID,
         source="fallback",
-        warning=WARNING_RAPID1300,
+        warning=warning,
     )
+
+
+def _supported_tools(tools: object) -> list[str]:
+    """The supported harness ids named by config 'tools', in order and without repeats."""
+    if not isinstance(tools, (list, tuple)):
+        return []
+    from rapid_os.adapters.agents import DEFAULT_AGENT_REGISTRY
+
+    supported = DEFAULT_AGENT_REGISTRY.ids()
+    listed: list[str] = []
+    for tool in tools:
+        if isinstance(tool, str) and tool in supported and tool not in listed:
+            listed.append(tool)
+    return listed

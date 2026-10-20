@@ -76,3 +76,7 @@ Si existen `standards/business.md` y `doc.business`, gana `doc.business`: el man
 | `RAPID1410` | WARNING | `standards/business.md` y `docs/BUSINESS_RULES.md` difieren. |
 
 `RAPID1403` y `RAPID1404` solo se evalúan en documentos `drafted`: lo que la persona pegó no se valida. Detalle en [Diagnósticos](../troubleshooting/diagnostics.md).
+
+## La única edición posterior: marcar una historia
+
+Rapid OS no vuelve a editar el brief, con una excepción acotada: cuando `rapid finish` termina en PASS y la spec del run lleva el tag `story:<ID>` (por ejemplo `story:H001`), cambia en la sección `## Historias` (o su alias) solo la línea `- [ ] H001:` a `- [x] H001:`. Antes copia el brief a `.rapid-os/backups/`, actualiza el `sha256` del frontmatter y regenera los archivos de agente; `source` y `status` no cambian, así que un borrador sigue siendo borrador y sigue entrando al contexto como supuesto. Un brief sin frontmatter `rapid-doc`, una historia ya marcada o inexistente, un veredicto distinto de PASS y `rapid finish --no-tick` no cambian nada.

@@ -39,10 +39,13 @@ from rapid_os.domain.catalog import (
 from rapid_os.domain.project import ProjectModel
 from rapid_os.domain.project_docs import (
     DOC_SOURCES,
+    LOST_CHARACTERS_MESSAGE,
+    has_lost_characters,
     parse_doc_frontmatter,
     prepare_body,
     body_sha256,
     is_managed,
+    mark_story_done,
     render_managed_doc,
     validate_doc_body,
     with_doc_status,
@@ -254,6 +257,8 @@ def write_doc(
         raise _fail("RAPID1413", f"The body of '{bank.id}' is empty.")
     if source == "drafted":
         # What a person provides is stored as is; what the agent drafts must fit the bank.
+        if has_lost_characters(body):
+            raise _fail("RAPID1415", LOST_CHARACTERS_MESSAGE)
         issues = validate_doc_body(body, bank)
         if issues:
             raise SetupApplyError(
@@ -508,3 +513,59 @@ def apply_setup(
     if regenerate:
         warnings = regenerate_agent_context(project_root, rapid_dir, Path(config_file))
     return ApplyResult(tuple(written), warnings)
+
+
+# --- ticking a story of the brief ----------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class StoryTick:
+    """What `tick_story` did: `marked`, `already_done`, `not_found` or `unmanaged`."""
+
+    outcome: str
+    story_id: str
+    file: str
+    warnings: tuple[str, ...] = ()
+
+
+def tick_story(
+    project_root: Path, rapid_dir: Path, config_file: Path, bank: SetupDocBank, story_id: str
+) -> StoryTick:
+    """Tick `- [ ] <ID>:` in the brief once a run that cites the story passed.
+
+    The one line changes and nothing else: `source` and `status` stay (a draft stays a draft),
+    the frontmatter `sha256` follows the body, the previous file goes to `.rapid-os/backups`,
+    and the agent files are rebuilt. A brief without `rapid-doc` frontmatter is not touched.
+    """
+    from rapid_os.adapters.agents.base import AGENT_BACKUP_DIR, AGENT_BACKUPS_KEPT
+    from rapid_os.adapters.setup_store import load_setup_file, write_setup
+
+    path = _doc_path(project_root, bank)
+    existing = _read_existing(path)
+    fields, _body = parse_doc_frontmatter(existing or "")
+    if not existing or not is_managed(fields, bank.id):
+        return StoryTick("unmanaged", story_id, bank.file)
+    new_text, outcome, written_id = mark_story_done(existing, bank, story_id)
+    if outcome != "marked":
+        return StoryTick(outcome, written_id, bank.file)
+    safe_write_text(
+        path,
+        new_text,
+        encoding="utf-8",
+        backup=True,
+        backup_dir=Path(project_root) / AGENT_BACKUP_DIR,
+        keep_backups=AGENT_BACKUPS_KEPT,
+    )
+    # setup.json keeps the digest of each document; a derived state reads it from the file.
+    new_fields, _ = parse_doc_frontmatter(new_text)
+    persisted = load_setup_file(rapid_dir)
+    if persisted is not None and bank.id in persisted.docs:
+        current = persisted.doc(bank.id)
+        write_setup(
+            rapid_dir,
+            _with_doc(persisted, bank.id, replace(current, sha256=new_fields.get("sha256", ""))),
+        )
+    warnings: tuple[str, ...] = ()
+    if project_has_standards(rapid_dir, config_file):
+        warnings = regenerate_agent_context(project_root, rapid_dir, config_file)
+    return StoryTick("marked", written_id, bank.file, warnings)

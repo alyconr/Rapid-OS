@@ -3159,7 +3159,11 @@ def task_command(args):
             config = load_project_config(CONFIG_FILE)
             test_cmd = config.get("test_command")
             if not test_cmd or not isinstance(test_cmd, (list, tuple)):
-                print("RAPID1301 No test_command configured in .rapid-os/config.json to verify task.", file=sys.stderr)
+                print(
+                    "RAPID1301 No test_command configured in .rapid-os/config.json to verify task. "
+                    "Set it with: rapid setup set test-command <cmd>",
+                    file=sys.stderr,
+                )
                 sys.exit(1)
 
             timeout = float(config.get("check_timeout_s", 600))
@@ -3408,6 +3412,7 @@ def _setup_doc_mode(args):
 def _setup_write(args, action_name, state, catalog, doc_banks):
     """Run one writing subcommand. Returns `(new_state, summary, notes, touched_docs)`."""
     from rapid_os.adapters.setup_store import write_setup
+    from rapid_os.domain.project_docs import LOST_CHARACTERS_MESSAGE, has_lost_characters
     from rapid_os.orchestration import setup_apply as apply
 
     if action_name == "set":
@@ -3441,6 +3446,9 @@ def _setup_write(args, action_name, state, catalog, doc_banks):
             raise apply.SetupApplyError("RAPID1413", "--replace only goes with writing a document or --from-legacy.")
         if mode == "write":
             text = _read_setup_input(args.file)
+            if args.source == "provided" and has_lost_characters(text):
+                # What a person pastes is stored as is; they are only told.
+                print(f"WARNING RAPID1415 {LOST_CHARACTERS_MESSAGE}.", file=sys.stderr)
             new_state = apply.write_doc(
                 CURRENT_DIR, state, bank, source=args.source, text=text, replace_existing=replace_existing
             )
@@ -3471,7 +3479,7 @@ def setup_command(args):
 
     from rapid_os.adapters.project_docs import legacy_business_source
     from rapid_os.adapters.setup_store import read_setup, write_setup
-    from rapid_os.domain.setup import SetupStateError
+    from rapid_os.domain.setup import SetupActionKind, SetupStateError
     from rapid_os.orchestration import setup_apply as apply
     from rapid_os.orchestration.setup_conductor import next_setup_action
 
@@ -3552,6 +3560,25 @@ def setup_command(args):
         )
         for note in notes:
             print(f"NOTE {note}", file=sys.stderr)
+        if action_name == "set" and snapshot.state.finished and not state.finished:
+            # The onboarding is over: a later decision takes effect now and does not reopen it.
+            if next_action(state).kind in (SetupActionKind.FINISH, SetupActionKind.DONE):
+                result = apply.apply_setup(
+                    CURRENT_DIR,
+                    PROJECT_RAPID_DIR,
+                    CONFIG_FILE,
+                    TEMPLATES_DIR,
+                    state,
+                    catalog,
+                    scan_model=project_model,
+                    scanned=True,
+                    only_changes=True,
+                )
+                for warning in result.warnings:
+                    print(f"WARNING {warning}", file=sys.stderr)
+                apply.update_gitignore(CURRENT_DIR)
+                state = dc_replace(state, finished=True)
+                write_setup(PROJECT_RAPID_DIR, state)
         if touched_docs and apply.project_has_standards(PROJECT_RAPID_DIR, CONFIG_FILE):
             for warning in apply.regenerate_agent_context(CURRENT_DIR, PROJECT_RAPID_DIR, CONFIG_FILE):
                 print(f"WARNING {warning}", file=sys.stderr)
@@ -3620,14 +3647,8 @@ def _baseline_waived(run_id):
         return False
 
 
-def _story_suggestions(run_id):
-    """Lines suggesting the person to tick the brief's stories that the finished run covered.
-
-    A spec cites a story with the tag `story:<ID>` (SpecRevision has no dedicated field).
-    Rapid OS never edits the brief: the person ticks the story.
-    """
-    from rapid_os.adapters.project_docs import load_banks
-
+def _run_story_ids(run_id):
+    """The brief stories a run's spec cites with the tag `story:<ID>` (SpecRevision has no field)."""
     try:
         contract = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_contract(run_id)
         revision = SpecRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_revision(
@@ -3635,26 +3656,55 @@ def _story_suggestions(run_id):
         )
     except Exception:  # a suggestion must never break `rapid finish`
         return []
-    story_ids = [
+    return [
         tag[len(STORY_TAG_PREFIX):].strip()
         for tag in revision.tags
         if tag.lower().startswith(STORY_TAG_PREFIX) and tag[len(STORY_TAG_PREFIX):].strip()
     ]
+
+
+def _story_lines(run_id, verdict, tick=True):
+    """Lines about the brief's stories that the finished run covered.
+
+    With a PASS verdict, `rapid finish` ticks the story in the brief (the one line, with a
+    backup); `--no-tick`, a PASS with waivers or a brief Rapid OS does not manage leave it to
+    the person, who gets a suggestion. Without a pass, the story waits for the run to pass.
+    A spec tags a story in lower case: the id is shown the way the brief writes it.
+    """
+    from rapid_os.adapters.project_docs import load_banks
+    from rapid_os.orchestration import setup_apply
+
+    story_ids = _run_story_ids(run_id)
+    if not story_ids:
+        return []
     brief = load_banks(TEMPLATES_DIR).get("brief")
     brief_file = brief.file if brief is not None else "docs/PRODUCT_BRIEF.md"
-    # Spec tags are stored in lower case: show the id the way the brief writes it.
-    written = {}
-    if brief is not None:
-        from rapid_os.adapters.project_docs import load_project_docs
-        from rapid_os.domain.project_docs import open_stories
-
-        managed = load_project_docs(CURRENT_DIR, PROJECT_RAPID_DIR, TEMPLATES_DIR).managed.get("brief")
-        if managed is not None:
-            written = {story["id"].lower(): story["id"] for story in open_stories(managed.body, brief)}
-    return [
-        f"Marca {written.get(story_id.lower(), story_id.upper())} como hecha en {brief_file}"
-        for story_id in story_ids
-    ]
+    lines = []
+    for story_id in story_ids:
+        shown = story_id.upper()
+        if verdict == "pass" and tick and brief is not None:
+            try:
+                result = setup_apply.tick_story(CURRENT_DIR, PROJECT_RAPID_DIR, CONFIG_FILE, brief, story_id)
+            except (OSError, setup_apply.SetupApplyError) as exc:
+                lines.append(f"No pude marcar {shown} en {brief_file} ({exc}); márcala a mano")
+                continue
+            for warning in result.warnings:
+                print(f"WARNING {warning}", file=sys.stderr)
+            if result.outcome == "marked":
+                lines.append(f"{result.story_id} marcada como hecha en {brief_file}")
+            elif result.outcome == "already_done":
+                lines.append(f"{result.story_id} ya estaba marcada en {brief_file}; no cambió nada")
+            elif result.outcome == "not_found":
+                lines.append(f"{shown} no existe en las historias de {brief_file}; no cambió nada")
+            else:
+                lines.append(
+                    f"{brief_file} no tiene frontmatter rapid-doc, no lo toco; marca {shown} a mano"
+                )
+        elif verdict in ("pass", "pass_with_waivers"):
+            lines.append(f"Marca {shown} como hecha en {brief_file}")
+        elif tick:
+            lines.append(f"{shown} se marcará cuando el run pase")
+    return lines
 
 
 def finish_command(args):
@@ -3688,10 +3738,8 @@ def finish_command(args):
         return 0
 
     # result is EvaluationReport
-    suggestions = (
-        _story_suggestions(result.run_id)
-        if result.verdict.value in ("pass", "pass_with_waivers")
-        else []
+    suggestions = _story_lines(
+        result.run_id, result.verdict.value, tick=not getattr(args, "no_tick", False)
     )
     no_baseline = _baseline_waived(result.run_id)
     if getattr(args, "json", False):
@@ -4751,6 +4799,11 @@ def create_parser():
         description="Collect git diff file changes, acknowledge satisfied machine gates, evaluate ruleset, and finish run.",
     )
     finish_p.add_argument("--json", action="store_true", help="Emit EvaluationReport or NextAction JSON output.")
+    finish_p.add_argument(
+        "--no-tick",
+        action="store_true",
+        help="Do not tick the brief's story (tag story:<ID>) when the run passes; only suggest it.",
+    )
 
     # rapid approve
     approve_p = subparsers.add_parser(
