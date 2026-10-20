@@ -145,7 +145,7 @@ rapid shortcuts remove --harness claude --hooks                      # quita sol
 
 Fusiona en `.claude/settings.json` del proyecto un grupo `Stop` y un grupo `PreToolUse` (matcher `Bash|PowerShell|Write|Edit|MultiEdit|NotebookEdit`) cuyo comando es `rapid` con los argumentos `hook stop` / `hook pre-tool` (forma *exec* de Claude Code: sin shell, igual en Linux, macOS y Windows). No toca otras claves ni los hooks del usuario, hace una copia `.bak` y es idempotente. `rapid init --shortcuts` **no** instala hooks: hay que pedirlos con `--hooks` (en `rapid init` o en `rapid shortcuts install`).
 
-`rapid` debe estar en el `PATH` del equipo donde corre Claude Code (por ejemplo con `pipx install rapid-os`). Si no se resuelve, Claude Code lo trata como un error no bloqueante y el refuerzo deja de actuar; `rapid doctor` lo avisa con `RAPID1339`.
+`rapid` debe estar en el `PATH` del equipo donde corre Claude Code (por ejemplo con `pipx install git+https://github.com/alyconr/Rapid-OS.git`). Si no se resuelve, Claude Code lo trata como un error no bloqueante y el refuerzo deja de actuar; `rapid doctor` lo avisa con `RAPID1339`.
 
 ### Qué hace `Stop`
 
