@@ -7,6 +7,7 @@ execution mode, harness identifier, and starting git HEAD commit.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -163,6 +164,55 @@ def observed_changes(
         ):
             changed.append(path)
     return changed
+
+
+def _probe_git_work_tree(cwd: Path | str | None) -> tuple[str, str]:
+    """`(state, stderr)` of `git rev-parse --is-inside-work-tree` in `cwd`."""
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=str(cwd) if cwd else None,
+            capture_output=True,
+            text=True,
+            check=False,
+            shell=False,
+        )
+    except OSError:
+        return "missing", ""
+    if proc.returncode == 0 and proc.stdout.strip() == "true":
+        return "inside", ""
+    stderr = proc.stderr or ""
+    if "dubious ownership" in stderr or "safe.directory" in stderr:
+        return "untrusted", stderr
+    return "outside", stderr
+
+
+def git_work_tree_state(cwd: Path | str | None = None) -> str:
+    """Whether `cwd` is inside a git work tree: `inside`, `outside`, `untrusted` or `missing`.
+
+    `untrusted` is a repository that git refuses to read ("detected dubious ownership", common on
+    another drive or in a folder another user created): there is nothing to create, the person has
+    to trust the folder. `missing` is git not installed. A folder inside a parent repository is
+    `inside`: Rapid OS never nests repositories.
+    """
+    return _probe_git_work_tree(cwd)[0]
+
+
+_DUBIOUS_PATH_RES = (
+    re.compile(r"repository at '([^']+)'"),
+    re.compile(r"safe\.directory[ \t]+(\S[^\r\n]*?)[ \t]*$", re.MULTILINE),
+)
+
+
+def git_trust_command(cwd: Path | str | None = None) -> str:
+    """The command that makes git trust `cwd`, with the path as git prints it in its own message
+    (forward slashes); the project's path with `/` when the message has none."""
+    _state, stderr = _probe_git_work_tree(cwd)
+    for pattern in _DUBIOUS_PATH_RES:
+        match = pattern.search(stderr)
+        if match:
+            return f"git config --global --add safe.directory {match.group(1)}"
+    return f"git config --global --add safe.directory {Path(cwd or '.').absolute().as_posix()}"
 
 
 def resolve_git_head(cwd: Path | str | None = None) -> str | None:

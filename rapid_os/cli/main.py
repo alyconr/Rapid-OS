@@ -723,6 +723,10 @@ def init_project(args):
     if installed_agent_hooks:
         _warn_if_rapid_not_on_path()
 
+    from rapid_os.orchestration import setup_apply as _setup_apply
+
+    _ensure_git_repository_for_setup(_setup_apply)
+
     # Update .gitignore if present in project root
     gitignore_path = CURRENT_DIR / ".gitignore"
     if gitignore_path.exists():
@@ -3473,6 +3477,15 @@ def _setup_write(args, action_name, state, catalog, doc_banks):
     raise apply.SetupApplyError("RAPID1413", f"Unknown setup subcommand '{action_name}'.")
 
 
+def _ensure_git_repository_for_setup(apply):
+    """Rapid OS observes a run's changes with git: the onboarding gives the project a repository."""
+    git = apply.ensure_git_repository(CURRENT_DIR)
+    if git.note:
+        print(git.note)
+    if git.warning:
+        print(f"WARNING {git.warning}", file=sys.stderr)
+
+
 def setup_command(args):
     """Execute rapid setup. next and show are read-only; set, stack, doc and finish write."""
     from dataclasses import replace as dc_replace
@@ -3537,6 +3550,9 @@ def setup_command(args):
         if action_name == "finish":
             state = snapshot.state
             apply.ensure_finishable(next_action(state))
+            # Every `finish`, not only the first: it is what RAPID1416 tells the person to run
+            # when the repository was removed after the onboarding.
+            _ensure_git_repository_for_setup(apply)
             if not state.finished:
                 result = apply.apply_setup(
                     CURRENT_DIR,
@@ -3710,7 +3726,7 @@ def _story_lines(run_id, verdict, tick=True):
 def finish_command(args):
     """Execute rapid finish command."""
     from rapid_os.orchestration.actions import NextAction
-    from rapid_os.orchestration.lifecycle import execute_finish
+    from rapid_os.orchestration.lifecycle import execute_finish, unverified_reason
 
     code, result = execute_finish(
         CURRENT_DIR,
@@ -3742,9 +3758,15 @@ def finish_command(args):
         result.run_id, result.verdict.value, tick=not getattr(args, "no_tick", False)
     )
     no_baseline = _baseline_waived(result.run_id)
+    reason = unverified_reason(result, CURRENT_DIR)
     if getattr(args, "json", False):
-        print(json.dumps(result.to_dict(), indent=2))
+        payload = result.to_dict()
+        if reason:
+            payload["unverified_reason"] = reason
+        print(json.dumps(payload, indent=2))
         # stdout stays the report alone; the notes go to stderr.
+        if reason:
+            print(reason, file=sys.stderr)
         if no_baseline:
             print(NO_BASELINE_LINE, file=sys.stderr)
         for line in suggestions:
@@ -3757,6 +3779,8 @@ def finish_command(args):
         f"Evaluation report {revision:04d} for run '{result.run_id}': "
         f"verdict {result.verdict.value.upper()}"
     )
+    if reason:
+        print(reason)
     if no_baseline:
         print(NO_BASELINE_LINE)
     for line in suggestions:

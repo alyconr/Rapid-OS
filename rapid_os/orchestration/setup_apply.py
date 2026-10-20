@@ -11,6 +11,7 @@ updated in the same operation and never contradicts it.
 from __future__ import annotations
 
 import shlex
+import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Mapping, Sequence
@@ -50,6 +51,7 @@ from rapid_os.domain.project_docs import (
     validate_doc_body,
     with_doc_status,
 )
+from rapid_os.orchestration.session import git_trust_command, git_work_tree_state
 from rapid_os.domain.setup import ARCHETYPES, DocState, SetupAction, SetupActionKind, SetupState, StackChoice
 
 DECISION_KEYS = ("stack", "topology", "archetype", "agents", "test-command")
@@ -362,6 +364,72 @@ def regenerate_agent_context(project_root: Path, rapid_dir: Path, config_file: P
     full_context = compose_project_context(rapid_dir, project_root)
     generate_agent_contexts(full_context, result.config.get("tools", []), project_root)
     return warnings
+
+
+@dataclass(frozen=True)
+class GitSetup:
+    """What `ensure_git_repository` did: a note when it created the repository, a warning when
+    git is missing, neither when the folder already is inside one."""
+
+    note: str | None = None
+    warning: str | None = None
+
+
+DEFAULT_GIT_BRANCH = "main"
+GIT_MISSING_WARNING = "Instala git: los runs de Rapid OS lo necesitan para observar los cambios"
+
+
+def _git_default_branch(project_root: Path) -> str:
+    """`init.defaultBranch` when the person set a valid one; `main` otherwise (never `master`)."""
+    try:
+        configured = subprocess.run(
+            ["git", "config", "--get", "init.defaultBranch"],
+            cwd=str(project_root), capture_output=True, text=True, check=False, shell=False,
+        ).stdout.strip()
+        if configured and subprocess.run(
+            ["git", "check-ref-format", "--branch", configured],
+            cwd=str(project_root), capture_output=True, text=True, check=False, shell=False,
+        ).returncode == 0:
+            return configured
+    except OSError:
+        pass
+    return DEFAULT_GIT_BRANCH
+
+
+def ensure_git_repository(project_root: Path) -> GitSetup:
+    """Give the project a git repository, because Rapid OS observes a run's changes with git.
+
+    Nothing happens inside an existing work tree (a parent repository counts: repositories are
+    never nested). Otherwise `git init`, then `symbolic-ref HEAD` to the branch before the first
+    commit (it works on every git version, unlike `git init -b`). It makes no commit. Without
+    git installed it only warns: the onboarding does not fail.
+    """
+    root = Path(project_root)
+    state = git_work_tree_state(root)
+    if state == "inside":
+        return GitSetup()
+    if state == "missing":
+        return GitSetup(warning=GIT_MISSING_WARNING)
+    if state == "untrusted":
+        # There is a repository git does not trust: `git init` would not fix it.
+        return GitSetup(
+            warning=f"git no confía en esta carpeta (dubious ownership). Ejecuta: {git_trust_command(root)}"
+        )
+    branch = _git_default_branch(root)
+    try:
+        # `-c` keeps `git init` from reading an invalid `init.defaultBranch` the person left behind.
+        for argv in (
+            ["git", "-c", f"init.defaultBranch={branch}", "init", "-q"],
+            ["git", "symbolic-ref", "HEAD", f"refs/heads/{branch}"],
+        ):
+            done = subprocess.run(argv, cwd=str(root), capture_output=True, text=True, check=False, shell=False)
+            if done.returncode != 0:
+                return GitSetup(warning=f"No se pudo crear el repositorio git ({done.stderr.strip() or argv[-1]})")
+    except OSError:
+        return GitSetup(warning=GIT_MISSING_WARNING)
+    return GitSetup(
+        note=f"Repositorio git creado en la rama {branch} (Rapid OS observa los cambios con git)"
+    )
 
 
 def update_gitignore(project_root: Path) -> list[str]:

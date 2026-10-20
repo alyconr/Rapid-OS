@@ -117,8 +117,12 @@ class DocumentationContractTests(unittest.TestCase):
         # Brief stories and agent-file backups.
         self.assertIn("solo marca como hecha la historia del brief que el run cerró", concept)
         self.assertIn(".rapid-os/backups/", concept)
+        self.assertIn("solo crea un repositorio git", concept)
+        self.assertIn("nunca hace commits", concept)
         self.assertIn("solo marca la historia que el run cerró", boundaries)
         self.assertIn(".rapid-os/backups/", boundaries)
+        self.assertIn("solo crea un repositorio git", boundaries)
+        self.assertIn("nunca hace commits", boundaries)
         self.assertIn("nunca aprueban gates humanos", boundaries)
         self.assertIn("no invoca automáticamente", boundaries)
         self.assertIn("no utiliza llm-as-a-judge", boundaries)
