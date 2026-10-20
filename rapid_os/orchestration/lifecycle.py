@@ -59,6 +59,7 @@ from rapid_os.orchestration.session import (
     clear_session,
     load_session,
     resolve_git_head,
+    observed_changes,
     resolve_git_untracked,
     save_session,
 )
@@ -653,35 +654,9 @@ def execute_finish(
                 f"RAPID1335 Workspace '{diff_cwd}' of run '{run_id}' no longer exists. "
                 "Restore it with 'git worktree add' or run 'rapid abort'.",
             )
-    pre_existing_untracked = set(sess.start_untracked or ())
     if start_head:
-        try:
-            p_diff = subprocess.run(
-                ["git", "diff", "--name-only", start_head],
-                cwd=str(diff_cwd),
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            p_untracked = subprocess.run(
-                ["git", "ls-files", "--others", "--exclude-standard"],
-                cwd=str(diff_cwd),
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            untracked_lines = [
-                u for u in p_untracked.stdout.splitlines()
-                if u.strip().replace("\\", "/") not in pre_existing_untracked
-            ]
-            raw_lines = p_diff.stdout.splitlines() + untracked_lines
-            for r in raw_lines:
-                r_clean = r.strip().replace("\\", "/")
-                if r_clean and not r_clean.startswith(".rapid-os/"):
-                    if r_clean not in changed_files:
-                        changed_files.append(r_clean)
-        except Exception:
-            pass
+        # Tool artifacts (`__pycache__`, `*.pyc`...) are not writes of the project.
+        changed_files = observed_changes(diff_cwd, start_head, sess.start_untracked or ())
 
     if changed_files:
         current_state = run_reg.get_state(run_id)

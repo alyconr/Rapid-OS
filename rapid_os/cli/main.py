@@ -731,7 +731,7 @@ def init_project(args):
             do_update = True
         else:
             ans = safe_prompt(
-                "\n¿Añadir archivos de sesión y scratch a .gitignore? [Y/n]: ",
+                "\n¿Añadir archivos de sesión, scratch y artefactos de herramientas (__pycache__, *.pyc, .pytest_cache) a .gitignore? [Y/n]: ",
                 default="y",
                 flag_hint="--yes",
             )
