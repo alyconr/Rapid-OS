@@ -94,7 +94,7 @@ def validate_doc_body(body: str, bank: SetupDocBank) -> tuple[DocIssue, ...]:
     return tuple(issues)
 
 
-_LOST_CHAR_RE = re.compile(r"[^\W\d_]\?[^\W\d_]")
+_LOST_CHAR_RE = re.compile(r"[^\W\d_]\?[^\W\d_]|(?<![\w¿?])\?[^\W\d_]")
 _NOT_PROSE_RE = re.compile(r"```.*?```|`[^`\n]*`|\S+://\S+", re.DOTALL)
 LOST_CHARACTERS_MESSAGE = (
     "El texto perdió caracteres (acentos o ñ convertidos en '?'); "
@@ -103,7 +103,8 @@ LOST_CHARACTERS_MESSAGE = (
 
 
 def has_lost_characters(body: str) -> bool:
-    """A letter, '?' and a letter ("vac?os"): what a non-UTF-8 pipe leaves of "vacíos".
+    """A '?' between two letters ("vac?os") or opening a word ("?xito"): what a non-UTF-8 pipe
+    leaves of "vacíos" and "éxito". A question mark that closes a word ("¿Listo?") is not flagged.
 
     Code and URLs are left out, where `a?b` is legitimate (a query string, a regex).
     """

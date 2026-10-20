@@ -172,6 +172,9 @@ class HarnessFromConfigToolsTests(TempProject):
 
 class LostCharactersTests(unittest.TestCase):
     def test_detection(self):
+        self.assertTrue(has_lost_characters("## ?xito\nTodo bien"))
+        self.assertTrue(has_lost_characters("?xito"))
+        self.assertFalse(has_lost_characters("¿?bien ¿Listo? Sí. ok ? no"))
         self.assertTrue(has_lost_characters("## Decisi?n\nvac?os"))
         self.assertTrue(has_lost_characters("## ?xito"[2:] + "a?b"))
         self.assertFalse(has_lost_characters("## Decisión\n¿Qué? Sí. Listo?\n"))
