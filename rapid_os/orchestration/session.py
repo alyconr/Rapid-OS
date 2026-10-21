@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -17,6 +16,7 @@ from rapid_os.adapters.run_registry import RunRegistry
 from rapid_os.core.filesystem import safe_write_text
 from rapid_os.domain.execution import RunStatus
 from rapid_os.domain.file_changes import is_tool_artifact, normalize_path
+from rapid_os.orchestration.git import is_untrusted_message, run_git
 from rapid_os.domain.validation import ERROR, WARNING, Diagnostic, ValidationReport
 
 
@@ -99,14 +99,7 @@ def resolve_git_untracked(cwd: Path | str | None = None) -> tuple[str, ...] | No
     "nothing untracked" (empty tuple) from "unknown".
     """
     try:
-        proc = subprocess.run(
-            ["git", "ls-files", "--others", "--exclude-standard"],
-            cwd=str(cwd) if cwd else None,
-            capture_output=True,
-            text=True,
-            check=False,
-            shell=False,
-        )
+        proc = run_git(cwd, "ls-files", "--others", "--exclude-standard")
     except Exception:
         return None
     if proc.returncode != 0:
@@ -136,16 +129,9 @@ def observed_changes(
     and `rapid finish` (which subtracts it) agree. Returns [] when git cannot answer.
     """
     already = set(pre_existing_untracked)
-    git_args = ["git", "diff", "--name-only", start_head] if start_head else ["git", "ls-files"]
+    git_args = ("diff", "--name-only", start_head) if start_head else ("ls-files",)
     try:
-        proc = subprocess.run(
-            git_args,
-            cwd=str(cwd),
-            capture_output=True,
-            text=True,
-            check=False,
-            shell=False,
-        )
+        proc = run_git(cwd, *git_args)
         untracked = resolve_git_untracked(cwd) or ()
     except Exception:
         return []
@@ -169,20 +155,13 @@ def observed_changes(
 def _probe_git_work_tree(cwd: Path | str | None) -> tuple[str, str]:
     """`(state, stderr)` of `git rev-parse --is-inside-work-tree` in `cwd`."""
     try:
-        proc = subprocess.run(
-            ["git", "rev-parse", "--is-inside-work-tree"],
-            cwd=str(cwd) if cwd else None,
-            capture_output=True,
-            text=True,
-            check=False,
-            shell=False,
-        )
+        proc = run_git(cwd, "rev-parse", "--is-inside-work-tree")
     except OSError:
         return "missing", ""
     if proc.returncode == 0 and proc.stdout.strip() == "true":
         return "inside", ""
     stderr = proc.stderr or ""
-    if "dubious ownership" in stderr or "safe.directory" in stderr:
+    if is_untrusted_message(stderr):
         return "untrusted", stderr
     return "outside", stderr
 
@@ -218,14 +197,7 @@ def git_trust_command(cwd: Path | str | None = None) -> str:
 def resolve_git_head(cwd: Path | str | None = None) -> str | None:
     """Safely resolve current git HEAD commit hash, returning None if not in git or on error."""
     try:
-        proc = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=str(cwd) if cwd else None,
-            capture_output=True,
-            text=True,
-            check=False,
-            shell=False,
-        )
+        proc = run_git(cwd, "rev-parse", "HEAD")
         if proc.returncode == 0:
             commit = proc.stdout.strip()
             if commit:

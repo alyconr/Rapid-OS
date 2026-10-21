@@ -154,6 +154,29 @@ rapid eval run --run <run-id> --write --require-pass
 
 ---
 
+## Windows: sandbox y git
+
+**Por qué pasa.** En Windows, Codex ejecuta los comandos dentro de un sandbox. En su modo por defecto (`elevated`) los comandos corren con usuarios de sandbox dedicados y de menos privilegios ([Windows sandbox](https://learn.chatgpt.com/docs/windows/windows-sandbox.md)). git, por su parte, se niega a leer una carpeta cuyo dueño no es el usuario que lo ejecuta (`detected dubious ownership`). Esa página de Codex describe el sandbox pero no menciona git: la relación entre ambos es esta, observada en la práctica. Resultado: lo que corre el harness y lo que corres tú a mano en tu terminal ven la misma carpeta con distinto dueño.
+
+**Lo que Rapid OS ya resuelve.** Todos los comandos git de Rapid OS pasan por una sola puerta (`rapid_os/orchestration/git.py`) que añade `-c safe.directory=<raíz del proyecto>` y `-c core.fsmonitor=false`. Confía solo en la raíz del proyecto, nunca en `*`, y desactiva el fsmonitor (lo que permite que un repositorio ajeno ejecute programas al leerlo). Por eso `rapid setup finish`, `rapid start` y `rapid finish` funcionan dentro del sandbox sin pedirte nada. `safe.directory` por línea de comandos se respeta desde git 2.38; en versiones anteriores git lo ignora y Rapid OS lo trata como `untrusted` (`RAPID1416`).
+
+**Lo único que te toca a ti.** Para usar git tú mismo en esa carpeta (`git status`, `git commit`...), el git de tu usuario necesita la excepción. Rapid OS lo detecta (pregunta a git como lo harías tú, sin esos `-c`) y lo entrega como una acción en `person_actions` de `rapid setup finish`, `rapid setup next --json` (`kind: done`) y `rapid doctor`, y el shortcut te la muestra con su explicación:
+
+```bash
+git config --global --add safe.directory C:/ruta/de/tu/proyecto
+```
+
+La ruta es la raíz del proyecto con `/`. No necesita permisos de administrador (solo lo lee tu usuario) y nunca se usa `--system` ni `*`. Ejecútalo en tu propia terminal: el agente no debe hacerlo por ti.
+
+**Alternativa: `unelevated`.** Si prefieres que los comandos corran con tu propio usuario, Codex permite el sandbox `unelevated` en `config.toml`:
+
+```toml
+[windows]
+sandbox = "unelevated"
+```
+
+Tiene un costo de aislamiento: según la misma página es un modo heredado (*legacy fallback*) que usa un token restringido derivado de tu usuario en lugar del límite de usuario de sandbox de `elevated`, con un aislamiento de red más débil (controles a nivel de entorno en vez de la regla de firewall dedicada) y sin soporte para rutas de lectura denegadas. Rapid OS funciona igual con cualquiera de los dos.
+
 ## 8. Problemas Frecuentes
 
 - **El harness intenta modificar rutas fuera de scope:** La evaluación detectará discrepancias si la evidencia no coincide con las rutas del contrato.

@@ -11,7 +11,6 @@ updated in the same operation and never contradicts it.
 from __future__ import annotations
 
 import shlex
-import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Mapping, Sequence
@@ -51,6 +50,7 @@ from rapid_os.domain.project_docs import (
     validate_doc_body,
     with_doc_status,
 )
+from rapid_os.orchestration.git import run_git
 from rapid_os.orchestration.session import git_trust_command, git_work_tree_state
 from rapid_os.domain.setup import ARCHETYPES, DocState, SetupAction, SetupActionKind, SetupState, StackChoice
 
@@ -382,14 +382,8 @@ GIT_MISSING_WARNING = "Instala git: los runs de Rapid OS lo necesitan para obser
 def _git_default_branch(project_root: Path) -> str:
     """`init.defaultBranch` when the person set a valid one; `main` otherwise (never `master`)."""
     try:
-        configured = subprocess.run(
-            ["git", "config", "--get", "init.defaultBranch"],
-            cwd=str(project_root), capture_output=True, text=True, check=False, shell=False,
-        ).stdout.strip()
-        if configured and subprocess.run(
-            ["git", "check-ref-format", "--branch", configured],
-            cwd=str(project_root), capture_output=True, text=True, check=False, shell=False,
-        ).returncode == 0:
+        configured = run_git(project_root, "config", "--get", "init.defaultBranch").stdout.strip()
+        if configured and run_git(project_root, "check-ref-format", "--branch", configured).returncode == 0:
             return configured
     except OSError:
         pass
@@ -418,15 +412,22 @@ def ensure_git_repository(project_root: Path) -> GitSetup:
     branch = _git_default_branch(root)
     try:
         # `-c` keeps `git init` from reading an invalid `init.defaultBranch` the person left behind.
-        for argv in (
-            ["git", "-c", f"init.defaultBranch={branch}", "init", "-q"],
-            ["git", "symbolic-ref", "HEAD", f"refs/heads/{branch}"],
-        ):
-            done = subprocess.run(argv, cwd=str(root), capture_output=True, text=True, check=False, shell=False)
-            if done.returncode != 0:
-                return GitSetup(warning=f"No se pudo crear el repositorio git ({done.stderr.strip() or argv[-1]})")
+        init = run_git(root, "-c", f"init.defaultBranch={branch}", "init", "-q")
+        if init.returncode != 0:
+            detail = init.stderr.strip() or "git init falló"
+            return GitSetup(warning=f"No se pudo crear el repositorio git ({detail})")
+        head = run_git(root, "symbolic-ref", "HEAD", f"refs/heads/{branch}")
     except OSError:
         return GitSetup(warning=GIT_MISSING_WARNING)
+    if head.returncode != 0:
+        # The repository exists: say what was created and what failed, not "could not create".
+        detail = head.stderr.strip() or "git symbolic-ref HEAD falló"
+        return GitSetup(
+            warning=(
+                f"Se creó el repositorio git (git init), pero no se pudo fijar la rama {branch} ({detail}); "
+                "HEAD quedó en la rama que eligió git"
+            )
+        )
     return GitSetup(
         note=f"Repositorio git creado en la rama {branch} (Rapid OS observa los cambios con git)"
     )
