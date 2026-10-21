@@ -339,6 +339,7 @@ class FinishTests(SetupWriteBase):
             self.root, "setup", "doc", "architecture", "--source", "provided", "--file", "-", stdin="# Arq\n"
         )
         self.assertEqual(provided.returncode, 0, provided.stderr)
+        self.assertEqual(rapid(self.root, "setup", "review", "--done").returncode, 0)  # two drafts stay drafts
 
         finish = rapid(self.root, "setup", "finish", "--json")
         self.assertEqual(finish.returncode, 0, finish.stderr)
@@ -393,6 +394,7 @@ class FinishTests(SetupWriteBase):
             rapid(self.root, "setup", "doc", doc_id, "--skip")
         draft(self.root, "business", BUSINESS)
         self.assertFalse((self.root / "CLAUDE.md").exists())  # finish builds it
+        rapid(self.root, "setup", "review", "--done")
         rapid(self.root, "setup", "finish")
         self.assertIn(DRAFT_BANNER, (self.root / "CLAUDE.md").read_text(encoding="utf-8"))
         rapid(self.root, "setup", "doc", "business", "--confirm")

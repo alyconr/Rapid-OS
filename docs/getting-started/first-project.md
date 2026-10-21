@@ -50,10 +50,11 @@ La forma recomendada de empezar es dejar que tu agente conduzca el onboarding. T
    rapid setup set test-command "python -m unittest discover"
    rapid setup doc business --source drafted --file -   # el cuerpo por stdin; queda como borrador
    rapid setup doc brief --skip
+   rapid setup review --done                            # tras decidir qué borradores confirmas
    rapid setup finish
    ```
 
-4. **Confirma lo que redactó.** Lo que escribe el agente queda como borrador (`status: draft`) y entra al contexto marcado como supuesto hasta que tú lo confirmes (`rapid setup doc business --confirm`); el agente solo lo ejecuta si se lo dices de forma explícita. Al terminar te resume lo decidido y ofrece `/rapid-feature` con la primera historia sin marcar del brief.
+4. **Confirma lo que redactó.** Lo que escribe el agente queda como borrador (`status: draft`) y entra al contexto marcado como supuesto hasta que tú lo confirmes (`rapid setup doc business --confirm`); antes de cerrar el onboarding el agente te resume cada borrador y te explica qué significa confirmarlo (pasa a ser una regla que cumple sin cuestionarla) o dejarlo como supuesto (puede cuestionarlo y preguntarte, y cada run te lo recuerda). Solo ejecuta `--confirm` si se lo dices de forma explícita; después cierra la revisión con `rapid setup review --done`. Al terminar te resume lo decidido y ofrece `/rapid-feature` con la primera historia sin marcar del brief.
 
 ```text
 /rapid-feature                                   # propone la primera historia del brief

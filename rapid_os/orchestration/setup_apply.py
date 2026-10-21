@@ -188,6 +188,14 @@ def set_decision(
     return replace(state, test_command=command, finished=False), ()
 
 
+def mark_drafts_reviewed(state: SetupState) -> SetupState:
+    """`rapid setup review --done`: the person went through the drafts. Nothing is confirmed here:
+    what they did not confirm one by one stays a draft."""
+    if not any(doc.status == "drafted" and not doc.confirmed for doc in state.docs.values()):
+        raise _fail("RAPID1413", "No hay borradores que revisar")
+    return replace(state, drafts_reviewed=True)
+
+
 def ensure_finishable(action: SetupAction) -> None:
     """RAPID1407 unless every decision is taken (the next action is `finish` or `done`)."""
     if action.kind in (SetupActionKind.FINISH, SetupActionKind.DONE):
@@ -281,7 +289,9 @@ def write_doc(
     status = "confirmed" if source == "provided" else "draft"
     safe_write_text(path, render_managed_doc(bank.id, source, status, body), encoding="utf-8", backup=True)
     doc = DocState(source, source == "provided", body_sha256(body))
-    return _with_doc(state, bank.id, doc)
+    new_state = _with_doc(state, bank.id, doc)
+    # A new draft is something the person has not seen yet: the review is due again.
+    return replace(new_state, drafts_reviewed=False) if source == "drafted" else new_state
 
 
 def import_legacy_business(
@@ -338,7 +348,8 @@ def reopen_doc(project_root: Path, state: SetupState, bank: SetupDocBank) -> Set
             )
         if fields.get("status") == "confirmed":
             safe_write_text(path, with_doc_status(existing, "draft"), encoding="utf-8", backup=True)
-        return _with_doc(state, bank.id, DocState("drafted", False, fields.get("sha256", "")))
+        reopened = _with_doc(state, bank.id, DocState("drafted", False, fields.get("sha256", "")))
+        return replace(reopened, drafts_reviewed=False)
     return state  # pending already: nothing to reopen
 
 

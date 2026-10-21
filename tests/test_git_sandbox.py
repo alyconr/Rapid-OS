@@ -144,6 +144,8 @@ class OtherOwnerSandboxTests(GitIsolated):
             if brief and doc == "brief":
                 continue
             self.assertEqual(self.as_other_owner("setup", "doc", doc, "--skip").returncode, 0)
+        if brief:  # the drafted brief stays a draft: the person only went through it
+            self.assertEqual(self.as_other_owner("setup", "review", "--done").returncode, 0)
         return self.as_other_owner("setup", "finish", "--json")
 
     def command(self):

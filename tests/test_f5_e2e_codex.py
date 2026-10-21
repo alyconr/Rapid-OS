@@ -400,6 +400,7 @@ class EmptyFolderEndToEndTests(SetupAfterFinishTests):
         self.assertEqual(written.returncode, 0, written.stderr)
         for doc in ("business", "data-model", "architecture"):
             self.assertEqual(rapid(self.root, "setup", "doc", doc, "--skip").returncode, 0)
+        self.assertEqual(rapid(self.root, "setup", "review", "--done").returncode, 0)  # the brief stays a draft
         self.assertEqual(rapid(self.root, "setup", "finish").returncode, 0)
         spec = {
             "title": "Listar talleres", "mode": "feature", "business_objective": "Ver los talleres",
