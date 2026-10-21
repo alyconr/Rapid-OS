@@ -54,6 +54,7 @@ from rapid_os.orchestration.conductor import (
     next_action_without_run,
 )
 from rapid_os.orchestration.playbooks import load_playbook
+from rapid_os.orchestration.git import run_git
 from rapid_os.orchestration.session import (
     Session,
     clear_session,
@@ -758,14 +759,7 @@ def execute_finish(
 
 def _git_user_name(project_root: Path) -> str | None:
     try:
-        proc = subprocess.run(
-            ["git", "config", "user.name"],
-            cwd=str(project_root),
-            capture_output=True,
-            text=True,
-            check=False,
-            shell=False,
-        )
+        proc = run_git(project_root, "config", "user.name")
     except OSError:
         return None
     name = proc.stdout.strip() if proc.returncode == 0 else ""

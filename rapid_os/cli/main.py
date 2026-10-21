@@ -11,6 +11,7 @@ from pathlib import Path
 from rapid_os import __version__
 from rapid_os.adapters.agents import DEFAULT_AGENT_REGISTRY
 from rapid_os.core.harness_detect import detect_harness
+from rapid_os.orchestration.git import person_action_lines, person_actions
 
 from rapid_os.adapters.mcp import (
     render_mcp_install_content,
@@ -1199,9 +1200,12 @@ def generate_prompt(args):
     print("\n" + "=" * 50)
 
 
-def render_validation_report(report, json_output=False, strict=False):
+def render_validation_report(report, json_output=False, strict=False, actions=None):
     if json_output:
-        print(json.dumps(report.to_dict(strict=strict), indent=2))
+        payload = report.to_dict(strict=strict)
+        if actions:
+            payload["person_actions"] = actions
+        print(json.dumps(payload, indent=2))
         return report.exit_code(strict=strict)
 
     for diagnostic in report.diagnostics:
@@ -1217,6 +1221,8 @@ def render_validation_report(report, json_output=False, strict=False):
         "Summary: "
         f"{counts[INFO]} info, {counts[WARNING]} warning, {counts[ERROR]} error"
     )
+    for line in person_action_lines(actions or []):
+        print(line)
     return report.exit_code(strict=strict)
 
 
@@ -1367,7 +1373,9 @@ def doctor_command(args):
             )
         )
 
-    sys.exit(render_validation_report(report, args.json, args.strict))
+    sys.exit(
+        render_validation_report(report, args.json, args.strict, actions=person_actions(CURRENT_DIR))
+    )
 
 
 def inspect_context_command(args):
@@ -3617,15 +3625,21 @@ def setup_command(args):
             sys.exit(1)
 
     action = next_action(state)
+    # What only the person can do (the harness cannot): offered once the onboarding is over.
+    actions = person_actions(CURRENT_DIR) if action.kind == SetupActionKind.DONE else []
     if as_json:
         payload = action.to_dict()
         if notes:
             payload["notes"] = list(notes)
+        if actions:
+            payload["person_actions"] = actions
         print(json.dumps(payload, indent=2))
         return 0
     if summary:
         print(summary)
     print("\n".join(_format_setup_action(action)))
+    for line in person_action_lines(actions):
+        print(line)
     return 0
 
 
@@ -3754,9 +3768,13 @@ def finish_command(args):
         return 0
 
     # result is EvaluationReport
-    suggestions = _story_lines(
-        result.run_id, result.verdict.value, tick=not getattr(args, "no_tick", False)
-    )
+    # Ticking the story rebuilds the agent files, which print on stdout: with --json that
+    # stream is the report alone.
+    quiet = contextlib.redirect_stdout(sys.stderr) if getattr(args, "json", False) else contextlib.nullcontext()
+    with quiet:
+        suggestions = _story_lines(
+            result.run_id, result.verdict.value, tick=not getattr(args, "no_tick", False)
+        )
     no_baseline = _baseline_waived(result.run_id)
     reason = unverified_reason(result, CURRENT_DIR)
     if getattr(args, "json", False):

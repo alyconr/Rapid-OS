@@ -122,6 +122,8 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertIn("solo marca la historia que el run cerró", boundaries)
         self.assertIn(".rapid-os/backups/", boundaries)
         self.assertIn("solo crea un repositorio git", boundaries)
+        self.assertIn("todos sus comandos git pasan por una sola puerta", boundaries)
+        self.assertIn("nunca modifica la configuración de git de la persona", boundaries)
         self.assertIn("nunca hace commits", boundaries)
         self.assertIn("nunca aprueban gates humanos", boundaries)
         self.assertIn("no invoca automáticamente", boundaries)

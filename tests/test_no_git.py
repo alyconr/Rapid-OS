@@ -375,7 +375,7 @@ def fake_git(rev_parse_stderr, calls=None):
     def run(argv, *args, **kwargs):
         if calls is not None:
             calls.append(list(argv))
-        if argv[:2] == ["git", "rev-parse"]:
+        if argv[0] == "git" and "rev-parse" in argv:
             return subprocess.CompletedProcess(argv, 128, stdout="", stderr=rev_parse_stderr)
         raise AssertionError(f"unexpected command: {argv}")
 
@@ -402,7 +402,7 @@ class UntrustedRepositoryTests(unittest.TestCase):
         calls = []
         with mock.patch("subprocess.run", side_effect=fake_git(DUBIOUS, calls)):
             result = ensure_git_repository(Path("C:/work/app"))
-        self.assertTrue(all(argv[:2] == ["git", "rev-parse"] for argv in calls), calls)
+        self.assertTrue(all("rev-parse" in argv for argv in calls), calls)
         self.assertIsNone(result.note)
         self.assertEqual(
             result.warning,

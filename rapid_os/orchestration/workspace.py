@@ -9,6 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 
+from rapid_os.orchestration.git import run_git
+
 from rapid_os.orchestration.session import load_session
 
 
@@ -26,14 +28,7 @@ def worktree_path_for(project_root: Path, run_id: str) -> Path:
 
 
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["git", *args],
-        cwd=str(cwd),
-        capture_output=True,
-        text=True,
-        check=False,
-        shell=False,
-    )
+    return run_git(cwd, *args)
 
 
 def _registered_worktrees(project_root: Path) -> set[str]:

@@ -112,6 +112,8 @@ rapid doctor
 rapid doctor --json
 ```
 
+When the folder is a git repository that git refuses for the person's own terminal ("dubious ownership") but accepts for Rapid OS, `doctor` adds the optional `person_actions` list (see `rapid setup`): `[{"id": "git-safe-directory", "why": ..., "command": ...}]` in `--json`, and the text `Para usar git tú mismo en esta carpeta, ejecuta en tu terminal: <comando>` plus its reason otherwise. Nothing is added for a repository the person owns.
+
 ### `rapid inspect-context`
 Assemble and preview the legacy v2 composed project context without writing agent files. Read-only.
 
@@ -527,6 +529,7 @@ rapid setup finish [--json]
   - Every action except `done` carries `command`, the argv that resolves it; `finish` and `done` list `unconfirmed_docs[]`: drafted documents nobody has confirmed.
 - `set` after `finish`: when the onboarding is already finished and no decision is left open, `rapid setup set <key> <value>` applies the change right away (`config.json` or the standards, like `finish` would) and leaves `finished: true`; it does not reopen the onboarding. `rapid setup set test-command <cmd>` is how a project that accepted `none` gets its test command: `rapid task done` needs it (`RAPID1301` suggests this command), and the scaffold task of an empty repository says so when there is none.
 - `doc <id> --source drafted` rejects a body where a `?` sits between two letters or opens a word (`vac?os`, `Decisi?n`, `?xito`), which is what a pipe that is not UTF-8 leaves of the accents (`RAPID1415`; code blocks, inline code and URLs are ignored). Send the text with `--file <path>` from a UTF-8 file; in Windows PowerShell 5.1 do not pipe the text, write it with `Set-Content -Encoding utf8 $env:TEMP\rapid-<id>.md` first. With `--source provided` the same pattern is only a `WARNING RAPID1415`: what a person pastes is stored as is.
+- `person_actions`: when the next action is `done` (so after `finish`, and in `next --json`), the payload carries `person_actions[]` (`id`, `why`, `command`) only if the person needs something that Rapid OS cannot do for them: today `git-safe-directory`, the per-user command that lets their own git read this folder (the harness runs commands as another Windows user and git requires the same owner). It is omitted otherwise. The shortcuts show it as is and ask the person to run it in their own terminal. Rapid OS runs every git command with `safe.directory` set to the project root only, and with the fsmonitor off.
 - `show`: the state and its `origin`: `setup.json`, `derived` or `empty`. `--json` emits `{origin, state}`.
 
 State resolution: `.rapid-os/setup.json` when it exists (invalid: `RAPID1406`, exit 1); otherwise, if `.rapid-os/` exists (a project initialized before the setup flow), the state is derived from disk (`tech-stack.md`, `topology.md`, `coding-rules.md`, `config.json`, and the documents that carry `rapid-doc` frontmatter), without writing anything; without `.rapid-os/` the state is empty and `next` returns `choose_stack`. A broken catalog sidecar or question bank is `RAPID1401`; an invalid `rapid setup` subcommand, key or value (including a missing subcommand) is `RAPID1413`.
