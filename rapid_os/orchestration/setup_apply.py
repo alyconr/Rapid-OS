@@ -379,17 +379,6 @@ DEFAULT_GIT_BRANCH = "main"
 GIT_MISSING_WARNING = "Instala git: los runs de Rapid OS lo necesitan para observar los cambios"
 
 
-def _git_default_branch(project_root: Path) -> str:
-    """`init.defaultBranch` when the person set a valid one; `main` otherwise (never `master`)."""
-    try:
-        configured = run_git(project_root, "config", "--get", "init.defaultBranch").stdout.strip()
-        if configured and run_git(project_root, "check-ref-format", "--branch", configured).returncode == 0:
-            return configured
-    except OSError:
-        pass
-    return DEFAULT_GIT_BRANCH
-
-
 def ensure_git_repository(project_root: Path) -> GitSetup:
     """Give the project a git repository, because Rapid OS observes a run's changes with git.
 
@@ -409,9 +398,11 @@ def ensure_git_repository(project_root: Path) -> GitSetup:
         return GitSetup(
             warning=f"git no confía en esta carpeta (dubious ownership). Ejecuta: {git_trust_command(root)}"
         )
-    branch = _git_default_branch(root)
+    # Always `main`, whatever `init.defaultBranch` says: Git for Windows and the harness sandbox user
+    # may carry `master` in a config the person never chose, and the runs' branches start from `main`.
+    branch = DEFAULT_GIT_BRANCH
     try:
-        # `-c` keeps `git init` from reading an invalid `init.defaultBranch` the person left behind.
+        # `-c` keeps `git init` from reading any `init.defaultBranch` of the machine.
         init = run_git(root, "-c", f"init.defaultBranch={branch}", "init", "-q")
         if init.returncode != 0:
             detail = init.stderr.strip() or "git init falló"
