@@ -171,6 +171,8 @@ class Sprint4DocumentationLabsTests(unittest.TestCase):
                     if line.startswith("rapid "):
                         # Normalize placeholders
                         normalized = re.sub(r"<[^>]+>", "placeholder", line)
+                        # A trailing shell redirection (`> file 2>&1`) is not part of the command.
+                        normalized = re.sub(r"\s+>\s*\S+(\s+2>&1)?\s*$", "", normalized)
                         tokens = shlex.split(normalized)
                         cli_args = tokens[1:]  # skip 'rapid'
                         try:

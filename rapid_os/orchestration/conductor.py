@@ -33,6 +33,7 @@ MACHINE_GATE_KINDS = frozenset(
     {
         GateKind.BASELINE_CHECK,
         GateKind.IMPLEMENTATION_TESTS,
+        GateKind.ARCHITECTURE_CHECK,
         GateKind.WORKSPACE_ISOLATION,
     }
 )
@@ -597,6 +598,9 @@ def next_action(
                     f"{playbook.get_instruction(ActionKind.VERIFY)} "
                     "No test_command configured (RAPID1301). Please configure test_command in .rapid-os/config.json or pass --test-command."
                 )
+        elif gate_kind == GateKind.ARCHITECTURE_CHECK:
+            cmd = ("rapid", "check", "--gate", first_mg.id, "--", "rapid", "arch", "check")
+            instr = playbook.get_instruction(ActionKind.VERIFY)
         else:
             cmd = ("rapid", "check", "--gate", first_mg.id)
             instr = playbook.get_instruction(ActionKind.VERIFY)

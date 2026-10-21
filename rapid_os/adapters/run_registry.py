@@ -14,7 +14,7 @@ from rapid_os.domain.context import (
     ContextManifest,
     ContextRequest,
 )
-from rapid_os.domain.policy import waive_baseline
+from rapid_os.domain.policy import ARCHITECTURE_GATE_MODES, add_architecture_gate, waive_baseline
 from rapid_os.domain.execution import (
     ALLOWED_POLICY_SOURCES,
     DEFAULT_EXECUTION_POLICY,
@@ -806,6 +806,13 @@ class RunRegistry:
 
         if baseline_waived is not None:
             decision = waive_baseline(decision, baseline_waived)
+
+        # A project with an architecture rule verifies it before a run that writes code can pass.
+        if (
+            resolved_spec_rev.mode.value in ARCHITECTURE_GATE_MODES
+            and (self.rapid_dir / "standards" / "architecture.json").is_file()
+        ):
+            decision = add_architecture_gate(decision)
 
         # 5. Resolve deterministic Run ID
         if run_id is not None:

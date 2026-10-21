@@ -59,6 +59,7 @@ packages = [
     "rapid_os.domain",
     "rapid_os.orchestration",
     "rapid_os.templates",
+    "rapid_os.templates.architecture",
     "rapid_os.templates.archetypes",
     "rapid_os.templates.archetypes.corporate",
     "rapid_os.templates.archetypes.mvp",
@@ -77,6 +78,7 @@ version = { attr = "rapid_os.__version__" }
 
 [tool.setuptools.package-dir]
 "rapid_os.templates" = "templates"
+"rapid_os.templates.architecture" = "templates/architecture"
 "rapid_os.templates.archetypes" = "templates/archetypes"
 "rapid_os.templates.archetypes.corporate" = "templates/archetypes/corporate"
 "rapid_os.templates.archetypes.mvp" = "templates/archetypes/mvp"
@@ -91,6 +93,7 @@ version = { attr = "rapid_os.__version__" }
 
 [tool.setuptools.package-data]
 "rapid_os.templates" = ["*.md", "*.json"]
+"rapid_os.templates.architecture" = ["*.md", "*.json"]
 "rapid_os.templates.archetypes" = ["*.md", "*.json"]
 "rapid_os.templates.archetypes.corporate" = ["*.md", "*.json"]
 "rapid_os.templates.archetypes.mvp" = ["*.md", "*.json"]

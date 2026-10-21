@@ -363,7 +363,7 @@ Declarative workspace rule (`CURRENT_ALLOWED = "current_allowed"`, `ISOLATED_REQ
 - `HIGH` / `CRITICAL` require `isolated_required`.
 
 #### `GateKind`, `GatePhase`, & `GateRequirement`
-Canonical execution gates evaluated across `PRE_EXECUTION` (`gate.workspace-isolation`, `gate.baseline`, `gate.manual-approval`) and `POST_EXECUTION` (`gate.tests`, `gate.review`, `gate.security-review`, `gate.migration-review`, `gate.final-verification`):
+Canonical execution gates evaluated across `PRE_EXECUTION` (`gate.workspace-isolation`, `gate.baseline`, `gate.manual-approval`) and `POST_EXECUTION` (`gate.tests`, `gate.architecture` (only when the project has an architecture rule), `gate.review`, `gate.security-review`, `gate.migration-review`, `gate.final-verification`):
 - Ordered deterministically by `CANONICAL_GATE_ORDER` without duplicates.
 - At `CRITICAL` risk, no gate is waivable. Below `CRITICAL`, only gates listed in `policy.waivable_gate_ids` (`gate.review`, `gate.tests` by default) may be waived, and waiving always requires a non-empty `reason`.
 

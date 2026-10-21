@@ -241,10 +241,12 @@ class CatalogSidecarTests(unittest.TestCase):
                 "relationships": ("Relaciones", "Relationships"),
                 "invariants": ("Invariantes", "Invariants"),
                 "states": ("Estados", "States")}),
-            "architecture": ("docs/ARCHITECTURE.md", "HIGH", 4000, {
+            "architecture": ("docs/ARCHITECTURE.md", "HIGH", 6000, {
                 "decision": ("Decisión", "Decision"), "rationale": ("Por qué", "Rationale"),
                 "alternatives": ("Alternativas descartadas", "Rejected alternatives"),
-                "consequences": ("Consecuencias", "Consequences")}),
+                "consequences": ("Consecuencias", "Consequences"),
+                "modules": ("Módulos", "Modules"),
+                "dependency_rules": ("Reglas de dependencia", "Dependency rules")}),
         }
         banks = load_setup_doc_banks(TEMPLATES)
         for doc_id, (file, priority, max_chars, sections) in expected.items():

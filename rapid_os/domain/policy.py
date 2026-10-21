@@ -200,6 +200,7 @@ class WorkspaceRequirement(str, Enum):
 class GateKind(str, Enum):
     BASELINE_CHECK = "baseline_check"
     IMPLEMENTATION_TESTS = "implementation_tests"
+    ARCHITECTURE_CHECK = "architecture_check"
     PEER_REVIEW = "peer_review"
     SECURITY_REVIEW = "security_review"
     MIGRATION_REVIEW = "migration_review"
@@ -595,6 +596,11 @@ CANONICAL_GATE_CATALOG: Mapping[str, tuple[GateKind, GatePhase, str]] = {
         GatePhase.POST_EXECUTION,
         "Implementation changes require test verification before completion.",
     ),
+    "gate.architecture": (
+        GateKind.ARCHITECTURE_CHECK,
+        GatePhase.POST_EXECUTION,
+        "The code must respect the project's modular-monolith architecture rule (rapid arch check).",
+    ),
     "gate.review": (
         GateKind.PEER_REVIEW,
         GatePhase.POST_EXECUTION,
@@ -622,6 +628,7 @@ CANONICAL_GATE_ORDER: tuple[str, ...] = (
     "gate.baseline",
     "gate.manual-approval",
     "gate.tests",
+    "gate.architecture",
     "gate.review",
     "gate.security-review",
     "gate.migration-review",
@@ -1351,6 +1358,36 @@ class ExecutionPolicyEvaluator:
             gates=tuple(ordered_gates),
             reasons=tuple(reasons),
         )
+
+
+ARCHITECTURE_GATE_ID = "gate.architecture"
+# Modes whose runs write code the architecture rule applies to.
+ARCHITECTURE_GATE_MODES = frozenset({"feature", "bugfix", "refactor"})
+
+
+def add_architecture_gate(decision: PolicyDecision) -> PolicyDecision:
+    """The same decision plus `gate.architecture`, in canonical order (after `gate.tests`).
+
+    Pure. The caller decides when the project has an architecture rule; a decision that already
+    has the gate is returned as it is.
+    """
+    if any(g.id == ARCHITECTURE_GATE_ID for g in decision.gates):
+        return decision
+    kind, phase, reason = CANONICAL_GATE_CATALOG[ARCHITECTURE_GATE_ID]
+    added = GateRequirement(
+        id=ARCHITECTURE_GATE_ID, kind=kind, phase=phase, required=True, waivable=False, reason=reason
+    )
+    by_id = {g.id: g for g in decision.gates}
+    by_id[ARCHITECTURE_GATE_ID] = added
+    ordered = tuple(by_id[gate_id] for gate_id in CANONICAL_GATE_ORDER if gate_id in by_id)
+    return PolicyDecision(
+        classification=decision.classification,
+        risk=decision.risk,
+        risk_signals=decision.risk_signals,
+        workspace=decision.workspace,
+        gates=ordered,
+        reasons=(*decision.reasons, "gate.architecture: the project has an architecture rule."),
+    )
 
 
 BASELINE_WAIVER_REASONS: Mapping[str, str] = {

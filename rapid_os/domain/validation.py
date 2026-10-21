@@ -1978,6 +1978,11 @@ def validate_project_standards(project_rapid_dir: Path):
             continue
         diagnostics.extend(_validate_markdown_context_file(path, required=False))
 
+    # Only stacks with a backend get the architecture rule: nothing to warn about when it is absent.
+    architecture = standards_dir / "architecture.md"
+    if architecture.exists():
+        diagnostics.extend(_validate_markdown_context_file(architecture, required=False))
+
     return ValidationReport(tuple(diagnostics))
 
 
