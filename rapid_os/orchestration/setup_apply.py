@@ -188,11 +188,21 @@ def set_decision(
     return replace(state, test_command=command, finished=False), ()
 
 
+REVIEW_NOTHING_LEFT = "Todos los borradores quedaron confirmados; no hay nada más que revisar"
+
+
+def has_unconfirmed_drafts(state: SetupState) -> bool:
+    return any(doc.status == "drafted" and not doc.confirmed for doc in state.docs.values())
+
+
 def mark_drafts_reviewed(state: SetupState) -> SetupState:
     """`rapid setup review --done`: the person went through the drafts. Nothing is confirmed here:
-    what they did not confirm one by one stays a draft."""
-    if not any(doc.status == "drafted" and not doc.confirmed for doc in state.docs.values()):
-        raise _fail("RAPID1413", "No hay borradores que revisar")
+    what they did not confirm one by one stays a draft.
+
+    With no unconfirmed draft left (the person confirmed them all) there is nothing to record:
+    the state is returned as it is, so the command succeeds without writing anything."""
+    if not has_unconfirmed_drafts(state):
+        return state
     return replace(state, drafts_reviewed=True)
 
 

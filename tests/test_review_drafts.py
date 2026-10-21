@@ -204,14 +204,39 @@ class ReviewCommandTests(CliCase):
         text = (self.root / "docs" / "PRODUCT_BRIEF.md").read_text("utf-8")
         self.assertIn("status: draft", text)
 
-    def test_without_drafts_there_is_nothing_to_review(self):
+    NOTHING_LEFT = "Todos los borradores quedaron confirmados; no hay nada más que revisar"
+
+    def test_with_every_draft_confirmed_review_done_is_a_no_op_that_succeeds(self):
+        self.decide()
+        self.draft("brief", BRIEF)
+        self.skip("business", "data-model", "architecture")
+        self.assertEqual(self.rapid("setup", "doc", "brief", "--confirm").returncode, 0)
+        self.assertEqual(self.next_json()["kind"], "finish")  # the conductor already moved on
+        setup_json = self.root / ".rapid-os" / "setup.json"
+        before = setup_json.read_text("utf-8")
+
+        done = self.rapid("setup", "review", "--done")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertNotIn("RAPID1413", done.stderr)
+        self.assertIn(self.NOTHING_LEFT, done.stdout)
+        self.assertIn("Setup next: finish", done.stdout)  # and the next action
+        self.assertEqual(setup_json.read_text("utf-8"), before)  # the state did not change
+        self.assertNotIn("drafts_reviewed", json.loads(before))
+
+        as_json = self.rapid("setup", "review", "--done", "--json")
+        self.assertEqual(as_json.returncode, 0, as_json.stderr)
+        self.assertEqual(json.loads(as_json.stdout)["kind"], "finish")  # stdout stays the action alone
+        self.assertEqual(self.rapid("setup", "finish").returncode, 0)
+
+    def test_with_no_drafts_at_all_it_is_the_same_no_op(self):
         self.decide()
         self.skip("brief", "business", "data-model", "architecture")
         result = self.rapid("setup", "review", "--done")
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("RAPID1413", result.stderr)
-        self.assertIn("No hay borradores que revisar", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(self.NOTHING_LEFT, result.stdout)
         self.assertNotIn("Traceback", result.stderr)
+        state = json.loads(self.rapid("setup", "show", "--json").stdout)["state"]
+        self.assertNotIn("drafts_reviewed", state)
 
     def test_without_done_it_asks_for_it(self):
         self.decide()

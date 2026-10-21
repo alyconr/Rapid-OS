@@ -3458,6 +3458,9 @@ def _setup_write(args, action_name, state, catalog, doc_banks):
             raise apply.SetupApplyError(
                 "RAPID1413", "Use 'rapid setup review --done' once you went through the drafts."
             )
+        if not apply.has_unconfirmed_drafts(state):
+            # Everything was confirmed (or there was never a draft): succeed, change nothing.
+            return state, apply.REVIEW_NOTHING_LEFT, (), False
         new_state = apply.mark_drafts_reviewed(state)
         write_setup(PROJECT_RAPID_DIR, new_state)
         return new_state, "Setup: drafts reviewed (what was not confirmed stays a draft)", (), False
@@ -4968,7 +4971,8 @@ def create_parser():
         description=(
             "Record that the person went through the unconfirmed drafts. Nothing is confirmed here: confirm "
             "each document with 'rapid setup doc <id> --confirm' first; what stays unconfirmed remains a draft "
-            "and reaches the agent as an assumption. RAPID1413 when there is no draft to review."
+            "and reaches the agent as an assumption. With nothing left to review it succeeds and changes nothing. "
+            "RAPID1413 without --done."
         ),
     )
     _sp.add_argument("--done", action="store_true", help="The drafts were reviewed.")
