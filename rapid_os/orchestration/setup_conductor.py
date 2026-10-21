@@ -37,6 +37,19 @@ ARCHETYPE_COMMAND = ("rapid", "setup", "set", "archetype", "<id>")
 AGENTS_COMMAND = ("rapid", "setup", "set", "agents", "<id,id>")
 TEST_COMMAND_COMMAND = ("rapid", "setup", "set", "test-command", "<cmd>")
 FINISH_COMMAND = ("rapid", "setup", "finish")
+REVIEW_DONE_COMMAND = ("rapid", "setup", "review", "--done")
+CONFIRM_DOC_COMMAND = ("rapid", "setup", "doc", "<id>", "--confirm")
+REVIEW_CONSEQUENCES = {
+    "confirm": (
+        "Pasa a ser una regla del proyecto: el agente la cumple en cada run sin cuestionarla. "
+        "Puedes devolverla a borrador con rapid setup doc <id> --reopen."
+    ),
+    "keep_draft": (
+        "Queda como supuesto: el agente la recibe bajo el aviso 'Supuestos redactados por el agente, "
+        "no confirmados por la persona', puede cuestionarla y preguntarte, y cada run te recuerda que "
+        "está sin confirmar (RAPID1408). La confirmas cuando quieras con rapid setup doc <id> --confirm."
+    ),
+}
 ARCHETYPE_SUMMARIES = {"mvp": "Speed first", "corporate": "Security first"}
 
 
@@ -85,6 +98,8 @@ def next_setup_action(
         if state.doc(doc_id).status == "pending":
             return _resolve_doc(doc_id, doc_banks[doc_id], legacy_business)
     unconfirmed = _unconfirmed_docs(state)
+    if unconfirmed and not state.drafts_reviewed and not state.finished:
+        return _review_drafts(unconfirmed, doc_banks)
     if not state.finished:
         return _action(
             SetupActionKind.FINISH, unconfirmed_docs=unconfirmed, command=list(FINISH_COMMAND)
@@ -94,6 +109,20 @@ def next_setup_action(
 
 def _action(kind: SetupActionKind, **payload) -> SetupAction:
     return SetupAction(kind, payload)
+
+
+def _review_drafts(unconfirmed: list[str], doc_banks: dict[str, SetupDocBank]) -> SetupAction:
+    """The person decides, document by document, whether a draft becomes a rule."""
+    return _action(
+        SetupActionKind.REVIEW_DRAFTS,
+        drafts=[
+            {"doc": doc_id, "file": doc_banks[doc_id].file, "title": doc_banks[doc_id].title}
+            for doc_id in unconfirmed
+        ],
+        consequences=dict(REVIEW_CONSEQUENCES),
+        commands={"confirm": list(CONFIRM_DOC_COMMAND), "done": list(REVIEW_DONE_COMMAND)},
+        command=list(REVIEW_DONE_COMMAND),
+    )
 
 
 def _unconfirmed_docs(state: SetupState) -> list[str]:

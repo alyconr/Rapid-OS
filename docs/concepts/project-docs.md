@@ -60,6 +60,19 @@ rapid setup doc business --confirm
 - Un proyecto anterior con `standards/business.md` lo importa con `rapid setup doc business --from-legacy` (como `provided`; el original no se borra).
 - `rapid init` usa la misma lógica: cada documento se importa, se escribe en la terminal, se deja pendiente para el agente (`/rapid-init`) o se omite. Con `--yes` quedan pendientes.
 
+## Confirmar o dejar como supuesto
+
+Antes de cerrar el onboarding, Rapid OS no da por buenos los borradores del agente: `rapid setup next` devuelve `review_drafts` (después de resolver todos los documentos y antes de `finish`) con la lista de borradores sin confirmar, y la persona decide **documento por documento**. Cada opción tiene una consecuencia distinta:
+
+| Decisión | Qué pasa |
+| :--- | :--- |
+| **Confirmar** (`rapid setup doc <id> --confirm`) | Pasa a ser una regla del proyecto: el agente la cumple en cada run sin cuestionarla. Puedes devolverla a borrador con `rapid setup doc <id> --reopen`. |
+| **Dejar como supuesto** (no confirmar) | El agente la recibe bajo el aviso «Supuestos redactados por el agente, no confirmados por la persona», puede cuestionarla y preguntarte, y cada run te recuerda que está sin confirmar (`RAPID1408`). La confirmas cuando quieras con `rapid setup doc <id> --confirm`. |
+
+El agente te resume cada borrador en pocas líneas y te pregunta por cada uno; ejecuta `--confirm` solo para los que confirmas de forma explícita, nunca a partir de un «ok» o un «continúa» genéricos. Si quieres cambiar algo antes, reescribe el borrador (`rapid setup doc <id> --source drafted --replace`) y vuelve a preguntar. Cuando terminas, `rapid setup review --done` cierra la revisión: lo que no confirmaste queda como borrador. Confirmar un documento no cierra la revisión (puedes confirmar varios y luego cerrarla; si los confirmas todos, `rapid setup review --done` termina con éxito sin cambiar nada y el siguiente paso es `finish`), y `rapid setup finish` con la revisión pendiente falla con `RAPID1407` y te dice el siguiente comando.
+
+Si un borrador nuevo aparece después de cerrar la revisión (el agente reescribe uno, o devuelves uno a borrador con `--reopen`), la revisión vuelve a estar pendiente hasta el siguiente `rapid setup review --done`. Un onboarding ya terminado no se reabre.
+
 ## Convivencia con `standards/business.md`
 
 Si existen `standards/business.md` y `doc.business`, gana `doc.business`: el manifiesto de `rapid context` lista `standard.business` como omitido con la razón `superseded by doc.business`, y `rapid validate` avisa con `RAPID1410` cuando los cuerpos difieren (se comparan sin frontmatter y con los espacios normalizados). Si solo existe `standards/business.md`, nada cambia. Si el documento de negocio se omitió pero `standards/business.md` existe, el estándar sigue hablando por el negocio y no se agrega la línea de "pregunta, no inventes".

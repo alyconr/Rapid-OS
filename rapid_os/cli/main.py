@@ -3370,12 +3370,20 @@ def _format_setup_action(action) -> list[str]:
             f"Choices: {', '.join(data['choices'])} (max {data['max_chars']} chars)",
             f"Command: {' '.join(data['command'])}",
         ]
+    elif kind == "review_drafts":
+        lines += [f"Draft: {d['doc']} -> {d['file']} ({d['title']})" for d in data["drafts"]]
+        lines += [
+            f"If confirmed: {data['consequences']['confirm']}",
+            f"If kept as a draft: {data['consequences']['keep_draft']}",
+            f"Confirm one: {' '.join(data['commands']['confirm'])}",
+            f"When done: {' '.join(data['commands']['done'])}",
+        ]
     elif data.get("unconfirmed_docs"):
         lines.append(f"Unconfirmed drafts: {', '.join(data['unconfirmed_docs'])}")
     return lines
 
 
-SETUP_SUBCOMMANDS = "next, show, set, stack, doc, finish"
+SETUP_SUBCOMMANDS = "next, show, set, stack, doc, review, finish"
 
 
 def _read_setup_input(source):
@@ -3444,6 +3452,18 @@ def _setup_write(args, action_name, state, catalog, doc_banks):
         new_state = apply.write_custom_stack(PROJECT_RAPID_DIR, state, catalog, text)
         write_setup(PROJECT_RAPID_DIR, new_state)
         return new_state, "Setup: stack = custom (.rapid-os/standards/tech-stack.md)", (), False
+
+    if action_name == "review":
+        if not getattr(args, "done", False):
+            raise apply.SetupApplyError(
+                "RAPID1413", "Use 'rapid setup review --done' once you went through the drafts."
+            )
+        if not apply.has_unconfirmed_drafts(state):
+            # Everything was confirmed (or there was never a draft): succeed, change nothing.
+            return state, apply.REVIEW_NOTHING_LEFT, (), False
+        new_state = apply.mark_drafts_reviewed(state)
+        write_setup(PROJECT_RAPID_DIR, new_state)
+        return new_state, "Setup: drafts reviewed (what was not confirmed stays a draft)", (), False
 
     if action_name == "doc":
         doc_id = getattr(args, "doc_id", None)
@@ -4943,6 +4963,19 @@ def create_parser():
     _sp.add_argument("--confirm", action="store_true", help="A person confirms a draft; only the status changes.")
     _sp.add_argument("--reopen", action="store_true", help="Return a skipped document to pending, or a confirmed draft to draft.")
     _sp.add_argument("--from-legacy", dest="from_legacy", action="store_true", help="Import .rapid-os/standards/business.md as docs/BUSINESS_RULES.md (business only).")
+    _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    _sp = setup_sub.add_parser(
+        "review",
+        help="Close the review of the unconfirmed drafts (writes state).",
+        description=(
+            "Record that the person went through the unconfirmed drafts. Nothing is confirmed here: confirm "
+            "each document with 'rapid setup doc <id> --confirm' first; what stays unconfirmed remains a draft "
+            "and reaches the agent as an assumption. With nothing left to review it succeeds and changes nothing. "
+            "RAPID1413 without --done."
+        ),
+    )
+    _sp.add_argument("--done", action="store_true", help="The drafts were reviewed.")
     _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
 
     _sp = setup_sub.add_parser(

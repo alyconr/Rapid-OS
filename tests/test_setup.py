@@ -128,6 +128,7 @@ class ConductorTests(unittest.TestCase):
                 "data-model": DocState("provided", True, "b"),
                 "architecture": DocState("drafted", True, "c"),
             },
+            drafts_reviewed=True,  # the review of the unconfirmed draft is done: finish comes next
         )
         action = next_action(state)
         self.assertEqual(action.kind, SetupActionKind.FINISH)

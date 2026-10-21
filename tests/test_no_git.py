@@ -92,6 +92,8 @@ class GitIsolated(unittest.TestCase):
             if brief and doc == "brief":
                 continue
             self.assertEqual(self.rapid("setup", "doc", doc, "--skip", cwd=cwd).returncode, 0)
+        if brief:  # the drafted brief stays a draft: the person only went through it
+            self.assertEqual(self.rapid("setup", "review", "--done", cwd=cwd).returncode, 0)
         return self.rapid("setup", "finish", cwd=cwd)
 
 

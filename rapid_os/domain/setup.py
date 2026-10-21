@@ -54,12 +54,15 @@ class SetupState:
     test_command: tuple[str, ...] | None = None
     docs: Mapping[str, DocState] = field(default_factory=dict)
     finished: bool = False
+    # The person went through the unconfirmed drafts (`rapid setup review --done`); what they
+    # did not confirm stays a draft. Omitted from the JSON while False.
+    drafts_reviewed: bool = False
 
     def doc(self, doc_id: str) -> DocState:
         return self.docs.get(doc_id, DocState())
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "schema_version": self.schema_version,
             "stack": self.stack.to_dict() if self.stack else None,
             "topology": self.topology,
@@ -69,6 +72,9 @@ class SetupState:
             "docs": {doc_id: self.docs[doc_id].to_dict() for doc_id in sorted(self.docs)},
             "finished": self.finished,
         }
+        if self.drafts_reviewed:
+            payload["drafts_reviewed"] = True
+        return payload
 
     @classmethod
     def from_dict(cls, data: object) -> "SetupState":
@@ -126,6 +132,9 @@ class SetupState:
         finished = data.get("finished", False)
         if not isinstance(finished, bool):
             raise _fail("finished must be a boolean.")
+        drafts_reviewed = data.get("drafts_reviewed", False)
+        if not isinstance(drafts_reviewed, bool):
+            raise _fail("drafts_reviewed must be a boolean.")
 
         return cls(
             schema_version=SETUP_SCHEMA_VERSION,
@@ -136,6 +145,7 @@ class SetupState:
             test_command=None if test_command is None else tuple(test_command),
             docs=docs,
             finished=finished,
+            drafts_reviewed=drafts_reviewed,
         )
 
 
@@ -146,6 +156,7 @@ class SetupActionKind(str, Enum):
     CHOOSE_AGENTS = "choose_agents"
     SET_TEST_COMMAND = "set_test_command"
     RESOLVE_DOC = "resolve_doc"
+    REVIEW_DRAFTS = "review_drafts"
     FINISH = "finish"
     DONE = "done"
 
