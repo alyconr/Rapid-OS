@@ -114,13 +114,15 @@ class SetupFinishCreatesTheRepositoryTests(GitIsolated):
 
 
 class DefaultBranchTests(GitIsolated):
-    default_branch = "trunk"
+    default_branch = "master"
 
-    def test_init_default_branch_of_the_person_is_respected(self):
+    def test_the_branch_is_main_whatever_init_default_branch_says(self):
+        # Git for Windows or the sandbox user may carry `master`: Rapid OS still creates `main`.
         finished = self.setup_everything()
         self.assertEqual(finished.returncode, 0, finished.stderr)
-        self.assertEqual(self.git("symbolic-ref", "HEAD").stdout.strip(), "refs/heads/trunk")
-        self.assertIn("rama trunk", finished.stdout + finished.stderr)
+        self.assertEqual(self.git("symbolic-ref", "HEAD").stdout.strip(), "refs/heads/main")
+        self.assertIn("rama main", finished.stdout + finished.stderr)
+        self.assertNotIn("master", finished.stdout + finished.stderr)
 
 
 class InsideAParentRepositoryTests(GitIsolated):
@@ -147,7 +149,7 @@ class EnsureGitRepositoryUnitTests(GitIsolated):
         self.assertIsNone(second.note)
         self.assertIsNone(second.warning)
 
-    def test_an_invalid_default_branch_falls_back_to_main(self):
+    def test_an_invalid_default_branch_does_not_matter(self):
         self.git_config.write_text("[init]\n\tdefaultBranch = bad..name\n", encoding="utf-8")
         ensure_git_repository(self.root)
         self.assertEqual(self.git("symbolic-ref", "HEAD").stdout.strip(), "refs/heads/main")

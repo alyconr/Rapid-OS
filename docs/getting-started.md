@@ -29,7 +29,7 @@ Los canales (versión estable y desarrollo) y la actualización se explican en [
 
 ### Paso 2: inicializar el proyecto con shortcuts
 
-Desde la raíz de tu proyecto. No hace falta que ya sea un repositorio git: el onboarding (`rapid init` o `rapid setup finish`) lo crea, en la rama `main` o en tu `init.defaultBranch`, sin hacer commits:
+Desde la raíz de tu proyecto. No hace falta que ya sea un repositorio git: el onboarding (`rapid init` o `rapid setup finish`) lo crea, siempre en la rama `main`, sin hacer commits:
 
 ```bash
 rapid init --shortcuts
