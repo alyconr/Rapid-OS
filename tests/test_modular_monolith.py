@@ -217,6 +217,76 @@ class ArchitectureBankTests(Project):
         self.assertEqual(action["max_chars"], 6000)
 
 
+class WorktreeTests(Project):
+    """A run in a worktree: the rule lives in the main project, the code to judge is the worktree's."""
+
+    def setUp(self):
+        super().setUp()
+        self.finish_onboarding("python-api", "fullstack-separated", TEST_COMMAND)
+        committed = self.git("-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "--allow-empty", "-m", "base")
+        self.assertEqual(committed.returncode, 0, committed.stderr)
+        started = self.rapid("start", "feature", "--spec-file", "-", "--json", stdin=json.dumps(SPEC))
+        self.assertEqual(started.returncode, 0, started.stderr + started.stdout)
+        self.assertIn("gate.architecture", [g.id for g in self.contract().gates])
+        self.worktree = self.root.parent / "run-worktree"
+        added = self.git("worktree", "add", str(self.worktree), "-b", "run-branch")
+        self.assertEqual(added.returncode, 0, added.stderr)
+        self.assertFalse((self.worktree / ".rapid-os").exists())  # the ledger stays in the main project
+
+    def arch(self, *argv, cwd=None):
+        return subprocess.run(
+            [sys.executable, "-m", "rapid_os.cli.main", "arch", "check", *argv],
+            cwd=cwd or self.worktree, capture_output=True, text=True, encoding="utf-8", env=self.env,
+        )
+
+    def write_in_worktree(self, relative, text):
+        path = self.worktree / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    def test_it_uses_the_rule_of_the_main_project_and_judges_the_worktrees_code(self):
+        self.write_in_worktree("app/modules/citas/public.py", "x = 1\n")
+        clean = self.arch()
+        self.assertEqual(clean.returncode, 0, clean.stdout + clean.stderr)
+        self.assertIn("Arquitectura OK", clean.stdout)
+        self.write_in_worktree("app/modules/citas/domain/cita.py", "import sqlalchemy\n")
+        dirty = self.arch()
+        self.assertEqual(dirty.returncode, 1)
+        self.assertIn("RAPID1420 app/modules/citas/domain/cita.py:1 importa 'sqlalchemy'", dirty.stdout)
+        # The code of the main project was never looked at: it has no violation.
+        self.assertEqual(self.arch(cwd=self.root).returncode, 0)
+
+    def test_a_rule_in_the_worktree_itself_wins(self):
+        own = json.loads((self.standards / "architecture.json").read_text("utf-8"))
+        own["domain_forbidden_imports"] = []
+        self.write_in_worktree(".rapid-os/standards/architecture.json", json.dumps(own))
+        self.write_in_worktree("app/modules/citas/domain/cita.py", "import sqlalchemy\n")
+        self.assertEqual(self.arch().returncode, 0)
+
+    def test_a_run_that_demands_the_gate_does_not_pass_without_any_rule(self):
+        (self.standards / "architecture.json").unlink()
+        for cwd in (self.worktree, self.root):
+            with self.subTest(cwd=cwd.name):
+                result = self.arch(cwd=cwd)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("RAPID1420 el run exige gate.architecture y no hay architecture.json", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+        as_json = self.arch("--json")
+        self.assertEqual(as_json.returncode, 1)
+        report = json.loads(as_json.stdout)
+        self.assertFalse(report["ok"])
+        self.assertIn("el run exige gate.architecture", report["error"])
+
+    def test_outside_a_run_a_missing_rule_is_still_only_a_warning(self):
+        self.assertEqual(self.rapid("abort").returncode, 0)
+        (self.standards / "architecture.json").unlink()
+        for cwd in (self.worktree, self.root):
+            with self.subTest(cwd=cwd.name):
+                result = self.arch(cwd=cwd)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("WARNING", result.stdout)
+
+
 class ShortcutTemplateTests(unittest.TestCase):
     def test_init_shortcut_starts_from_the_modular_monolith(self):
         text = (ROOT / "templates" / "shortcuts" / "rapid-init.md").read_text("utf-8")

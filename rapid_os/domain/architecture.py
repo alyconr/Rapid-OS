@@ -35,6 +35,7 @@ RULE_LAYER = "layer"
 RULE_CROSS_MODULE = "cross_module"
 RULE_SHARED = "shared"
 RULE_DOMAIN_FORBIDDEN = "domain_forbidden_import"
+RULE_INIT_REEXPORT = "init_reexport"
 
 
 class ArchitectureConfigError(ValueError):
@@ -175,12 +176,14 @@ class _Place:
     rest: tuple[str, ...] = ()  # the segments after the module (the layer first)
 
 
-def _locate(config: ArchitectureConfig, segments: tuple[str, ...]) -> _Place:
+def _locate(config: ArchitectureConfig, segments: tuple[str, ...], *, file: bool = False) -> _Place:
+    """Where a path lives. A *file* directly in `modules_root` is not a module (only directories
+    are); an *import* of `<modules_root>/<m>` does name the module."""
     modules_root = tuple(config.modules_root.split("/"))
     shared_root = tuple(config.shared_root.split("/"))
     if segments[: len(shared_root)] == shared_root:
         return _Place("shared")
-    if segments[: len(modules_root)] == modules_root and len(segments) > len(modules_root):
+    if segments[: len(modules_root)] == modules_root and len(segments) > len(modules_root) + (1 if file else 0):
         rest = segments[len(modules_root) + 1 :]
         return _Place("module", module=segments[len(modules_root)], layer=_stem(rest[0]) if rest else "", rest=rest)
     return _Place("other")
@@ -253,6 +256,33 @@ def _violations_for_target(
     return found
 
 
+def _init_violations(config: ArchitectureConfig, place: _Place, path: str, text: str) -> list[Violation]:
+    """The `__init__.py` at the root of a Python module may be empty or re-export only the
+    module's own public entry. Anything else would let `from app.modules.pagos import Repo`
+    reach an internal layer through the package, a back door around the public entry."""
+    module_root = tuple(config.modules_root.split("/")) + (place.module or "",)
+    public = module_root + (config.public_stem,)
+    package = _python_package(path)
+    message = f"el __init__.py del módulo '{place.module}' solo puede reexportar su {config.public_entry}"
+    found: list[Violation] = []
+    for node in ast.walk(ast.parse(text, filename=path)):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if tuple(alias.name.split("."))[: len(public)] != public:
+                    found.append(Violation(RULE_INIT_REEXPORT, path, node.lineno, alias.name, message))
+        elif isinstance(node, ast.ImportFrom):
+            if node.level == 0 and node.module == "__future__":
+                continue  # a compiler directive, not a re-export
+            base, spelled, _top = _resolve_from(package, node)
+            if base is not None:
+                if tuple(base[: len(public)]) == public:
+                    continue  # from .public import x
+                if tuple(base) == module_root and all(a.name == config.public_stem for a in node.names):
+                    continue  # from . import public
+            found.append(Violation(RULE_INIT_REEXPORT, path, node.lineno, spelled, message))
+    return found
+
+
 def _dedupe(violations: Iterable[Violation]) -> list[Violation]:
     seen: set[tuple[str, int, str]] = set()
     unique: list[Violation] = []
@@ -274,7 +304,7 @@ def check_architecture(
     modules: set[str] = set()
     checked = 0
     for path in sorted(sources):
-        place = _locate(config, tuple(path.split("/")))
+        place = _locate(config, tuple(path.split("/")), file=True)
         if place.kind == "other":
             continue
         if place.kind == "module" and place.module:
@@ -292,6 +322,8 @@ def check_architecture(
             violations.extend(
                 _violations_for_target(config, place, path, line, spelled, target_segments, top_package)
             )
+        if config.language == "python" and place.kind == "module" and place.rest == ("__init__.py",):
+            violations.extend(_init_violations(config, place, path, sources[path]))
     return ArchitectureReport(
         language=config.language,
         modules=tuple(sorted(modules)),
@@ -313,6 +345,20 @@ def _python_package(path: str) -> list[str]:
     return parts[:-1]  # `pkg/__init__.py` and `pkg/mod.py` both live in `pkg`
 
 
+def _resolve_from(package: list[str], node: ast.ImportFrom) -> "tuple[list[str] | None, str, str]":
+    """(dotted parts of the module a `from` imports from, as spelled, top-level library name).
+
+    The parts are None when a relative import climbs out of the project."""
+    if node.level:
+        if node.level - 1 > len(package):
+            return None, "." * node.level + (node.module or ""), ""
+        base = package[: len(package) - (node.level - 1)] + (node.module.split(".") if node.module else [])
+        # A relative import is never a library.
+        return base, "." * node.level + (node.module or ""), ""
+    base = node.module.split(".") if node.module else []
+    return base, node.module or "", base[0] if base else ""
+
+
 def _python_imports(path: str, text: str, layer_names: frozenset[str]) -> Iterable[_Ref]:
     """Every import of a Python file, absolute or relative, resolved from the project root.
 
@@ -328,16 +374,9 @@ def _python_imports(path: str, text: str, layer_names: frozenset[str]) -> Iterab
                 parts = alias.name.split(".")
                 yield node.lineno, alias.name, tuple(parts), parts[0]
         elif isinstance(node, ast.ImportFrom):
-            if node.level:
-                if node.level - 1 > len(package):
-                    continue  # climbs out of the project: not ours to judge
-                base = package[: len(package) - (node.level - 1)] + (node.module.split(".") if node.module else [])
-                spelled = "." * node.level + (node.module or "")
-                top = ""  # a relative import is never a library
-            else:
-                base = node.module.split(".") if node.module else []
-                spelled = node.module or ""
-                top = base[0] if base else ""
+            base, spelled, top = _resolve_from(package, node)
+            if base is None:
+                continue  # climbs out of the project: not ours to judge
             yield node.lineno, spelled, tuple(base), top
             for alias in node.names:
                 if alias.name in layer_names:

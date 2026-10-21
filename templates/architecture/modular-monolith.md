@@ -16,6 +16,7 @@ Cada módulo tiene exactamente estas piezas:
 - `domain/`: entidades, reglas e invariantes. Sin framework web ni ORM.
 - `infrastructure/`: repositorios, ORM y adaptadores de sistemas externos.
 - Un **único punto público** (`public.py` en Python, `index.ts` en TypeScript): lo único que otros módulos pueden importar.
+- En Python, el `__init__.py` de un módulo está vacío o solo reexporta desde su `public.py`; nunca importa de `api`, `application`, `domain` ni `infrastructure`. Si no, importar el paquete del módulo sería una puerta trasera a sus capas.
 
 ## Dirección de dependencias
 

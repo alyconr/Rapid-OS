@@ -154,6 +154,75 @@ class PythonTests(unittest.TestCase):
         self.assertEqual(report.violations, ())
         self.assertIn("broken.py", report.skipped[0])
 
+    def test_a_module_init_that_reexports_an_internal_layer_is_a_back_door(self):
+        report = self.check({
+            "app/modules/pagos/__init__.py": "from app.modules.pagos.infrastructure.repo import PaymentRepo\n",
+            "app/modules/pagos/infrastructure/repo.py": "class PaymentRepo:\n    pass\n",
+            "app/modules/citas/application/svc.py": "from app.modules.pagos import PaymentRepo\n",
+        })
+        (violation,) = report.violations
+        self.assertEqual((violation.rule, violation.file, violation.line), ("init_reexport", "app/modules/pagos/__init__.py", 1))
+        self.assertEqual(
+            violation.message,
+            "el __init__.py del módulo 'pagos' solo puede reexportar su public.py",
+        )
+        self.assertIn("RAPID1420 app/modules/pagos/__init__.py:1", violation.to_line())
+
+    def test_a_module_init_may_be_empty_or_only_reexport_its_own_public(self):
+        for body in (
+            "",
+            "from app.modules.pagos.public import cobrar\n",
+            "from .public import cobrar\n",
+            "from . import public\n",
+            "from app.modules.pagos import public\n",
+            "import app.modules.pagos.public\n",
+            "from __future__ import annotations\n\nfrom .public import cobrar\n",
+        ):
+            with self.subTest(body=body):
+                report = self.check({
+                    "app/modules/pagos/__init__.py": body,
+                    # importing the root of the module is allowed, and no longer a back door
+                    "app/modules/citas/application/svc.py": "from app.modules.pagos import cobrar\n",
+                })
+                self.assertEqual(report.violations, ())
+
+    def test_every_other_import_in_a_module_init_is_a_violation(self):
+        for body in (
+            "import os\n",
+            "from . import infrastructure\n",
+            "from . import public, infrastructure\n",
+            "from .application.cobrar import cobrar\n",
+            "from ..citas.public import agendar\n",
+            "from app.modules.pagos.domain import Pago\n",
+            "from app.shared.errors import E\n",
+        ):
+            with self.subTest(body=body):
+                report = self.check({"app/modules/pagos/__init__.py": body})
+                self.assertIn("init_reexport", [v.rule for v in report.violations])
+
+    def test_the_init_rule_only_covers_the_module_root_and_python(self):
+        report = self.check({
+            "app/modules/pagos/infrastructure/__init__.py": "from .repo import PaymentRepo\n",
+            "app/modules/pagos/application/__init__.py": "import os\n",
+            "app/shared/__init__.py": "from .errors import E\n",
+        })
+        self.assertEqual(report.violations, ())
+        typescript = check_architecture(TS, {
+            "src/modules/pagos/index.ts": "export { Repo } from './infrastructure/repo';\n",
+        })
+        self.assertEqual(typescript.violations, ())  # index.ts is already the contract
+
+    def test_a_file_directly_in_modules_root_is_not_a_module(self):
+        report = self.check({
+            "app/modules/__init__.py": "",
+            "app/modules/helpers.py": "import sqlalchemy\n",
+            "app/modules/citas/public.py": "x = 1\n",
+            "app/modules/pagos/public.py": "x = 1\n",
+        })
+        self.assertEqual(report.modules, ("citas", "pagos"))
+        self.assertEqual(report.checked_files, 2)
+        self.assertEqual(report.violations, ())
+
     def test_no_modules_yet(self):
         report = self.check({})
         self.assertEqual((report.ok, report.modules, report.checked_files), (True, (), 0))
@@ -271,6 +340,29 @@ class ArchCheckCliTests(CliCase):
         result = self.arch()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Sin módulos todavía", result.stdout)
+
+    def test_two_modules_and_the_modules_init_count_as_two_modules(self):
+        self.rule()
+        self.write("app/modules/__init__.py", "")
+        self.write("app/modules/citas/public.py", "x = 1\n")
+        self.write("app/modules/pagos/public.py", "x = 1\n")
+        result = self.arch()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("en 2 módulo(s)", result.stdout)
+        self.assertEqual(json.loads(self.arch("--json").stdout)["modules"], ["citas", "pagos"])
+
+    def test_the_reexport_back_door_fails_the_cli(self):
+        self.rule()
+        self.write("app/modules/pagos/__init__.py", "from app.modules.pagos.infrastructure.repo import PaymentRepo\n")
+        self.write("app/modules/pagos/infrastructure/repo.py", "class PaymentRepo:\n    pass\n")
+        self.write("app/modules/citas/application/svc.py", "from app.modules.pagos import PaymentRepo\n")
+        result = self.arch()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(
+            "RAPID1420 app/modules/pagos/__init__.py:1 importa 'app.modules.pagos.infrastructure.repo': "
+            "el __init__.py del módulo 'pagos' solo puede reexportar su public.py",
+            result.stdout,
+        )
 
     def test_a_clean_modular_project(self):
         self.rule()

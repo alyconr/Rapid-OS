@@ -3516,19 +3516,30 @@ def _ensure_git_repository_for_setup(apply):
 
 def arch_command(args):
     """Execute rapid arch check: the imports against the modular-monolith rule. Read-only."""
-    from rapid_os.adapters.architecture_files import collect_sources, config_path, load_config
+    from rapid_os.adapters.architecture_files import collect_sources, config_path
     from rapid_os.domain.architecture import ArchitectureConfigError, check_architecture
+    from rapid_os.orchestration.architecture_rule import RUN_DEMANDS_RULE_MESSAGE, resolve_architecture_rule
 
     as_json = getattr(args, "json", False)
-    try:
-        config = load_config(PROJECT_RAPID_DIR)
-    except ArchitectureConfigError as exc:
+
+    def fail(message):
         if as_json:
-            print(json.dumps({"schema_version": 1, "ok": False, "error": str(exc)}, indent=2))
+            print(json.dumps({"schema_version": 1, "ok": False, "error": message}, indent=2))
         else:
-            print(str(exc), file=sys.stderr)
+            print(message, file=sys.stderr)
         sys.exit(1)
+
+    # In a run's worktree the rule is read from the main project; the code judged is always the
+    # current directory's.
+    try:
+        rule = resolve_architecture_rule(CURRENT_DIR, PROJECT_RAPID_DIR)
+    except ArchitectureConfigError as exc:
+        fail(str(exc))
+    config = rule.config
     if config is None:
+        if rule.run_demands_gate:
+            # The run needs this gate: with no rule to check, it must not look satisfied.
+            fail(RUN_DEMANDS_RULE_MESSAGE)
         warning = (
             f"No hay {config_path(PROJECT_RAPID_DIR).relative_to(CURRENT_DIR).as_posix()}: "
             "este proyecto no tiene regla de arquitectura que verificar."
