@@ -13,6 +13,7 @@ const sidebars: SidebarsConfig = {
         'concepts/core-concepts',
         'concepts/project-docs',
         'concepts/architecture',
+        'concepts/security-baseline',
         'concepts/product-boundaries',
         'guides/use-cases',
       ],

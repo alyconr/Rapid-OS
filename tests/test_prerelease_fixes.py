@@ -107,10 +107,11 @@ class HardeningSecurityStandardTests(ProjectCase):
         self.assertEqual(self.rapid("init", "--yes").returncode, 0)
         self.assertEqual((standards / "security.md").read_text(encoding="utf-8"), "# mine\n")
 
-    def test_corporate_archetype_keeps_its_own_security_standard(self):
+    def test_corporate_archetype_gets_the_baseline_at_level_l2(self):
         self.assertEqual(self.rapid("init", "--yes", "--archetype", "corporate").returncode, 0)
         text = (self.root / ".rapid-os" / "standards" / "security.md").read_text(encoding="utf-8")
-        self.assertIn("SECURITY PROTOCOLS", text)
+        self.assertIn("ASVS 5.0.0 nivel L2", text)
+        self.assertIn("SLSA 1.2 Build L2", text)
 
     def test_missing_security_standard_names_the_file_and_how_to_create_it(self):
         self.assertEqual(self.rapid("init", "--yes").returncode, 0)

@@ -64,6 +64,7 @@ FULL_STATE = SetupState(
     stack=StackChoice("generic", "generic"),
     topology="fullstack-separated",
     archetype="mvp",
+    ai=False,
     agents=("cursor",),
     test_command=(),
     docs=FULL_DOCS,
@@ -79,6 +80,7 @@ class ConductorTests(unittest.TestCase):
                 stack=StackChoice("web-modern", "catalog"),
                 topology="fullstack-baas",
                 archetype="mvp",
+                ai=False,
                 agents=("cursor",),
                 test_command=("npm", "test"),
             ),
@@ -98,6 +100,7 @@ class ConductorTests(unittest.TestCase):
             ("choose_stack", {"stack": StackChoice("python-ai", "catalog")}),
             ("choose_topology", {"topology": "fullstack-separated"}),
             ("choose_archetype", {"archetype": "mvp"}),
+            # python-ai is an AI stack: it is not asked, the next decision is the agents
             ("choose_agents", {"agents": ("cursor",)}),
             ("set_test_command", {"test_command": ("python", "-m", "pytest")}),
         ]
@@ -120,6 +123,7 @@ class ConductorTests(unittest.TestCase):
             stack=StackChoice("generic", "generic"),
             topology="fullstack-separated",
             archetype="mvp",
+            ai=False,
             agents=("cursor",),
             test_command=(),
             docs={
@@ -173,6 +177,7 @@ class ConductorTests(unittest.TestCase):
             stack=StackChoice("generic", "generic"),
             topology="fullstack-separated",
             archetype="corporate",
+            ai=False,
             agents=("claude",),
             test_command=(),
         )
@@ -208,6 +213,15 @@ class ConductorTests(unittest.TestCase):
                     topology="fullstack-separated",
                     archetype="mvp",
                 ),
+                ["rapid", "setup", "set", "ai", "<yes|no>"],
+            ),
+            (
+                SetupState(
+                    stack=StackChoice("generic", "generic"),
+                    topology="fullstack-separated",
+                    archetype="mvp",
+                    ai=False,
+                ),
                 ["rapid", "setup", "set", "agents", "<id,id>"],
             ),
             (
@@ -215,6 +229,7 @@ class ConductorTests(unittest.TestCase):
                     stack=StackChoice("generic", "generic"),
                     topology="fullstack-separated",
                     archetype="mvp",
+                    ai=False,
                     agents=("cursor",),
                 ),
                 ["rapid", "setup", "set", "test-command", "<cmd>"],
@@ -255,6 +270,7 @@ class ConductorTests(unittest.TestCase):
             stack=StackChoice("generic", "generic"),
             topology="fullstack-separated",
             archetype="mvp",
+            ai=False,
         )
         agents = next_setup_action(
             state, ProjectModel(root=Path(".")), CATALOG, BANKS, agent_ids=AGENT_IDS, detected_agent="claude"
@@ -281,6 +297,7 @@ class StateTests(unittest.TestCase):
             test_command=("pytest",),
             docs={"brief": DocState("drafted", False, "abc")},
             finished=True,
+            ai=False,
         )
         self.assertEqual(SetupState.from_dict(state.to_dict()), state)
 
@@ -347,6 +364,7 @@ class ProposeTestCommandTests(unittest.TestCase):
                 stack=StackChoice("generic", "generic"),
                 topology="fullstack-separated",
                 archetype="mvp",
+                ai=False,
                 agents=("cursor",),
             )
             (project / ".rapid-os" / "setup.json").write_text(json.dumps(state.to_dict()), encoding="utf-8")
@@ -370,6 +388,7 @@ class ProposeTestCommandTests(unittest.TestCase):
                 stack=StackChoice("generic", "generic"),
                 topology="fullstack-separated",
                 archetype="mvp",
+                ai=False,
                 agents=("cursor",),
             )
             (project / ".rapid-os" / "setup.json").write_text(json.dumps(state.to_dict()), encoding="utf-8")
@@ -384,7 +403,7 @@ class SetupCliTests(unittest.TestCase):
             project = Path(tmp)
             (project / ".rapid-os").mkdir()
             state = SetupState(
-                stack=StackChoice("generic", "generic"), topology="fullstack-separated", archetype="mvp"
+                stack=StackChoice("generic", "generic"), topology="fullstack-separated", archetype="mvp", ai=False
             )
             (project / ".rapid-os" / "setup.json").write_text(json.dumps(state.to_dict()), encoding="utf-8")
             result = subprocess.run(

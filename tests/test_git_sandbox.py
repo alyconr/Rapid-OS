@@ -132,7 +132,7 @@ class OtherOwnerSandboxTests(GitIsolated):
 
     def setup_everything(self, test_command="none", brief=False, cwd=None):  # runs every step as the other owner
         for key, value in (
-            ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"),
+            ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"), ("ai", "no"),
             ("agents", "codex"), ("test-command", test_command),
         ):
             result = self.as_other_owner("setup", "set", key, value)
@@ -253,7 +253,7 @@ class OtherOwnerSandboxTests(GitIsolated):
 class OrdinaryRepositoryTests(GitIsolated):
     def test_a_repository_the_person_owns_has_no_person_actions(self):
         for key, value in (
-            ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"),
+            ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"), ("ai", "no"),
             ("agents", "codex"), ("test-command", "none"),
         ):
             self.assertEqual(self.rapid("setup", "set", key, value).returncode, 0)

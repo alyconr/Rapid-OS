@@ -275,8 +275,11 @@ def _create_full_init_templates(root: Path) -> Path:
     (templates / "archetypes" / "corporate" / "coding-rules.md").write_text(
         "corporate coding rules", encoding="utf-8"
     )
-    (templates / "archetypes" / "corporate" / "security.md").write_text(
-        "corporate security rules", encoding="utf-8"
+    # The security standard comes from the baseline at the archetype's level.
+    (templates / "security").mkdir()
+    (templates / "security" / "baseline.md").write_text(
+        (Path(__file__).resolve().parents[1] / "templates" / "security" / "baseline.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
     )
     return templates
 
@@ -334,10 +337,9 @@ class CliArchetypeAndHardeningTests(unittest.TestCase):
                 (standards / "coding-rules.md").read_text(encoding="utf-8"),
                 "corporate coding rules",
             )
-            self.assertEqual(
-                (standards / "security.md").read_text(encoding="utf-8"),
-                "corporate security rules",
-            )
+            security = (standards / "security.md").read_text(encoding="utf-8")
+            self.assertIn("ASVS 5.0.0 nivel L2", security)
+            self.assertIn("SLSA 1.2 Build L2", security)
 
     def test_init_honors_archetype_mvp_without_prompting(self):
         repo_root = Path(__file__).resolve().parents[1]
@@ -370,7 +372,7 @@ class CliArchetypeAndHardeningTests(unittest.TestCase):
                 (standards / "coding-rules.md").read_text(encoding="utf-8"),
                 "mvp coding rules",
             )
-            self.assertFalse((standards / "security.md").exists())
+            self.assertIn("ASVS 5.0.0 nivel L1", (standards / "security.md").read_text(encoding="utf-8"))
 
     def test_init_interactive_archetype_fallback_when_flag_omitted(self):
         repo_root = Path(__file__).resolve().parents[1]
@@ -404,7 +406,7 @@ class CliArchetypeAndHardeningTests(unittest.TestCase):
                 (standards / "coding-rules.md").read_text(encoding="utf-8"),
                 "corporate coding rules",
             )
-            self.assertTrue((standards / "security.md").exists())
+            self.assertIn("ASVS 5.0.0 nivel L2", (standards / "security.md").read_text(encoding="utf-8"))
 
     def test_init_creates_backups_for_existing_standards_and_deploy_backs_up_deploy_md(self):
         repo_root = Path(__file__).resolve().parents[1]

@@ -7,5 +7,5 @@
 ## STANDARDS
 1. **Testing:** Only write tests for critical paths (e.g., Payments, Auth). Skip unit tests for UI components.
 2. **Comments:** Only comment complex logic. Self-documenting code is preferred.
-3. **Types:** Use `any` or loose typing if strict typing blocks progress for more than 5 minutes.
-4. **Refactoring:** Postpone refactoring until after the feature is validated by users.
+3. **Refactoring:** Postpone refactoring until after the feature is validated by users.
+4. **Base:** La velocidad nunca rebaja la base de seguridad ni la arquitectura modular.

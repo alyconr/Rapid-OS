@@ -19,10 +19,18 @@
       "T001: Escribir tests de entradas inválidas y de límites",
       "T002: Implementar la validación defensiva",
       "T003: Verificar la suite completa en el workspace aislado"
+    ],
+    "findings": [
+      {
+        "cwe": "CWE-79",
+        "cvss_v4_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:P/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N",
+        "severity": "medium",
+        "standard_ref": "security.md, A05 Injection: escapa la salida según su contexto"
+      }
     ]
   },
   "instructions": {
-    "author_spec": "Redacta la especificación de endurecimiento siguiendo spec_template. El modo hardening eleva el riesgo a high: el contrato exigirá un workspace aislado y revisión humana. Añade tags (security, auth, migration...) si aplican.",
+    "author_spec": "Redacta la especificación de endurecimiento siguiendo spec_template. El modo hardening eleva el riesgo a high: el contrato exigirá un workspace aislado y revisión humana. Añade tags (security, auth, migration...) si aplican. Clasifica cada hallazgo en findings con su CWE y su vector CVSS v4.0 (CVSS:4.0/...), la severidad que resulta y la regla de .rapid-os/standards/security.md que lo cubre (standard_ref). Repite cada hallazgo como un criterio en acceptance_criteria (CWE, vector CVSS y regla): findings guía la redacción, y la spec conserva solo los campos de su esquema.",
     "run_baseline": "Ejecuta la verificación de baseline en el workspace aislado. Si el comando sale en rojo, el repositorio no está sano antes de empezar; arregla la causa o ejecuta rapid abort. Si el repo tiene código pero no tests, crea un test que pase en una tarea, o usa el modo research.",
     "activate": "El baseline fue verificado satisfactoriamente. Activa el run para comenzar la ejecución de tareas.",
     "implement_task": "Implementa solo la tarea indicada, editando los archivos en el workspace aislado del run. Corre los tests con rapid check.",

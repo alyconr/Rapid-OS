@@ -147,7 +147,7 @@ class CustomStackTests(SetupWriteBase):
         state = self.setup_state()
         self.assertEqual((state.stack.id, state.stack.source), ("custom", "custom"))
         rapid(self.root, "setup", "set", "topology", "fullstack-separated")
-        for argv in (("archetype", "mvp"), ("agents", "claude"), ("test-command", "none")):
+        for argv in (("archetype", "mvp"), ("ai", "no"), ("agents", "claude"), ("test-command", "none")):
             rapid(self.root, "setup", "set", *argv)
         for doc_id in FILES:
             self.assertEqual(rapid(self.root, "setup", "doc", doc_id, "--skip").returncode, 0)
@@ -384,7 +384,11 @@ class FinishTests(SetupWriteBase):
         baks = sorted(p.name for p in self.root.rglob("*.bak"))
         second = rapid(self.root, "setup", "finish", "--json")
         self.assertEqual(second.returncode, 0)
-        self.assertEqual(json.loads(second.stdout), json.loads(first.stdout))
+        # `added_files` tells what that run wrote (the CI workflow): a second run writes nothing.
+        written, again = json.loads(first.stdout), json.loads(second.stdout)
+        self.assertEqual(written.pop("added_files")[0]["file"], ".github/workflows/rapid-security.yml")
+        self.assertNotIn("added_files", again)
+        self.assertEqual(again, written)
         self.assertEqual(claude.read_text(encoding="utf-8"), before)
         self.assertEqual(sorted(p.name for p in self.root.rglob("*.bak")), baks)
 
@@ -410,6 +414,7 @@ class FinishTests(SetupWriteBase):
         )
         rapid(self.root, "setup", "set", "topology", "fullstack-separated")
         rapid(self.root, "setup", "set", "archetype", "mvp")
+        rapid(self.root, "setup", "set", "ai", "no")
         for doc_id in FILES:
             rapid(self.root, "setup", "doc", doc_id, "--skip")
         finish = rapid(self.root, "setup", "finish")

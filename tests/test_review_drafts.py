@@ -52,6 +52,7 @@ def decided(**docs) -> SetupState:
         stack=StackChoice("generic", "generic"),
         topology="fullstack-baas",
         archetype="mvp",
+        ai=False,
         agents=("codex",),
         test_command=(),
         docs={
@@ -168,7 +169,7 @@ class CliCase(unittest.TestCase):
 
     def decide(self):
         for key, value in (
-            ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"),
+            ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"), ("ai", "no"),
             ("agents", "claude"), ("test-command", "none"),
         ):
             result = self.rapid("setup", "set", key, value)

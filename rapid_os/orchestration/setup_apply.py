@@ -29,6 +29,15 @@ from rapid_os.core.filesystem import (
 )
 from rapid_os.core.identifiers import validate_identifier
 from rapid_os.domain.agents import generate_agent_contexts
+from rapid_os.domain.security import (
+    CI_WORKFLOW_PATH,
+    ci_language,
+    effective_ai,
+    has_api,
+    is_ai_stack,
+    render_ci_workflow,
+    render_security_standard,
+)
 from rapid_os.domain.architecture import default_config as default_architecture_config
 from rapid_os.domain.catalog import (
     CUSTOM_STACK_ID,
@@ -57,8 +66,12 @@ from rapid_os.orchestration.git import run_git
 from rapid_os.orchestration.session import git_trust_command, git_work_tree_state
 from rapid_os.domain.setup import ARCHETYPES, DocState, SetupAction, SetupActionKind, SetupState, StackChoice
 
-DECISION_KEYS = ("stack", "topology", "archetype", "agents", "test-command")
+DECISION_KEYS = ("stack", "topology", "archetype", "ai", "agents", "test-command")
 NO_TEST_COMMAND = "none"
+AI_ANSWERS = {"yes": True, "y": True, "si": True, "sí": True, "true": True, "no": False, "n": False, "false": False}
+SECURITY_TEMPLATE = ("security", "baseline.md")
+BASELINE_TITLE = "# SEGURIDAD: BASE OBLIGATORIA"
+MINIMAL_SECURITY_TITLE = "SECURITY STANDARD (MINIMAL)"
 GITIGNORE_ENTRIES = (
     ".rapid-os/session.json",
     ".rapid-os/scratch/",
@@ -164,6 +177,17 @@ def set_decision(
         if archetype not in ARCHETYPES:
             raise _fail("RAPID1413", f"Unknown archetype '{value}'. Use one of: {', '.join(ARCHETYPES)}.")
         return replace(state, archetype=archetype, finished=False), ()
+
+    if key == "ai":
+        answer = value.strip().lower()
+        if answer not in AI_ANSWERS:
+            raise _fail("RAPID1413", f"Invalid value '{value}' for 'ai': use yes or no.")
+        uses_ai = AI_ANSWERS[answer]
+        if not uses_ai and state.stack is not None and is_ai_stack(state.stack.id):
+            notes.append(
+                f"El stack '{state.stack.id}' es de IA: el estándar de seguridad incluye siempre la sección de IA."
+            )
+        return replace(state, ai=uses_ai, finished=False), tuple(notes)
 
     if key == "agents":
         agents: list[str] = []
@@ -478,6 +502,117 @@ ARCHITECTURE_TEMPLATE = "modular-monolith.md"
 _STACK_SECTION_HEADING = "## Estructura por stack"
 
 
+def is_rapid_security(path: Path) -> bool:
+    """True when `security.md` is one Rapid OS generated: the baseline or the minimal standard."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    return BASELINE_TITLE in text or MINIMAL_SECURITY_TITLE in text
+
+
+def _write_coding_rules(templates_dir: Path, standards: Path, archetype: str) -> list[Path]:
+    """Copy the archetype's coding rules (with backup). Returns the files written."""
+    try:
+        archetype_dir = resolve_child_path(templates_dir / "archetypes", archetype, single_segment=True)
+        rules_src = resolve_child_path(archetype_dir, "coding-rules.md", single_segment=True)
+    except ValueError as exc:
+        raise _fail("RAPID1413", str(exc)) from exc
+    if not rules_src.exists():
+        return []
+    _copy_template(rules_src, standards / "coding-rules.md", "las reglas de codigo")
+    return [standards / "coding-rules.md"]
+
+
+def _write_security(
+    templates_dir: Path, standards: Path, archetype: str, stack_id: str, uses_ai: bool
+) -> tuple[Path | None, str | None]:
+    """`standards/security.md`: the security baseline at the archetype's level (with backup).
+
+    Returns the file written and a warning when the baseline template is missing and the minimal
+    standard (which `rapid start hardening` requires) stands in."""
+    target = standards / "security.md"
+    try:
+        baseline = resolve_child_path(templates_dir / SECURITY_TEMPLATE[0], SECURITY_TEMPLATE[1], single_segment=True)
+        minimal = resolve_child_path(templates_dir / "archetypes", "default-security.md", single_segment=True)
+    except ValueError as exc:
+        raise _fail("RAPID1413", str(exc)) from exc
+    if baseline.is_file():
+        try:
+            body = render_security_standard(
+                baseline.read_text(encoding="utf-8"), archetype=archetype, stack_id=stack_id, ai=uses_ai
+            )
+        except (OSError, UnicodeDecodeError) as exc:
+            raise _fail("RAPID1413", f"No se pudo leer la base de seguridad: {exc}") from exc
+        safe_write_text(target, body, encoding="utf-8", backup=True, create_parents=True)
+        return target, None
+    if not target.exists() and minimal.is_file():
+        _copy_template(minimal, target, "el estandar de seguridad minimo")
+        return target, (
+            f"No se encontró templates/{SECURITY_TEMPLATE[0]}/{SECURITY_TEMPLATE[1]}: "
+            "se usó el estándar de seguridad mínimo."
+        )
+    return None, None
+
+
+def refresh_archetype_files(
+    project_root: Path, rapid_dir: Path, config_file: Path, templates_dir: Path, state: SetupState
+) -> tuple[str, ...]:
+    """`rapid setup set archetype <x> --refresh`: regenerate `security.md` and `coding-rules.md`
+    from the current templates (the previous copies are kept as backups) and the agent files.
+
+    This is how a project initialized before the security baseline gets it."""
+    if state.stack is None or state.archetype not in ARCHETYPES:
+        raise _fail("RAPID1413", "--refresh needs the stack and the archetype decided.")
+    standards = Path(rapid_dir) / "standards"
+    standards.mkdir(parents=True, exist_ok=True)
+    _write_coding_rules(Path(templates_dir), standards, state.archetype)
+    _path, warning = _write_security(
+        Path(templates_dir), standards, state.archetype, state.stack.id, effective_ai(state.stack.id, state.ai)
+    )
+    warnings = (warning,) if warning else ()
+    if project_has_standards(Path(rapid_dir), Path(config_file)):
+        warnings = (*warnings, *regenerate_agent_context(Path(project_root), Path(rapid_dir), Path(config_file)))
+    return warnings
+
+
+def planned_ci_workflow(project_root: Path, stack_id: str | None, scan_model: ProjectModel | None = None) -> str | None:
+    """The CI workflow `setup finish` would write, or None. Only in an empty repository without one."""
+    from rapid_os.domain.scanner import is_empty_repository
+
+    root = Path(project_root)
+    if (root / CI_WORKFLOW_PATH).exists() or not is_empty_repository(root):
+        return None
+    languages = scan_model.values("language") if scan_model is not None else ()
+    return CI_WORKFLOW_PATH if ci_language(stack_id, languages) else None
+
+
+def _write_ci_workflow(
+    project_root: Path, templates_dir: Path, archetype: str, stack_id: str, scan_model: ProjectModel | None
+) -> str | None:
+    """Write `.github/workflows/rapid-security.yml` from `templates/ci/<language>-security.yml`.
+
+    Rapid OS writes it, not the agent. Only in an empty repository and never over a workflow that
+    already exists. Returns its path relative to the project, or None."""
+    if planned_ci_workflow(project_root, stack_id, scan_model) is None:
+        return None
+    language = ci_language(stack_id, scan_model.values("language") if scan_model is not None else ())
+    try:
+        source = resolve_child_path(templates_dir / "ci", f"{language}-security.yml", single_segment=True)
+    except ValueError as exc:
+        raise _fail("RAPID1413", str(exc)) from exc
+    if not source.is_file():
+        return None
+    try:
+        body = render_ci_workflow(source.read_text(encoding="utf-8"), archetype=archetype)
+    except (OSError, UnicodeDecodeError) as exc:
+        raise _fail("RAPID1413", f"No se pudo leer el workflow de seguridad: {exc}") from exc
+    safe_write_text(
+        Path(project_root) / CI_WORKFLOW_PATH, body, encoding="utf-8", backup=False, create_parents=True, allow_overwrite=False
+    )
+    return CI_WORKFLOW_PATH
+
+
 def render_architecture_standard(text: str, stack_id: str) -> str:
     """The modular-monolith standard for one stack: the rule plus only the tree of that stack.
 
@@ -583,26 +718,27 @@ def apply_setup(
     # Archetype and security
     if state.archetype not in ARCHETYPES and (on_disk is None or on_disk.archetype != state.archetype):
         raise _fail("RAPID1413", f"Arquetipo no soportado: '{state.archetype}'. Usa 'mvp' o 'corporate'.")
-    if on_disk is None or on_disk.archetype != state.archetype:
-        try:
-            archetype_dir = resolve_child_path(templates_dir / "archetypes", state.archetype, single_segment=True)
-            rules_src = resolve_child_path(archetype_dir, "coding-rules.md", single_segment=True)
-            sec_src = resolve_child_path(archetype_dir, "security.md", single_segment=True)
-            minimal_security = resolve_child_path(
-                templates_dir / "archetypes", "default-security.md", single_segment=True
-            )
-        except ValueError as exc:
-            raise _fail("RAPID1413", str(exc)) from exc
-        if rules_src.exists():
-            _copy_template(rules_src, standards / "coding-rules.md", "las reglas de codigo")
-            written.append(rel(standards / "coding-rules.md"))
-        if sec_src.exists():
-            _copy_template(sec_src, standards / "security.md", "el estandar de seguridad")
-            written.append(rel(standards / "security.md"))
-        elif not (standards / "security.md").exists() and minimal_security.exists():
-            # `rapid start hardening` requires a security standard: start from a minimal template.
-            _copy_template(minimal_security, standards / "security.md", "el estandar de seguridad minimo")
-            written.append(rel(standards / "security.md"))
+    uses_ai = effective_ai(stack.id, state.ai)
+    archetype_changed = on_disk is None or on_disk.archetype != state.archetype
+    if archetype_changed:
+        written.extend(rel(path) for path in _write_coding_rules(templates_dir, standards, state.archetype))
+    # The security baseline follows the archetype (level), the stack (API) and the AI answer; a
+    # standard the person edited is only rewritten when one of those decisions changed.
+    security_file = standards / "security.md"
+    decision_changed = (
+        archetype_changed
+        or on_disk.ai != uses_ai
+        or on_disk.stack is None
+        or has_api(on_disk.stack.id) != has_api(stack.id)
+    )
+    # Only a standard Rapid OS wrote follows its decisions: a security.md the person wrote is theirs
+    # (`rapid setup set archetype <id> --refresh` replaces it on request, keeping a backup).
+    security_changed = not security_file.exists() or (decision_changed and is_rapid_security(security_file))
+    security_warning: str | None = None
+    if security_changed:
+        security_path, security_warning = _write_security(templates_dir, standards, state.archetype, stack.id, uses_ai)
+        if security_path is not None:
+            written.append(rel(security_path))
 
     # Architecture: a backend starts as a modular monolith. The text goes to the agent as a
     # standard and the machine form is what `rapid arch check` and `gate.architecture` read.
@@ -641,6 +777,11 @@ def apply_setup(
             )
             written.extend([rel(arch_md), rel(arch_json)])
 
+    # CI: the security scans run from the first PR, written by Rapid OS in a new repository.
+    ci_workflow = _write_ci_workflow(project_root, templates_dir, state.archetype, stack.id, scan_model)
+    if ci_workflow is not None:
+        written.append(ci_workflow)
+
     # Config
     existing = inspect_project_config_file(config_file)
     previous = dict(existing.config) if existing.is_valid and Path(config_file).exists() else {}
@@ -659,7 +800,7 @@ def apply_setup(
         save_project_config(data, rapid_dir, config_file)
         written.append(rel(Path(config_file)))
 
-    warnings: tuple[str, ...] = (architecture_warning,) if architecture_warning else ()
+    warnings = tuple(w for w in (architecture_warning, security_warning) if w)
     if regenerate:
         warnings = (*warnings, *regenerate_agent_context(project_root, rapid_dir, Path(config_file)))
     return ApplyResult(tuple(written), warnings)

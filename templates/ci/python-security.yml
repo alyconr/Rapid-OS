@@ -1,0 +1,105 @@
+# Escaneos de seguridad de Rapid OS (base de seguridad: docs en .rapid-os/standards/security.md).
+# Lo escribió Rapid OS al cerrar el onboarding de un repositorio vacío: revísalo antes del primer commit.
+# Las acciones están fijadas por SHA completo del commit, con su versión en un comentario.
+name: rapid-security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: Secretos (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Instalar gitleaks 8.30.1 (suma de verificación fijada)
+        run: |
+          curl -sSfL -o gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+      - name: Buscar secretos en el historial
+        run: ./gitleaks git --redact --verbose --exit-code 1
+
+  static:
+    name: Análisis estático (semgrep OWASP Top 10 y bandit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Instalar semgrep y bandit
+        run: python -m pip install semgrep==1.182.1 bandit==1.9.4
+      - name: semgrep con las reglas OWASP Top 10
+        run: semgrep scan --config p/owasp-top-ten --error --metrics=off
+      - name: bandit (severidad media o superior)
+        run: bandit -r . -ll --exclude ./tests,./.venv,./venv,./node_modules
+
+  dependencies:
+    name: Dependencias (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Auditar las dependencias declaradas
+        run: |
+          python -m pip install pip-audit==2.10.1
+          if [ -f requirements.txt ]; then
+            pip-audit -r requirements.txt
+          elif [ -f pyproject.toml ]; then
+            python -m pip install .
+            pip-audit --skip-editable
+          else
+            echo "Sin dependencias declaradas todavía: nada que auditar."
+          fi
+
+# if corporate
+  sbom:
+    name: SBOM (anchore/sbom-action)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+  provenance:
+    name: Procedencia firmada (SLSA Build L2)
+    if: github.event_name == 'push'
+    needs: sbom
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          format: spdx-json
+          output-file: sbom.spdx.json
+      # Cuando el proyecto tenga un artefacto desplegable (imagen, paquete, wheel), cambia
+      # subject-path por ese artefacto: la procedencia debe describir lo que se publica.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: sbom.spdx.json
+# endif

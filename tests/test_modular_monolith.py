@@ -33,7 +33,7 @@ ARCHITECTURE_BODY = (
 class Project(GitIsolated):
     def decide(self, stack, topology, test_command="none"):
         for key, value in (
-            ("stack", stack), ("topology", topology), ("archetype", "mvp"),
+            ("stack", stack), ("topology", topology), ("archetype", "mvp"), ("ai", "no"),
             ("agents", "claude"), ("test-command", test_command),
         ):
             result = self.rapid("setup", "set", key, value)
