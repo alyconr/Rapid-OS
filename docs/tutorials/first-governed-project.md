@@ -169,6 +169,7 @@ rapid policy show
 Para una especificación en modo `feature`, el motor de políticas resuelve la clasificación `bounded` (las clases canónicas son `spike`, `bounded` y `architectural`) con nivel de riesgo `medium`. Esta política requiere las siguientes compuertas obligatorias:
 - `gate.baseline` (fase `pre_execution`): verificación previa de la salud de pruebas del repositorio antes de iniciar cambios.
 - `gate.tests` (fase `post_execution`): verificación con suite de pruebas aprobada y artefacto de log adjunto.
+- `gate.architecture` (fase `post_execution`): este proyecto se inicializó con un stack de backend (`python-ai`), así que arranca como monolito modular y su contrato verifica la regla con `rapid arch check`.
 - `gate.final-verification` (fase `post_execution`): revisión formal final de cumplimiento contractual con veredicto aprobado.
 
 ### Paso 6: Crear el Run de Ejecución
@@ -387,6 +388,40 @@ Ingiérelo:
 rapid evidence add --run spec-task-priority-r1-run-001 --input evidence_test_result.json
 ```
 
+### 4 bis. Registrar evidencia de arquitectura (`command_result`)
+
+El evaluador exige que `gate.architecture` contenga evidencia `command_result` con `exit_code: 0` y un artefacto de log (`arch.log`). El verificador solo juzga el código dentro de `app/modules/` (la carpeta de módulos de la regla): este proyecto aún no tiene módulos, así que no hay nada que violar.
+
+Captura la salida del verificador:
+
+```bash
+rapid arch check > arch.log 2>&1
+```
+
+Prepara `evidence_architecture.json`:
+
+```json
+{
+  "kind": "command_result",
+  "producer": "harness:codex",
+  "summary": "rapid arch check sin violaciones",
+  "task_ids": ["T001"],
+  "gate_ids": ["gate.architecture"],
+  "capability_ids": ["shell.execute"],
+  "payload": {
+    "label": "rapid arch check",
+    "exit_code": 0
+  },
+  "artifacts": ["arch.log"]
+}
+```
+
+Ingiérelo:
+
+```bash
+rapid evidence add --run spec-task-priority-r1-run-001 --input evidence_architecture.json
+```
+
 ### 5. Registrar evidencia de espacio de trabajo (`workspace`)
 
 El evaluador exige validar la capacidad derivada `workspace.current` mediante una evidencia de tipo `workspace` con payload `mode: "current"`.
@@ -447,6 +482,7 @@ Con toda la evidencia registrada y verificable, completa la tarea, reconoce las 
 ```bash
 rapid run task spec-task-priority-r1-run-001 T001 done
 rapid run gate spec-task-priority-r1-run-001 gate.tests acknowledged
+rapid run gate spec-task-priority-r1-run-001 gate.architecture acknowledged
 rapid run gate spec-task-priority-r1-run-001 gate.final-verification acknowledged
 rapid run status spec-task-priority-r1-run-001 finished
 ```
@@ -461,7 +497,7 @@ Ejecuta el evaluador conductual determinista exigiendo el veredicto exitoso (`--
 rapid eval run --run spec-task-priority-r1-run-001 --write --require-pass
 ```
 
-El evaluador inspecciona las transiciones de estado, verifica que los gates requeridos (`gate.baseline`, `gate.tests`, `gate.final-verification`) y las capacidades observadas estén satisfechos por la evidencia vinculada y emite el veredicto:
+El evaluador inspecciona las transiciones de estado, verifica que los gates requeridos (`gate.baseline`, `gate.tests`, `gate.architecture`, `gate.final-verification`) y las capacidades observadas estén satisfechos por la evidencia vinculada y emite el veredicto:
 
 ```json
 {
@@ -497,6 +533,6 @@ rapid validate
 - [x] Evidencia de baseline capturada y `gate.baseline` reconocido antes de `active`.
 - [x] Código y pruebas implementados externamente con artefactos de log.
 - [x] Evidencias `file_change`, `test_result`, `workspace` y `review` registradas.
-- [x] Compuertas `gate.tests` y `gate.final-verification` reconocidas.
+- [x] Compuertas `gate.tests`, `gate.architecture` y `gate.final-verification` reconocidas.
 - [x] Veredicto `pass` emitido por `rapid eval run --require-pass`.
 - [x] `rapid validate` finaliza con código de salida 0.

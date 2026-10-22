@@ -128,6 +128,7 @@ En los contratos de ejecución generados por RAPID OS, las compuertas se identif
 | `gate.baseline` | `baseline_check` | `pre_execution` | Comprobación de salud antes de cambios. Requiere evidencia `test_result` o `command_result`. |
 | `gate.manual-approval` | `manual_approval` | `pre_execution` | Aprobación pre-ejecución en riesgo crítico. Requiere evidencia `review` o `delegation`. |
 | `gate.tests` | `implementation_tests` | `post_execution` | Pruebas de unidad o integración. Requiere evidencia `test_result` exitoso. |
+| `gate.architecture` | `architecture_check` | `post_execution` | Solo si el proyecto tiene `.rapid-os/standards/architecture.json` y el modo es `feature`, `bugfix` o `refactor`. Requiere evidencia `command_result` de `rapid arch check` con `exit_code: 0`. No es dispensable. |
 | `gate.review` | `peer_review` | `post_execution` | Revisión arquitectónica o por pares. Requiere evidencia `review` aprobada. |
 | `gate.security-review` | `security_review` | `post_execution` | Análisis o revisión de seguridad. Requiere evidencia `review` o `command_result`. |
 | `gate.migration-review` | `migration_review` | `post_execution` | Revisión de scripts de migración. Requiere evidencia `review` especializada. |

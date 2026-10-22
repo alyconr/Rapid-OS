@@ -14,6 +14,7 @@ import subprocess
 import sys
 from typing import Any, Sequence
 
+from rapid_os.adapters.architecture_files import has_architecture_rule
 from rapid_os.adapters.eval_registry import EvalRegistry
 from rapid_os.adapters.evidence_registry import EvidenceRegistry
 from rapid_os.adapters.project_snapshot import resolve_project_snapshot_path, write_project_snapshot
@@ -90,7 +91,13 @@ def has_scaffold_task(tasks) -> bool:
 SCAFFOLD_TEST_COMMAND_HINT = "Configura el comando con rapid setup set test-command <cmd> antes de cerrarla"
 
 
-def with_scaffold_task(tasks, *, needs_test_command: bool = False) -> list[str]:
+SCAFFOLD_ARCHITECTURE_HINT = (
+    "con la estructura de .rapid-os/standards/architecture.md "
+    "(un módulo de ejemplo con sus cuatro capas y su punto público)"
+)
+
+
+def with_scaffold_task(tasks, *, needs_test_command: bool = False, architecture: bool = False) -> list[str]:
     """The scaffold as the first task. Contract task ids start at T001, so the scaffold is T001
     and the written `T00n:` prefixes of the other tasks move down by one to keep matching.
 
@@ -104,6 +111,8 @@ def with_scaffold_task(tasks, *, needs_test_command: bool = False) -> list[str]:
             f"T{index:03d}: {text[_TASK_PREFIX_RE.match(text).end():]}" if _TASK_PREFIX_RE.match(text) else text
         )
     scaffold = f"T001: {SCAFFOLD_TASK_TEXT}"
+    if architecture:
+        scaffold += f" {SCAFFOLD_ARCHITECTURE_HINT}"
     if needs_test_command:
         scaffold += f". {SCAFFOLD_TEST_COMMAND_HINT}"
     return [scaffold, *renumbered]
@@ -300,7 +309,9 @@ def execute_start(
                 written_tasks = list(spec_fields.get("implementation_tasks") or [])
                 scaffold_config = load_project_config(config_file or (project_rapid_dir / "config.json"))
                 spec_fields["implementation_tasks"] = with_scaffold_task(
-                    written_tasks, needs_test_command=not scaffold_config.get("test_command")
+                    written_tasks,
+                    needs_test_command=not scaffold_config.get("test_command"),
+                    architecture=has_architecture_rule(project_rapid_dir),
                 )
                 if not has_scaffold_task(written_tasks):
                     run_notes = scaffold_notes(written_tasks, spec_fields["implementation_tasks"])

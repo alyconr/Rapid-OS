@@ -4,6 +4,7 @@ from rapid_os.core.paths import CURRENT_DIR, PROJECT_RAPID_DIR
 STANDARDS_PRIORITY = [
     "tech-stack.md",
     "topology.md",
+    "architecture.md",
     "security.md",
     "design.md",
     "business.md",

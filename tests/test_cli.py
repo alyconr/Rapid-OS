@@ -30,6 +30,7 @@ class CliSmokeTests(unittest.TestCase):
             {
                 "init",
                 "setup",
+                "arch",
                 "skill",
                 "scope",
                 "spec",

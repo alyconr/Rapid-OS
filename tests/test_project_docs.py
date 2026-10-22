@@ -277,7 +277,11 @@ class ValidateDocsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = make_project(Path(tmp))
             write_doc(root, "brief", FULL_BRIEF)
-            write_doc(root, "architecture", "## Decision\nd\n\n## Rationale\nr\n\n## Rejected alternatives\na\n\n## Consequences\nc\n")
+            write_doc(
+                root, "architecture",
+                "## Decision\nd\n\n## Rationale\nr\n\n## Rejected alternatives\na\n\n## Consequences\nc\n\n"
+                "## Modules\nm\n\n## Dependency rules\nr\n",
+            )
             report = validate_project_docs(root / ".rapid-os", root, TEMPLATES)
             self.assertEqual(sorted(codes(report)), [("warning", "RAPID1408")] * 2)
 

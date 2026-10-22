@@ -10,6 +10,8 @@ updated in the same operation and never contradicts it.
 
 from __future__ import annotations
 
+import json
+import re
 import shlex
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -27,6 +29,7 @@ from rapid_os.core.filesystem import (
 )
 from rapid_os.core.identifiers import validate_identifier
 from rapid_os.domain.agents import generate_agent_contexts
+from rapid_os.domain.architecture import default_config as default_architecture_config
 from rapid_os.domain.catalog import (
     CUSTOM_STACK_ID,
     DOC_SITE_TOPOLOGY,
@@ -471,6 +474,35 @@ def _copy_template(source: Path, target: Path, label: str) -> None:
         raise _fail("RAPID1413", f"No se pudo copiar {label}: {exc}") from exc
 
 
+ARCHITECTURE_TEMPLATE = "modular-monolith.md"
+_STACK_SECTION_HEADING = "## Estructura por stack"
+
+
+def render_architecture_standard(text: str, stack_id: str) -> str:
+    """The modular-monolith standard for one stack: the rule plus only the tree of that stack.
+
+    The template has a `### ...` subsection per group of stacks under `## Estructura por stack`
+    (the heading names the stacks it is for); the others are dropped.
+    """
+    lines = text.splitlines(keepends=True)
+    kept: list[str] = []
+    in_stacks = False
+    keep_subsection = True
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            in_stacks = stripped == _STACK_SECTION_HEADING
+            keep_subsection = True
+        elif in_stacks and stripped.startswith("### "):
+            keep_subsection = stack_id in re.split(r"[^a-z0-9-]+", stripped[4:].lower())
+            if not keep_subsection:
+                continue
+        elif in_stacks and not keep_subsection:
+            continue
+        kept.append(line)
+    return "".join(kept)
+
+
 def apply_setup(
     project_root: Path,
     rapid_dir: Path,
@@ -572,6 +604,43 @@ def apply_setup(
             _copy_template(minimal_security, standards / "security.md", "el estandar de seguridad minimo")
             written.append(rel(standards / "security.md"))
 
+    # Architecture: a backend starts as a modular monolith. The text goes to the agent as a
+    # standard and the machine form is what `rapid arch check` and `gate.architecture` read.
+    architecture = default_architecture_config(stack.id)
+    architecture_warning: str | None = None
+    if architecture:
+        stack_changed = on_disk is None or on_disk.stack is None or on_disk.stack.id != stack.id
+        arch_md, arch_json = standards / "architecture.md", standards / "architecture.json"
+        template = None
+        if stack_changed or not arch_md.exists() or not arch_json.exists():
+            try:
+                template = resolve_child_path(templates_dir / "architecture", ARCHITECTURE_TEMPLATE, single_segment=True)
+            except ValueError as exc:
+                raise _fail("RAPID1413", f"No se pudo leer la regla de arquitectura: {exc}") from exc
+            if not template.is_file():
+                # A templates folder without the rule (a trimmed copy): the project goes without it.
+                architecture_warning = (
+                    f"No se encontró templates/architecture/{ARCHITECTURE_TEMPLATE}: "
+                    "el proyecto queda sin regla de arquitectura."
+                )
+                template = None
+        if template is not None:
+            try:
+                body = template.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                raise _fail("RAPID1413", f"No se pudo leer la regla de arquitectura: {exc}") from exc
+            safe_write_text(
+                arch_md, render_architecture_standard(body, stack.id), encoding="utf-8", backup=True, create_parents=True
+            )
+            safe_write_text(
+                arch_json,
+                json.dumps(architecture, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+                backup=True,
+                create_parents=True,
+            )
+            written.extend([rel(arch_md), rel(arch_json)])
+
     # Config
     existing = inspect_project_config_file(config_file)
     previous = dict(existing.config) if existing.is_valid and Path(config_file).exists() else {}
@@ -590,9 +659,9 @@ def apply_setup(
         save_project_config(data, rapid_dir, config_file)
         written.append(rel(Path(config_file)))
 
-    warnings: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = (architecture_warning,) if architecture_warning else ()
     if regenerate:
-        warnings = regenerate_agent_context(project_root, rapid_dir, Path(config_file))
+        warnings = (*warnings, *regenerate_agent_context(project_root, rapid_dir, Path(config_file)))
     return ApplyResult(tuple(written), warnings)
 
 

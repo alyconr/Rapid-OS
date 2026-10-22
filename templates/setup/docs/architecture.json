@@ -4,7 +4,7 @@
   "file": "docs/ARCHITECTURE.md",
   "title": "Arquitectura",
   "context_priority": "HIGH",
-  "max_chars": 4000,
+  "max_chars": 6000,
   "required_sections": [
     {
       "id": "decision",
@@ -33,6 +33,20 @@
         "Consecuencias",
         "Consequences"
       ]
+    },
+    {
+      "id": "modules",
+      "titles": [
+        "Módulos",
+        "Modules"
+      ]
+    },
+    {
+      "id": "dependency_rules",
+      "titles": [
+        "Reglas de dependencia",
+        "Dependency rules"
+      ]
     }
   ],
   "questions": [
@@ -54,6 +68,21 @@
     {
       "id": "consequences",
       "text": "¿Qué consecuencias tiene la decisión (costos, límites, riesgos)?",
+      "required": true
+    },
+    {
+      "id": "modules",
+      "text": "¿Qué capacidades de negocio tiene el producto? Cada una será un módulo",
+      "required": true
+    },
+    {
+      "id": "hexagonal",
+      "text": "¿Qué módulos integran sistemas externos o tienen reglas complejas (serán hexagonales)?",
+      "required": false
+    },
+    {
+      "id": "dependency_rules",
+      "text": "¿Qué reglas de dependencia siguen las capas y los módulos (cita las del estándar de arquitectura y añade las propias)?",
       "required": true
     },
     {

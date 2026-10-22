@@ -3514,6 +3514,74 @@ def _ensure_git_repository_for_setup(apply):
         print(f"WARNING {git.warning}", file=sys.stderr)
 
 
+def arch_command(args):
+    """Execute rapid arch check: the imports against the modular-monolith rule. Read-only."""
+    from rapid_os.adapters.architecture_files import collect_sources, config_path
+    from rapid_os.domain.architecture import ArchitectureConfigError, check_architecture
+    from rapid_os.orchestration.architecture_rule import RUN_DEMANDS_RULE_MESSAGE, resolve_architecture_rule
+
+    as_json = getattr(args, "json", False)
+
+    def fail(message):
+        if as_json:
+            print(json.dumps({"schema_version": 1, "ok": False, "error": message}, indent=2))
+        else:
+            print(message, file=sys.stderr)
+        sys.exit(1)
+
+    # In a run's worktree the rule is read from the main project; the code judged is always the
+    # current directory's.
+    try:
+        rule = resolve_architecture_rule(CURRENT_DIR, PROJECT_RAPID_DIR)
+    except ArchitectureConfigError as exc:
+        fail(str(exc))
+    config = rule.config
+    if config is None:
+        if rule.run_demands_gate:
+            # The run needs this gate: with no rule to check, it must not look satisfied.
+            fail(RUN_DEMANDS_RULE_MESSAGE)
+        warning = (
+            f"No hay {config_path(PROJECT_RAPID_DIR).relative_to(CURRENT_DIR).as_posix()}: "
+            "este proyecto no tiene regla de arquitectura que verificar."
+        )
+        if as_json:
+            print(json.dumps({"schema_version": 1, "ok": True, "warning": warning, "violations": []}, indent=2))
+        else:
+            print(f"WARNING {warning}")
+        return 0
+
+    report = check_architecture(config, collect_sources(CURRENT_DIR, config))
+    if as_json:
+        print(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "ok": report.ok,
+                    "language": report.language,
+                    "modules": list(report.modules),
+                    "checked_files": report.checked_files,
+                    "violations": [v.to_dict() for v in report.violations],
+                    "skipped": list(report.skipped),
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+    else:
+        for line in report.skipped:
+            print(f"WARNING {line}")
+        for violation in report.violations:
+            print(violation.to_line())
+        if not report.violations:
+            if report.checked_files:
+                print(f"Arquitectura OK: {report.checked_files} archivo(s) en {len(report.modules)} módulo(s).")
+            else:
+                print(f"Sin módulos todavía en {config.modules_root}/: nada que verificar.")
+        else:
+            print(f"{len(report.violations)} violación(es) de la arquitectura (regla en .rapid-os/standards/architecture.md).")
+    return 0 if report.ok else 1
+
+
 def setup_command(args):
     """Execute rapid setup. next and show are read-only; set, stack, doc and finish write."""
     from dataclasses import replace as dc_replace
@@ -4988,6 +5056,26 @@ def create_parser():
     )
     _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
 
+    # rapid arch
+    arch_p = subparsers.add_parser(
+        "arch",
+        help="Check the project's imports against the modular-monolith architecture rule.",
+        description="Verify the architecture rule in .rapid-os/standards/architecture.json (read-only).",
+    )
+    arch_sub = arch_p.add_subparsers(dest="arch_action")
+    _sp = arch_sub.add_parser(
+        "check",
+        help="Report imports that break the module, layer and shared rules (RAPID1420).",
+        description=(
+            "Read the imports of the files under modules_root and shared_root (Python with ast, "
+            "TypeScript/JavaScript with regular expressions; nothing is executed) and report a violation "
+            "(RAPID1420) for a layer importing a layer it may not, a module importing anything but another "
+            "module's public entry, shared importing a module, or the domain importing a forbidden library. "
+            "Exit 1 with violations; 0 without them, without modules yet, or without architecture.json (warning)."
+        ),
+    )
+    _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
+
     # rapid shortcuts
     shortcuts_p = subparsers.add_parser(
         "shortcuts",
@@ -5107,6 +5195,11 @@ def main(argv=None):
         validate_command(args)
     elif args.command == "doctor":
         doctor_command(args)
+    elif args.command == "arch":
+        if getattr(args, "arch_action", None) != "check":
+            print("RAPID1420 Subcomando de arch requerido (check).", file=sys.stderr)
+            sys.exit(1)
+        sys.exit(arch_command(args))
     elif args.command == "inspect-context":
         inspect_context_command(args)
     elif args.command == "guide":

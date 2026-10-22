@@ -587,6 +587,7 @@ class V3ReleaseReadinessTests(unittest.TestCase):
             "attach",
             "hook",
             "setup",
+            "arch",
         }
         self.assertEqual(registered_commands, expected_commands)
 

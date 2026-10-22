@@ -1409,6 +1409,16 @@ class BehavioralEvaluator:
                 return EvalAssertionStatus.UNVERIFIED
             return None
 
+        if gate_kind == GateKind.ARCHITECTURE_CHECK:
+            # `rapid check --gate gate.architecture -- rapid arch check`: a command that passed.
+            if self.ruleset_version >= 2 and evidence.payload.get("expectation") == "fail":
+                return None
+            if evidence.kind != EvidenceKind.COMMAND_RESULT:
+                return None
+            if int(evidence.payload["exit_code"]) != 0:  # type: ignore[arg-type]
+                return EvalAssertionStatus.FAIL
+            return EvalAssertionStatus.PASS if len(evidence.artifacts) >= 1 else EvalAssertionStatus.UNVERIFIED
+
         if gate_kind == GateKind.WORKSPACE_ISOLATION:
             if evidence.kind != EvidenceKind.WORKSPACE:
                 return None

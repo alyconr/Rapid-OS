@@ -7,8 +7,10 @@ and registers append-only RunEvidence on success (exit_code == 0).
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -126,6 +128,17 @@ def run_check(
     if not clean_argv:
         raise ValueError("Cannot run check with empty argv.")
 
+    # `rapid check -- rapid arch check` (what `rapid next` proposes for gate.architecture) runs this
+    # same Rapid OS: the `rapid` on PATH may be another version, or none.
+    exec_argv = list(clean_argv)
+    child_env = None
+    if exec_argv[0] == "rapid":
+        exec_argv = [sys.executable, "-m", "rapid_os.cli.main", *exec_argv[1:]]
+        # The child must import the package that is running, also from an uninstalled checkout.
+        package_root = str(Path(__file__).resolve().parents[2])
+        child_env = dict(os.environ)
+        child_env["PYTHONPATH"] = os.pathsep.join(filter(None, [package_root, child_env.get("PYTHONPATH")]))
+
     # Determine kind: test_result or command_result
     if kind in ("test", "test_result", EvidenceKind.TEST_RESULT.value):
         effective_kind = EvidenceKind.TEST_RESULT.value
@@ -146,7 +159,8 @@ def run_check(
 
     # Execute subprocess
     proc = subprocess.run(
-        list(clean_argv),
+        exec_argv,
+        env=child_env,
         cwd=str(cwd if cwd is not None else project_root),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
