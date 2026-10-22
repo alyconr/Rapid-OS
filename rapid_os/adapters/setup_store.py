@@ -20,6 +20,7 @@ from rapid_os.core.harness_detect import detect_harness
 from rapid_os.domain.catalog import Catalog, SetupDocBank
 from rapid_os.domain.project_docs import is_managed, parse_doc_frontmatter
 from rapid_os.domain.project import ProjectModel
+from rapid_os.domain.security import security_has_ai_section
 from rapid_os.domain.setup import (
     ARCHETYPES,
     DocState,
@@ -164,6 +165,7 @@ def _derive_state(
         agents=agents,
         test_command=None if test_command is None else tuple(test_command),
         docs={doc_id: _derive_doc(project_root, doc_id, bank) for doc_id, bank in doc_banks.items()},
+        ai=_derive_ai(_read_text(standards / "security.md")),
     )
 
 
@@ -197,6 +199,13 @@ def _derive_archetype(content: str | None, templates_dir: Path) -> str | None:
         if template is not None and template == content:
             return archetype
     return "custom"
+
+
+def _derive_ai(security: str | None) -> bool | None:
+    """With a security standard on disk the answer is known: it has the AI section or it does not."""
+    if security is None:
+        return None
+    return security_has_ai_section(security)
 
 
 def _derive_doc(project_root: Path, doc_id: str, bank: SetupDocBank) -> DocState:

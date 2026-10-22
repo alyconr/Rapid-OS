@@ -344,7 +344,7 @@ class SetupAfterFinishTests(TempProject):
     def setup_everything(self, test_command):
         git(self.root, "init", "-q")
         for key, value in (
-            ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"),
+            ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"), ("ai", "no"),
             ("agents", "codex"), ("test-command", test_command),
         ):
             result = rapid(self.root, "setup", "set", key, value)
@@ -391,7 +391,7 @@ class EmptyFolderEndToEndTests(SetupAfterFinishTests):
     def test_empty_folder_to_pass_with_codex_and_the_story_ticked(self):
         git(self.root, "init", "-q")  # no commit
         for key, value in (
-            ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"),
+            ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"), ("ai", "no"),
             ("agents", "codex"), ("test-command", "none"),
         ):
             self.assertEqual(rapid(self.root, "setup", "set", key, value).returncode, 0)

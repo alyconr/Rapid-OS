@@ -80,7 +80,7 @@ class GitIsolated(unittest.TestCase):
     def setup_everything(self, test_command="none", brief=False, cwd=None):
         cwd = cwd or self.root
         for key, value in (
-            ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"),
+            ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"), ("ai", "no"),
             ("agents", "codex"), ("test-command", test_command),
         ):
             result = self.rapid("setup", "set", key, value, cwd=cwd)
@@ -172,7 +172,7 @@ class EnsureGitRepositoryUnitTests(GitIsolated):
         empty.mkdir()
         # Everything the setup needs is written before git is hidden from the final step.
         for key, value in (
-            ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"),
+            ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"), ("ai", "no"),
             ("agents", "codex"), ("test-command", "none"),
         ):
             self.assertEqual(self.rapid("setup", "set", key, value).returncode, 0)
@@ -251,7 +251,7 @@ class RepairAndResumeTests(StartWithoutGitTests):
 
     def test_the_creation_note_goes_to_stderr_with_json(self):
         for key, value in (
-            ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"),
+            ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"), ("ai", "no"),
             ("agents", "codex"), ("test-command", "none"),
         ):
             self.assertEqual(self.rapid("setup", "set", key, value).returncode, 0)

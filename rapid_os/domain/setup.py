@@ -57,6 +57,9 @@ class SetupState:
     # The person went through the unconfirmed drafts (`rapid setup review --done`); what they
     # did not confirm stays a draft. Omitted from the JSON while False.
     drafts_reviewed: bool = False
+    # Does the product use models or agents? `None` is undecided. AI stacks do not ask (see
+    # `rapid_os.domain.security.effective_ai`).
+    ai: bool | None = None
 
     def doc(self, doc_id: str) -> DocState:
         return self.docs.get(doc_id, DocState())
@@ -74,6 +77,8 @@ class SetupState:
         }
         if self.drafts_reviewed:
             payload["drafts_reviewed"] = True
+        if self.ai is not None:
+            payload["ai"] = self.ai
         return payload
 
     @classmethod
@@ -135,6 +140,10 @@ class SetupState:
         drafts_reviewed = data.get("drafts_reviewed", False)
         if not isinstance(drafts_reviewed, bool):
             raise _fail("drafts_reviewed must be a boolean.")
+        # A file without the field is undecided, unless the setup is already finished: then it is no.
+        ai = data.get("ai", False if finished else None)
+        if ai is not None and not isinstance(ai, bool):
+            raise _fail("ai must be null or a boolean.")
 
         return cls(
             schema_version=SETUP_SCHEMA_VERSION,
@@ -146,6 +155,7 @@ class SetupState:
             docs=docs,
             finished=finished,
             drafts_reviewed=drafts_reviewed,
+            ai=ai,
         )
 
 
@@ -153,6 +163,7 @@ class SetupActionKind(str, Enum):
     CHOOSE_STACK = "choose_stack"
     CHOOSE_TOPOLOGY = "choose_topology"
     CHOOSE_ARCHETYPE = "choose_archetype"
+    CHOOSE_AI = "choose_ai"
     CHOOSE_AGENTS = "choose_agents"
     SET_TEST_COMMAND = "set_test_command"
     RESOLVE_DOC = "resolve_doc"

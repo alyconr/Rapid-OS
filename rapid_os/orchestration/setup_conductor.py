@@ -18,6 +18,7 @@ from rapid_os.domain.catalog import (
 )
 from rapid_os.domain.project import ProjectModel
 from rapid_os.domain.scanner import suggest_init_choices
+from rapid_os.domain.security import is_ai_stack
 from rapid_os.domain.setup import (
     ARCHETYPES,
     SETUP_DOC_ORDER,
@@ -50,7 +51,14 @@ REVIEW_CONSEQUENCES = {
         "está sin confirmar (RAPID1408). La confirmas cuando quieras con rapid setup doc <id> --confirm."
     ),
 }
-ARCHETYPE_SUMMARIES = {"mvp": "Speed first", "corporate": "Security first"}
+ARCHETYPE_SUMMARIES = {
+    "mvp": "Speed first; includes the security baseline (OWASP ASVS L1)",
+    "corporate": "Security first; includes the security baseline at OWASP ASVS L2 and SLSA Build L2",
+}
+AI_COMMAND = ("rapid", "setup", "set", "ai", "<yes|no>")
+AI_QUESTION = (
+    "¿El producto usará modelos de IA o agentes (por ejemplo, un asistente que responda por WhatsApp)?"
+)
 
 
 def next_setup_action(
@@ -65,7 +73,7 @@ def next_setup_action(
     detected_agent: str | None = None,
     legacy_business: str | None = None,
 ) -> SetupAction:
-    """Order: stack, topology, archetype, agents, test command, docs, finish, done.
+    """Order: stack, topology, archetype, ai, agents, test command, docs, finish, done.
 
     Everything that needs the filesystem or the environment (the proposed test command, the
     detected harness) arrives as an argument: this function reads nothing.
@@ -80,6 +88,15 @@ def next_setup_action(
             options=[{"id": a, "summary": ARCHETYPE_SUMMARIES[a]} for a in ARCHETYPES],
             recommended=None,
             command=list(ARCHETYPE_COMMAND),
+        )
+    if state.ai is None and not is_ai_stack(state.stack.id):
+        # python-ai and nodejs-ai are AI products by definition: they are not asked.
+        return _action(
+            SetupActionKind.CHOOSE_AI,
+            question=AI_QUESTION,
+            options=[{"id": "yes"}, {"id": "no"}],
+            recommended=None,
+            command=list(AI_COMMAND),
         )
     if not state.agents:
         return _action(

@@ -11,6 +11,7 @@ from pathlib import Path
 from rapid_os import __version__
 from rapid_os.adapters.agents import DEFAULT_AGENT_REGISTRY
 from rapid_os.core.harness_detect import detect_harness
+from rapid_os.domain.security import CI_ADDED_NOTE, CI_PLANNED_NOTE, CI_WORKFLOW_PATH
 from rapid_os.orchestration.git import person_action_lines, person_actions
 
 from rapid_os.adapters.mcp import (
@@ -1257,6 +1258,21 @@ def _agent_shortcuts_or_hooks_installed():
     return any(entry.state in ("installed", "outdated") for entry in entries)
 
 
+def _current_archetype():
+    """The archetype of the project: the one in `.rapid-os/setup.json`, else read from its coding rules."""
+    from rapid_os.adapters.setup_store import read_setup_file
+    from rapid_os.domain.setup import ARCHETYPES
+
+    state, _error = read_setup_file(PROJECT_RAPID_DIR)
+    if state is not None and state.archetype in ARCHETYPES:
+        return state.archetype
+    rules = PROJECT_RAPID_DIR / "standards" / "coding-rules.md"
+    try:
+        return "corporate" if "CORPORATE" in rules.read_text(encoding="utf-8").upper() else "mvp"
+    except (OSError, UnicodeDecodeError):
+        return "mvp"
+
+
 def doctor_command(args):
     diagnostics = [
         Diagnostic(INFO, "RAPID900", f"Current directory: {CURRENT_DIR}", CURRENT_DIR),
@@ -1284,6 +1300,25 @@ def doctor_command(args):
         diagnostics.append(
             Diagnostic(INFO, "RAPID909", f"Test command: {test_cmd_str}", CONFIG_FILE)
         )
+
+    security_file = PROJECT_RAPID_DIR / "standards" / "security.md"
+    if security_file.is_file():
+        from rapid_os.domain.security import security_mentions_asvs
+
+        try:
+            security_text = security_file.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            security_text = None
+        if security_text is not None and not security_mentions_asvs(security_text):
+            diagnostics.append(
+                Diagnostic(
+                    WARNING,
+                    "RAPID1421",
+                    "standards/security.md no menciona OWASP ASVS: el proyecto se inicializó antes de la base de seguridad.",
+                    security_file,
+                    hint=f"Ejecuta 'rapid setup set archetype {_current_archetype()} --refresh' para regenerar security.md y coding-rules.md (queda copia .bak).",
+                )
+            )
 
     from rapid_os.core.ancestry import find_agent_ancestor, read_ancestry
 
@@ -3357,6 +3392,8 @@ def _format_setup_action(action) -> list[str]:
         ]
     elif kind in ("choose_archetype", "choose_agents"):
         lines.append(f"Options: {', '.join(o['id'] for o in data['options'])}")
+    elif kind == "choose_ai":
+        lines += [data["question"], f"Options: {', '.join(o['id'] for o in data['options'])}", f"Command: {' '.join(data['command'])}"]
     elif kind == "set_test_command":
         proposed = " ".join(data["recommended"]) if data["recommended"] else "none detected"
         lines.append(f"Suggested test command: {proposed}")
@@ -3437,11 +3474,21 @@ def _setup_write(args, action_name, state, catalog, doc_banks):
 
     if action_name == "set":
         key = getattr(args, "key", None)
+        refresh = getattr(args, "refresh", False)
+        if refresh and key != "archetype":
+            raise apply.SetupApplyError("RAPID1413", "--refresh only goes with 'rapid setup set archetype <id>'.")
         new_state, notes = apply.set_decision(
             state, key, getattr(args, "value", None), catalog, DEFAULT_AGENT_REGISTRY.ids()
         )
         write_setup(PROJECT_RAPID_DIR, new_state)
-        return new_state, f"Setup: {key} = {args.value.strip()}", notes, False
+        summary = f"Setup: {key} = {args.value.strip()}"
+        if refresh:
+            for warning in apply.refresh_archetype_files(
+                CURRENT_DIR, PROJECT_RAPID_DIR, CONFIG_FILE, TEMPLATES_DIR, new_state
+            ):
+                print(f"WARNING {warning}", file=sys.stderr)
+            summary += " (security.md y coding-rules.md regenerados; copias anteriores como .bak)"
+        return new_state, summary, notes, False
 
     if action_name == "stack":
         if not getattr(args, "custom", False):
@@ -3641,6 +3688,14 @@ def setup_command(args):
             legacy_business=legacy_business_source(CURRENT_DIR, PROJECT_RAPID_DIR, doc_banks["business"]),
         )
 
+    added_files: list[dict[str, str]] = []
+
+    def report_added(result):
+        """Files Rapid OS wrote on its own (not the agent): the person should look at them."""
+        if CI_WORKFLOW_PATH in result.written:
+            added_files.append({"file": CI_WORKFLOW_PATH, "note": CI_ADDED_NOTE})
+            print(f"{CI_ADDED_NOTE}: {CI_WORKFLOW_PATH}")
+
     def write_section():
         """The writing subcommands. Returns `(state, summary)`."""
         if action_name == "finish":
@@ -3663,6 +3718,7 @@ def setup_command(args):
                 )
                 for warning in result.warnings:
                     print(f"WARNING {warning}", file=sys.stderr)
+                report_added(result)
                 apply.update_gitignore(CURRENT_DIR)
                 state = dc_replace(state, finished=True)
                 write_setup(PROJECT_RAPID_DIR, state)
@@ -3688,6 +3744,7 @@ def setup_command(args):
                 )
                 for warning in result.warnings:
                     print(f"WARNING {warning}", file=sys.stderr)
+                report_added(result)
                 apply.update_gitignore(CURRENT_DIR)
                 state = dc_replace(state, finished=True)
                 write_setup(PROJECT_RAPID_DIR, state)
@@ -3695,6 +3752,13 @@ def setup_command(args):
             for warning in apply.regenerate_agent_context(CURRENT_DIR, PROJECT_RAPID_DIR, CONFIG_FILE):
                 print(f"WARNING {warning}", file=sys.stderr)
         return state, summary, notes
+
+    def planned_files(action, current_state):
+        """During the review of the drafts, the workflow that `finish` is going to write."""
+        if action.kind != SetupActionKind.REVIEW_DRAFTS or current_state.stack is None:
+            return []
+        path = apply.planned_ci_workflow(CURRENT_DIR, current_state.stack.id, project_model)
+        return [{"file": path, "note": CI_PLANNED_NOTE}] if path else []
 
     summary = None
     notes = ()
@@ -3721,6 +3785,11 @@ def setup_command(args):
             payload["notes"] = list(notes)
         if actions:
             payload["person_actions"] = actions
+        if added_files:
+            payload["added_files"] = added_files
+        planned = planned_files(action, state)
+        if planned:
+            payload["planned_files"] = planned
         print(json.dumps(payload, indent=2))
         return 0
     if summary:
@@ -3728,6 +3797,8 @@ def setup_command(args):
     print("\n".join(_format_setup_action(action)))
     for line in person_action_lines(actions):
         print(line)
+    for item in planned_files(action, state):
+        print(f"{item['note']}: {item['file']}")
     return 0
 
 
@@ -4992,14 +5063,20 @@ def create_parser():
 
     _sp = setup_sub.add_parser(
         "set",
-        help="Record a decision: stack, topology, archetype, agents or test-command (writes state).",
+        help="Record a decision: stack, topology, archetype, ai, agents or test-command (writes state).",
         description=(
             "Record one onboarding decision in .rapid-os/setup.json. Standards are written by 'rapid setup finish'. "
-            "Keys: stack <id>, topology <id>, archetype <mvp|corporate>, agents <id,id>, test-command '<cmd>' ('none' for no command)."
+            "Keys: stack <id>, topology <id>, archetype <mvp|corporate>, ai <yes|no>, agents <id,id>, "
+            "test-command '<cmd>' ('none' for no command)."
         ),
     )
-    _sp.add_argument("key", nargs="?", help="stack, topology, archetype, agents or test-command.")
+    _sp.add_argument("key", nargs="?", help="stack, topology, archetype, ai, agents or test-command.")
     _sp.add_argument("value", nargs="?", help="Value of the decision.")
+    _sp.add_argument(
+        "--refresh",
+        action="store_true",
+        help="With 'archetype <id>': regenerate standards/security.md and coding-rules.md from the current templates (backups kept).",
+    )
     _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
 
     _sp = setup_sub.add_parser(
