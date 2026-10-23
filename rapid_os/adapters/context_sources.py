@@ -155,6 +155,14 @@ KNOWN_CONTEXT_SOURCE_SPECS: tuple[KnownContextSourceSpec, ...] = (
         managed_doc="architecture",
     ),
     KnownContextSourceSpec(
+        id="doc.deployment",
+        kind=ContextSourceKind.CUSTOM,
+        relative_path="docs/DEPLOYMENT.md",
+        priority=ContextPriority.LOW,
+        tags=("deployment", "infrastructure", "operations"),
+        managed_doc="deployment",
+    ),
+    KnownContextSourceSpec(
         id="reference.vision",
         kind=ContextSourceKind.REFERENCE,
         relative_path="references/VISION_CONTEXT.md",

@@ -60,6 +60,21 @@
       "id": "sensitive",
       "text": "¿Qué datos son personales o sensibles?",
       "required": false
+    },
+    {
+      "id": "local_database",
+      "text": "¿Cómo se levanta la base de datos local? Motor y versión elegidos, cómo levantarla, la variable de conexión, el comando de migraciones y los datos de prueba",
+      "required": false
+    }
+  ],
+  "conditional_sections": [
+    {
+      "id": "local_database",
+      "titles": [
+        "Base de datos local",
+        "Local database"
+      ],
+      "when": "service:database"
     }
   ]
 }

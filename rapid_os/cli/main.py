@@ -430,7 +430,8 @@ def _collect_init_docs(args, banks, kept):
             choices[doc_id] = ("keep", None)
         elif getattr(args, "skip_docs", False):
             choices[doc_id] = ("skipped", None)
-        elif getattr(args, "yes", False):
+        elif getattr(args, "yes", False) or doc_id == "deployment":
+            # The deployment document is optional and the platform comes with /rapid-init.
             choices[doc_id] = ("pending", None)
         else:
             if not choices:
@@ -1054,27 +1055,28 @@ def scope_feature(args):
 
 
 def deploy_assistant(args):
-    raw_target = args.target or input("Target (e.g. aws): ").strip()
+    """Print the deployment template of a platform. Writes nothing: the project document is
+    `docs/DEPLOYMENT.md`, which the onboarding (or `rapid setup doc deployment --reopen`) writes."""
+    available = sorted(p.stem for p in (TEMPLATES_DIR / "deploy").glob("*.md"))
+    raw_target = getattr(args, "target_option", None) or getattr(args, "target", None)
+    if not raw_target:
+        print(f"RAPID1413 Indica la plataforma con --target. Disponibles: {', '.join(available)}.", file=sys.stderr)
+        sys.exit(1)
     try:
         target = validate_identifier(raw_target, "deploy target")
-        tpl = resolve_child_path(
-            TEMPLATES_DIR / "deploy", f"{target}.md", single_segment=True
-        )
+        tpl = resolve_child_path(TEMPLATES_DIR / "deploy", f"{target}.md", single_segment=True)
     except ValueError as exc:
         print_error(str(exc))
         return
-
-    instructions = (
-        read_text_best_effort(tpl) if tpl.exists() else f"Deploy to {target}"
-    )
-    safe_write_text(
-        CURRENT_DIR / "DEPLOY.md",
-        f"# DEPLOY {target}\n{instructions}",
-        encoding="utf-8",
-        backup=True,
-        create_parents=True,
-    )
-    print_success("DEPLOY.md creado")
+    if not tpl.is_file():
+        print(
+            f"RAPID1413 Plataforma desconocida '{target}'. Disponibles: {', '.join(available)}.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    print(read_text_best_effort(tpl).rstrip("\n"))
+    print("\nPara dejar el documento del proyecto (docs/DEPLOYMENT.md): rapid setup doc deployment --reopen")
+    return 0
 
 
 def add_visual_reference(args):
@@ -3394,6 +3396,16 @@ def _format_setup_action(action) -> list[str]:
         lines.append(f"Options: {', '.join(o['id'] for o in data['options'])}")
     elif kind == "choose_ai":
         lines += [data["question"], f"Options: {', '.join(o['id'] for o in data['options'])}", f"Command: {' '.join(data['command'])}"]
+    elif kind == "choose_services":
+        suggested = ", ".join(data["suggested_services"]) or "none"
+        engines = ", ".join(f"{e['role']}:{e['id']}" for e in data["catalog"])
+        lines += [
+            f"Roles: {', '.join(data['roles'])}",
+            f"Engines: {engines}",
+            f"Suggested by the stack (a minimum, not a decision): {suggested}",
+            data["instruction"],
+            f"Command: {' '.join(data['command'])}",
+        ]
     elif kind == "set_test_command":
         proposed = " ".join(data["recommended"]) if data["recommended"] else "none detected"
         lines.append(f"Suggested test command: {proposed}")
@@ -3419,6 +3431,10 @@ def _format_setup_action(action) -> list[str]:
         lines.append(f"Unconfirmed drafts: {', '.join(data['unconfirmed_docs'])}")
     return lines
 
+
+LOCAL_SERVICES_FILES = ("compose.yaml", ".env.example")
+LOCAL_SERVICES_NOTE = "Servicios locales añadidos por Rapid OS: revísalos antes de levantarlos"
+LOCAL_SERVICES_PLANNED_NOTE = "Rapid OS lo va a escribir en `setup finish` (servicios @now)"
 
 SETUP_SUBCOMMANDS = "next, show, set, stack, doc, review, finish"
 
@@ -3695,6 +3711,10 @@ def setup_command(args):
         if CI_WORKFLOW_PATH in result.written:
             added_files.append({"file": CI_WORKFLOW_PATH, "note": CI_ADDED_NOTE})
             print(f"{CI_ADDED_NOTE}: {CI_WORKFLOW_PATH}")
+        for name in result.written:
+            if name in LOCAL_SERVICES_FILES or name.endswith(".yaml") and name.startswith(("compose", "docker-compose")):
+                added_files.append({"file": name, "note": LOCAL_SERVICES_NOTE})
+                print(f"{LOCAL_SERVICES_NOTE}: {name}")
 
     def write_section():
         """The writing subcommands. Returns `(state, summary)`."""
@@ -3741,6 +3761,7 @@ def setup_command(args):
                     scan_model=project_model,
                     scanned=True,
                     only_changes=True,
+                    services_changed=getattr(args, "key", None) == "services",
                 )
                 for warning in result.warnings:
                     print(f"WARNING {warning}", file=sys.stderr)
@@ -3758,7 +3779,10 @@ def setup_command(args):
         if action.kind != SetupActionKind.REVIEW_DRAFTS or current_state.stack is None:
             return []
         path = apply.planned_ci_workflow(CURRENT_DIR, current_state.stack.id, project_model)
-        return [{"file": path, "note": CI_PLANNED_NOTE}] if path else []
+        planned = [{"file": path, "note": CI_PLANNED_NOTE}] if path else []
+        for name in apply.planned_local_environment(CURRENT_DIR, current_state, catalog, project_model):
+            planned.append({"file": name, "note": LOCAL_SERVICES_PLANNED_NOTE})
+        return planned
 
     summary = None
     notes = ()
@@ -3826,6 +3850,7 @@ def next_command(args):
 
 STORY_TAG_PREFIX = "story:"
 NO_BASELINE_LINE = "Sin baseline: proyecto nuevo"
+NO_ISOLATION_LINE = "Sin aislamiento: el repositorio aún no tiene commits"
 
 
 def _baseline_waived(run_id):
@@ -4000,11 +4025,17 @@ def status_command(args):
     from rapid_os.orchestration.session import load_session
 
     sess = load_session(PROJECT_RAPID_DIR)
+    actions = person_actions(CURRENT_DIR)
     if not sess or not sess.active_run_id:
         if getattr(args, "json", False):
-            print(json.dumps({"session": None, "run": None}, indent=2))
+            payload = {"session": None, "run": None}
+            if actions:
+                payload["person_actions"] = actions
+            print(json.dumps(payload, indent=2))
             return 0
         print("No active run session found (.rapid-os/session.json).")
+        for line in person_action_lines(actions):
+            print(line)
         return 0
 
     run_reg = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
@@ -4039,6 +4070,10 @@ def status_command(args):
         }
         if contract.baseline_waived is not None:
             payload["run"]["baseline_waived"] = contract.baseline_waived
+        if contract.isolation_waived is not None:
+            payload["run"]["isolation_waived"] = contract.isolation_waived
+        if actions:
+            payload["person_actions"] = actions
         print(json.dumps(payload, indent=2))
         return 0
 
@@ -4048,8 +4083,12 @@ def status_command(args):
     print(f"Tasks:         {done_tasks}/{len(state.tasks)} terminal")
     if contract.baseline_waived is not None:
         print(f"Baseline:      {NO_BASELINE_LINE}")
+    if contract.isolation_waived is not None:
+        print(f"Aislamiento:   {NO_ISOLATION_LINE}")
     if last_verdict:
         print(f"Last Verdict:  {last_verdict.upper()}")
+    for line in person_action_lines(actions):
+        print(line)
     return 0
 
 
@@ -4122,7 +4161,7 @@ def show_guide():
     print("  skill           -> List or install local/remote agent skills (list read-only; install/add write)")
     print("  mcp             -> Generate editor-specific MCP server configuration [writes state]")
     print("  vision          -> Add visual reference image to references/ [writes state]")
-    print("  deploy          -> Generate DEPLOY.md from local deployment template [writes state]")
+    print("  deploy          -> Print the deployment template of a platform [read-only]")
     print("  refine          -> Print AI refinement prompt for a standards file [read-only]")
     print("  scope           -> Legacy singleton SPECS.md/TASKS.md/ACCEPTANCE.md wizard (--register adds to v3 specs)")
     print("  prompt          -> Generate starter/refactor prompt from standards (legacy compatibility) [read-only]")
@@ -4866,10 +4905,15 @@ def create_parser():
 
     deploy = subparsers.add_parser(
         "deploy",
-        help="Generate DEPLOY.md from local deployment template (writes state).",
-        description="Generate DEPLOY.md in the project root from templates/deploy/<target>.md (writes state with backup).",
+        help="Print the deployment template of a platform (read-only).",
+        description="Print templates/deploy/<target>.md and how to write docs/DEPLOYMENT.md. Writes nothing.",
     )
-    deploy.add_argument("target", nargs="?", help="Deployment target identifier (e.g. aws).")
+    deploy.add_argument("target", nargs="?", help="Platform (same as --target).")
+    deploy.add_argument(
+        "--target",
+        dest="target_option",
+        help="Platform: aws, azure, vercel, render, railway or dokploy.",
+    )
 
     vision = subparsers.add_parser(
         "vision",

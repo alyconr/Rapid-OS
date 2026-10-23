@@ -81,14 +81,14 @@ class GitIsolated(unittest.TestCase):
         cwd = cwd or self.root
         for key, value in (
             ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"), ("ai", "no"),
-            ("agents", "codex"), ("test-command", test_command),
+            ("agents", "codex"), ("test-command", test_command), ("services", "none"),
         ):
             result = self.rapid("setup", "set", key, value, cwd=cwd)
             self.assertEqual(result.returncode, 0, result.stderr)
         if brief:
             written = self.rapid("setup", "doc", "brief", "--source", "drafted", "--file", "-", stdin=BRIEF, cwd=cwd)
             self.assertEqual(written.returncode, 0, written.stderr)
-        for doc in ("brief", "business", "data-model", "architecture"):
+        for doc in ("brief", "business", "data-model", "architecture", "deployment"):
             if brief and doc == "brief":
                 continue
             self.assertEqual(self.rapid("setup", "doc", doc, "--skip", cwd=cwd).returncode, 0)
@@ -173,10 +173,10 @@ class EnsureGitRepositoryUnitTests(GitIsolated):
         # Everything the setup needs is written before git is hidden from the final step.
         for key, value in (
             ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"), ("ai", "no"),
-            ("agents", "codex"), ("test-command", "none"),
+            ("agents", "codex"), ("test-command", "none"), ("services", "none"),
         ):
             self.assertEqual(self.rapid("setup", "set", key, value).returncode, 0)
-        for doc in ("brief", "business", "data-model", "architecture"):
+        for doc in ("brief", "business", "data-model", "architecture", "deployment"):
             self.assertEqual(self.rapid("setup", "doc", doc, "--skip").returncode, 0)
         env = {**self.env, "PATH": str(empty)}
         finished = self.rapid("setup", "finish", env=env)
@@ -252,10 +252,10 @@ class RepairAndResumeTests(StartWithoutGitTests):
     def test_the_creation_note_goes_to_stderr_with_json(self):
         for key, value in (
             ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"), ("ai", "no"),
-            ("agents", "codex"), ("test-command", "none"),
+            ("agents", "codex"), ("test-command", "none"), ("services", "none"),
         ):
             self.assertEqual(self.rapid("setup", "set", key, value).returncode, 0)
-        for doc in ("brief", "business", "data-model", "architecture"):
+        for doc in ("brief", "business", "data-model", "architecture", "deployment"):
             self.assertEqual(self.rapid("setup", "doc", doc, "--skip").returncode, 0)
         done = self.rapid("setup", "finish", "--json")
         self.assertEqual(done.returncode, 0, done.stderr)

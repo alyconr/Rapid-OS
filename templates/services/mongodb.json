@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "id": "mongodb",
+  "role": "database",
+  "image": "mongo:9",
+  "ports": [
+    27017
+  ],
+  "env": {
+    "MONGO_INITDB_ROOT_USERNAME": "app",
+    "MONGO_INITDB_ROOT_PASSWORD": "app_local_only"
+  },
+  "healthcheck": {
+    "interval": "10s",
+    "timeout": "5s",
+    "retries": 5,
+    "test": [
+      "CMD",
+      "mongosh",
+      "--quiet",
+      "--eval",
+      "quit(db.runCommand({ ping: 1 }).ok ? 0 : 1)"
+    ]
+  },
+  "volume": {
+    "name": "mongodb-data",
+    "path": "/data/db"
+  },
+  "connection_env": "DATABASE_URL",
+  "drivers": {
+    "python": {
+      "package": "pymongo",
+      "url": "mongodb://app:app_local_only@127.0.0.1:27017/app?authSource=admin"
+    },
+    "typescript": {
+      "package": "mongodb",
+      "url": "mongodb://app:app_local_only@127.0.0.1:27017/app?authSource=admin"
+    }
+  },
+  "migrations": {
+    "python": "python -m app.migrations",
+    "typescript": "npx migrate-mongo up"
+  },
+  "sources": [
+    "https://hub.docker.com/_/mongo",
+    "https://www.mongodb.com/docs/manual/reference/command/ping/",
+    "https://www.mongodb.com/docs/mongodb-shell/reference/options/",
+    "https://www.mongodb.com/docs/manual/reference/default-mongodb-port/",
+    "https://www.mongodb.com/docs/manual/release-notes/"
+  ]
+}

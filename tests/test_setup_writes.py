@@ -27,6 +27,7 @@ FILES = {
     "business": "docs/BUSINESS_RULES.md",
     "data-model": "docs/DATA_MODEL.md",
     "architecture": "docs/ARCHITECTURE.md",
+    "deployment": "docs/DEPLOYMENT.md",
 }
 
 
@@ -49,6 +50,7 @@ def decide_everything(cwd, *, agents="claude"):
         ("set", "archetype", "mvp"),
         ("set", "agents", agents),
         ("set", "test-command", "python -m unittest"),
+        ("set", "services", "none"),
     ):
         result = rapid(cwd, "setup", *argv)
         assert result.returncode == 0, result.stderr
@@ -147,7 +149,7 @@ class CustomStackTests(SetupWriteBase):
         state = self.setup_state()
         self.assertEqual((state.stack.id, state.stack.source), ("custom", "custom"))
         rapid(self.root, "setup", "set", "topology", "fullstack-separated")
-        for argv in (("archetype", "mvp"), ("ai", "no"), ("agents", "claude"), ("test-command", "none")):
+        for argv in (("archetype", "mvp"), ("ai", "no"), ("agents", "claude"), ("test-command", "none"), ("services", "none")):
             rapid(self.root, "setup", "set", *argv)
         for doc_id in FILES:
             self.assertEqual(rapid(self.root, "setup", "doc", doc_id, "--skip").returncode, 0)
@@ -296,7 +298,7 @@ class DocTests(SetupWriteBase):
         standards.mkdir(parents=True)
         (standards / "business.md").write_text("# Reglas viejas\n- una regla\n", encoding="utf-8")
         decide_everything(self.root)
-        for doc_id in ("brief", "data-model", "architecture"):
+        for doc_id in ("brief", "data-model", "architecture", "deployment"):
             rapid(self.root, "setup", "doc", doc_id, "--skip")
         action = self.next_json()
         self.assertEqual(action["kind"], "resolve_doc")
@@ -335,6 +337,7 @@ class FinishTests(SetupWriteBase):
         self.assertEqual(draft(self.root, "business", BUSINESS).returncode, 0)
         self.assertEqual(draft(self.root, "brief", BRIEF).returncode, 0)
         self.assertEqual(rapid(self.root, "setup", "doc", "data-model", "--skip").returncode, 0)
+        self.assertEqual(rapid(self.root, "setup", "doc", "deployment", "--skip").returncode, 0)
         provided = rapid(
             self.root, "setup", "doc", "architecture", "--source", "provided", "--file", "-", stdin="# Arq\n"
         )
@@ -394,7 +397,7 @@ class FinishTests(SetupWriteBase):
 
     def test_doc_writes_regenerate_agent_files_once_the_project_has_standards(self):
         decide_everything(self.root)
-        for doc_id in ("brief", "data-model", "architecture"):
+        for doc_id in ("brief", "data-model", "architecture", "deployment"):
             rapid(self.root, "setup", "doc", doc_id, "--skip")
         draft(self.root, "business", BUSINESS)
         self.assertFalse((self.root / "CLAUDE.md").exists())  # finish builds it
@@ -415,6 +418,7 @@ class FinishTests(SetupWriteBase):
         rapid(self.root, "setup", "set", "topology", "fullstack-separated")
         rapid(self.root, "setup", "set", "archetype", "mvp")
         rapid(self.root, "setup", "set", "ai", "no")
+        rapid(self.root, "setup", "set", "services", "none")
         for doc_id in FILES:
             rapid(self.root, "setup", "doc", doc_id, "--skip")
         finish = rapid(self.root, "setup", "finish")
@@ -478,8 +482,9 @@ class InitSharesTheSetupTests(unittest.TestCase):
 
         state = self.state()
         self.assertEqual(
-            {d: state.doc(d).status for d in ("brief", "business", "data-model", "architecture")},
-            {"brief": "provided", "business": "provided", "data-model": "pending", "architecture": "skipped"},
+            {d: state.doc(d).status for d in ("brief", "business", "data-model", "architecture", "deployment")},
+            {"brief": "provided", "business": "provided", "data-model": "pending", "architecture": "skipped",
+             "deployment": "pending"},
         )
         self.assertFalse(state.finished)
         self.assertEqual((state.stack.id, state.topology, state.archetype), ("python-ai", "fullstack-separated", "mvp"))
@@ -496,7 +501,7 @@ class InitSharesTheSetupTests(unittest.TestCase):
     def test_init_yes_leaves_documents_pending(self):
         output = self.run_init(self.base_args(yes=True))
         state = self.state()
-        self.assertTrue(all(state.doc(d).status == "pending" for d in ("brief", "business", "data-model", "architecture")))
+        self.assertTrue(all(state.doc(d).status == "pending" for d in ("brief", "business", "data-model", "architecture", "deployment")))
         self.assertFalse(state.finished)
         self.assertTrue(output.rstrip().endswith("Completa la documentación con /rapid-init o rapid setup next"))
         self.assertFalse((self.project / "docs").exists())
@@ -523,7 +528,7 @@ class InitSharesTheSetupTests(unittest.TestCase):
     def test_skip_docs_flag_skips_all_four_and_finishes_the_state(self):
         output = self.run_init(self.base_args(yes=True, skip_docs=True))
         state = self.state()
-        self.assertTrue(all(state.doc(d).status == "skipped" for d in ("brief", "business", "data-model", "architecture")))
+        self.assertTrue(all(state.doc(d).status == "skipped" for d in ("brief", "business", "data-model", "architecture", "deployment")))
         self.assertTrue(state.finished)
         self.assertNotIn("Completa la documentación", output)
 
@@ -532,15 +537,17 @@ class InitSharesTheSetupTests(unittest.TestCase):
         other = Path(tempfile.mkdtemp())
         self.addCleanup(lambda: __import__("shutil").rmtree(other, ignore_errors=True))
         decide_everything(other)
+        rapid(other, "setup", "set", "services", "database:postgresql")  # what the stack template says
         for doc_id in FILES:
             rapid(other, "setup", "doc", doc_id, "--skip")
         self.assertEqual(rapid(other, "setup", "finish").returncode, 0)
+        def standard(root, name):
+            text = (root / ".rapid-os" / "standards" / name).read_text(encoding="utf-8")
+            # The database lines follow the services decision (setup) or the template (init).
+            return "\n".join(l for l in text.split("\n") if not l.startswith(("- **Database:**", "- **ORM:**")))
+
         for name in ("tech-stack.md", "topology.md", "coding-rules.md", "security.md"):
-            self.assertEqual(
-                (self.project / ".rapid-os" / "standards" / name).read_text(encoding="utf-8"),
-                (other / ".rapid-os" / "standards" / name).read_text(encoding="utf-8"),
-                name,
-            )
+            self.assertEqual(standard(self.project, name), standard(other, name), name)
         self.assertEqual(
             json.loads((self.project / ".rapid-os" / "config.json").read_text(encoding="utf-8")),
             json.loads((other / ".rapid-os" / "config.json").read_text(encoding="utf-8")),

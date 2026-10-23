@@ -17,5 +17,6 @@
     "fullstack-baas",
     "fullstack-separated"
   ],
-  "default_topology": "fullstack-separated"
+  "default_topology": "fullstack-separated",
+  "suggested_services": ["database:postgresql"]
 }

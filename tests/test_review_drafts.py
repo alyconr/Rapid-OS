@@ -54,10 +54,10 @@ def decided(**docs) -> SetupState:
         archetype="mvp",
         ai=False,
         agents=("codex",),
-        test_command=(),
+        test_command=(), services=(),
         docs={
             doc_id: docs.get(doc_id, DocState("skipped"))
-            for doc_id in ("brief", "business", "data-model", "architecture")
+            for doc_id in ("brief", "business", "data-model", "architecture", "deployment")
         },
     )
 
@@ -170,7 +170,7 @@ class CliCase(unittest.TestCase):
     def decide(self):
         for key, value in (
             ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"), ("ai", "no"),
-            ("agents", "claude"), ("test-command", "none"),
+            ("agents", "claude"), ("test-command", "none"), ("services", "none"),
         ):
             result = self.rapid("setup", "set", key, value)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -193,7 +193,7 @@ class ReviewCommandTests(CliCase):
     def test_review_done_closes_the_review_and_leaves_the_draft_unconfirmed(self):
         self.decide()
         self.draft("brief", BRIEF)
-        self.skip("business", "data-model", "architecture")
+        self.skip("business", "data-model", "architecture", "deployment")
         self.assertEqual(self.next_json()["kind"], "review_drafts")
 
         done = self.rapid("setup", "review", "--done", "--json")
@@ -210,7 +210,7 @@ class ReviewCommandTests(CliCase):
     def test_with_every_draft_confirmed_review_done_is_a_no_op_that_succeeds(self):
         self.decide()
         self.draft("brief", BRIEF)
-        self.skip("business", "data-model", "architecture")
+        self.skip("business", "data-model", "architecture", "deployment")
         self.assertEqual(self.rapid("setup", "doc", "brief", "--confirm").returncode, 0)
         self.assertEqual(self.next_json()["kind"], "finish")  # the conductor already moved on
         setup_json = self.root / ".rapid-os" / "setup.json"
@@ -231,7 +231,7 @@ class ReviewCommandTests(CliCase):
 
     def test_with_no_drafts_at_all_it_is_the_same_no_op(self):
         self.decide()
-        self.skip("brief", "business", "data-model", "architecture")
+        self.skip("brief", "business", "data-model", "architecture", "deployment")
         result = self.rapid("setup", "review", "--done")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(self.NOTHING_LEFT, result.stdout)
@@ -251,7 +251,7 @@ class ReviewCommandTests(CliCase):
         self.decide()
         self.draft("brief", BRIEF)
         self.draft("business", BUSINESS)
-        self.skip("data-model", "architecture")
+        self.skip("data-model", "architecture", "deployment")
         confirmed = self.rapid("setup", "doc", "brief", "--confirm", "--json")
         self.assertEqual(confirmed.returncode, 0, confirmed.stderr)
         after = json.loads(confirmed.stdout)
@@ -263,7 +263,7 @@ class ReviewCommandTests(CliCase):
     def test_finish_with_the_review_pending_is_rapid1407_with_the_next_command(self):
         self.decide()
         self.draft("brief", BRIEF)
-        self.skip("business", "data-model", "architecture")
+        self.skip("business", "data-model", "architecture", "deployment")
         result = self.rapid("setup", "finish")
         self.assertEqual(result.returncode, 1)
         self.assertIn("RAPID1407", result.stderr)
@@ -274,7 +274,7 @@ class ReviewCommandTests(CliCase):
     def test_a_new_draft_after_the_review_asks_for_it_again(self):
         self.decide()
         self.draft("brief", BRIEF)
-        self.skip("business", "data-model", "architecture")
+        self.skip("business", "data-model", "architecture", "deployment")
         self.assertEqual(self.rapid("setup", "review", "--done").returncode, 0)
         self.assertEqual(self.next_json()["kind"], "finish")
         replaced = self.rapid(
@@ -289,7 +289,7 @@ class EndToEndTests(CliCase):
         self.decide()
         self.draft("brief", BRIEF)
         self.draft("business", BUSINESS)
-        self.skip("data-model", "architecture")
+        self.skip("data-model", "architecture", "deployment")
 
         review = self.next_json()
         self.assertEqual(review["kind"], "review_drafts")

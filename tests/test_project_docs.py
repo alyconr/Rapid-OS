@@ -280,7 +280,7 @@ class ValidateDocsTests(unittest.TestCase):
             write_doc(
                 root, "architecture",
                 "## Decision\nd\n\n## Rationale\nr\n\n## Rejected alternatives\na\n\n## Consequences\nc\n\n"
-                "## Modules\nm\n\n## Dependency rules\nr\n",
+                "## Modules\nm\n\n## Dependency rules\nr\n\n## Infrastructure services\ns\n",
             )
             report = validate_project_docs(root / ".rapid-os", root, TEMPLATES)
             self.assertEqual(sorted(codes(report)), [("warning", "RAPID1408")] * 2)

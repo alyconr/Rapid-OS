@@ -133,14 +133,14 @@ class OtherOwnerSandboxTests(GitIsolated):
     def setup_everything(self, test_command="none", brief=False, cwd=None):  # runs every step as the other owner
         for key, value in (
             ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"), ("ai", "no"),
-            ("agents", "codex"), ("test-command", test_command),
+            ("agents", "codex"), ("test-command", test_command), ("services", "none"),
         ):
             result = self.as_other_owner("setup", "set", key, value)
             self.assertEqual(result.returncode, 0, result.stderr)
         if brief:
             written = self.as_other_owner("setup", "doc", "brief", "--source", "drafted", "--file", "-", stdin=BRIEF)
             self.assertEqual(written.returncode, 0, written.stderr)
-        for doc in ("brief", "business", "data-model", "architecture"):
+        for doc in ("brief", "business", "data-model", "architecture", "deployment"):
             if brief and doc == "brief":
                 continue
             self.assertEqual(self.as_other_owner("setup", "doc", doc, "--skip").returncode, 0)
@@ -254,10 +254,10 @@ class OrdinaryRepositoryTests(GitIsolated):
     def test_a_repository_the_person_owns_has_no_person_actions(self):
         for key, value in (
             ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"), ("ai", "no"),
-            ("agents", "codex"), ("test-command", "none"),
+            ("agents", "codex"), ("test-command", "none"), ("services", "none"),
         ):
             self.assertEqual(self.rapid("setup", "set", key, value).returncode, 0)
-        for doc in ("brief", "business", "data-model", "architecture"):
+        for doc in ("brief", "business", "data-model", "architecture", "deployment"):
             self.assertEqual(self.rapid("setup", "doc", doc, "--skip").returncode, 0)
         finished = self.rapid("setup", "finish", "--json")
         self.assertEqual(finished.returncode, 0, finished.stderr)

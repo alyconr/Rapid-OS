@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "id": "mysql",
+  "role": "database",
+  "image": "mysql:9",
+  "ports": [
+    3306
+  ],
+  "env": {
+    "MYSQL_ROOT_PASSWORD": "root_local_only",
+    "MYSQL_DATABASE": "app",
+    "MYSQL_USER": "app",
+    "MYSQL_PASSWORD": "app_local_only"
+  },
+  "healthcheck": {
+    "interval": "10s",
+    "timeout": "5s",
+    "retries": 5,
+    "test": [
+      "CMD-SHELL",
+      "mysqladmin ping -h 127.0.0.1 --silent"
+    ]
+  },
+  "volume": {
+    "name": "mysql-data",
+    "path": "/var/lib/mysql"
+  },
+  "connection_env": "DATABASE_URL",
+  "drivers": {
+    "python": {
+      "package": "asyncmy",
+      "orm": "SQLAlchemy 2 (async) + Alembic (migrations)",
+      "url": "mysql+asyncmy://app:app_local_only@127.0.0.1:3306/app"
+    },
+    "typescript": {
+      "package": "mysql2",
+      "url": "mysql://app:app_local_only@127.0.0.1:3306/app"
+    }
+  },
+  "migrations": {
+    "python": "alembic upgrade head",
+    "typescript": "npx prisma migrate deploy"
+  },
+  "sources": [
+    "https://hub.docker.com/_/mysql",
+    "https://dev.mysql.com/doc/refman/en/mysqladmin.html",
+    "https://dev.mysql.com/doc/refman/en/connection-options.html"
+  ]
+}

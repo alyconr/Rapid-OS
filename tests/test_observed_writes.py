@@ -229,10 +229,10 @@ class GitignoreTests(unittest.TestCase):
     def test_setup_finish_adds_them_too_and_no_gitignore_is_never_created(self):
         for argv in (
             ("set", "stack", "python-api"), ("set", "topology", "fullstack-separated"), ("set", "archetype", "mvp"),
-            ("set", "ai", "no"), ("set", "agents", "claude"), ("set", "test-command", "none"),
+            ("set", "ai", "no"), ("set", "agents", "claude"), ("set", "test-command", "none"), ("set", "services", "none"),
         ):
             self.assertEqual(rapid(self.root, "setup", *argv).returncode, 0)
-        for doc in ("brief", "business", "data-model", "architecture"):
+        for doc in ("brief", "business", "data-model", "architecture", "deployment"):
             self.assertEqual(rapid(self.root, "setup", "doc", doc, "--skip").returncode, 0)
         self.assertEqual(rapid(self.root, "setup", "finish").returncode, 0)
         self.assertFalse((self.root / ".gitignore").exists())

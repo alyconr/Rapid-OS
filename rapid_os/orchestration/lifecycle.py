@@ -40,6 +40,7 @@ from rapid_os.domain.execution import (
 )
 from rapid_os.domain.execution import (
     BASELINE_WAIVER_EMPTY_REPOSITORY,
+    ISOLATION_WAIVER_NO_COMMITS,
     enforce_gate_transition_preconditions,
     validate_gate_transition,
 )
@@ -74,6 +75,10 @@ NOT_A_GIT_REPOSITORY_MESSAGE = (
     "RAPID1416 Rapid OS observa los cambios del run con git y esta carpeta no es un repositorio. "
     "Ejecuta: git init  (o rapid setup finish, que lo crea)"
 )
+ISOLATION_WAIVED_NOTE = (
+    "Sin aislamiento: el repositorio aún no tiene commits; se trabaja en el espacio actual "
+    "y las puertas humanas siguen en pie."
+)
 SCAFFOLD_TASK_TEXT = "Scaffold mínimo con un test que pase"
 # Modes that need existing code: in a brand-new repository they cannot start.
 EMPTY_REPO_REFUSED_VERBS = {
@@ -88,6 +93,15 @@ def has_scaffold_task(tasks) -> bool:
     return bool(tasks) and SCAFFOLD_TASK_TEXT in str(tasks[0])
 
 
+def _has_local_services(project_rapid_dir) -> bool:
+    """A service decided for now: the scaffold reads its connection from `.env.example`."""
+    from rapid_os.adapters.setup_store import read_setup_file
+    from rapid_os.domain.services import services_now
+
+    state, _ = read_setup_file(Path(project_rapid_dir))
+    return state is not None and bool(services_now(state.services))
+
+
 SCAFFOLD_TEST_COMMAND_HINT = "Configura el comando con rapid setup set test-command <cmd> antes de cerrarla"
 
 
@@ -97,7 +111,16 @@ SCAFFOLD_ARCHITECTURE_HINT = (
 )
 
 
-def with_scaffold_task(tasks, *, needs_test_command: bool = False, architecture: bool = False) -> list[str]:
+SCAFFOLD_SERVICES_HINT = (
+    "Lee la configuración de .env.example (nunca valores fijos); el esquema de datos va en migraciones; "
+    "las pruebas unitarias no usan servicios externos y las de integración llevan un marcador propio, "
+    "de modo que gate.tests pasa sin Docker; Dockerfile multi-stage con usuario no root y healthcheck"
+)
+
+
+def with_scaffold_task(
+    tasks, *, needs_test_command: bool = False, architecture: bool = False, services: bool = False
+) -> list[str]:
     """The scaffold as the first task. Contract task ids start at T001, so the scaffold is T001
     and the written `T00n:` prefixes of the other tasks move down by one to keep matching.
 
@@ -113,6 +136,8 @@ def with_scaffold_task(tasks, *, needs_test_command: bool = False, architecture:
     scaffold = f"T001: {SCAFFOLD_TASK_TEXT}"
     if architecture:
         scaffold += f" {SCAFFOLD_ARCHITECTURE_HINT}"
+    if services:
+        scaffold += f". {SCAFFOLD_SERVICES_HINT}"
     if needs_test_command:
         scaffold += f". {SCAFFOLD_TEST_COMMAND_HINT}"
     return [scaffold, *renumbered]
@@ -242,11 +267,17 @@ def execute_start(
     # and nothing to take a baseline of: only `feature` starts there, with a scaffold task.
     empty_repository = False
     baseline_waived: str | None = None
+    # A repository with no commit cannot give a worktree: when the policy asks for one, the run
+    # goes in the current workspace with the human gates intact (a repository with commits is
+    # never waived).
+    isolation_waived: str | None = None
     run_notes: tuple[str, ...] = ()
     if not resume:
         from rapid_os.domain.scanner import is_empty_repository
 
         empty_repository = is_empty_repository(project_root)
+        if resolve_git_head(project_root) is None:
+            isolation_waived = ISOLATION_WAIVER_NO_COMMITS
         if empty_repository and mode in EMPTY_REPO_REFUSED_VERBS:
             return (
                 1,
@@ -312,6 +343,7 @@ def execute_start(
                     written_tasks,
                     needs_test_command=not scaffold_config.get("test_command"),
                     architecture=has_architecture_rule(project_rapid_dir),
+                    services=_has_local_services(project_rapid_dir),
                 )
                 if not has_scaffold_task(written_tasks):
                     run_notes = scaffold_notes(written_tasks, spec_fields["implementation_tasks"])
@@ -351,6 +383,7 @@ def execute_start(
                 spec_id=resolved_spec_id,
                 harness=detection.harness_id,
                 baseline_waived=baseline_waived,
+                isolation_waived=isolation_waived,
             )
         except ExecutionError as exc:
             # Expected failures (e.g. a required context source is missing for the mode).
@@ -584,6 +617,8 @@ def execute_start(
         test_command=test_cmd if isinstance(test_cmd, (list, tuple)) else None,
         workspace_ready=bool(sess.workspace_path),
     )
+    if not resume and contract.isolation_waived is not None:
+        run_notes = (*run_notes, ISOLATION_WAIVED_NOTE)
     if run_notes:
         action = replace(action, notes=run_notes)
     return 0, _decorate_action(action, sess)
