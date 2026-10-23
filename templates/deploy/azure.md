@@ -19,7 +19,8 @@ Plantilla de partida para `docs/DEPLOYMENT.md`. Rapid OS no despliega: lo haces 
 | cache (redis) | Azure Managed Redis |
 | queue | Azure Service Bus (cola o tema propio de Azure, no es RabbitMQ) |
 | stream (kafka) | Azure Event Hubs con endpoint Kafka (niveles standard, premium y dedicated) |
-| database (mariadb), cache (valkey), queue (rabbitmq) | No confirmado en la documentación consultada: se alojan como contenedor propio |
+| database (mariadb) | Azure Database for MariaDB está en camino de retiro y Microsoft recomienda migrar a Azure Database for MySQL: usa MySQL flexible server, o MariaDB en un contenedor en Azure Container Apps |
+| cache (valkey), queue (rabbitmq) | Sin servicio gestionado documentado: contenedor en Azure Container Apps |
 
 ## Verificación y reversión
 - Sondas de salud y revisiones de la aplicación; comprobar logs y métricas tras desplegar.
@@ -35,3 +36,4 @@ Plantilla de partida para `docs/DEPLOYMENT.md`. Rapid OS no despliega: lo haces 
 - https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-messaging-overview
 - https://learn.microsoft.com/en-us/azure/event-hubs/azure-event-hubs-apache-kafka-overview
 - https://learn.microsoft.com/en-us/azure/key-vault/general/overview
+- https://learn.microsoft.com/en-us/azure/mariadb/overview

@@ -47,6 +47,7 @@
     "https://hub.docker.com/_/mariadb",
     "https://github.com/MariaDB/mariadb-docker",
     "https://raw.githubusercontent.com/MariaDB/mariadb-docker/master/healthcheck.sh",
-    "https://mariadb.com/kb/en/mariadb-server-release-dates/"
+    "https://mariadb.com/kb/en/mariadb-server-release-dates/",
+    "https://mariadb.com/docs/server/server-management/automated-mariadb-deployment-and-administration/docker-and-mariadb/using-healthcheck-sh"
   ]
 }

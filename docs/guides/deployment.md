@@ -13,7 +13,7 @@ rapid setup doc deployment --reopen # reabre el documento del proyecto
 
 ## Plataformas y servicios
 
-Las plantillas citan las páginas oficiales consultadas. Donde la documentación consultada no confirma un servicio gestionado, la plantilla lo dice y el servicio se aloja como contenedor propio.
+Las plantillas citan las páginas oficiales consultadas. Donde la documentación consultada no documenta un servicio gestionado, la plantilla lo dice ("sin servicio gestionado") y el servicio se aloja como contenedor propio.
 
 | Plataforma | Destino | database | cache | queue | stream |
 |---|---|---|---|---|---|

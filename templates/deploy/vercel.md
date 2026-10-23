@@ -17,7 +17,7 @@ Vercel no aloja bases de datos propias en esta guía: se conectan por el Marketp
 | database (postgresql) | Integraciones del Marketplace (Neon, Supabase, Prisma Postgres, entre otras) |
 | database (mongodb) | MongoDB Atlas (Marketplace) |
 | cache (redis) | Upstash for Redis o Redis Cloud (Marketplace) |
-| mysql, mariadb, queue, stream | No confirmado en la documentación consultada: fuera de Vercel |
+| mysql, mariadb, queue, stream | Sin servicio gestionado documentado: fuera de Vercel |
 
 ## Verificación y reversión
 - Revisar el despliegue de Preview antes de promoverlo; comprobar logs tras producción.

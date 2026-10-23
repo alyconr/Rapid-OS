@@ -13,7 +13,7 @@ Plantilla de partida para `docs/DEPLOYMENT.md`. Rapid OS no despliega: lo haces 
 | Rol | Opción en Railway |
 |---|---|
 | database (postgresql) | Plantilla de PostgreSQL: un solo nodo que Railway mantiene; la alta disponibilidad y las copias se activan aparte |
-| mysql, mariadb, mongodb, redis, valkey, rabbitmq, kafka | No confirmado en la documentación consultada: servicio con la imagen oficial y un volumen |
+| mysql, mariadb, mongodb, redis, valkey, rabbitmq, kafka | Sin servicio gestionado documentado: servicio con la imagen oficial y un volumen |
 
 Un servicio solo puede tener un volumen y los servicios con volumen no admiten réplicas.
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -23,7 +24,7 @@ from rapid_os.domain.services import (
 )
 from rapid_os.domain.setup import DocState, ServiceChoice, SetupActionKind, SetupState, StackChoice
 from rapid_os.orchestration.setup_conductor import next_setup_action
-from tests.test_no_git import GitIsolated
+from tests.test_no_git import GitIsolated, approve
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATES = ROOT / "templates"
@@ -61,10 +62,28 @@ class CatalogTests(unittest.TestCase):
                 self.assertTrue(entry.ports)
                 self.assertTrue(entry.connection_env)
 
-    def test_kafka_is_kraft_single_node_without_a_volume(self):
+    def test_kafka_is_a_complete_kraft_node_whose_data_survives_the_container(self):
         kafka = CATALOG.services["kafka"]
-        self.assertIsNone(kafka.volume)
-        self.assertIn("KAFKA_PROCESS_ROLES", kafka.fixed_env)
+        # Defining KAFKA_* replaces the image's default configuration: all of it must be here.
+        for name in ("KAFKA_NODE_ID", "KAFKA_PROCESS_ROLES", "KAFKA_LISTENERS", "KAFKA_ADVERTISED_LISTENERS",
+                     "KAFKA_CONTROLLER_LISTENER_NAMES", "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP",
+                     "KAFKA_CONTROLLER_QUORUM_VOTERS", "KAFKA_INTER_BROKER_LISTENER_NAME", "CLUSTER_ID"):
+            self.assertIn(name, kafka.fixed_env)
+        # The default log.dirs is /tmp/kraft-combined-logs, lost without a volume.
+        self.assertEqual(kafka.fixed_env["KAFKA_LOG_DIRS"], "/var/lib/kafka/data")
+        self.assertEqual(kafka.volume, {"name": "kafka-data", "path": "/var/lib/kafka/data"})
+        self.assertIn("kafka-broker-api-versions.sh", kafka.healthcheck["test"][1])
+        self.assertTrue(any("docker/examples" in s for s in kafka.sources))
+
+    def test_mariadb_uses_the_documented_healthcheck(self):
+        self.assertEqual(
+            CATALOG.services["mariadb"].healthcheck["test"],
+            ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"],
+        )
+
+    def test_no_template_says_not_confirmed(self):
+        for path in (TEMPLATES / "deploy").glob("*.md"):
+            self.assertNotIn("No confirmado", path.read_text(encoding="utf-8"), path.name)
 
     def test_an_invalid_service_is_rapid1401(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -320,22 +339,79 @@ class DeployCommandTests(Project):
 class EmptyRepositoryEndToEndTests(Project):
     """python-api in an empty repository with database:mysql@now reaches PASS without Docker."""
 
-    def test_the_scaffold_asks_for_the_local_environment_and_the_gate_does_not_need_docker(self):
-        self.finish([{"role": "database", "engine": "mysql", "when": "now"}])
-        spec = {
-            "title": "Listar talleres", "mode": "feature", "business_objective": "Ver los talleres",
-            "problem_statement": "No hay listado", "scope": ["listado"], "acceptance_criteria": ["se lista"],
-            "tasks": ["T001: Listar"],
-        }
-        started = self.rapid("start", "feature", "--spec-file", "-", "--json", stdin=json.dumps(spec))
+    TEST_COMMAND = f'"{sys.executable}" -m unittest discover -s tests -t .'
+    SPEC = {
+        "title": "Listar talleres", "mode": "feature", "business_objective": "Ver los talleres",
+        "problem_statement": "No hay listado", "scope": ["listado"], "acceptance_criteria": ["se lista"],
+        "tasks": ["T001: Listar"],
+    }
+    CONFIG = """from pathlib import Path
+
+
+def database_url(path=".env.example"):
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        if line.startswith("DATABASE_URL="):
+            return line.split("=", 1)[1]
+    raise KeyError("DATABASE_URL")
+"""
+    TEST = """import unittest
+
+from app.config import database_url
+
+
+class ConfigTests(unittest.TestCase):
+    def test_the_url_comes_from_the_example_file_and_needs_no_server(self):
+        self.assertTrue(database_url().startswith("mysql"))
+"""
+
+    def drive(self, implement):
+        for _ in range(30):
+            action = json.loads(self.rapid("next", "--json").stdout)["action"]
+            if action["kind"] == "await_human_approval":
+                return action["gate_ids"][0]
+            if action["kind"] == "implement_task":
+                implement()
+            for key in ("command", "after"):
+                if action.get(key):
+                    result = self.rapid(*action[key][1:])
+                    self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.fail("the run never reached a human gate")
+
+    def onboard(self):
+        for key, value in (
+            ("stack", "python-api"), ("topology", "fullstack-separated"), ("archetype", "mvp"), ("ai", "no"),
+            ("agents", "codex"), ("test-command", self.TEST_COMMAND), ("services", "database:mysql@now"),
+        ):
+            self.assertEqual(self.rapid("setup", "set", key, value).returncode, 0)
+        for doc in ALL_DOCS:
+            self.assertEqual(self.rapid("setup", "doc", doc, "--skip").returncode, 0)
+        finished = self.rapid("setup", "finish")
+        self.assertEqual(finished.returncode, 0, finished.stderr)
+        self.assertIn("docker compose up -d", finished.stdout)
+
+    def test_from_an_empty_folder_to_pass_without_docker(self):
+        self.onboard()
+        self.assertIn("mysql:9", (self.root / "compose.yaml").read_text(encoding="utf-8"))
+        started = self.rapid("start", "feature", "--spec-file", "-", "--json", stdin=json.dumps(self.SPEC))
         self.assertEqual(started.returncode, 0, started.stderr)
-        status = json.loads(self.rapid("status", "--json").stdout)
-        scaffold = status["run"]["tasks"][0]
+        scaffold = json.loads(self.rapid("status", "--json").stdout)["run"]["tasks"][0]
         text = json.dumps(scaffold, ensure_ascii=False)
-        self.assertIn(".env.example", text)
-        self.assertIn("gate.tests pasa sin Docker", text)
-        self.assertIn("migraciones", text)
-        self.assertIn("healthcheck", text)
+        for expected in (".env.example", "migraciones", "gate.tests pasa sin Docker", "healthcheck"):
+            self.assertIn(expected, text)
+
+        def implement():
+            for relative in ("app/__init__.py", "app/modules/__init__.py", "app/shared/__init__.py",
+                             "tests/__init__.py"):
+                (self.root / relative).parent.mkdir(parents=True, exist_ok=True)
+                (self.root / relative).write_text("", encoding="utf-8")
+            (self.root / "app" / "config.py").write_text(self.CONFIG, encoding="utf-8")
+            (self.root / "tests" / "test_config.py").write_text(self.TEST, encoding="utf-8")
+
+        gate = self.drive(implement)  # gate.tests and gate.architecture ran as machine gates
+        self.assertEqual(approve(self.root, gate, self.env).returncode, 0)
+        done = self.rapid("finish")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("verdict PASS", done.stdout)
 
 
 class IsolationWaiverTests(Project):

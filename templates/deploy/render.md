@@ -14,7 +14,8 @@ Plantilla de partida para `docs/DEPLOYMENT.md`. Rapid OS no despliega: lo haces 
 |---|---|
 | database (postgresql) | Render Postgres (gestionado) |
 | cache (redis, valkey) | Render Key Value (ejecuta Valkey) |
-| mysql, mariadb, mongodb, rabbitmq, kafka | No gestionados en la documentación consultada: private service con Docker y disco persistente |
+| database (mysql, mariadb, mongodb) | Render solo gestiona Postgres: private service con Docker y disco persistente |
+| queue (rabbitmq), stream (kafka) | Sin servicio gestionado: private service con Docker y disco persistente |
 
 Un disco persistente impide los despliegues sin caída y el escalado del servicio.
 

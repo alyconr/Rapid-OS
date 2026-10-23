@@ -15,7 +15,7 @@ Plantilla de partida para `docs/DEPLOYMENT.md`. Rapid OS no despliega: lo haces 
 |---|---|
 | database (postgresql, mysql, mariadb, mongodb) | Bases de datos de Dokploy, con copias automáticas a S3 |
 | cache (redis) | Redis de Dokploy |
-| valkey, rabbitmq, kafka | No confirmado en la documentación consultada: se despliegan con compose |
+| valkey, rabbitmq, kafka | Sin servicio gestionado documentado: se despliegan con compose |
 
 Como el servidor es tuyo, las actualizaciones, el disco y las copias son responsabilidad del equipo.
 
