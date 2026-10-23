@@ -10,6 +10,7 @@ from rapid_os.domain.catalog import load_catalog, load_setup_doc_banks, load_sta
 from rapid_os.domain.project import Confidence, Evidence, ProjectFact, ProjectModel
 from rapid_os.domain.setup import (
     DocState,
+    ServiceChoice,
     SetupActionKind,
     SetupState,
     SetupStateError,
@@ -67,6 +68,7 @@ FULL_STATE = SetupState(
     ai=False,
     agents=("cursor",),
     test_command=(),
+    services=(),
     docs=FULL_DOCS,
 )
 
@@ -109,7 +111,13 @@ class ConductorTests(unittest.TestCase):
                 self.assertEqual(next_action(state, project).kind.value, kind)
                 state = SetupState(**{**state.__dict__, **change})
         docs = {}
-        for doc_id in ("brief", "business", "data-model", "architecture"):
+        for doc_id in ("brief", "business", "data-model", "architecture", "deployment"):
+            if doc_id == "data-model":
+                self.assertEqual(
+                    next_action(SetupState(**{**state.__dict__, "docs": dict(docs)}), project).kind,
+                    SetupActionKind.CHOOSE_SERVICES,
+                )
+                state = SetupState(**{**state.__dict__, "services": ()})
             action = next_action(SetupState(**{**state.__dict__, "docs": dict(docs)}), project)
             self.assertEqual((action.kind.value, action.payload["doc"]), ("resolve_doc", doc_id))
             docs[doc_id] = DocState("provided", True, "")
@@ -126,11 +134,13 @@ class ConductorTests(unittest.TestCase):
             ai=False,
             agents=("cursor",),
             test_command=(),
+            services=(),
             docs={
                 "brief": DocState("drafted", False, "a"),
                 "business": DocState("skipped"),
                 "data-model": DocState("provided", True, "b"),
                 "architecture": DocState("drafted", True, "c"),
+                "deployment": DocState("skipped"),
             },
             drafts_reviewed=True,  # the review of the unconfirmed draft is done: finish comes next
         )
@@ -298,6 +308,7 @@ class StateTests(unittest.TestCase):
             docs={"brief": DocState("drafted", False, "abc")},
             finished=True,
             ai=False,
+            services=(ServiceChoice("database", "postgresql", "now"), ServiceChoice("cache", "redis", "later")),
         )
         self.assertEqual(SetupState.from_dict(state.to_dict()), state)
 

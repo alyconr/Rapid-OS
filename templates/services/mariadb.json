@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "id": "mariadb",
+  "role": "database",
+  "image": "mariadb:12.3",
+  "ports": [
+    3306
+  ],
+  "env": {
+    "MARIADB_ROOT_PASSWORD": "root_local_only",
+    "MARIADB_DATABASE": "app",
+    "MARIADB_USER": "app",
+    "MARIADB_PASSWORD": "app_local_only"
+  },
+  "healthcheck": {
+    "interval": "10s",
+    "timeout": "5s",
+    "retries": 5,
+    "test": [
+      "CMD",
+      "healthcheck.sh",
+      "--connect",
+      "--innodb_initialized"
+    ]
+  },
+  "volume": {
+    "name": "mariadb-data",
+    "path": "/var/lib/mysql"
+  },
+  "connection_env": "DATABASE_URL",
+  "drivers": {
+    "python": {
+      "package": "asyncmy",
+      "orm": "SQLAlchemy 2 (async) + Alembic (migrations)",
+      "url": "mysql+asyncmy://app:app_local_only@127.0.0.1:3306/app"
+    },
+    "typescript": {
+      "package": "mariadb",
+      "url": "mariadb://app:app_local_only@127.0.0.1:3306/app"
+    }
+  },
+  "migrations": {
+    "python": "alembic upgrade head",
+    "typescript": "npx prisma migrate deploy"
+  },
+  "sources": [
+    "https://hub.docker.com/_/mariadb",
+    "https://github.com/MariaDB/mariadb-docker",
+    "https://raw.githubusercontent.com/MariaDB/mariadb-docker/master/healthcheck.sh",
+    "https://mariadb.com/kb/en/mariadb-server-release-dates/"
+  ]
+}

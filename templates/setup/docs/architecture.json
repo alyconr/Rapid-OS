@@ -47,6 +47,13 @@
         "Reglas de dependencia",
         "Dependency rules"
       ]
+    },
+    {
+      "id": "services",
+      "titles": [
+        "Servicios de infraestructura",
+        "Infrastructure services"
+      ]
     }
   ],
   "questions": [
@@ -83,6 +90,11 @@
     {
       "id": "dependency_rules",
       "text": "¿Qué reglas de dependencia siguen las capas y los módulos (cita las del estándar de arquitectura y añade las propias)?",
+      "required": true
+    },
+    {
+      "id": "services",
+      "text": "¿Qué servicios de infraestructura usa el proyecto? Por cada uno de la decisión de servicios: rol, motor, versión, si es para ahora o para después, por qué (cita el brief o las reglas) y qué módulo lo usa",
       "required": true
     },
     {

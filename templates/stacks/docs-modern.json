@@ -15,5 +15,7 @@
   "compatible_topologies": [
     "doc-site"
   ],
-  "default_topology": "doc-site"
+  "default_topology": "doc-site",
+  "suggested_services": [],
+  "service_roles": []
 }

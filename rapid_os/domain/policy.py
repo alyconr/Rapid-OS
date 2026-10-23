@@ -1413,3 +1413,33 @@ def waive_baseline(decision: PolicyDecision, reason: str) -> PolicyDecision:
         gates=tuple(g for g in decision.gates if g.id != "gate.baseline"),
         reasons=(*decision.reasons, BASELINE_WAIVER_REASONS[reason]),
     )
+
+
+ISOLATION_WAIVER_REASONS: Mapping[str, str] = {
+    "no_commits": (
+        "Isolation waived: the repository has no commit to create a worktree from; "
+        "the human gates stay."
+    ),
+}
+
+
+def waive_isolation(decision: PolicyDecision, reason: str) -> PolicyDecision:
+    """The same decision without the isolated workspace, for a repository with no commits.
+
+    Pure. Only the isolation goes: the risk, the signals and every other gate (the human ones
+    included) stay. A decision that did not require isolation comes back unchanged.
+    """
+    if reason not in ISOLATION_WAIVER_REASONS:
+        raise InvalidExecutionPolicyError(
+            f"Unknown isolation waiver '{reason}': expected one of {sorted(ISOLATION_WAIVER_REASONS)}."
+        )
+    if decision.workspace != WorkspaceRequirement.ISOLATED_REQUIRED:
+        return decision
+    return PolicyDecision(
+        classification=decision.classification,
+        risk=decision.risk,
+        risk_signals=decision.risk_signals,
+        workspace=WorkspaceRequirement.CURRENT_ALLOWED,
+        gates=tuple(g for g in decision.gates if g.id != "gate.workspace-isolation"),
+        reasons=(*decision.reasons, ISOLATION_WAIVER_REASONS[reason]),
+    )

@@ -24,6 +24,7 @@ PERSON_ACTION_WHY = (
     "El harness ejecuta los comandos con otro usuario de Windows y git exige que el dueño "
     "de la carpeta sea el mismo usuario que lo usa."
 )
+LOCAL_SERVICES_TEXT = "Para levantar los servicios locales (base de datos, etc.), ejecuta en tu terminal: {command}"
 PERSON_ACTION_TEXT = "Para usar git tú mismo en esta carpeta, ejecuta en tu terminal: {command}"
 
 
@@ -98,16 +99,33 @@ def person_git_trust(root: Path | str | None) -> PersonGitTrust:
 
 def person_actions(root: Path | str | None) -> list[dict[str, str]]:
     """What only the person can do, each with its exact command. Empty when nothing applies."""
+    actions: list[dict[str, str]] = []
     trust = person_git_trust(root)
-    if not trust.needs_exception:
+    if trust.needs_exception:
+        actions.append({"id": PERSON_ACTION_ID, "why": PERSON_ACTION_WHY, "command": trust.command or ""})
+    actions.extend(local_services_actions(root))
+    return actions
+
+
+def local_services_actions(root: Path | str | None) -> list[dict[str, str]]:
+    """`docker compose up -d` while the project has a compose file and a service decided for now."""
+    from rapid_os.adapters.setup_store import read_setup_file
+    from rapid_os.domain.services import COMPOSE_FILE_NAMES, LOCAL_SERVICES_ACTION, services_now
+
+    base = git_root(root)
+    if not any((base / name).is_file() for name in COMPOSE_FILE_NAMES):
         return []
-    return [{"id": PERSON_ACTION_ID, "why": PERSON_ACTION_WHY, "command": trust.command or ""}]
+    state, _ = read_setup_file(base / ".rapid-os")
+    if state is None or not services_now(state.services):
+        return []
+    return [dict(LOCAL_SERVICES_ACTION)]
 
 
 def person_action_lines(actions: list[dict[str, str]]) -> list[str]:
     """The text form of `person_actions`."""
     lines: list[str] = []
     for action in actions:
-        lines.append(PERSON_ACTION_TEXT.format(command=action["command"]))
+        text = LOCAL_SERVICES_TEXT if action.get("id") == "local-services" else PERSON_ACTION_TEXT
+        lines.append(text.format(command=action["command"]))
         lines.append(f"  Por qué: {action['why']}")
     return lines

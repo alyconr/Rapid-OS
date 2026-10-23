@@ -71,11 +71,17 @@ def normalize_body(text: str) -> str:
     return " ".join(body.split())
 
 
-def validate_doc_body(body: str, bank: SetupDocBank) -> tuple[DocIssue, ...]:
-    """RAPID1403 for each missing required section, RAPID1404 when the body is too long."""
+def validate_doc_body(
+    body: str, bank: SetupDocBank, conditions: frozenset[str] = frozenset()
+) -> tuple[DocIssue, ...]:
+    """RAPID1403 for each missing required section, RAPID1404 when the body is too long.
+
+    The conditional sections of the bank (`service:database`) are required while their condition
+    is in `conditions`."""
     headings = {match.group(1).strip().lower() for match in _H2_RE.finditer(body)}
     issues = []
-    for section in bank.required_sections:
+    required = (*bank.required_sections, *(s for s in bank.conditional_sections if s.when in conditions))
+    for section in required:
         if not any(title.strip().lower() in headings for title in section.titles):
             issues.append(
                 DocIssue(

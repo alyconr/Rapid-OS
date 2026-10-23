@@ -17,5 +17,7 @@
     "fullstack-baas",
     "fullstack-separated"
   ],
-  "default_topology": "front-end-only"
+  "default_topology": "front-end-only",
+  "suggested_services": [],
+  "service_roles": []
 }

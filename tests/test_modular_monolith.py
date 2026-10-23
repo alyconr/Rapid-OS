@@ -26,7 +26,8 @@ ARCHITECTURE_BODY = (
     "## Decisión\nMonolito modular.\n\n## Por qué\nUn solo despliegue.\n\n"
     "## Alternativas descartadas\nMicroservicios.\n\n## Consecuencias\nLímites por módulo.\n\n"
     "## Módulos\n- citas: agenda; tablas citas; no hexagonal.\n\n"
-    "## Reglas de dependencia\napi -> application -> domain.\n"
+    "## Reglas de dependencia\napi -> application -> domain.\n\n"
+    "## Servicios de infraestructura\nSolo PostgreSQL.\n"
 )
 
 
@@ -34,14 +35,14 @@ class Project(GitIsolated):
     def decide(self, stack, topology, test_command="none"):
         for key, value in (
             ("stack", stack), ("topology", topology), ("archetype", "mvp"), ("ai", "no"),
-            ("agents", "claude"), ("test-command", test_command),
+            ("agents", "claude"), ("test-command", test_command), ("services", "none"),
         ):
             result = self.rapid("setup", "set", key, value)
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def finish_onboarding(self, stack, topology, test_command="none"):
         self.decide(stack, topology, test_command)
-        for doc in ("brief", "business", "data-model", "architecture"):
+        for doc in ("brief", "business", "data-model", "architecture", "deployment"):
             self.assertEqual(self.rapid("setup", "doc", doc, "--skip").returncode, 0)
         finished = self.rapid("setup", "finish")
         self.assertEqual(finished.returncode, 0, finished.stderr)
@@ -188,7 +189,7 @@ class ArchitectureBankTests(Project):
         self.assertEqual(self.draft(ARCHITECTURE_BODY).returncode, 0)
         english = (
             "## Decision\nx\n\n## Rationale\nx\n\n## Rejected alternatives\nx\n\n## Consequences\nx\n\n"
-            "## Modules\nx\n\n## Dependency rules\nx\n"
+            "## Modules\nx\n\n## Dependency rules\nx\n\n## Infrastructure services\nx\n"
         )
         replaced = self.rapid(
             "setup", "doc", "architecture", "--source", "drafted", "--replace", "--file", "-", stdin=english

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "redis",
+  "role": "cache",
+  "image": "redis:8",
+  "ports": [
+    6379
+  ],
+  "env": {},
+  "healthcheck": {
+    "interval": "10s",
+    "timeout": "5s",
+    "retries": 5,
+    "test": [
+      "CMD",
+      "redis-cli",
+      "ping"
+    ]
+  },
+  "volume": {
+    "name": "redis-data",
+    "path": "/data"
+  },
+  "connection_env": "REDIS_URL",
+  "drivers": {
+    "python": {
+      "package": "redis",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "typescript": {
+      "package": "redis",
+      "url": "redis://127.0.0.1:6379/0"
+    }
+  },
+  "sources": [
+    "https://hub.docker.com/_/redis",
+    "https://redis.io/docs/latest/commands/ping/",
+    "https://redis.io/docs/latest/develop/tools/cli/"
+  ]
+}

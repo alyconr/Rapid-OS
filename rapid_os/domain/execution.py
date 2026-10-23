@@ -228,8 +228,14 @@ BASELINE_WAIVER_EMPTY_REPOSITORY = "empty_repository"
 ALLOWED_BASELINE_WAIVERS = frozenset({BASELINE_WAIVER_EMPTY_REPOSITORY})
 BASELINE_GATE_ID = "gate.baseline"
 
+# Why a contract may omit the isolated workspace: the repository has no commit to branch a
+# worktree from. Optional like `baseline_waived`; the human gates stay.
+ISOLATION_WAIVER_NO_COMMITS = "no_commits"
+ALLOWED_ISOLATION_WAIVERS = frozenset({ISOLATION_WAIVER_NO_COMMITS})
+ISOLATION_GATE_ID = "gate.workspace-isolation"
+
 # Present in the dict only when used (invariant: existing contracts do not change).
-OPTIONAL_EXECUTION_CONTRACT_KEYS = frozenset({"baseline_waived"})
+OPTIONAL_EXECUTION_CONTRACT_KEYS = frozenset({"baseline_waived", "isolation_waived"})
 
 
 ALLOWED_POLICY_SOURCES = frozenset(
@@ -271,6 +277,7 @@ class ExecutionContract:
     tasks: tuple[TaskContract, ...]
     contract_digest: str = ""
     baseline_waived: str | None = None
+    isolation_waived: str | None = None
 
     def __post_init__(self):
         if (
@@ -451,6 +458,17 @@ class ExecutionContract:
                     "ExecutionContract.baseline_waived is set but 'gate.baseline' is still required."
                 )
 
+        if self.isolation_waived is not None:
+            if self.isolation_waived not in ALLOWED_ISOLATION_WAIVERS:
+                raise InvalidExecutionContractError(
+                    f"Invalid ExecutionContract.isolation_waived '{self.isolation_waived}': "
+                    f"expected one of {sorted(ALLOWED_ISOLATION_WAIVERS)}."
+                )
+            if any(gate.id == ISOLATION_GATE_ID for gate in gates_tuple):
+                raise InvalidExecutionContractError(
+                    "ExecutionContract.isolation_waived is set but 'gate.workspace-isolation' is still required."
+                )
+
         computed_digest = self._compute_contract_digest()
         if self.contract_digest:
             validated_digest = _validate_sha256(
@@ -486,6 +504,8 @@ class ExecutionContract:
         }
         if self.baseline_waived is not None:
             payload["baseline_waived"] = self.baseline_waived
+        if self.isolation_waived is not None:
+            payload["isolation_waived"] = self.isolation_waived
         return payload
 
     def _compute_contract_digest(self) -> str:
@@ -515,6 +535,8 @@ class ExecutionContract:
         }
         if self.baseline_waived is not None:
             payload["baseline_waived"] = self.baseline_waived
+        if self.isolation_waived is not None:
+            payload["isolation_waived"] = self.isolation_waived
         return payload
 
     def to_json(self, indent: int = 2) -> str:
@@ -582,6 +604,7 @@ class ExecutionContract:
             tasks=tasks,
             contract_digest=raw_contract_digest,
             baseline_waived=payload.get("baseline_waived"),  # type: ignore[arg-type]
+            isolation_waived=payload.get("isolation_waived"),  # type: ignore[arg-type]
         )
 
     @classmethod
@@ -615,6 +638,7 @@ def build_execution_contract(
     decision: PolicyDecision | None = None,
     harness: str = "cursor",
     baseline_waived: str | None = None,
+    isolation_waived: str | None = None,
 ) -> ExecutionContract:
     """Deterministically build an `ExecutionContract` from a `SpecRevision`, `CompiledContext`, `ProjectModel`, and `ExecutionPolicy`."""
     if not isinstance(spec, SpecRevision):
@@ -673,6 +697,7 @@ def build_execution_contract(
         gates=resolved_decision.gates,
         tasks=derive_task_contracts(spec),
         baseline_waived=baseline_waived,
+        isolation_waived=isolation_waived,
     )
 
 

@@ -239,7 +239,7 @@ class Project(GitIsolated):
         steps = [("stack", stack), ("topology", topology), ("archetype", archetype)]
         if ai is not None:
             steps.append(("ai", ai))
-        steps += [("agents", "codex"), ("test-command", "none")]
+        steps += [("agents", "codex"), ("test-command", "none"), ("services", "none")]
         for key, value in steps:
             result = self.rapid("setup", "set", key, value)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -249,8 +249,8 @@ class Project(GitIsolated):
         --skip` commands leave), so the tests that are not about those commands stay fast."""
         state = SetupState(
             stack=StackChoice(stack, "catalog"), topology=topology, archetype=archetype,
-            ai=None if ai is None else ai == "yes", agents=("codex",), test_command=(),
-            docs={doc: DocState("skipped") for doc in ("brief", "business", "data-model", "architecture")},
+            ai=None if ai is None else ai == "yes", agents=("codex",), test_command=(), services=(),
+            docs={doc: DocState("skipped") for doc in ("brief", "business", "data-model", "architecture", "deployment")},
         )
         path = self.root / ".rapid-os" / "setup.json"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -300,7 +300,8 @@ class SecurityStandardInTheProjectTests(Project):
         self.assertEqual(action["kind"], "choose_agents")
         self.assertEqual(self.rapid("setup", "set", "agents", "codex").returncode, 0)
         self.assertEqual(self.rapid("setup", "set", "test-command", "none").returncode, 0)
-        for doc in ("brief", "business", "data-model", "architecture"):
+        self.assertEqual(self.rapid("setup", "set", "services", "none").returncode, 0)
+        for doc in ("brief", "business", "data-model", "architecture", "deployment"):
             self.rapid("setup", "doc", doc, "--skip")
         self.assertEqual(self.rapid("setup", "finish").returncode, 0)
         self.assertIn("## Seguridad de IA (LLM y agentes)", self.security())
@@ -352,7 +353,7 @@ class CiWorkflowTests(Project):
         self.assertEqual(
             self.rapid("setup", "doc", "brief", "--source", "drafted", "--file", "-",
                        stdin="## Problema\nx\n\n## Usuarios\nx\n\n## Historias\n- [ ] H001: x\n").returncode, 0)
-        for doc in ("business", "data-model", "architecture"):
+        for doc in ("business", "data-model", "architecture", "deployment"):
             self.rapid("setup", "doc", doc, "--skip")
         review = json.loads(self.rapid("setup", "next", "--json").stdout)
         self.assertEqual(review["kind"], "review_drafts")

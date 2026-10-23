@@ -211,7 +211,7 @@ class CatalogSidecarTests(unittest.TestCase):
 
     def test_setup_banks_load_and_cover_required_documents(self):
         banks = load_setup_doc_banks(TEMPLATES)
-        self.assertEqual(set(banks), {"brief", "business", "data-model", "architecture"})
+        self.assertEqual(set(banks), {"brief", "business", "data-model", "architecture", "deployment"})
         for bank in banks.values():
             self.assertTrue(bank.questions and bank.required_sections)
             for section in bank.required_sections:
@@ -246,7 +246,13 @@ class CatalogSidecarTests(unittest.TestCase):
                 "alternatives": ("Alternativas descartadas", "Rejected alternatives"),
                 "consequences": ("Consecuencias", "Consequences"),
                 "modules": ("Módulos", "Modules"),
-                "dependency_rules": ("Reglas de dependencia", "Dependency rules")}),
+                "dependency_rules": ("Reglas de dependencia", "Dependency rules"),
+                "services": ("Servicios de infraestructura", "Infrastructure services")}),
+            "deployment": ("docs/DEPLOYMENT.md", "LOW", 5000, {
+                "target": ("Destino", "Target"),
+                "config": ("Configuración y secretos", "Configuration and secrets"),
+                "managed": ("Servicios gestionados", "Managed services"),
+                "verification": ("Verificación y reversión", "Verification and rollback")}),
         }
         banks = load_setup_doc_banks(TEMPLATES)
         for doc_id, (file, priority, max_chars, sections) in expected.items():

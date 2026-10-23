@@ -451,7 +451,9 @@ class CliArchetypeAndHardeningTests(unittest.TestCase):
             ), contextlib.redirect_stdout(io.StringIO()):
                 cli_main.deploy_assistant(Namespace(target="aws"))
 
-            self.assertTrue(list(project.glob("DEPLOY.md.*.bak")))
+            # `rapid deploy` only prints the template now: it never touches DEPLOY.md.
+            self.assertEqual(deploy_file.read_text(encoding="utf-8"), "old deploy")
+            self.assertFalse(list(project.glob("DEPLOY.md.*.bak")))
 
     def test_init_missing_stack_template_fails_explicitly(self):
         repo_root = Path(__file__).resolve().parents[1]
@@ -485,7 +487,7 @@ class CliArchetypeAndHardeningTests(unittest.TestCase):
         self.assertEqual(parsed_mvp.archetype, "mvp")
         self.assertEqual(parsed_corporate.archetype, "corporate")
 
-    def test_deploy_assistant_uses_neutral_prompt_and_generic_fallback(self):
+    def test_deploy_assistant_prints_the_template_and_rejects_unknown_platforms(self):
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory(dir=repo_root) as temp_dir:
             root = Path(temp_dir)
@@ -493,29 +495,23 @@ class CliArchetypeAndHardeningTests(unittest.TestCase):
             project.mkdir()
             templates = root / "templates"
             (templates / "deploy").mkdir(parents=True)
-            (templates / "deploy" / "aws.md").write_text(
-                "AWS Guide Content",
-                encoding="utf-8",
-            )
+            (templates / "deploy" / "aws.md").write_text("AWS Guide Content", encoding="utf-8")
 
-            recorded_prompts = []
-
-            def fake_input(prompt=""):
-                recorded_prompts.append(prompt)
-                return "customtarget"
-
+            out = io.StringIO()
             with patch.object(cli_main, "CURRENT_DIR", project), patch.object(
                 cli_main, "TEMPLATES_DIR", templates
-            ), patch("builtins.input", fake_input), contextlib.redirect_stdout(
-                io.StringIO()
-            ):
-                cli_main.deploy_assistant(Namespace(target=None))
+            ), contextlib.redirect_stdout(out):
+                cli_main.deploy_assistant(Namespace(target=None, target_option="aws"))
+            self.assertIn("AWS Guide Content", out.getvalue())
+            self.assertIn("rapid setup doc deployment --reopen", out.getvalue())
+            self.assertFalse((project / "DEPLOY.md").exists())
 
-            self.assertEqual(recorded_prompts, ["Target (e.g. aws): "])
-            self.assertEqual(
-                (project / "DEPLOY.md").read_text(encoding="utf-8"),
-                "# DEPLOY customtarget\nDeploy to customtarget",
-            )
+            err = io.StringIO()
+            with patch.object(cli_main, "TEMPLATES_DIR", templates), contextlib.redirect_stderr(err):
+                with self.assertRaises(SystemExit) as ctx:
+                    cli_main.deploy_assistant(Namespace(target="customtarget"))
+            self.assertEqual(ctx.exception.code, 1)
+            self.assertIn("RAPID1413", err.getvalue())
 
 
 class CliProjectIntelligenceScanTests(unittest.TestCase):

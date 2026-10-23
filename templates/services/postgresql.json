@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "id": "postgresql",
+  "role": "database",
+  "image": "postgres:18",
+  "ports": [
+    5432
+  ],
+  "env": {
+    "POSTGRES_USER": "app",
+    "POSTGRES_PASSWORD": "app_local_only",
+    "POSTGRES_DB": "app"
+  },
+  "healthcheck": {
+    "interval": "10s",
+    "timeout": "5s",
+    "retries": 5,
+    "test": [
+      "CMD-SHELL",
+      "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"
+    ]
+  },
+  "volume": {
+    "name": "postgresql-data",
+    "path": "/var/lib/postgresql"
+  },
+  "connection_env": "DATABASE_URL",
+  "drivers": {
+    "python": {
+      "package": "asyncpg",
+      "orm": "SQLAlchemy 2 (async) + Alembic (migrations)",
+      "url": "postgresql+asyncpg://app:app_local_only@127.0.0.1:5432/app"
+    },
+    "typescript": {
+      "package": "pg",
+      "url": "postgresql://app:app_local_only@127.0.0.1:5432/app"
+    }
+  },
+  "migrations": {
+    "python": "alembic upgrade head",
+    "typescript": "npx prisma migrate deploy"
+  },
+  "sources": [
+    "https://hub.docker.com/_/postgres",
+    "https://www.postgresql.org/docs/current/app-pg-isready.html",
+    "https://www.postgresql.org/docs/current/runtime-config-connection.html"
+  ]
+}

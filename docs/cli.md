@@ -165,10 +165,10 @@ rapid vision path/to/mockup.png
 ```
 
 ### `rapid deploy`
-Generate `DEPLOY.md` from `templates/deploy/<target>.md` (or a generic deployment checklist fallback). Writes files.
+Print the deployment template of a platform (`aws`, `azure`, `vercel`, `render`, `railway` or `dokploy`, from `templates/deploy/<target>.md`) and the command that reopens the project document, `rapid setup doc deployment --reopen`. Read-only: it no longer writes `DEPLOY.md`; the project document is `docs/DEPLOYMENT.md`, the optional last document of the onboarding. An unknown platform is `RAPID1413`. See the [deployment guide](guides/deployment.md).
 
 ```bash
-rapid deploy aws
+rapid deploy --target railway
 ```
 
 ### `rapid refine` & `rapid prompt`
@@ -381,6 +381,7 @@ Each mode has its own playbook in `templates/modes/` (`spec_template` and per-ac
 
 A **brand-new repository** (no source code outside `docs/` and hidden folders, and no tests: `pyproject.toml` or `package.json` alone are configuration, not code) changes `rapid start`:
 
+- With no commit in the repository (so no worktree can be created), a run that the policy would isolate (`RAPID1334`) goes in the current workspace instead: the contract records `isolation_waived: "no_commits"` (omitted from every other contract), the human gates (`gate.migration-review`, `gate.security-review`...) stay, `rapid start` notes it and `rapid status --json` shows it. A repository with commits is never waived.
 - `feature` adds the scaffold as the first task, `T001: Scaffold mínimo con un test que pase` (the tasks you wrote move down one number so the text keeps matching the contract ids); when the project has no `test_command` the task ends with `Configura el comando con rapid setup set test-command <cmd> antes de cerrarla`, and the contract has **no `gate.baseline`**: there is nothing to take a baseline of. The run starts `active` and `rapid start` reports what changed in the optional top-level `notes[]` of its output (`Nota: ...` in text mode), including the renumbering (`T001→T002, T002→T003`); `rapid next` always gives the run's ids. The scaffold task is closed with a green `rapid check`, and the contract records the reason in the optional field `baseline_waived: "empty_repository"` (also in `rapid status --json` under `run`). The field is omitted from every other contract, so contracts of projects with code or tests are unchanged. `rapid status` and `rapid finish` print `Sin baseline: proyecto nuevo` (on stderr with `finish --json`). With `--spec <id>` the waiver only applies when that spec already starts with the scaffold task.
 - `bugfix`, `refactor` and `hardening` fail with `RAPID1413` and write nothing: `No hay código que <arreglar|refactorizar|endurecer>; usa /rapid-feature`. `research` is not affected.
 - A repository with code but no tests keeps `gate.baseline`; the `run_baseline` instruction suggests creating a passing test in a task, or using the `research` mode.
@@ -533,7 +534,7 @@ Completes the onboarding with commands only, the way `rapid start`/`rapid next` 
 ```bash
 rapid setup next [--json]
 rapid setup show [--json]
-rapid setup set stack|topology|archetype|ai|agents|test-command <value> [--refresh] [--json]
+rapid setup set stack|topology|archetype|ai|services|agents|test-command <value> [--refresh] [--json]
 rapid setup stack --custom --file <path|-> [--json]
 rapid setup doc <id> --source provided|drafted --file <path|-> [--replace] [--json]
 rapid setup doc <id> --skip | --confirm | --reopen | --from-legacy [--replace] [--json]
@@ -541,10 +542,11 @@ rapid setup review --done [--json]
 rapid setup finish [--json]
 ```
 
-- `next`: the next decision, in this order: `choose_stack`, `choose_topology`, `choose_archetype`, `choose_ai`, `choose_agents`, `set_test_command`, `resolve_doc` (`brief`, `business`, `data-model`, `architecture`), `review_drafts`, `finish`, `done`. `--json` emits one object with `schema_version`, `kind` and the fields of that decision:
+- `next`: the next decision, in this order: `choose_stack`, `choose_topology`, `choose_archetype`, `choose_ai`, `choose_agents`, `set_test_command`, `resolve_doc` (`brief`, `business`), `choose_services`, `resolve_doc` (`data-model`, `architecture`, `deployment`), `review_drafts`, `finish`, `done`. `--json` emits one object with `schema_version`, `kind` and the fields of that decision:
   - `choose_stack`: `facts[]` from the scanner, `options[]` (`id`, `source`, `summary`, `language`, `score`, `fits[]`, `avoid_if[]`, `compatible_topologies[]`; the lists are empty for a stack without a sidecar) sorted by a deterministic score (language and framework match), `recommended` (the scanner suggestion or `null`) and, only when `recommended` is `null`, `questions[]` from `templates/setup/stack-questions.json`. `alt_command` is the invocation for a stack outside the catalog (`rapid setup stack --custom --file -`).
   - `choose_topology`: only the topologies compatible with the chosen stack, plus `recommended`.
   - `choose_agents`: `recommended` is the harness detected from `RAPID_HARNESS`, the Claude Code marker, `default_harness` or a single supported harness in `tools` of the config, or `null` (the `cursor` fallback is not a detection). `set_test_command`: `recommended` is `["npm", "test"]` when `package.json` has `scripts.test`, pytest when detected, or the unittest discovery command for a Python project with a tests directory; otherwise `null`.
+  - `choose_services`: `roles[]`, `catalog[]` (`id`, `role`, `image`, `ports[]`, `connection_env`), `suggested_services[]` (the stack's minimum, not a decision), `when_values` (`now`, `later`), `instruction` and `command` (`rapid setup set services <role>:<engine>[@now|@later],...`; `none` is valid). `rapid setup set services` rejects an unknown role or engine, or a pair that does not fit, with `RAPID1413`, and an engine the stack does not support with `RAPID1402`. For `data-model`, `architecture` and `deployment`, `resolve_doc` also carries `services[]` (only the decided ones) and, when the document has them, `conditional_sections[]` (required while their condition holds: `Base de datos local` in `data-model` with a database service). `setup finish` writes `compose.yaml`, `.env.example` and `.env` in `.gitignore` for the `@now` services of an empty repository (or adds the missing ones to an existing compose file, never modifying what is there; an unreadable YAML is left untouched with a warning) and announces them in `added_files`/`planned_files`. While `compose.yaml` exists with a `@now` service, `rapid setup finish`, `rapid status` and `rapid validate` list the person action `local-services` (`docker compose up -d`). See [Infrastructure services](concepts/infrastructure-services.md).
   - `review_drafts`: only when some document is an unconfirmed draft and the review is not closed (it is skipped when every document is `provided`, confirmed or skipped, and it never reopens a finished setup). `drafts[]` (`doc`, `file`, `title`), `consequences` (`confirm` and `keep_draft`: what each decision means, the texts the shortcut reads to the person), `commands` (`confirm`: `rapid setup doc <id> --confirm`, `done`: `rapid setup review --done`) and `command` (the `done` one).
   - `resolve_doc`: `doc`, `target` (`docs/<FILE>.md`), `choices` (`provided`, `drafted`, `skip`), `questions[]`, `required_sections[]` (`id`, `titles[]`), `max_chars` and `command` (the invocation that writes the document), all read from `templates/setup/docs/<id>.json`. For `business` it also carries `legacy_source` (`.rapid-os/standards/business.md`) when that file has content and `docs/BUSINESS_RULES.md` does not exist.
   - Every action except `done` carries `command`, the argv that resolves it; `finish` and `done` list `unconfirmed_docs[]`: drafted documents nobody has confirmed.

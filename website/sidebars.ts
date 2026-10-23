@@ -14,6 +14,7 @@ const sidebars: SidebarsConfig = {
         'concepts/project-docs',
         'concepts/architecture',
         'concepts/security-baseline',
+        'concepts/infrastructure-services',
         'concepts/product-boundaries',
         'guides/use-cases',
       ],
@@ -122,6 +123,7 @@ const sidebars: SidebarsConfig = {
         'guides/permissions-capabilities',
         'guides/project-layout',
         'guides/ci-cd-integration',
+        'guides/deployment',
       ],
     },
     {

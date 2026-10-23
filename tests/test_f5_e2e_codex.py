@@ -345,11 +345,11 @@ class SetupAfterFinishTests(TempProject):
         git(self.root, "init", "-q")
         for key, value in (
             ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"), ("ai", "no"),
-            ("agents", "codex"), ("test-command", test_command),
+            ("agents", "codex"), ("test-command", test_command), ("services", "none"),
         ):
             result = rapid(self.root, "setup", "set", key, value)
             self.assertEqual(result.returncode, 0, result.stderr)
-        for doc in ("brief", "business", "data-model", "architecture"):
+        for doc in ("brief", "business", "data-model", "architecture", "deployment"):
             self.assertEqual(rapid(self.root, "setup", "doc", doc, "--skip").returncode, 0)
         finished = rapid(self.root, "setup", "finish")
         self.assertEqual(finished.returncode, 0, finished.stderr)
@@ -392,13 +392,13 @@ class EmptyFolderEndToEndTests(SetupAfterFinishTests):
         git(self.root, "init", "-q")  # no commit
         for key, value in (
             ("stack", "generic"), ("topology", "fullstack-baas"), ("archetype", "mvp"), ("ai", "no"),
-            ("agents", "codex"), ("test-command", "none"),
+            ("agents", "codex"), ("test-command", "none"), ("services", "none"),
         ):
             self.assertEqual(rapid(self.root, "setup", "set", key, value).returncode, 0)
         brief = "## Problema\nAgendar.\n\n## Usuarios\nOrganizadores.\n\n## Historias\n- [ ] H001: Listar talleres\n"
         written = rapid(self.root, "setup", "doc", "brief", "--source", "drafted", "--file", "-", stdin=brief)
         self.assertEqual(written.returncode, 0, written.stderr)
-        for doc in ("business", "data-model", "architecture"):
+        for doc in ("business", "data-model", "architecture", "deployment"):
             self.assertEqual(rapid(self.root, "setup", "doc", doc, "--skip").returncode, 0)
         self.assertEqual(rapid(self.root, "setup", "review", "--done").returncode, 0)  # the brief stays a draft
         self.assertEqual(rapid(self.root, "setup", "finish").returncode, 0)

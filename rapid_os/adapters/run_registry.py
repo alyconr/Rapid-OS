@@ -14,7 +14,12 @@ from rapid_os.domain.context import (
     ContextManifest,
     ContextRequest,
 )
-from rapid_os.domain.policy import ARCHITECTURE_GATE_MODES, add_architecture_gate, waive_baseline
+from rapid_os.domain.policy import (
+    ARCHITECTURE_GATE_MODES,
+    add_architecture_gate,
+    waive_baseline,
+    waive_isolation,
+)
 from rapid_os.domain.execution import (
     ALLOWED_POLICY_SOURCES,
     DEFAULT_EXECUTION_POLICY,
@@ -690,6 +695,7 @@ class RunRegistry:
         policy: ExecutionPolicy | None = None,
         policy_source: str | None = None,
         baseline_waived: str | None = None,
+        isolation_waived: str | None = None,
     ) -> RunRecord:
         """Create a new Run bound to an exact `ready` SpecRevision, compiled context snapshot, project model, and policy decision."""
         # 1. Load and validate ready spec + full spec revision history
@@ -807,6 +813,14 @@ class RunRegistry:
         if baseline_waived is not None:
             decision = waive_baseline(decision, baseline_waived)
 
+        # No commit to branch a worktree from: the run goes in the current workspace. It is
+        # recorded only when it changed something (a low-risk run never needed isolation).
+        if isolation_waived is not None:
+            waived_decision = waive_isolation(decision, isolation_waived)
+            if waived_decision is decision:
+                isolation_waived = None
+            decision = waived_decision
+
         # A project with an architecture rule verifies it before a run that writes code can pass.
         if (
             resolved_spec_rev.mode.value in ARCHITECTURE_GATE_MODES
@@ -841,6 +855,7 @@ class RunRegistry:
             decision=decision,
             harness=context_request.harness,
             baseline_waived=baseline_waived,
+            isolation_waived=isolation_waived,
         )
         initial_state = build_initial_run_state(contract)
         record = RunRecord(

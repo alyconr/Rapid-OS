@@ -29,6 +29,22 @@ from rapid_os.core.filesystem import (
 )
 from rapid_os.core.identifiers import validate_identifier
 from rapid_os.domain.agents import generate_agent_contexts
+from rapid_os.domain.services import (
+    COMPOSE_FILE_NAMES,
+    DEFAULT_COMPOSE_FILE,
+    ENV_EXAMPLE_FILE,
+    ServiceInputError,
+    active_conditions,
+    check_stack_compatibility,
+    merge_compose,
+    merge_env_example,
+    parse_services,
+    render_compose,
+    render_env_example,
+    render_tech_stack,
+    services_now,
+    stack_language,
+)
 from rapid_os.domain.security import (
     CI_WORKFLOW_PATH,
     ci_language,
@@ -66,7 +82,7 @@ from rapid_os.orchestration.git import run_git
 from rapid_os.orchestration.session import git_trust_command, git_work_tree_state
 from rapid_os.domain.setup import ARCHETYPES, DocState, SetupAction, SetupActionKind, SetupState, StackChoice
 
-DECISION_KEYS = ("stack", "topology", "archetype", "ai", "agents", "test-command")
+DECISION_KEYS = ("stack", "topology", "archetype", "ai", "services", "agents", "test-command")
 NO_TEST_COMMAND = "none"
 AI_ANSWERS = {"yes": True, "y": True, "si": True, "sí": True, "true": True, "no": False, "n": False, "false": False}
 SECURITY_TEMPLATE = ("security", "baseline.md")
@@ -155,7 +171,17 @@ def set_decision(
                 f"Topology '{topology}' does not fit stack '{stack_id}'; it is undecided again."
             )
             topology = None
-        return replace(state, stack=StackChoice(stack_id, source), topology=topology, finished=False), tuple(notes)
+        services = state.services
+        if services:
+            try:
+                check_stack_compatibility(services, stack_id, catalog)
+            except ServiceInputError:
+                notes.append(f"The services do not fit stack '{stack_id}'; they are undecided again.")
+                services = None
+        return (
+            replace(state, stack=StackChoice(stack_id, source), topology=topology, services=services, finished=False),
+            tuple(notes),
+        )
 
     if key == "topology":
         topology_id = _identifier(value, "topology")
@@ -177,6 +203,14 @@ def set_decision(
         if archetype not in ARCHETYPES:
             raise _fail("RAPID1413", f"Unknown archetype '{value}'. Use one of: {', '.join(ARCHETYPES)}.")
         return replace(state, archetype=archetype, finished=False), ()
+
+    if key == "services":
+        try:
+            choices = parse_services(value, catalog)
+            check_stack_compatibility(choices, state.stack.id if state.stack else None, catalog)
+        except ServiceInputError as exc:
+            raise _fail(exc.code, exc.message) from exc
+        return replace(state, services=choices, finished=False), ()
 
     if key == "ai":
         answer = value.strip().lower()
@@ -306,7 +340,7 @@ def write_doc(
         # What a person provides is stored as is; what the agent drafts must fit the bank.
         if has_lost_characters(body):
             raise _fail("RAPID1415", LOST_CHARACTERS_MESSAGE)
-        issues = validate_doc_body(body, bank)
+        issues = validate_doc_body(body, bank, active_conditions(state.services))
         if issues:
             raise SetupApplyError(
                 issues[0].code,
@@ -511,6 +545,108 @@ def is_rapid_security(path: Path) -> bool:
     return BASELINE_TITLE in text or MINIMAL_SECURITY_TITLE in text
 
 
+def _apply_services_to_stack(target: Path, stack_id: str, state: SetupState, catalog: Catalog) -> None:
+    """Rewrite the database lines of a freshly copied `tech-stack.md` from the services decision."""
+    entry = catalog.stacks.get(stack_id)
+    if state.services is None or not catalog.services or (entry is not None and entry.service_roles == ()):
+        return  # undecided (`rapid init`), no catalog, or a static site: the template stays as it is
+    text = target.read_text(encoding="utf-8")
+    language = stack_language(catalog, stack_id)
+    safe_write_text(
+        target, render_tech_stack(text, language, state.services, catalog), encoding="utf-8", backup=False
+    )
+
+
+def find_compose_file(project_root: Path) -> Path | None:
+    for name in COMPOSE_FILE_NAMES:
+        if (Path(project_root) / name).is_file():
+            return Path(project_root) / name
+    return None
+
+
+def planned_local_environment(
+    project_root: Path, state: SetupState, catalog: Catalog, scan_model: ProjectModel | None = None
+) -> list[str]:
+    """The files `setup finish` is going to write for the `@now` services (empty repository only)."""
+    from rapid_os.domain.scanner import is_empty_repository
+
+    if not services_now(state.services) or find_compose_file(project_root) is not None:
+        return []
+    if not is_empty_repository(Path(project_root)):
+        return []
+    return [DEFAULT_COMPOSE_FILE, ENV_EXAMPLE_FILE]
+
+
+def _ensure_env_ignored(project_root: Path) -> None:
+    path = Path(project_root) / ".gitignore"
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+    except (OSError, UnicodeDecodeError):
+        return
+    if ".env" in (line.strip() for line in lines):
+        return
+    body = "\n".join(lines).rstrip("\n")
+    safe_write_text(path, (body + "\n" if body else "") + ".env\n", encoding="utf-8", backup=False)
+
+
+def write_local_environment(
+    project_root: Path, state: SetupState, catalog: Catalog, scan_model: ProjectModel | None = None
+) -> tuple[list[str], list[str]]:
+    """`compose.yaml`, `.env.example` and `.env` in `.gitignore` for the `@now` services.
+
+    Rapid OS writes them, not the agent. In an empty repository they are created; where a compose
+    file already exists only the missing `@now` services are added (and the missing variables), and
+    nothing that is there changes: a compose file it cannot read as YAML is left alone with a warning.
+    Returns the files written (relative paths) and the warnings."""
+    root = Path(project_root)
+    choices = state.services or ()
+    if not services_now(choices) or not catalog.services:
+        return [], []
+    languages = scan_model.values("language") if scan_model is not None else ()
+    language = stack_language(catalog, state.stack.id if state.stack else None, ci_language_or_default(state, languages))
+    written: list[str] = []
+    warnings: list[str] = []
+    compose = find_compose_file(root)
+    if compose is None:
+        if not planned_local_environment(root, state, catalog, scan_model):
+            return [], []
+        safe_write_text(root / DEFAULT_COMPOSE_FILE, render_compose(choices, catalog), encoding="utf-8", backup=False)
+        written.append(DEFAULT_COMPOSE_FILE)
+    else:
+        try:
+            existing = compose.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return [], [f"No se pudo leer {compose.name}: Rapid OS no lo toca."]
+        merged = merge_compose(existing, choices, catalog)
+        if merged.warning:
+            return [], [f"{compose.name}: {merged.warning}"]
+        if not merged.added:
+            return [], []
+        safe_write_text(compose, merged.text, encoding="utf-8", backup=True)
+        written.append(compose.name)
+    env_path = root / ENV_EXAMPLE_FILE
+    if env_path.is_file():
+        try:
+            current = env_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            current = None
+        if current is not None:
+            updated = merge_env_example(current, choices, catalog, language)
+            if updated != current:
+                safe_write_text(env_path, updated, encoding="utf-8", backup=True)
+                written.append(ENV_EXAMPLE_FILE)
+    else:
+        safe_write_text(env_path, render_env_example(choices, catalog, language), encoding="utf-8", backup=False)
+        written.append(ENV_EXAMPLE_FILE)
+    _ensure_env_ignored(root)
+    return written, warnings
+
+
+def ci_language_or_default(state: SetupState, languages) -> str:
+    """The language of the connection URLs for a stack the catalog does not know (generic, custom)."""
+    return ci_language(state.stack.id if state.stack else None, languages) or "typescript"
+
+
 def _write_coding_rules(templates_dir: Path, standards: Path, archetype: str) -> list[Path]:
     """Copy the archetype's coding rules (with backup). Returns the files written."""
     try:
@@ -651,6 +787,7 @@ def apply_setup(
     extra_tools: Sequence[str] = (),
     only_changes: bool = False,
     regenerate: bool = True,
+    services_changed: bool = False,
 ) -> ApplyResult:
     """Copy stack, topology, archetype and security to standards, save the config, rebuild context.
 
@@ -699,9 +836,17 @@ def apply_setup(
                 )
         elif template.exists():
             _copy_template(template, target, f"el stack '{stack.id}'")
+            _apply_services_to_stack(target, stack.id, state, catalog)
         else:
             raise _fail("RAPID1413", f"Template de stack no encontrado: {stack.id} ({template})")
         written.append(rel(target))
+    elif services_changed and stack.id in catalog.stacks and stack.id not in (GENERIC_STACK_ID, CUSTOM_STACK_ID):
+        # The stack no longer imposes the engine: when the services change, so do its database lines.
+        template = templates_dir / "stacks" / f"{stack.id}.md"
+        if template.is_file():
+            _copy_template(template, standards / "tech-stack.md", f"el stack '{stack.id}'")
+            _apply_services_to_stack(standards / "tech-stack.md", stack.id, state, catalog)
+            written.append(rel(standards / "tech-stack.md"))
 
     # Topology
     topology = state.topology
@@ -777,6 +922,10 @@ def apply_setup(
             )
             written.extend([rel(arch_md), rel(arch_json)])
 
+    # Local services: the containers to test the data model from the first feature.
+    env_written, env_warnings = write_local_environment(project_root, state, catalog, scan_model)
+    written.extend(env_written)
+
     # CI: the security scans run from the first PR, written by Rapid OS in a new repository.
     ci_workflow = _write_ci_workflow(project_root, templates_dir, state.archetype, stack.id, scan_model)
     if ci_workflow is not None:
@@ -800,7 +949,7 @@ def apply_setup(
         save_project_config(data, rapid_dir, config_file)
         written.append(rel(Path(config_file)))
 
-    warnings = tuple(w for w in (architecture_warning, security_warning) if w)
+    warnings = tuple(w for w in (architecture_warning, security_warning, *env_warnings) if w)
     if regenerate:
         warnings = (*warnings, *regenerate_agent_context(project_root, rapid_dir, Path(config_file)))
     return ApplyResult(tuple(written), warnings)

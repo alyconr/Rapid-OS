@@ -335,6 +335,7 @@ def validate_project_docs(
     # Lazy: the adapters import this module.
     from rapid_os.adapters.project_docs import load_project_docs
     from rapid_os.domain.project_docs import normalize_body, validate_doc_body
+    from rapid_os.domain.services import active_conditions
 
     root, rapid_dir = _resolve_root_and_rapid_dir(project_rapid_dir, current_dir)
     docs = load_project_docs(root, rapid_dir, templates_dir)
@@ -361,7 +362,8 @@ def validate_project_docs(
             )
         if doc.source == "drafted":
             # What a person pasted is not validated; what the agent drafted is.
-            for issue in validate_doc_body(doc.body, doc.bank):
+            conditions = active_conditions(docs.setup_state.services if docs.setup_state else None)
+            for issue in validate_doc_body(doc.body, doc.bank, conditions):
                 diagnostics.append(Diagnostic(WARNING, issue.code, issue.message, doc.path))
 
     business = docs.managed.get("business")

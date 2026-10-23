@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "valkey",
+  "role": "cache",
+  "image": "valkey/valkey:9",
+  "ports": [
+    6379
+  ],
+  "env": {},
+  "healthcheck": {
+    "interval": "10s",
+    "timeout": "5s",
+    "retries": 5,
+    "test": [
+      "CMD",
+      "valkey-cli",
+      "ping"
+    ]
+  },
+  "volume": {
+    "name": "valkey-data",
+    "path": "/data"
+  },
+  "connection_env": "VALKEY_URL",
+  "drivers": {
+    "python": {
+      "package": "valkey",
+      "url": "valkey://127.0.0.1:6379/0"
+    },
+    "typescript": {
+      "package": "iovalkey",
+      "url": "redis://127.0.0.1:6379/0"
+    }
+  },
+  "sources": [
+    "https://hub.docker.com/r/valkey/valkey",
+    "https://valkey.io/commands/ping/",
+    "https://valkey.io/topics/cli/"
+  ]
+}

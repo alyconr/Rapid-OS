@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from rapid_os.domain.project import ProjectModel
@@ -30,6 +30,37 @@ class StackEntry:
     avoid_if: tuple[str, ...]
     compatible_topologies: tuple[str, ...]
     default_topology: str
+    # `<role>:<engine>` the stack proposes as a minimum (a suggestion, never a decision).
+    suggested_services: tuple[str, ...] = ()
+    # Roles of infrastructure services the stack can use; None means all of them.
+    service_roles: tuple[str, ...] | None = None
+
+
+SERVICE_ROLES = ("database", "cache", "queue", "stream", "search", "object-storage")
+SERVICE_LANGUAGES = ("python", "typescript")
+
+
+@dataclass(frozen=True)
+class ServiceEntry:
+    """An infrastructure engine Rapid OS can run locally in a container (`templates/services`)."""
+
+    id: str
+    role: str
+    image: str
+    ports: tuple[int, ...]
+    env: dict[str, str]
+    fixed_env: dict[str, str]
+    healthcheck: dict
+    volume: dict[str, str] | None
+    connection_env: str
+    drivers: dict[str, dict[str, str]]
+    sources: tuple[str, ...]
+    hostname: str | None = None
+    migrations: dict[str, str] | None = None
+
+    @property
+    def version(self) -> str:
+        return self.image.rsplit(":", 1)[-1]
 
 
 @dataclass(frozen=True)
@@ -51,6 +82,10 @@ class Catalog:
     # topology except doc-site.
     sidecarless_stacks: tuple[str, ...] = ()
     sidecarless_topologies: tuple[str, ...] = ()
+    services: dict[str, ServiceEntry] = field(default_factory=dict)
+
+    def engines_for_role(self, role: str) -> tuple[str, ...]:
+        return tuple(sorted(s.id for s in self.services.values() if s.role == role))
 
     @property
     def topology_ids(self) -> tuple[str, ...]:
@@ -154,6 +189,17 @@ def _load_stack(path: Path, topology_ids: set[str]) -> StackEntry:
         raise _fail(path, f"compatible_topologies references unknown topology: {', '.join(unknown)}.")
     if default not in compatible:
         raise _fail(path, f"default_topology '{default}' is not listed in compatible_topologies.")
+    suggested = _text_list(path, data, "suggested_services") if "suggested_services" in data else ()
+    for item in suggested:
+        role, _, engine = item.partition(":")
+        if role not in SERVICE_ROLES or not engine:
+            raise _fail(path, f"suggested_services entry '{item}' must be '<role>:<engine>' with a known role.")
+    service_roles = None
+    if "service_roles" in data:
+        service_roles = _text_list(path, data, "service_roles")
+        unknown_roles = [r for r in service_roles if r not in SERVICE_ROLES]
+        if unknown_roles:
+            raise _fail(path, f"service_roles references unknown role: {', '.join(unknown_roles)}.")
     return StackEntry(
         id=data["id"],
         summary=_text(path, data, "summary"),
@@ -162,7 +208,113 @@ def _load_stack(path: Path, topology_ids: set[str]) -> StackEntry:
         avoid_if=_text_list(path, data, "avoid_if"),
         compatible_topologies=compatible,
         default_topology=default,
+        suggested_services=suggested,
+        service_roles=service_roles,
     )
+
+
+def _str_map(path: Path, data: dict, field_name: str, *, required: bool = True) -> dict[str, str]:
+    value = data.get(field_name, {} if not required else None)
+    if not isinstance(value, dict) or not all(
+        isinstance(k, str) and k and isinstance(v, str) for k, v in value.items()
+    ):
+        raise _fail(path, f"field '{field_name}' must be an object of strings.")
+    return dict(value)
+
+
+def _load_service(path: Path) -> ServiceEntry:
+    data = _read_sidecar(path)
+    role = _text(path, data, "role")
+    if role not in SERVICE_ROLES:
+        raise _fail(path, f"role '{role}' must be one of {', '.join(SERVICE_ROLES)}.")
+    image = _text(path, data, "image")
+    name, _, tag = image.rpartition(":")
+    if not name or not tag or tag == "latest" or "/" in tag:
+        raise _fail(path, f"image '{image}' must pin a version (name:tag, not latest).")
+    ports = data.get("ports")
+    if (
+        not isinstance(ports, list)
+        or not ports
+        or not all(isinstance(p, int) and not isinstance(p, bool) and 0 < p < 65536 for p in ports)
+    ):
+        raise _fail(path, "field 'ports' must be a non-empty list of TCP ports.")
+    env = _str_map(path, data, "env")
+    fixed_env = _str_map(path, data, "fixed_env", required=False)
+    health = data.get("healthcheck")
+    if not isinstance(health, dict):
+        raise _fail(path, "field 'healthcheck' must be an object.")
+    test = health.get("test")
+    if not isinstance(test, list) or len(test) < 2 or not all(isinstance(t, str) and t for t in test):
+        raise _fail(path, "healthcheck 'test' must be a Compose test list such as [\"CMD\", ...].")
+    if test[0] not in ("CMD", "CMD-SHELL"):
+        raise _fail(path, "healthcheck 'test' must start with CMD or CMD-SHELL.")
+    for key in ("interval", "timeout"):
+        if not isinstance(health.get(key), str) or not health[key]:
+            raise _fail(path, f"healthcheck '{key}' must be a duration such as '10s'.")
+    retries = health.get("retries")
+    if isinstance(retries, bool) or not isinstance(retries, int) or retries <= 0:
+        raise _fail(path, "healthcheck 'retries' must be a positive integer.")
+    volume = data.get("volume")
+    if volume is not None:
+        if (
+            not isinstance(volume, dict)
+            or not isinstance(volume.get("name"), str)
+            or not volume["name"]
+            or not isinstance(volume.get("path"), str)
+            or not volume["path"].startswith("/")
+        ):
+            raise _fail(path, "field 'volume' must be null or {name, path} with an absolute path.")
+        volume = {"name": volume["name"], "path": volume["path"]}
+    drivers = data.get("drivers")
+    if not isinstance(drivers, dict) or set(drivers) != set(SERVICE_LANGUAGES):
+        raise _fail(path, f"field 'drivers' must have exactly: {', '.join(SERVICE_LANGUAGES)}.")
+    clean_drivers: dict[str, dict[str, str]] = {}
+    for language, driver in drivers.items():
+        if (
+            not isinstance(driver, dict)
+            or not isinstance(driver.get("package"), str)
+            or not driver["package"]
+            or not isinstance(driver.get("url"), str)
+            or not driver["url"]
+            or not all(isinstance(v, str) for v in driver.values())
+        ):
+            raise _fail(path, f"drivers.{language} must be an object of strings with 'package' and 'url'.")
+        clean_drivers[language] = dict(driver)
+    sources = _text_list(path, data, "sources", non_empty=True)
+    if not all(s.startswith("https://") for s in sources):
+        raise _fail(path, "every entry of 'sources' must be an https URL.")
+    migrations = data.get("migrations")
+    if migrations is not None:
+        migrations = _str_map(path, data, "migrations")
+    hostname = data.get("hostname")
+    if hostname is not None and (not isinstance(hostname, str) or not hostname):
+        raise _fail(path, "field 'hostname' must be a non-empty string.")
+    return ServiceEntry(
+        id=data["id"],
+        role=role,
+        image=image,
+        ports=tuple(ports),
+        env=env,
+        fixed_env=fixed_env,
+        healthcheck=dict(health),
+        volume=volume,
+        connection_env=_text(path, data, "connection_env"),
+        drivers=clean_drivers,
+        sources=sources,
+        hostname=hostname,
+        migrations=migrations,
+    )
+
+
+def load_services(templates_dir: Path) -> dict[str, ServiceEntry]:
+    """`templates/services/<engine>.json`; a templates folder without it has no services."""
+    directory = Path(templates_dir) / "services"
+    services = {}
+    if directory.is_dir():
+        for path in sorted(directory.glob("*.json")):
+            entry = _load_service(path)
+            services[entry.id] = entry
+    return services
 
 
 def _sidecarless(directory: Path) -> tuple[str, ...]:
@@ -195,6 +347,7 @@ def load_catalog(templates_dir: Path) -> Catalog:
         topologies=topologies,
         sidecarless_stacks=sidecarless_stacks,
         sidecarless_topologies=sidecarless_topologies,
+        services=load_services(templates_dir),
     )
 
 
@@ -278,7 +431,7 @@ def missing_custom_stack_sections(text: str) -> tuple[str, ...]:
     return tuple(missing)
 
 
-SETUP_DOC_IDS = ("brief", "business", "data-model", "architecture")
+SETUP_DOC_IDS = ("brief", "business", "data-model", "architecture", "deployment")
 _CONTEXT_PRIORITIES = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
 
 
@@ -299,6 +452,18 @@ class RequiredSection:
 
 
 @dataclass(frozen=True)
+class ConditionalSection:
+    """A section required only while `when` holds (e.g. `service:database`)."""
+
+    id: str
+    titles: tuple[str, ...]
+    when: str
+
+
+CONDITION_PREFIXES = ("service:",)
+
+
+@dataclass(frozen=True)
 class SetupDocBank:
     id: str
     file: str
@@ -307,6 +472,7 @@ class SetupDocBank:
     required_sections: tuple[RequiredSection, ...]
     max_chars: int
     context_priority: str
+    conditional_sections: tuple[ConditionalSection, ...] = ()
 
 
 def _questions(path: Path, data: dict) -> tuple[SetupQuestion, ...]:
@@ -343,6 +509,23 @@ def _required_sections(path: Path, data: dict) -> tuple[RequiredSection, ...]:
     return tuple(sections)
 
 
+def _conditional_sections(path: Path, data: dict) -> tuple[ConditionalSection, ...]:
+    raw = data.get("conditional_sections", [])
+    if not isinstance(raw, list):
+        raise _fail(path, "field 'conditional_sections' must be a list.")
+    sections = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise _fail(path, "each conditional section must be an object with 'id', 'titles' and 'when'.")
+        when = _text(path, item, "when")
+        if not when.startswith(CONDITION_PREFIXES) or not when.partition(":")[2]:
+            raise _fail(path, f"conditional section 'when' must start with one of {', '.join(CONDITION_PREFIXES)}.")
+        sections.append(
+            ConditionalSection(_text(path, item, "id"), _text_list(path, item, "titles", non_empty=True), when)
+        )
+    return tuple(sections)
+
+
 def load_setup_doc_banks(templates_dir: Path) -> dict[str, SetupDocBank]:
     directory = Path(templates_dir) / "setup" / "docs"
     banks = {}
@@ -357,8 +540,9 @@ def load_setup_doc_banks(templates_dir: Path) -> dict[str, SetupDocBank]:
             raise _fail(path, f"context_priority must be one of {sorted(_CONTEXT_PRIORITIES)}.")
         questions = _questions(path, data)
         sections = _required_sections(path, data)
+        conditional = _conditional_sections(path, data)
         question_ids = {question.id for question in questions}
-        missing = [section.id for section in sections if section.id not in question_ids]
+        missing = [section.id for section in (*sections, *conditional) if section.id not in question_ids]
         if missing:
             raise _fail(path, f"required sections without a question of the same id: {', '.join(missing)}.")
         banks[doc_id] = SetupDocBank(
@@ -369,6 +553,7 @@ def load_setup_doc_banks(templates_dir: Path) -> dict[str, SetupDocBank]:
             required_sections=sections,
             max_chars=max_chars,
             context_priority=priority,
+            conditional_sections=conditional,
         )
     return banks
 

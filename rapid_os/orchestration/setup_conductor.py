@@ -11,6 +11,7 @@ from typing import Sequence
 
 from rapid_os.domain.catalog import (
     DOC_SITE_TOPOLOGY,
+    SERVICE_ROLES,
     Catalog,
     SetupDocBank,
     SetupQuestion,
@@ -19,8 +20,10 @@ from rapid_os.domain.catalog import (
 from rapid_os.domain.project import ProjectModel
 from rapid_os.domain.scanner import suggest_init_choices
 from rapid_os.domain.security import is_ai_stack
+from rapid_os.domain.services import active_conditions, describe_services
 from rapid_os.domain.setup import (
     ARCHETYPES,
+    SERVICE_WHEN,
     SETUP_DOC_ORDER,
     SetupAction,
     SetupActionKind,
@@ -56,6 +59,15 @@ ARCHETYPE_SUMMARIES = {
     "corporate": "Security first; includes the security baseline at OWASP ASVS L2 and SLSA Build L2",
 }
 AI_COMMAND = ("rapid", "setup", "set", "ai", "<yes|no>")
+SERVICES_COMMAND = ("rapid", "setup", "set", "services", "<role>:<engine>[@now|@later],...")
+# The documents that come after the services decision (the agent needs the product first).
+AFTER_SERVICES_DOCS = ("data-model", "architecture", "deployment")
+SERVICES_INSTRUCTION = (
+    "Propón los servicios a partir del brief y las reglas de negocio, con una línea de porqué por cada uno. "
+    "Empieza por lo mínimo: una base de datos. Propón caché, colas o streaming solo si el brief lo justifica "
+    "(p. ej. webhooks de pago con reintentos -> cola; notificaciones masivas por WhatsApp -> cola), y márcalos "
+    "@later si no hacen falta para la primera historia. La persona decide; no fijes nada sin su respuesta."
+)
 AI_QUESTION = (
     "¿El producto usará modelos de IA o agentes (por ejemplo, un asistente que responda por WhatsApp)?"
 )
@@ -73,7 +85,8 @@ def next_setup_action(
     detected_agent: str | None = None,
     legacy_business: str | None = None,
 ) -> SetupAction:
-    """Order: stack, topology, archetype, ai, agents, test command, docs, finish, done.
+    """Order: stack, topology, archetype, ai, agents, test command, docs (brief, business), services,
+    docs (data-model, architecture, deployment), review of the drafts, finish, done.
 
     Everything that needs the filesystem or the environment (the proposed test command, the
     detected harness) arrives as an argument: this function reads nothing.
@@ -113,7 +126,11 @@ def next_setup_action(
         )
     for doc_id in SETUP_DOC_ORDER:
         if state.doc(doc_id).status == "pending":
-            return _resolve_doc(doc_id, doc_banks[doc_id], legacy_business)
+            if doc_id in AFTER_SERVICES_DOCS and state.services is None:
+                return _choose_services(state, catalog)
+            return _resolve_doc(doc_id, doc_banks[doc_id], legacy_business, state, catalog)
+    if state.services is None:
+        return _choose_services(state, catalog)
     unconfirmed = _unconfirmed_docs(state)
     if unconfirmed and not state.drafts_reviewed and not state.finished:
         return _review_drafts(unconfirmed, doc_banks)
@@ -248,9 +265,49 @@ def _choose_topology(state: SetupState, model: ProjectModel, catalog: Catalog) -
     )
 
 
-def _resolve_doc(doc_id: str, bank: SetupDocBank, legacy_business: str | None) -> SetupAction:
+def _choose_services(state: SetupState, catalog: Catalog) -> SetupAction:
+    """The infrastructure services come from a recorded decision, not from the stack: the stack only
+    suggests a minimum."""
+    entry = catalog.stacks.get(state.stack.id) if state.stack else None
+    return _action(
+        SetupActionKind.CHOOSE_SERVICES,
+        roles=list(SERVICE_ROLES),
+        catalog=[
+            {
+                "id": s.id,
+                "role": s.role,
+                "image": s.image,
+                "ports": list(s.ports),
+                "connection_env": s.connection_env,
+            }
+            for s in sorted(catalog.services.values(), key=lambda s: (SERVICE_ROLES.index(s.role), s.id))
+        ],
+        suggested_services=list(entry.suggested_services) if entry else [],
+        suggestion_note="Una sugerencia mínima del stack, no una decisión: la persona decide.",
+        when_values=list(SERVICE_WHEN),
+        instruction=SERVICES_INSTRUCTION,
+        command=list(SERVICES_COMMAND),
+    )
+
+
+def _resolve_doc(
+    doc_id: str,
+    bank: SetupDocBank,
+    legacy_business: str | None,
+    state: SetupState | None = None,
+    catalog: Catalog | None = None,
+) -> SetupAction:
     command = [doc_id if token == "<id>" else token for token in DOC_COMMAND]
     extra = {"legacy_source": legacy_business} if doc_id == "business" and legacy_business else {}
+    if doc_id in ("data-model", "architecture", "deployment") and state is not None and catalog is not None:
+        # Only the decided services: the document describes them and invents no others.
+        extra["services"] = describe_services(state.services, catalog)
+        if bank.conditional_sections:
+            extra["conditional_sections"] = [
+                {"id": s.id, "titles": list(s.titles), "when": s.when}
+                for s in bank.conditional_sections
+                if s.when in active_conditions(state.services)
+            ]
     return _action(
         SetupActionKind.RESOLVE_DOC,
         doc=doc_id,

@@ -47,7 +47,7 @@ class RapidInitTemplateTests(unittest.TestCase):
         template = self.templates["rapid-init"]
         self.assertIsNone(template.mode)
         self.assertEqual(template.context_command, "rapid setup next --json")
-        self.assertEqual(template.allowed_commands, ("setup",))
+        self.assertEqual(template.allowed_commands, ("setup", "deploy"))
 
     def test_body_only_mentions_allowed_commands_plus_next_and_rapid_feature(self):
         template = self.templates["rapid-init"]

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "id": "rabbitmq",
+  "role": "queue",
+  "image": "rabbitmq:4",
+  "ports": [
+    5672
+  ],
+  "hostname": "rabbitmq",
+  "env": {
+    "RABBITMQ_DEFAULT_USER": "app",
+    "RABBITMQ_DEFAULT_PASS": "app_local_only"
+  },
+  "healthcheck": {
+    "interval": "10s",
+    "timeout": "5s",
+    "retries": 5,
+    "test": [
+      "CMD",
+      "rabbitmq-diagnostics",
+      "-q",
+      "ping"
+    ]
+  },
+  "volume": {
+    "name": "rabbitmq-data",
+    "path": "/var/lib/rabbitmq"
+  },
+  "connection_env": "AMQP_URL",
+  "drivers": {
+    "python": {
+      "package": "aio-pika",
+      "url": "amqp://app:app_local_only@127.0.0.1:5672/"
+    },
+    "typescript": {
+      "package": "amqplib",
+      "url": "amqp://app:app_local_only@127.0.0.1:5672/"
+    }
+  },
+  "sources": [
+    "https://hub.docker.com/_/rabbitmq",
+    "https://www.rabbitmq.com/docs/monitoring",
+    "https://www.rabbitmq.com/docs/networking"
+  ]
+}

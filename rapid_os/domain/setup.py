@@ -10,7 +10,8 @@ SETUP_SCHEMA_VERSION = 1
 ARCHETYPES = ("mvp", "corporate")
 STACK_SOURCES = ("catalog", "custom", "generic")
 DOC_STATUSES = ("pending", "provided", "drafted", "skipped")
-SETUP_DOC_ORDER = ("brief", "business", "data-model", "architecture")
+SETUP_DOC_ORDER = ("brief", "business", "data-model", "architecture", "deployment")
+SERVICE_WHEN = ("now", "later")
 
 
 class SetupStateError(ValueError):
@@ -43,6 +44,18 @@ class DocState:
 
 
 @dataclass(frozen=True)
+class ServiceChoice:
+    """One infrastructure service the person chose: its role, engine and when it is needed."""
+
+    role: str
+    engine: str
+    when: str = "now"
+
+    def to_dict(self) -> dict[str, str]:
+        return {"role": self.role, "engine": self.engine, "when": self.when}
+
+
+@dataclass(frozen=True)
 class SetupState:
     """Decisions taken so far. `None` means undecided; `test_command == ()` means "none"."""
 
@@ -60,6 +73,8 @@ class SetupState:
     # Does the product use models or agents? `None` is undecided. AI stacks do not ask (see
     # `rapid_os.domain.security.effective_ai`).
     ai: bool | None = None
+    # Infrastructure services. `None` is undecided; `()` is "none" (a project without services).
+    services: tuple[ServiceChoice, ...] | None = None
 
     def doc(self, doc_id: str) -> DocState:
         return self.docs.get(doc_id, DocState())
@@ -79,6 +94,8 @@ class SetupState:
             payload["drafts_reviewed"] = True
         if self.ai is not None:
             payload["ai"] = self.ai
+        if self.services is not None:
+            payload["services"] = [s.to_dict() for s in self.services]
         return payload
 
     @classmethod
@@ -144,6 +161,25 @@ class SetupState:
         ai = data.get("ai", False if finished else None)
         if ai is not None and not isinstance(ai, bool):
             raise _fail("ai must be null or a boolean.")
+        # Like `ai`: a file without the field is undecided, unless the setup is finished (then: none).
+        raw_services = data.get("services", [] if finished else None)
+        services = None
+        if raw_services is not None:
+            if not isinstance(raw_services, list):
+                raise _fail("services must be null or a list of {role, engine, when}.")
+            parsed = []
+            for item in raw_services:
+                if (
+                    not isinstance(item, dict)
+                    or not isinstance(item.get("role"), str)
+                    or not item["role"]
+                    or not isinstance(item.get("engine"), str)
+                    or not item["engine"]
+                    or item.get("when", "now") not in SERVICE_WHEN
+                ):
+                    raise _fail(f"each service must be {{role, engine, when}} with when in {list(SERVICE_WHEN)}.")
+                parsed.append(ServiceChoice(item["role"], item["engine"], item.get("when", "now")))
+            services = tuple(parsed)
 
         return cls(
             schema_version=SETUP_SCHEMA_VERSION,
@@ -156,6 +192,7 @@ class SetupState:
             finished=finished,
             drafts_reviewed=drafts_reviewed,
             ai=ai,
+            services=services,
         )
 
 
@@ -164,6 +201,7 @@ class SetupActionKind(str, Enum):
     CHOOSE_TOPOLOGY = "choose_topology"
     CHOOSE_ARCHETYPE = "choose_archetype"
     CHOOSE_AI = "choose_ai"
+    CHOOSE_SERVICES = "choose_services"
     CHOOSE_AGENTS = "choose_agents"
     SET_TEST_COMMAND = "set_test_command"
     RESOLVE_DOC = "resolve_doc"

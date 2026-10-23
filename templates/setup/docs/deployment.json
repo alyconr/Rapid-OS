@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "id": "deployment",
+  "file": "docs/DEPLOYMENT.md",
+  "title": "Despliegue",
+  "context_priority": "LOW",
+  "max_chars": 5000,
+  "required_sections": [
+    {
+      "id": "target",
+      "titles": [
+        "Destino",
+        "Target"
+      ]
+    },
+    {
+      "id": "config",
+      "titles": [
+        "Configuración y secretos",
+        "Configuration and secrets"
+      ]
+    },
+    {
+      "id": "managed",
+      "titles": [
+        "Servicios gestionados",
+        "Managed services"
+      ]
+    },
+    {
+      "id": "verification",
+      "titles": [
+        "Verificación y reversión",
+        "Verification and rollback"
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "platform",
+      "text": "¿En qué plataforma se despliega el proyecto?",
+      "required": true,
+      "options": [
+        "aws",
+        "azure",
+        "vercel",
+        "render",
+        "railway",
+        "dokploy"
+      ]
+    },
+    {
+      "id": "target",
+      "text": "¿Qué plataforma aloja cada componente: el frontend, la API y cada servicio de infraestructura?",
+      "required": true
+    },
+    {
+      "id": "config",
+      "text": "¿Cómo se configura cada entorno y dónde viven los secretos (nunca en el repositorio)?",
+      "required": true
+    },
+    {
+      "id": "managed",
+      "text": "¿Qué servicio gestionado de la plataforma reemplaza a cada servicio del compose local?",
+      "required": true
+    },
+    {
+      "id": "verification",
+      "text": "¿Cómo se verifica un despliegue y cómo se revierte si falla?",
+      "required": true
+    }
+  ]
+}
