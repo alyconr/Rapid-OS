@@ -197,18 +197,17 @@ Rapid OS valida contención de rutas para evitar path traversal y escapes median
 
 ## Stacks del catálogo
 
-`rapid init --stack <id>` y `rapid setup set stack <id>` copian la plantilla `templates/stacks/<id>.md` a `.rapid-os/standards/tech-stack.md`; el sidecar `<id>.json` declara las topologías compatibles.
+Cada componente de la topología tiene su stack (ver [Stacks y componentes](../concepts/stacks.md)). `rapid init --stack <id>` y `rapid setup set stack <id> [--component <c>]` escriben en `.rapid-os/standards/tech-stack.md` la plantilla `templates/stacks/<componente>/<id>.md` de cada stack elegido, y el sidecar `<id>.json` declara sus factores, fuentes, topologías compatibles y servicios soportados.
 
-| Stack | Para qué sirve | Topologías compatibles (por defecto) |
-| :--- | :--- | :--- |
-| `python-api` | APIs de negocio en Python: FastAPI, Pydantic v2, SQLAlchemy 2 (async), Alembic, PostgreSQL, pytest + httpx; sin LangChain ni CrewAI. | `fullstack-separated` (por defecto), `fullstack-baas` |
-| `python-ai` | Agentes de IA y pipelines de datos en Python (FastAPI, LangChain / CrewAI). | `fullstack-separated` (por defecto), `fullstack-baas` |
-| `nodejs-ai` | Agentes de IA en Node.js con TypeScript. | `fullstack-separated` (por defecto), `fullstack-baas` |
-| `web-modern` | Aplicaciones web con Next.js. | `fullstack-separated` (por defecto), `fullstack-baas`, `front-end-only` |
-| `frontend-creative` | Frontend creativo con 3D y animación. | `front-end-only` (por defecto), `fullstack-baas`, `fullstack-separated` |
-| `docs-modern` | Sitios de documentación (Docusaurus). | `doc-site` |
-| `generic` | Sin plantilla: se genera con lo que detecta el escáner. | Todas salvo `doc-site` |
+| Componente | Stacks |
+| :--- | :--- |
+| `backend` | `python-fastapi`, `python-django`, `node-nestjs`, `node-fastify`, `go`, `rust-axum`, `ruby-rails`, `dotnet-aspnetcore`, `java-spring-boot`, `kotlin-spring-boot`, `php-laravel` |
+| `frontend` | `react-vite`, `nextjs`, `angular`, `vue-vite`, `nuxt`, `svelte-vite`, `sveltekit`, `astro` |
+| `docs` | `docs-modern` (Docusaurus), compatible solo con `doc-site` |
+| todos | `generic` (sin plantilla: se genera con lo que detecta el escáner) y `custom` (el `tech-stack.md` que escribe el agente) |
 
-`rapid validate` reconoce el stack por el encabezado de `tech-stack.md`; `python-api` se distingue de `python-ai` por `TECH STACK: PYTHON API`.
+Los ids de antes (`python-api`, `python-ai`, `nodejs-ai`, `web-modern`, `frontend-creative`) se siguen aceptando; ver la [guía de migración](./setup-json-migration.md).
+
+`rapid validate` reconoce el stack por la marca `<!-- rapid-stack: backend=go -->` que Rapid OS escribe al final de cada bloque de `tech-stack.md`, y en un archivo anterior por su encabezado (`TECH STACK: PYTHON API`...).
 
 La seguridad de rutas protege los artefactos de Rapid OS, pero no sustituye los controles de permisos del sistema operativo o del entorno donde se ejecute el coding harness.

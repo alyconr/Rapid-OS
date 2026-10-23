@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "id": "vue-vite",
+  "component": "frontend",
+  "covers": [
+    "frontend"
+  ],
+  "summary": "Aplicación de una sola página en Vue 3 con Vite y TypeScript.",
+  "language": "TypeScript",
+  "fits": [
+    "interfaces interactivas con una curva de aprendizaje suave",
+    "equipos que prefieren plantillas de un solo archivo",
+    "aplicaciones servidas como archivos estáticos"
+  ],
+  "avoid_if": [
+    "el SEO o el renderizado en servidor son requisitos desde el inicio (usa Nuxt)",
+    "se quiere un backend en la misma aplicación",
+    "un sitio de documentación es el objetivo"
+  ],
+  "suggested_services": [],
+  "package_manager": "pnpm",
+  "default_test_command": [
+    "pnpm",
+    "exec",
+    "vitest",
+    "run"
+  ],
+  "architecture": "vue-vite",
+  "factors": {
+    "performance": "medio a alto: aplicación de una sola página con Vite; SSR y SSG son opcionales",
+    "memory_footprint": "medio: el árbol de componentes y su estado viven en el navegador",
+    "cold_start": "bajo en el servidor (archivos estáticos); la carga inicial depende del tamaño del bundle",
+    "concurrency_model": "hilo principal del navegador con trabajo asíncrono mediante promesas",
+    "typing": "TypeScript opcional que create-vue ofrece al crear el proyecto",
+    "productivity": "alto: create-vue, componentes de un solo archivo y Vitest recomendado",
+    "learning_curve": "baja a media: plantillas cercanas a HTML y API de composición",
+    "maintainability": "media: no prescribe estructura de carpetas; la regla de features de Rapid OS aporta los límites",
+    "ecosystem_maturity": "alto: Vue 3 con herramientas oficiales de pruebas y SSR",
+    "hiring_pool": "medio a alto: Vue.js lo usa el 18,4 % de los desarrolladores profesionales (Stack Overflow 2025)",
+    "hosting_fit": "serverless, PaaS"
+  },
+  "sources": {
+    "performance": [
+      "https://vuejs.org/guide/introduction.html"
+    ],
+    "memory_footprint": [
+      "https://vuejs.org/guide/introduction.html"
+    ],
+    "cold_start": [
+      "https://vuejs.org/guide/quick-start.html"
+    ],
+    "concurrency_model": [
+      "https://vuejs.org/guide/introduction.html"
+    ],
+    "typing": [
+      "https://vuejs.org/guide/quick-start.html"
+    ],
+    "productivity": [
+      "https://vuejs.org/guide/quick-start.html",
+      "https://vuejs.org/guide/scaling-up/testing.html"
+    ],
+    "learning_curve": [
+      "https://vuejs.org/guide/introduction.html"
+    ],
+    "maintainability": [
+      "https://vuejs.org/guide/introduction.html"
+    ],
+    "ecosystem_maturity": [
+      "https://vuejs.org/guide/scaling-up/ssr.html",
+      "https://vuejs.org/guide/scaling-up/testing.html"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://vuejs.org/guide/quick-start.html"
+    ]
+  },
+  "supported_services": {},
+  "service_roles": []
+}

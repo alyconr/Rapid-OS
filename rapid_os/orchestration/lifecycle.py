@@ -15,6 +15,7 @@ import sys
 from typing import Any, Sequence
 
 from rapid_os.adapters.architecture_files import has_architecture_rule
+from rapid_os.adapters.architecture_files import load_config as load_architecture_rules
 from rapid_os.adapters.eval_registry import EvalRegistry
 from rapid_os.adapters.evidence_registry import EvidenceRegistry
 from rapid_os.adapters.project_snapshot import resolve_project_snapshot_path, write_project_snapshot
@@ -111,6 +112,15 @@ SCAFFOLD_ARCHITECTURE_HINT = (
 )
 
 
+def _complementary_architecture_test(project_rapid_dir) -> str:
+    """The test of the stack's own ecosystem (Spring Modulith, Deptrac, NetArchTest...) the rule names."""
+    try:
+        rules = load_architecture_rules(project_rapid_dir) or []
+    except Exception:  # an unreadable rule is reported by `rapid arch check`, not by the scaffold
+        return ""
+    return "; ".join(dict.fromkeys(rule.complementary for rule in rules if rule.complementary))
+
+
 SCAFFOLD_SERVICES_HINT = (
     "Lee la configuración de .env.example (nunca valores fijos); el esquema de datos va en migraciones; "
     "las pruebas unitarias no usan servicios externos y las de integración llevan un marcador propio, "
@@ -119,7 +129,12 @@ SCAFFOLD_SERVICES_HINT = (
 
 
 def with_scaffold_task(
-    tasks, *, needs_test_command: bool = False, architecture: bool = False, services: bool = False
+    tasks,
+    *,
+    needs_test_command: bool = False,
+    architecture: bool = False,
+    services: bool = False,
+    complementary: str = "",
 ) -> list[str]:
     """The scaffold as the first task. Contract task ids start at T001, so the scaffold is T001
     and the written `T00n:` prefixes of the other tasks move down by one to keep matching.
@@ -136,6 +151,8 @@ def with_scaffold_task(
     scaffold = f"T001: {SCAFFOLD_TASK_TEXT}"
     if architecture:
         scaffold += f" {SCAFFOLD_ARCHITECTURE_HINT}"
+    if complementary:
+        scaffold += f". Añade como test complementario (el gate sigue siendo rapid arch check): {complementary}"
     if services:
         scaffold += f". {SCAFFOLD_SERVICES_HINT}"
     if needs_test_command:
@@ -343,6 +360,7 @@ def execute_start(
                     written_tasks,
                     needs_test_command=not scaffold_config.get("test_command"),
                     architecture=has_architecture_rule(project_rapid_dir),
+                    complementary=_complementary_architecture_test(project_rapid_dir),
                     services=_has_local_services(project_rapid_dir),
                 )
                 if not has_scaffold_task(written_tasks):

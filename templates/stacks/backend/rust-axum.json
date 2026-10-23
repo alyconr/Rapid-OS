@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "id": "rust-axum",
+  "component": "backend",
+  "covers": [
+    "backend"
+  ],
+  "summary": "Servicios HTTP en Rust con Axum y Tokio: sin recolector de basura y con tipado estático fuerte.",
+  "language": "Rust",
+  "fits": [
+    "servicios con requisitos estrictos de latencia y memoria",
+    "cómputo intensivo detrás de una API",
+    "equipos con experiencia en Rust"
+  ],
+  "avoid_if": [
+    "el plazo es corto y el equipo no conoce Rust",
+    "se busca un framework con ORM y administración incluidos",
+    "un sitio de documentación es el objetivo"
+  ],
+  "suggested_services": [
+    "database:postgresql"
+  ],
+  "package_manager": "cargo",
+  "default_test_command": [
+    "cargo",
+    "test"
+  ],
+  "architecture": "rust-axum",
+  "factors": {
+    "performance": "alto: compilado a código nativo, sin recolector de basura",
+    "memory_footprint": "bajo: la memoria se gestiona con propiedad (ownership) y no hay recolector de basura",
+    "cold_start": "bajo: binario nativo sin runtime externo",
+    "concurrency_model": "async con Tokio, un runtime con planificador multihilo de robo de trabajo",
+    "typing": "tipado estático con propiedad y préstamos verificados por el compilador",
+    "productivity": "bajo a medio: el compilador exige más diseño inicial; menos convenciones listas que en frameworks completos",
+    "learning_curve": "alta: propiedad, préstamos, tiempos de vida y async",
+    "maintainability": "alta: visibilidad privada por defecto, pub(crate) y workspaces para separar crates",
+    "ecosystem_maturity": "medio: Axum está en versiones 0.x (0.8.9) y el ecosistema de crates crece rápido",
+    "hiring_pool": "bajo a medio: Rust lo usa el 14,5 % y Axum el 2,7 % de los desarrolladores profesionales (Stack Overflow 2025)",
+    "hosting_fit": "containers, PaaS"
+  },
+  "sources": {
+    "performance": [
+      "https://doc.rust-lang.org/book/"
+    ],
+    "memory_footprint": [
+      "https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html"
+    ],
+    "cold_start": [
+      "https://doc.rust-lang.org/book/"
+    ],
+    "concurrency_model": [
+      "https://tokio.rs/"
+    ],
+    "typing": [
+      "https://doc.rust-lang.org/book/"
+    ],
+    "productivity": [
+      "https://docs.rs/axum/latest/axum/"
+    ],
+    "learning_curve": [
+      "https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html"
+    ],
+    "maintainability": [
+      "https://doc.rust-lang.org/reference/visibility-and-privacy.html",
+      "https://doc.rust-lang.org/cargo/reference/workspaces.html"
+    ],
+    "ecosystem_maturity": [
+      "https://github.com/tokio-rs/axum/blob/main/axum/CHANGELOG.md"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://docs.rs/axum/latest/axum/"
+    ]
+  },
+  "supported_services": {
+    "postgresql": {
+      "driver": "sqlx",
+      "url": "postgresql://app:app_local_only@127.0.0.1:5432/app"
+    },
+    "mysql": {
+      "driver": "sqlx",
+      "url": "mysql://app:app_local_only@127.0.0.1:3306/app"
+    },
+    "mongodb": {
+      "driver": "mongodb",
+      "url": "mongodb://app:app_local_only@127.0.0.1:27017/app?authSource=admin"
+    },
+    "redis": {
+      "driver": "redis",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "valkey": {
+      "driver": "redis",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "rabbitmq": {
+      "driver": "lapin",
+      "url": "amqp://app:app_local_only@127.0.0.1:5672/"
+    },
+    "kafka": {
+      "driver": "rdkafka",
+      "url": "localhost:9092"
+    }
+  }
+}

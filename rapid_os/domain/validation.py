@@ -2162,7 +2162,8 @@ def validate_stack_topology(project_rapid_dir: Path, templates_dir: Path | None 
                 )
             )
         else:
-            if topology == "front-end-only" and stack in ("python-ai", "python-api", "nodejs-ai"):
+            entry = catalog.entry(stack)
+            if topology == "front-end-only" and entry is not None and entry.component == "backend":
                 message = (
                     f"{stack} stack requires backend/database capabilities and conflicts with "
                     f"{topology} topology."
@@ -2423,6 +2424,9 @@ def validate_context_compilation(
 def infer_stack(content: str):
     if is_generic_stack(content):
         return "generic"
+    marked = re.search(r"<!--\s*rapid-stack:\s*(?:\w+)=([\w-]+)", content)
+    if marked:
+        return marked.group(1)
     normalized = content.lower()
     if "python api" in normalized:
         return "python-api"

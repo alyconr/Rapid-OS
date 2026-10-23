@@ -10,6 +10,7 @@ from rapid_os.domain.architecture import (
     SOURCE_SUFFIXES,
     ArchitectureConfig,
     ArchitectureConfigError,
+    load_rules,
 )
 
 CONFIG_FILE_NAME = "architecture.json"
@@ -24,9 +25,9 @@ def has_architecture_rule(project_rapid_dir: Path | str) -> bool:
     return config_path(project_rapid_dir).is_file()
 
 
-def load_config(project_rapid_dir: Path | str) -> ArchitectureConfig | None:
-    """The rule, or None when the project has none. An unreadable one raises
-    `ArchitectureConfigError` (RAPID1420)."""
+def load_config(project_rapid_dir: Path | str) -> list[ArchitectureConfig] | None:
+    """The rules, or None when the project has none. An unreadable one raises
+    `ArchitectureConfigError` (RAPID1420). A project with a frontend and a backend has two."""
     path = config_path(project_rapid_dir)
     if not path.is_file():
         return None
@@ -36,7 +37,7 @@ def load_config(project_rapid_dir: Path | str) -> ArchitectureConfig | None:
         raise ArchitectureConfigError(
             f"{ARCHITECTURE_CODE} architecture.json inválido: no se puede leer como JSON ({exc})."
         ) from exc
-    return ArchitectureConfig.from_dict(data)
+    return load_rules(data)
 
 
 def collect_sources(project_root: Path | str, config: ArchitectureConfig) -> dict[str, str]:

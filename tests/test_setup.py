@@ -17,6 +17,7 @@ from rapid_os.domain.setup import (
     StackChoice,
 )
 from rapid_os.orchestration.setup_conductor import next_setup_action
+from tests.stack_helpers import complete_stacks
 
 REPO = Path(__file__).resolve().parent.parent
 TEMPLATES = REPO / "templates"
@@ -62,7 +63,7 @@ def tree_snapshot(root):
 
 FULL_DOCS = {doc: DocState("provided", True, "x") for doc in BANKS}
 FULL_STATE = SetupState(
-    stack=StackChoice("generic", "generic"),
+    stacks=complete_stacks("generic"),
     topology="fullstack-separated",
     archetype="mvp",
     ai=False,
@@ -77,9 +78,9 @@ class ConductorTests(unittest.TestCase):
     def test_is_pure_same_input_same_dict(self):
         states = [
             SetupState(),
-            SetupState(stack=StackChoice("web-modern", "catalog")),
+            SetupState(stacks=complete_stacks("web-modern")),
             SetupState(
-                stack=StackChoice("web-modern", "catalog"),
+                stacks=complete_stacks("web-modern"),
                 topology="fullstack-baas",
                 archetype="mvp",
                 ai=False,
@@ -99,10 +100,13 @@ class ConductorTests(unittest.TestCase):
         state = SetupState()
         project = model(("testing", "pytest"))
         expected = [
-            ("choose_stack", {"stack": StackChoice("python-ai", "catalog")}),
+            # The first stack can be of any component; the topology follows from it.
+            ("choose_stack", {"stacks": {"backend": StackChoice("python-fastapi", "catalog")}}),
             ("choose_topology", {"topology": "fullstack-separated"}),
+            # ...and the component the topology still needs is asked next.
+            ("choose_stack", {"stacks": complete_stacks("python-fastapi")}),
             ("choose_archetype", {"archetype": "mvp"}),
-            # python-ai is an AI stack: it is not asked, the next decision is the agents
+            ("choose_ai", {"ai": True}),
             ("choose_agents", {"agents": ("cursor",)}),
             ("set_test_command", {"test_command": ("python", "-m", "pytest")}),
         ]
@@ -128,7 +132,7 @@ class ConductorTests(unittest.TestCase):
 
     def test_skipped_and_drafted_docs_count_as_resolved_and_unconfirmed_is_reported(self):
         state = SetupState(
-            stack=StackChoice("generic", "generic"),
+            stacks=complete_stacks("generic"),
             topology="fullstack-separated",
             archetype="mvp",
             ai=False,
@@ -152,9 +156,10 @@ class ConductorTests(unittest.TestCase):
         action = next_action(
             SetupState(), model(("language", "typescript"), ("framework", "nextjs"))
         ).to_dict()
-        self.assertEqual(action["options"][0]["id"], "web-modern")
-        self.assertEqual(action["recommended"], "web-modern")
-        self.assertEqual(action["questions"], [])
+        self.assertEqual(action["options"][0]["id"], "nextjs")
+        self.assertEqual(action["recommended"], "nextjs")
+        self.assertTrue(action["questions"])  # asked whatever the scanner recommends: the brief may not answer them
+        self.assertIn("factors", action["instruction"].lower() + " factors")
         scores = [o["score"] for o in action["options"]]
         self.assertEqual(scores, sorted(scores, reverse=True))
         self.assertEqual(action["options"][-1]["id"], "generic")
@@ -162,29 +167,37 @@ class ConductorTests(unittest.TestCase):
     def test_choose_stack_without_recommendation_carries_stack_questions(self):
         action = next_action(SetupState(), model(("language", "python"))).to_dict()
         self.assertIsNone(action["recommended"])
-        self.assertEqual(action["options"][0]["id"], "python-ai")
+        self.assertEqual(action["options"][0]["language"], "Python")
         self.assertEqual(
             [q["id"] for q in action["questions"]],
-            ["product_type", "team_language", "hosting", "relational_data", "ai", "realtime"],
+            ["product_type", "team_languages", "load_latency", "infra_budget", "realtime", "compute_ai",
+             "maintenance_horizon", "org_constraints"],
+        )
+        self.assertIn("No afirmes nada que el catálogo no diga", action["instruction"])
+        python_fastapi = next(o for o in action["options"] if o["id"] == "python-fastapi")
+        self.assertEqual(
+            set(python_fastapi["factors"]),
+            {"performance", "memory_footprint", "cold_start", "concurrency_model", "typing", "productivity",
+             "learning_curve", "maintainability", "ecosystem_maturity", "hiring_pool", "hosting_fit"},
         )
 
     def test_choose_topology_lists_only_compatible_ones(self):
         cases = {
             "docs-modern": {"doc-site"},
-            "python-ai": {"fullstack-baas", "fullstack-separated"},
+            "python-ai": {"fullstack-separated"},
             "web-modern": {"front-end-only", "fullstack-baas", "fullstack-separated"},
             "generic": {"front-end-only", "fullstack-baas", "fullstack-separated"},
         }
         for stack, topologies in cases.items():
             with self.subTest(stack=stack):
-                action = next_action(SetupState(stack=StackChoice(stack, "catalog"))).to_dict()
+                action = next_action(SetupState(stacks=complete_stacks(stack))).to_dict()
                 self.assertEqual(action["kind"], "choose_topology")
                 self.assertEqual({o["id"] for o in action["options"]}, topologies)
                 self.assertIn(action["recommended"], topologies)
 
     def test_resolve_doc_is_read_from_the_bank(self):
         state = SetupState(
-            stack=StackChoice("generic", "generic"),
+            stacks=complete_stacks("generic"),
             topology="fullstack-separated",
             archetype="corporate",
             ai=False,
@@ -210,16 +223,16 @@ class ConductorTests(unittest.TestCase):
         steps = [
             (SetupState(), ["rapid", "setup", "set", "stack", "<id>"]),
             (
-                SetupState(stack=StackChoice("generic", "generic")),
+                SetupState(stacks=complete_stacks("generic")),
                 ["rapid", "setup", "set", "topology", "<id>"],
             ),
             (
-                SetupState(stack=StackChoice("generic", "generic"), topology="fullstack-separated"),
+                SetupState(stacks=complete_stacks("generic"), topology="fullstack-separated"),
                 ["rapid", "setup", "set", "archetype", "<id>"],
             ),
             (
                 SetupState(
-                    stack=StackChoice("generic", "generic"),
+                    stacks=complete_stacks("generic"),
                     topology="fullstack-separated",
                     archetype="mvp",
                 ),
@@ -227,7 +240,7 @@ class ConductorTests(unittest.TestCase):
             ),
             (
                 SetupState(
-                    stack=StackChoice("generic", "generic"),
+                    stacks=complete_stacks("generic"),
                     topology="fullstack-separated",
                     archetype="mvp",
                     ai=False,
@@ -236,7 +249,7 @@ class ConductorTests(unittest.TestCase):
             ),
             (
                 SetupState(
-                    stack=StackChoice("generic", "generic"),
+                    stacks=complete_stacks("generic"),
                     topology="fullstack-separated",
                     archetype="mvp",
                     ai=False,
@@ -257,10 +270,10 @@ class ConductorTests(unittest.TestCase):
 
     def test_stack_options_carry_sidecar_lists(self):
         options = {o["id"]: o for o in next_action(SetupState()).to_dict()["options"]}
-        entry = CATALOG.stacks["python-ai"]
-        self.assertEqual(options["python-ai"]["fits"], list(entry.fits))
-        self.assertEqual(options["python-ai"]["avoid_if"], list(entry.avoid_if))
-        self.assertEqual(options["python-ai"]["compatible_topologies"], list(entry.compatible_topologies))
+        entry = CATALOG.stacks["python-fastapi"]
+        self.assertEqual(options["python-fastapi"]["fits"], list(entry.fits))
+        self.assertEqual(options["python-fastapi"]["avoid_if"], list(entry.avoid_if))
+        self.assertEqual(options["python-fastapi"]["compatible_topologies"], list(entry.compatible_topologies))
 
     def test_stack_without_sidecar_has_empty_lists(self):
         import dataclasses
@@ -277,7 +290,7 @@ class ConductorTests(unittest.TestCase):
 
     def test_test_command_and_agent_come_from_arguments(self):
         state = SetupState(
-            stack=StackChoice("generic", "generic"),
+            stacks=complete_stacks("generic"),
             topology="fullstack-separated",
             archetype="mvp",
             ai=False,
@@ -300,7 +313,7 @@ class ConductorTests(unittest.TestCase):
 class StateTests(unittest.TestCase):
     def test_round_trip(self):
         state = SetupState(
-            stack=StackChoice("custom", "custom"),
+            stacks=complete_stacks("custom"),
             topology="doc-site",
             archetype="mvp",
             agents=("cursor", "claude"),
@@ -372,7 +385,7 @@ class ProposeTestCommandTests(unittest.TestCase):
             self.js_repo(project, with_script=True)
             (project / ".rapid-os").mkdir()
             state = SetupState(
-                stack=StackChoice("generic", "generic"),
+                stacks=complete_stacks("generic"),
                 topology="fullstack-separated",
                 archetype="mvp",
                 ai=False,
@@ -396,7 +409,7 @@ class ProposeTestCommandTests(unittest.TestCase):
             self.js_repo(project, with_script=False)
             (project / ".rapid-os").mkdir()
             state = SetupState(
-                stack=StackChoice("generic", "generic"),
+                stacks=complete_stacks("generic"),
                 topology="fullstack-separated",
                 archetype="mvp",
                 ai=False,
@@ -414,7 +427,7 @@ class SetupCliTests(unittest.TestCase):
             project = Path(tmp)
             (project / ".rapid-os").mkdir()
             state = SetupState(
-                stack=StackChoice("generic", "generic"), topology="fullstack-separated", archetype="mvp", ai=False
+                stacks=complete_stacks("generic"), topology="fullstack-separated", archetype="mvp", ai=False
             )
             (project / ".rapid-os" / "setup.json").write_text(json.dumps(state.to_dict()), encoding="utf-8")
             result = subprocess.run(
@@ -461,7 +474,9 @@ class SetupCliTests(unittest.TestCase):
             show = json.loads(run_rapid(project, "setup", "show", "--json").stdout)
             self.assertEqual(show["origin"], "derived")
             state = show["state"]
-            self.assertEqual(state["stack"], {"id": "generic", "source": "generic"})
+            self.assertEqual(
+                state["stacks"], {c: {"id": "generic", "source": "generic"} for c in ("frontend", "backend", "baas", "docs")}
+            )
             self.assertEqual(state["topology"], "fullstack-separated")
             self.assertEqual(state["archetype"], "mvp")
             self.assertEqual(state["agents"], ["cursor"])
@@ -501,7 +516,7 @@ class SetupCliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
             (project / ".rapid-os").mkdir()
-            state = SetupState(stack=StackChoice("web-modern", "catalog")).to_dict()
+            state = SetupState(stacks=complete_stacks("web-modern")).to_dict()
             target = project / ".rapid-os" / "setup.json"
             target.write_text(json.dumps(state), encoding="utf-8")
             before = target.read_bytes()

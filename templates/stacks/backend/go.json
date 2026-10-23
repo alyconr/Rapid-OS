@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "id": "go",
+  "component": "backend",
+  "covers": [
+    "backend"
+  ],
+  "summary": "Servicios HTTP en Go con la biblioteca estándar: binario autocontenido y concurrencia con goroutines.",
+  "language": "Go",
+  "fits": [
+    "servicios de red con muchas conexiones concurrentes",
+    "APIs que se despliegan como un binario en contenedores",
+    "equipos que valoran un lenguaje pequeño y herramientas estándar"
+  ],
+  "avoid_if": [
+    "el equipo quiere un framework con ORM y administración incluidos",
+    "el equipo no conoce Go y el plazo es corto",
+    "un sitio de documentación es el objetivo"
+  ],
+  "suggested_services": [
+    "database:postgresql"
+  ],
+  "package_manager": "go modules",
+  "default_test_command": [
+    "go",
+    "test",
+    "./..."
+  ],
+  "architecture": "go",
+  "factors": {
+    "performance": "alto: lenguaje compilado a código nativo con servidor HTTP en la biblioteca estándar",
+    "memory_footprint": "bajo a medio: recolector de basura y goroutines ligeras",
+    "cold_start": "bajo: un servidor suele ser un binario autocontenido, sin runtime externo",
+    "concurrency_model": "goroutines y canales: comunicar para compartir memoria, no compartir memoria para comunicar",
+    "typing": "tipado estático",
+    "productivity": "medio: biblioteca estándar amplia y herramientas integradas, con más código explícito que en frameworks con convenciones",
+    "learning_curve": "baja a media: lenguaje pequeño; la gestión explícita de errores y la concurrencia requieren práctica",
+    "maintainability": "alta: gofmt unifica el formato y internal/ impide importaciones externas a un módulo",
+    "ecosystem_maturity": "alto en servicios de red y herramientas de nube; menos frameworks completos que Java o .NET",
+    "hiring_pool": "medio: Go lo usa el 17,4 % de los desarrolladores profesionales (Stack Overflow 2025)",
+    "hosting_fit": "containers, PaaS"
+  },
+  "sources": {
+    "performance": [
+      "https://pkg.go.dev/net/http"
+    ],
+    "memory_footprint": [
+      "https://go.dev/doc/effective_go"
+    ],
+    "cold_start": [
+      "https://go.dev/doc/modules/layout"
+    ],
+    "concurrency_model": [
+      "https://go.dev/doc/effective_go"
+    ],
+    "typing": [
+      "https://go.dev/ref/spec"
+    ],
+    "productivity": [
+      "https://go.dev/doc/tutorial/add-a-test",
+      "https://go.dev/doc/modules/managing-dependencies"
+    ],
+    "learning_curve": [
+      "https://go.dev/doc/effective_go"
+    ],
+    "maintainability": [
+      "https://go.dev/doc/modules/layout",
+      "https://go.dev/doc/effective_go"
+    ],
+    "ecosystem_maturity": [
+      "https://go.dev/doc/security/vuln/",
+      "https://go.dev/doc/devel/release"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://go.dev/doc/modules/layout"
+    ]
+  },
+  "supported_services": {
+    "postgresql": {
+      "driver": "pgx",
+      "url": "postgres://app:app_local_only@127.0.0.1:5432/app"
+    },
+    "mysql": {
+      "driver": "go-sql-driver/mysql",
+      "url": "app:app_local_only@tcp(127.0.0.1:3306)/app"
+    },
+    "mariadb": {
+      "driver": "go-sql-driver/mysql",
+      "url": "app:app_local_only@tcp(127.0.0.1:3306)/app"
+    },
+    "mongodb": {
+      "driver": "mongo-driver/v2",
+      "url": "mongodb://app:app_local_only@127.0.0.1:27017/app?authSource=admin"
+    },
+    "redis": {
+      "driver": "go-redis",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "valkey": {
+      "driver": "valkey-go",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "rabbitmq": {
+      "driver": "amqp091-go",
+      "url": "amqp://app:app_local_only@127.0.0.1:5672/"
+    },
+    "kafka": {
+      "driver": "franz-go",
+      "url": "localhost:9092"
+    }
+  }
+}

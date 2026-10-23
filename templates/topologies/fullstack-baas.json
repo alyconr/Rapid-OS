@@ -9,5 +9,9 @@
   "avoid_if": [
     "heavy custom backend logic",
     "strict control of infrastructure"
+  ],
+  "components": [
+    "frontend",
+    "baas"
   ]
 }

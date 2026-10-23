@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
@@ -21,8 +22,10 @@ from rapid_os.domain.catalog import Catalog, SetupDocBank
 from rapid_os.domain.project_docs import is_managed, parse_doc_frontmatter
 from rapid_os.domain.project import ProjectModel
 from rapid_os.domain.security import security_has_ai_section
+from rapid_os.domain.stack_aliases import LEGACY_STACKS
 from rapid_os.domain.setup import (
     ARCHETYPES,
+    STACK_COMPONENTS,
     DocState,
     SetupState,
     SetupStateError,
@@ -159,7 +162,7 @@ def _derive_state(
         test_command = None
 
     return SetupState(
-        stack=_derive_stack(_read_text(standards / "tech-stack.md"), catalog),
+        stacks=_derive_stacks(_read_text(standards / "tech-stack.md"), catalog),
         topology=_derive_topology(_read_text(standards / "topology.md")),
         archetype=_derive_archetype(_read_text(standards / "coding-rules.md"), templates_dir),
         agents=agents,
@@ -169,17 +172,42 @@ def _derive_state(
     )
 
 
-def _derive_stack(content: str | None, catalog: Catalog) -> StackChoice | None:
+_STACK_MARKER = re.compile(r"<!--\s*rapid-stack:\s*([^>]*?)\s*-->")
+
+
+def _derive_stacks(content: str | None, catalog: Catalog) -> dict[str, StackChoice]:
+    """The stack of each component a `tech-stack.md` says. Rapid OS marks every block it writes
+    (`<!-- rapid-stack: backend=go -->`); a file from before the component catalog is read by its
+    title (`python-api` maps to backend `python-fastapi`...)."""
     if content is None:
-        return None
+        return {}
+    stacks: dict[str, StackChoice] = {}
+    for marker in _STACK_MARKER.finditer(content):
+        for pair in marker.group(1).split():
+            component, _, stack_id = pair.partition("=")
+            if component in STACK_COMPONENTS and stack_id:
+                source = "generic" if stack_id == "generic" else "catalog" if stack_id in catalog.stacks else "custom"
+                profile = "creative" if stack_id == "react-vite" and "React Three Fiber" in content else None
+                stacks[component] = StackChoice(stack_id, source, profile)
+    if stacks:
+        return stacks
     from rapid_os.domain.validation import infer_stack  # lazy: validation imports the adapters
 
     stack_id = infer_stack(content)
     if stack_id is None:
-        return StackChoice("custom", "custom")
+        return {component: StackChoice("custom", "custom") for component in STACK_COMPONENTS}
     if stack_id == "generic":
-        return StackChoice(stack_id, "generic")
-    return StackChoice(stack_id, "catalog" if stack_id in catalog.stacks else "custom")
+        return {component: StackChoice("generic", "generic") for component in STACK_COMPONENTS}
+    legacy = LEGACY_STACKS.get(stack_id)
+    if legacy is not None:
+        return {
+            component: StackChoice(new_id, "catalog", legacy.profile if component == "frontend" else None)
+            for component, new_id in legacy.stacks.items()
+        }
+    if stack_id == "docs-modern":
+        return {"docs": StackChoice(stack_id, "catalog")}
+    source = "catalog" if stack_id in catalog.stacks else "custom"
+    return {component: StackChoice(stack_id, source) for component in STACK_COMPONENTS}
 
 
 def _derive_topology(content: str | None) -> str | None:

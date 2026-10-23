@@ -13,7 +13,7 @@ Todo proyecto nace con reglas de seguridad concretas, cada una trazable a un est
 | :--- | :--- |
 | [OWASP ASVS 5.0.0](https://github.com/OWASP/ASVS) | El nivel que el proyecto verifica: L1 (MVP) o L2 (Corporate). |
 | [OWASP Top 10:2025](https://top10.owasp.org/2025) | Una a tres reglas por categoría, de A01 Broken Access Control a A10 Mishandling of Exceptional Conditions. |
-| [OWASP API Security Top 10:2023](https://owasp.org/API-Security/editions/2023/en/0x11-t10/) | Una regla por ítem API1-API10, solo en los stacks con API (`python-api`, `python-ai`, `nodejs-ai`, `web-modern`). |
+| [OWASP API Security Top 10:2023](https://owasp.org/API-Security/editions/2023/en/0x11-t10/) | Una regla por ítem API1-API10, solo en los stacks con API (los de backend del catálogo y `nextjs`, `nuxt` y `sveltekit`). |
 | [NIST SSDF SP 800-218](https://csrc.nist.gov/pubs/sp/800/218/final) | Las familias PO, PS, PW y RV traducidas al flujo de Rapid OS: modelo de amenazas breve en la spec de toda historia que toque autenticación, pagos o datos personales, revisión humana en el gate final y tratamiento de vulnerabilidades por severidad CVSS. |
 | [SLSA 1.2](https://slsa.dev/spec/v1.2/) | Lockfile versionado, dependencias fijadas y acciones de CI fijadas por SHA completo. Corporate añade Build L2 y Source L2. |
 | [CWE](https://cwe.mitre.org/) y [CVSS v4.0](https://www.first.org/cvss/v4-0/specification-document) | Todo hallazgo se reporta con su CWE y su vector `CVSS:4.0/...`. |
@@ -37,7 +37,7 @@ Source L2 de SLSA 1.2 es *historial y procedencia*: el historial de `main` es co
 
 El onboarding hace una pregunta después del arquetipo, `rapid setup set ai yes|no`: *¿El producto usará modelos de IA o agentes (por ejemplo, un asistente que responda por WhatsApp)?* Con `yes`, `security.md` incluye la sección **Seguridad de IA**: la salida del modelo es entrada no confiable, defensa contra la inyección de instrucciones, herramientas en lista permitida con mínimo privilegio, aprobación humana para las acciones irreversibles (pagos, borrados, mensajes a clientes), sin secretos en prompts ni en memoria y límites de costo y de iteraciones. Cada regla cita su ítem de OWASP LLM 2025 y de OWASP Agentic 2026.
 
-Los stacks `python-ai` y `nodejs-ai` no preguntan: son productos de IA y la sección siempre se incluye. Un `setup.json` sin el campo `ai` se lee como sin decidir mientras el onboarding no haya terminado, y como `no` en un proyecto ya terminado.
+Los ids `python-ai` y `nodejs-ai` (de antes del catálogo por componentes) responden `ai: yes` solos: son productos de IA y la sección se incluye. Un `setup.json` sin el campo `ai` se lee como sin decidir mientras el onboarding no haya terminado, y como `no` en un proyecto ya terminado.
 
 ## El CI de seguridad lo escribe Rapid OS
 

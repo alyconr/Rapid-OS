@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "id": "python-fastapi",
+  "component": "backend",
+  "covers": [
+    "backend"
+  ],
+  "summary": "API de negocio en Python con FastAPI, Pydantic y SQLAlchemy asíncrono.",
+  "language": "Python",
+  "fits": [
+    "APIs de negocio en Python",
+    "agentes de IA y pipelines de datos (con ai=yes)",
+    "equipos que ya dominan Python"
+  ],
+  "avoid_if": [
+    "el proyecto no tiene backend ni base de datos",
+    "el equipo no usa Python",
+    "un sitio de documentación es el objetivo"
+  ],
+  "suggested_services": [
+    "database:postgresql"
+  ],
+  "package_manager": "uv",
+  "default_test_command": [
+    "pytest"
+  ],
+  "architecture": "python-fastapi",
+  "factors": {
+    "performance": "medio: CPython interpretado; ASGI con uvicorn atiende E/S concurrente con async/await",
+    "memory_footprint": "medio: un proceso CPython por worker con el intérprete y las librerías cargadas",
+    "cold_start": "medio: arranque del intérprete e importación de dependencias",
+    "concurrency_model": "ASGI y asyncio (async def para E/S); el GIL de CPython limita el paralelismo de CPU dentro de un proceso",
+    "typing": "anotaciones de tipos estándar de Python; Pydantic valida los datos en ejecución",
+    "productivity": "alto: validación, serialización y documentación de la API salen de las anotaciones de tipos",
+    "learning_curve": "baja a media: Python y anotaciones de tipos; async/await exige entender asyncio",
+    "maintainability": "alta con anotaciones de tipos y un APIRouter por módulo",
+    "ecosystem_maturity": "alto en datos e IA (Python); FastAPI es más joven que Django",
+    "hiring_pool": "alto: Python lo usa el 54,8 % de los desarrolladores profesionales y FastAPI el 15,1 % (Stack Overflow 2025)",
+    "hosting_fit": "containers, PaaS"
+  },
+  "sources": {
+    "performance": [
+      "https://fastapi.tiangolo.com/",
+      "https://fastapi.tiangolo.com/deployment/"
+    ],
+    "memory_footprint": [
+      "https://devguide.python.org/versions/"
+    ],
+    "cold_start": [
+      "https://devguide.python.org/versions/"
+    ],
+    "concurrency_model": [
+      "https://fastapi.tiangolo.com/",
+      "https://docs.python.org/3/glossary.html#term-global-interpreter-lock"
+    ],
+    "typing": [
+      "https://fastapi.tiangolo.com/",
+      "https://pydantic.dev/docs/validation/latest/get-started/"
+    ],
+    "productivity": [
+      "https://fastapi.tiangolo.com/"
+    ],
+    "learning_curve": [
+      "https://fastapi.tiangolo.com/"
+    ],
+    "maintainability": [
+      "https://fastapi.tiangolo.com/tutorial/bigger-applications/"
+    ],
+    "ecosystem_maturity": [
+      "https://fastapi.tiangolo.com/release-notes/",
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://fastapi.tiangolo.com/deployment/"
+    ]
+  },
+  "supported_services": {
+    "postgresql": {
+      "driver": "asyncpg",
+      "url": "postgresql+asyncpg://app:app_local_only@127.0.0.1:5432/app",
+      "orm": "SQLAlchemy 2 (async) + Alembic (migrations)"
+    },
+    "mysql": {
+      "driver": "asyncmy",
+      "url": "mysql+asyncmy://app:app_local_only@127.0.0.1:3306/app",
+      "orm": "SQLAlchemy 2 (async) + Alembic (migrations)"
+    },
+    "mariadb": {
+      "driver": "asyncmy",
+      "url": "mysql+asyncmy://app:app_local_only@127.0.0.1:3306/app",
+      "orm": "SQLAlchemy 2 (async) + Alembic (migrations)"
+    },
+    "mongodb": {
+      "driver": "pymongo",
+      "url": "mongodb://app:app_local_only@127.0.0.1:27017/app?authSource=admin"
+    },
+    "redis": {
+      "driver": "redis",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "valkey": {
+      "driver": "valkey",
+      "url": "valkey://127.0.0.1:6379/0"
+    },
+    "rabbitmq": {
+      "driver": "aio-pika",
+      "url": "amqp://app:app_local_only@127.0.0.1:5672/"
+    },
+    "kafka": {
+      "driver": "aiokafka",
+      "url": "localhost:9092"
+    }
+  }
+}

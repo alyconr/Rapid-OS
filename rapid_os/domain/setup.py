@@ -6,7 +6,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Mapping
 
+from rapid_os.domain.stack_aliases import LEGACY_STACKS
+
 SETUP_SCHEMA_VERSION = 1
+# The components a project can ask a stack for (`rapid_os.domain.catalog.COMPONENTS`).
+STACK_COMPONENTS = ("frontend", "backend", "baas", "docs")
 ARCHETYPES = ("mvp", "corporate")
 STACK_SOURCES = ("catalog", "custom", "generic")
 DOC_STATUSES = ("pending", "provided", "drafted", "skipped")
@@ -28,9 +32,14 @@ def _fail(message: str) -> SetupStateError:
 class StackChoice:
     id: str
     source: str
+    # A variant of the stack's `tech-stack.md` (react-vite with the creative profile).
+    profile: str | None = None
 
     def to_dict(self) -> dict[str, str]:
-        return {"id": self.id, "source": self.source}
+        data = {"id": self.id, "source": self.source}
+        if self.profile:
+            data["profile"] = self.profile
+        return data
 
 
 @dataclass(frozen=True)
@@ -60,7 +69,9 @@ class SetupState:
     """Decisions taken so far. `None` means undecided; `test_command == ()` means "none"."""
 
     schema_version: int = SETUP_SCHEMA_VERSION
-    stack: StackChoice | None = None
+    # The stack of each component of the topology. A stack that covers several components is
+    # stored under each of them (Next.js under `frontend` and `backend`).
+    stacks: Mapping[str, StackChoice] = field(default_factory=dict)
     topology: str | None = None
     archetype: str | None = None
     agents: tuple[str, ...] = ()
@@ -79,10 +90,31 @@ class SetupState:
     def doc(self, doc_id: str) -> DocState:
         return self.docs.get(doc_id, DocState())
 
+    @property
+    def stack(self) -> StackChoice | None:
+        """The stack that stands for the project where one is enough: the backend's, else the first."""
+        for component in ("backend", "frontend", "baas", "docs"):
+            if component in self.stacks:
+                return self.stacks[component]
+        return next(iter(self.stacks.values()), None)
+
+    def stack_for(self, component: str) -> StackChoice | None:
+        return self.stacks.get(component)
+
+    @property
+    def stack_ids(self) -> tuple[str, ...]:
+        """Distinct stack ids, in component order."""
+        seen: list[str] = []
+        for component in ("backend", "frontend", "baas", "docs"):
+            choice = self.stacks.get(component)
+            if choice is not None and choice.id not in seen:
+                seen.append(choice.id)
+        return tuple(seen)
+
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "schema_version": self.schema_version,
-            "stack": self.stack.to_dict() if self.stack else None,
+            "stacks": {c: self.stacks[c].to_dict() for c in STACK_COMPONENTS if c in self.stacks},
             "topology": self.topology,
             "archetype": self.archetype,
             "agents": list(self.agents),
@@ -106,17 +138,7 @@ class SetupState:
         if isinstance(version, bool) or version != SETUP_SCHEMA_VERSION:
             raise _fail(f"schema_version must be {SETUP_SCHEMA_VERSION}.")
 
-        stack = None
-        raw_stack = data.get("stack")
-        if raw_stack is not None:
-            if (
-                not isinstance(raw_stack, dict)
-                or not isinstance(raw_stack.get("id"), str)
-                or not raw_stack["id"]
-                or raw_stack.get("source") not in STACK_SOURCES
-            ):
-                raise _fail(f"stack must be null or {{id, source}} with source in {list(STACK_SOURCES)}.")
-            stack = StackChoice(raw_stack["id"], raw_stack["source"])
+        stacks = _read_stacks(data)
 
         topology = data.get("topology")
         if topology is not None and (not isinstance(topology, str) or not topology):
@@ -159,6 +181,10 @@ class SetupState:
             raise _fail("drafts_reviewed must be a boolean.")
         # A file without the field is undecided, unless the setup is already finished: then it is no.
         ai = data.get("ai", False if finished else None)
+        if "ai" not in data and "stacks" not in data and LEGACY_STACKS.get(_legacy_id(data), None) is not None:
+            legacy = LEGACY_STACKS[_legacy_id(data)]
+            if legacy.ai:
+                ai = True  # python-ai and nodejs-ai are AI products by definition
         if ai is not None and not isinstance(ai, bool):
             raise _fail("ai must be null or a boolean.")
         # Like `ai`: a file without the field is undecided, unless the setup is finished (then: none).
@@ -183,7 +209,7 @@ class SetupState:
 
         return cls(
             schema_version=SETUP_SCHEMA_VERSION,
-            stack=stack,
+            stacks=stacks,
             topology=topology,
             archetype=archetype,
             agents=tuple(agents),
@@ -194,6 +220,52 @@ class SetupState:
             ai=ai,
             services=services,
         )
+
+
+def _legacy_id(data: dict) -> str | None:
+    raw = data.get("stack")
+    return raw.get("id") if isinstance(raw, dict) and isinstance(raw.get("id"), str) else None
+
+
+def _stack_choice(raw: object, where: str) -> StackChoice:
+    if (
+        not isinstance(raw, dict)
+        or not isinstance(raw.get("id"), str)
+        or not raw["id"]
+        or raw.get("source") not in STACK_SOURCES
+        or not (raw.get("profile") is None or (isinstance(raw["profile"], str) and raw["profile"]))
+    ):
+        raise _fail(f"{where} must be {{id, source}} with source in {list(STACK_SOURCES)}.")
+    return StackChoice(raw["id"], raw["source"], raw.get("profile"))
+
+
+def _read_stacks(data: dict) -> dict[str, StackChoice]:
+    """`stacks` {component: {id, source}}; a file written before the component catalog has `stack`
+    {id, source} instead, which maps to the stacks of each component (`python-api` -> backend
+    `python-fastapi`...). Any other id covered every part of the project, as `generic` does."""
+    raw_stacks = data.get("stacks")
+    if raw_stacks is not None:
+        if not isinstance(raw_stacks, dict):
+            raise _fail("stacks must be an object keyed by component.")
+        stacks: dict[str, StackChoice] = {}
+        for component, raw in raw_stacks.items():
+            if component not in STACK_COMPONENTS:
+                raise _fail(f"unknown component '{component}' in stacks (use {list(STACK_COMPONENTS)}).")
+            stacks[component] = _stack_choice(raw, f"stacks.{component}")
+        return stacks
+    raw_stack = data.get("stack")
+    if raw_stack is None:
+        return {}
+    choice = _stack_choice(raw_stack, "stack")
+    legacy = LEGACY_STACKS.get(choice.id)
+    if legacy is not None:
+        return {
+            component: StackChoice(stack_id, "catalog", legacy.profile if component == "frontend" else None)
+            for component, stack_id in legacy.stacks.items()
+        }
+    if choice.id == "docs-modern":
+        return {"docs": choice}
+    return {component: choice for component in STACK_COMPONENTS}
 
 
 class SetupActionKind(str, Enum):

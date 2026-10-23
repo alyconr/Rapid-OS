@@ -73,6 +73,8 @@ packages = [
     "rapid_os.templates.services",
     "rapid_os.templates.shortcuts",
     "rapid_os.templates.stacks",
+    "rapid_os.templates.stacks.backend",
+    "rapid_os.templates.stacks.frontend",
     "rapid_os.templates.topologies",
 ]
 
@@ -95,6 +97,8 @@ version = { attr = "rapid_os.__version__" }
 "rapid_os.templates.services" = "templates/services"
 "rapid_os.templates.shortcuts" = "templates/shortcuts"
 "rapid_os.templates.stacks" = "templates/stacks"
+"rapid_os.templates.stacks.backend" = "templates/stacks/backend"
+"rapid_os.templates.stacks.frontend" = "templates/stacks/frontend"
 "rapid_os.templates.topologies" = "templates/topologies"
 
 [tool.setuptools.package-data]
@@ -113,4 +117,6 @@ version = { attr = "rapid_os.__version__" }
 "rapid_os.templates.services" = ["*.md", "*.json"]
 "rapid_os.templates.shortcuts" = ["*.md", "*.json"]
 "rapid_os.templates.stacks" = ["*.md", "*.json"]
+"rapid_os.templates.stacks.backend" = ["*.md", "*.json"]
+"rapid_os.templates.stacks.frontend" = ["*.md", "*.json"]
 "rapid_os.templates.topologies" = ["*.md", "*.json"]

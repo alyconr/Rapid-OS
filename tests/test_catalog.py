@@ -31,12 +31,39 @@ from rapid_os.domain.validation import (
 REPO = Path(__file__).resolve().parent.parent
 TEMPLATES = REPO / "templates"
 
-# Tabla generada ejecutando el código de 7cf4878 (antes del refactor): códigos no informativos.
-EXPECTED_STACK_TOPOLOGY = {
-    ("docs-modern", "doc-site"): [],
-    ("docs-modern", "front-end-only"): ["RAPID402"],
-    ("docs-modern", "fullstack-baas"): ["RAPID402"],
-    ("docs-modern", "fullstack-separated"): ["RAPID402"],
+# Content of a tech-stack.md written before the component catalog, as `infer_stack` reads it.
+LEGACY_CONTENT = {
+    "python-api": "# TECH STACK: PYTHON API\n- FastAPI\n",
+    "python-ai": "# TECH STACK: PYTHON AI AGENT\n- FastAPI\n",
+    "nodejs-ai": "# TECH STACK: NODEJS AI AGENT\n- Bun.js\n",
+    "web-modern": "# TECH STACK: MODERN WEB\n- Next.js\n",
+    "frontend-creative": "# TECH STACK: CREATIVE & MOTION\n",
+    "docs-modern": "# TECH STACK: MODERN DOCS\n- Docusaurus\n",
+}
+
+# Diagnostics (non-informational codes) of each stack with each topology.
+_NO = []
+_BACKEND = {"doc-site": ["RAPID403"], "front-end-only": ["RAPID404"], "fullstack-baas": ["RAPID404"], "fullstack-separated": _NO}
+_FRONTEND = {"doc-site": ["RAPID403"], "front-end-only": _NO, "fullstack-baas": _NO, "fullstack-separated": _NO}
+EXPECTED_STACK_TOPOLOGY = {}
+for _stack in ("python-fastapi", "python-django", "node-nestjs", "node-fastify", "go", "rust-axum", "ruby-rails",
+               "dotnet-aspnetcore", "java-spring-boot", "kotlin-spring-boot", "php-laravel"):
+    for _topology, _codes in _BACKEND.items():
+        EXPECTED_STACK_TOPOLOGY[(_stack, _topology)] = _codes
+for _stack in ("react-vite", "nextjs", "angular", "vue-vite", "nuxt", "svelte-vite", "sveltekit", "astro"):
+    for _topology, _codes in _FRONTEND.items():
+        EXPECTED_STACK_TOPOLOGY[(_stack, _topology)] = _codes
+EXPECTED_STACK_TOPOLOGY.update(
+    {
+        ("docs-modern", "doc-site"): [],
+        ("docs-modern", "front-end-only"): ["RAPID402"],
+        ("docs-modern", "fullstack-baas"): ["RAPID402"],
+        ("docs-modern", "fullstack-separated"): ["RAPID402"],
+    }
+)
+# The ids of before the component catalog keep validating an existing project as they always did
+# (python-ai with fullstack-baas is only a warning, RAPID405).
+EXPECTED_LEGACY_STACK_TOPOLOGY = {
     ("frontend-creative", "doc-site"): ["RAPID403"],
     ("frontend-creative", "front-end-only"): [],
     ("frontend-creative", "fullstack-baas"): [],
@@ -49,7 +76,6 @@ EXPECTED_STACK_TOPOLOGY = {
     ("python-ai", "front-end-only"): ["RAPID404"],
     ("python-ai", "fullstack-baas"): ["RAPID405"],
     ("python-ai", "fullstack-separated"): [],
-    # python-api (added with the catalog, not part of the 7cf4878 table): compatible with both backends.
     ("python-api", "doc-site"): ["RAPID403"],
     ("python-api", "front-end-only"): ["RAPID404"],
     ("python-api", "fullstack-baas"): [],
@@ -65,12 +91,16 @@ def _diagnostic_codes(stack, topology):
     with tempfile.TemporaryDirectory() as tmp:
         standards = Path(tmp) / "standards"
         standards.mkdir()
-        for target, folder, name in (
-            ("tech-stack.md", "stacks", stack),
-            ("topology.md", "topologies", topology),
-        ):
-            text = (TEMPLATES / folder / f"{name}.md").read_text(encoding="utf-8")
-            (standards / target).write_text(text, encoding="utf-8")
+        if stack in LEGACY_CONTENT:
+            stack_text = LEGACY_CONTENT[stack]
+        else:
+            entry = load_catalog(TEMPLATES).stacks[stack]
+            stack_text = (TEMPLATES / "stacks" / f"{entry.template}.md").read_text(encoding="utf-8")
+            stack_text += f"\n<!-- rapid-stack: {entry.component or 'docs'}={stack} -->\n"
+        (standards / "tech-stack.md").write_text(stack_text, encoding="utf-8")
+        (standards / "topology.md").write_text(
+            (TEMPLATES / "topologies" / f"{topology}.md").read_text(encoding="utf-8"), encoding="utf-8"
+        )
         report = validate_stack_topology(Path(tmp), TEMPLATES)
     return sorted(d.code for d in report.diagnostics if d.level != "info")
 
@@ -81,7 +111,7 @@ def _fact(category, value):
 
 def _copy_templates(tmp: str) -> Path:
     target = Path(tmp) / "templates"
-    for folder in ("stacks", "topologies", "archetypes", "mcp"):
+    for folder in ("stacks", "topologies", "archetypes", "mcp", "services"):
         shutil.copytree(TEMPLATES / folder, target / folder)
     return target
 
@@ -99,15 +129,25 @@ def _run_rapid(cwd: Path, *argv: str):
 
 class StackTopologyParityTests(unittest.TestCase):
     def test_table_covers_every_stack_and_topology_pair(self):
-        stacks = {p.stem for p in (TEMPLATES / "stacks").glob("*.md")}
+        catalog = load_catalog(TEMPLATES)
+        stacks = {s for s in catalog.stacks if s != "generic"}
         topologies = {p.stem for p in (TEMPLATES / "topologies").glob("*.md")}
         self.assertEqual(
             set(EXPECTED_STACK_TOPOLOGY),
             {(s, t) for s in stacks for t in topologies},
         )
+        self.assertEqual(
+            set(EXPECTED_LEGACY_STACK_TOPOLOGY),
+            {(s, t) for s in LEGACY_CONTENT if s != "docs-modern" for t in topologies},
+        )
 
-    def test_stack_topology_table_matches_legacy_behavior(self):
+    def test_stack_topology_table_matches_the_catalog(self):
         for (stack, topology), expected in EXPECTED_STACK_TOPOLOGY.items():
+            with self.subTest(stack=stack, topology=topology):
+                self.assertEqual(_diagnostic_codes(stack, topology), expected)
+
+    def test_the_ids_of_before_the_component_catalog_keep_their_behavior(self):
+        for (stack, topology), expected in EXPECTED_LEGACY_STACK_TOPOLOGY.items():
             with self.subTest(stack=stack, topology=topology):
                 self.assertEqual(_diagnostic_codes(stack, topology), expected)
 
@@ -153,32 +193,33 @@ class DefaultTopologyTests(unittest.TestCase):
                         _legacy_default_topology(stack, suggestion, topologies),
                     )
 
-    def test_python_api_behaves_like_python_ai_but_without_ai(self):
+    def test_python_fastapi_replaces_python_api_and_python_ai(self):
         catalog = load_catalog(TEMPLATES)
         topologies = sorted(catalog.topologies)
         for suggestion in [None, *topologies]:
             with self.subTest(suggestion=suggestion):
+                # Only a backend topology fits; a suggestion it does not fit is not followed.
                 self.assertEqual(
-                    catalog.default_topology_for_stack("python-api", suggestion, topologies),
-                    catalog.default_topology_for_stack("python-ai", suggestion, topologies),
+                    catalog.default_topology_for_stack("python-fastapi", suggestion, topologies),
+                    "fullstack-separated",
                 )
-        entry = catalog.stacks["python-api"]
-        self.assertEqual(entry.compatible_topologies, ("fullstack-baas", "fullstack-separated"))
+        entry = catalog.stacks["python-fastapi"]
+        self.assertEqual(entry.compatible_topologies, ("fullstack-separated",))
         self.assertEqual(entry.default_topology, "fullstack-separated")
-        self.assertEqual(entry.fits, ("APIs de negocio en Python",))
-        self.assertEqual(catalog.stacks["python-ai"].fits, ("agentes de IA y pipelines de datos",))
-        text = (TEMPLATES / "stacks" / "python-api.md").read_text(encoding="utf-8")
-        for name in ("LangChain", "CrewAI"):
-            self.assertNotIn(name, text)
+        text = (TEMPLATES / "stacks" / "backend" / "python-fastapi.md").read_text(encoding="utf-8")
         for name in ("FastAPI", "Pydantic V2", "SQLAlchemy 2", "Alembic", "PostgreSQL", "pytest", "httpx"):
             self.assertIn(name, text)
+        ai = (TEMPLATES / "stacks" / "backend" / "python-fastapi.ai.md").read_text(encoding="utf-8")
+        for name in ("LangChain", "CrewAI"):
+            self.assertIn(name, ai)
+            self.assertNotIn(name, text)
 
-    def test_infer_stack_recognizes_python_api_before_python_ai(self):
+    def test_infer_stack_reads_the_marker_and_the_titles_of_before(self):
         from rapid_os.domain.validation import infer_stack
 
-        for stack in ("python-api", "python-ai"):
-            text = (TEMPLATES / "stacks" / f"{stack}.md").read_text(encoding="utf-8")
-            self.assertEqual(infer_stack(text), stack)
+        for stack, content in LEGACY_CONTENT.items():
+            self.assertEqual(infer_stack(content), stack)
+        self.assertEqual(infer_stack("# x\n<!-- rapid-stack: backend=go -->\n"), "go")
 
     def test_web_modern_defaults_to_fullstack_separated(self):
         catalog = load_catalog(TEMPLATES)
@@ -195,6 +236,10 @@ class CatalogSidecarTests(unittest.TestCase):
             for markdown in (TEMPLATES / folder).glob("*.md"):
                 with self.subTest(template=markdown.name):
                     self.assertIn(markdown.stem, entries)
+        for markdown in (TEMPLATES / "stacks").glob("*/*.md"):
+            if markdown.stem.count(".") == 0:
+                with self.subTest(template=markdown.name):
+                    self.assertIn(markdown.stem, catalog.stacks)
         self.assertIn("generic", catalog.stacks)
         self.assertEqual(
             set(catalog.stacks["generic"].compatible_topologies),
@@ -222,7 +267,8 @@ class CatalogSidecarTests(unittest.TestCase):
         self.assertIn("- [ ] H001:", stories.text)
         self.assertEqual(
             {q.id for q in load_stack_questions(TEMPLATES)},
-            {"product_type", "team_language", "hosting", "relational_data", "ai", "realtime"},
+            {"product_type", "team_languages", "load_latency", "infra_budget", "realtime", "compute_ai",
+             "maintenance_horizon", "org_constraints"},
         )
 
     def test_setup_banks_have_the_agreed_values(self):
@@ -280,40 +326,42 @@ class CatalogSidecarTests(unittest.TestCase):
     def test_rapid404_message_names_compatible_topologies_unless_backend_case(self):
         def message(stack, topology):
             with tempfile.TemporaryDirectory() as tmp:
-                templates = _copy_templates(tmp)
-                sidecar = templates / "stacks" / "python-ai.json"
-                data = json.loads(sidecar.read_text(encoding="utf-8"))
-                data.update(compatible_topologies=["fullstack-separated"], default_topology="fullstack-separated")
-                sidecar.write_text(json.dumps(data), encoding="utf-8")
                 standards = Path(tmp) / "standards"
                 standards.mkdir()
                 (standards / "tech-stack.md").write_text(
-                    (templates / "stacks" / f"{stack}.md").read_text(encoding="utf-8"), encoding="utf-8")
+                    (TEMPLATES / "stacks" / "backend" / f"{stack}.md").read_text(encoding="utf-8")
+                    + f"\n<!-- rapid-stack: backend={stack} -->\n",
+                    encoding="utf-8",
+                )
                 (standards / "topology.md").write_text(
-                    (templates / "topologies" / f"{topology}.md").read_text(encoding="utf-8"), encoding="utf-8")
-                report = validate_stack_topology(Path(tmp), templates)
+                    (TEMPLATES / "topologies" / f"{topology}.md").read_text(encoding="utf-8"), encoding="utf-8")
+                report = validate_stack_topology(Path(tmp), TEMPLATES)
             return next(d.message for d in report.diagnostics if d.code == "RAPID404")
 
-        self.assertIn("requires backend/database capabilities", message("python-ai", "front-end-only"))
-        generic = message("python-ai", "fullstack-baas")
+        self.assertIn("requires backend/database capabilities", message("go", "front-end-only"))
+        generic = message("go", "fullstack-baas")
         self.assertNotIn("requires backend/database capabilities", generic)
-        self.assertEqual(
-            generic,
-            "python-ai is not compatible with fullstack-baas (compatible: fullstack-separated).",
-        )
+        self.assertEqual(generic, "go is not compatible with fullstack-baas (compatible: fullstack-separated).")
 
     def test_broken_sidecars_raise_rapid1401(self):
         cases = {
-            "missing field": lambda d: d.pop("language"),
-            "id mismatch": lambda d: d.update(id="other"),
-            "bad schema": lambda d: d.update(schema_version=2),
-            "unknown topology": lambda d: d.update(compatible_topologies=["nope"]),
-            "default outside list": lambda d: d.update(default_topology="doc-site"),
+            "missing field": ("frontend/nextjs", lambda d: d.pop("language")),
+            "id mismatch": ("frontend/nextjs", lambda d: d.update(id="other")),
+            "bad schema": ("frontend/nextjs", lambda d: d.update(schema_version=2)),
+            "no factors": ("frontend/nextjs", lambda d: d.pop("factors")),
+            "a factor without sources": ("backend/go", lambda d: d["sources"].pop("performance")),
+            "a source that is not an https URL": ("backend/go", lambda d: d["sources"].update(typing=["go.dev"])),
+            "hosting_fit outside the list": ("backend/go", lambda d: d["factors"].update(hosting_fit="mainframe")),
+            "unknown component": ("backend/go", lambda d: d.update(component="mobile")),
+            "an engine that is not in the catalog": (
+                "backend/go", lambda d: d["supported_services"].update(oracle={"driver": "x", "url": "y"})),
+            "unknown topology": ("generic", lambda d: d.update(compatible_topologies=["nope"])),
+            "default outside list": ("generic", lambda d: d.update(default_topology="doc-site")),
         }
-        for name, mutate in cases.items():
+        for name, (where, mutate) in cases.items():
             with self.subTest(case=name), tempfile.TemporaryDirectory() as tmp:
                 templates = _copy_templates(tmp)
-                sidecar = templates / "stacks" / "web-modern.json"
+                sidecar = templates / "stacks" / f"{where}.json"
                 data = json.loads(sidecar.read_text(encoding="utf-8"))
                 mutate(data)
                 sidecar.write_text(json.dumps(data), encoding="utf-8")
@@ -382,7 +430,7 @@ class CatalogSidecarTests(unittest.TestCase):
     def test_init_with_broken_sidecar_reports_rapid1401_without_traceback(self):
         with tempfile.TemporaryDirectory() as tmp:
             templates = _copy_templates(tmp)
-            (templates / "stacks" / "web-modern.json").write_text("[]", encoding="utf-8")
+            (templates / "stacks" / "docs-modern.json").write_text("[]", encoding="utf-8")
             project = Path(tmp) / "project"
             project.mkdir()
             stdout = io.StringIO()
@@ -462,7 +510,7 @@ class InitDefaultsTests(unittest.TestCase):
             validate = _run_rapid(project, "validate")
             self.assertEqual(validate.returncode, 0, validate.stdout + validate.stderr)
 
-    def test_nextjs_project_still_selects_web_modern(self):
+    def test_nextjs_project_selects_nextjs(self):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
             (project / "package.json").write_text(
@@ -474,7 +522,7 @@ class InitDefaultsTests(unittest.TestCase):
             stack = (project / ".rapid-os" / "standards" / "tech-stack.md").read_text(
                 encoding="utf-8"
             )
-            self.assertEqual(infer_stack(stack), "web-modern")
+            self.assertEqual(infer_stack(stack), "nextjs")
 
 
 class PackagingTests(unittest.TestCase):

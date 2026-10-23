@@ -14,38 +14,37 @@
       ]
     },
     {
-      "id": "team_language",
-      "text": "¿En qué lenguaje trabaja el equipo?",
+      "id": "team_languages",
+      "text": "¿Qué lenguajes domina el equipo?",
       "options": [
-        "typescript",
         "python",
+        "typescript",
+        "go",
+        "java",
+        "kotlin",
+        "csharp",
+        "php",
+        "ruby",
+        "rust",
         "other"
       ]
     },
     {
-      "id": "hosting",
-      "text": "¿Prefieres hosting gestionado o un backend como servicio (BaaS)?",
+      "id": "load_latency",
+      "text": "¿Qué carga y qué latencia se esperan (usuarios simultáneos, peticiones por segundo, tiempo de respuesta aceptable)?",
       "options": [
-        "baas",
-        "self-hosted",
-        "undecided"
+        "low",
+        "moderate",
+        "high"
       ]
     },
     {
-      "id": "relational_data",
-      "text": "¿El producto necesita datos relacionales?",
+      "id": "infra_budget",
+      "text": "¿Cuál es el presupuesto de infraestructura?",
       "options": [
-        "yes",
-        "no",
-        "unsure"
-      ]
-    },
-    {
-      "id": "ai",
-      "text": "¿Incluye funcionalidades de IA o agentes?",
-      "options": [
-        "yes",
-        "no"
+        "minimal",
+        "moderate",
+        "flexible"
       ]
     },
     {
@@ -55,6 +54,28 @@
         "yes",
         "no"
       ]
+    },
+    {
+      "id": "compute_ai",
+      "text": "¿Hay cómputo intensivo o funcionalidades de IA/ML?",
+      "options": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "id": "maintenance_horizon",
+      "text": "¿Cuál es el horizonte de mantenimiento?",
+      "options": [
+        "prototype",
+        "one-to-two-years",
+        "five-years-or-more"
+      ]
+    },
+    {
+      "id": "org_constraints",
+      "text": "¿Qué restricciones impone la organización (lenguajes aprobados, nube, licencias, cumplimiento)?",
+      "required": false
     }
   ]
 }

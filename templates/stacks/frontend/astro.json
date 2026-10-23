@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "id": "astro",
+  "component": "frontend",
+  "covers": [
+    "frontend"
+  ],
+  "summary": "Sitio orientado a contenido en Astro con TypeScript: cero JavaScript por defecto e islas de interactividad.",
+  "language": "TypeScript",
+  "fits": [
+    "sitios de contenido, marketing y blogs",
+    "páginas que deben cargar rápido con poco JavaScript",
+    "equipos que mezclan componentes de varios frameworks"
+  ],
+  "avoid_if": [
+    "la aplicación es muy interactiva y con mucho estado en el cliente",
+    "se quiere un backend con lógica de negocio compleja",
+    "un sitio de documentación es el objetivo (usa docs-modern)"
+  ],
+  "suggested_services": [],
+  "package_manager": "pnpm",
+  "default_test_command": [
+    "pnpm",
+    "exec",
+    "vitest",
+    "run"
+  ],
+  "architecture": "astro",
+  "factors": {
+    "performance": "alto en contenido: cero JavaScript por defecto y páginas prerenderizadas en la compilación",
+    "memory_footprint": "bajo: poco JavaScript en el navegador; las islas hidratan solo lo necesario",
+    "cold_start": "bajo: páginas estáticas por defecto; el renderizado bajo demanda necesita un adaptador",
+    "concurrency_model": "servidor Node.js solo si se activa el renderizado bajo demanda con el adaptador de Node",
+    "typing": "TypeScript con tsconfig base, strict y strictest",
+    "productivity": "alto para contenido: páginas, layouts y componentes de varios frameworks",
+    "learning_curve": "baja a media: sintaxis .astro cercana a HTML",
+    "maintainability": "media: solo src/pages está reservado; la regla de features de Rapid OS aporta los límites",
+    "ecosystem_maturity": "medio a alto: Astro 7 con guías de despliegue y pruebas oficiales",
+    "hiring_pool": "bajo: Astro lo usa el 4,3 % de los desarrolladores profesionales (Stack Overflow 2025)",
+    "hosting_fit": "serverless, PaaS, containers"
+  },
+  "sources": {
+    "performance": [
+      "https://docs.astro.build/en/concepts/why-astro/"
+    ],
+    "memory_footprint": [
+      "https://docs.astro.build/en/concepts/why-astro/"
+    ],
+    "cold_start": [
+      "https://docs.astro.build/en/guides/on-demand-rendering/"
+    ],
+    "concurrency_model": [
+      "https://docs.astro.build/en/guides/on-demand-rendering/"
+    ],
+    "typing": [
+      "https://docs.astro.build/en/install-and-setup/"
+    ],
+    "productivity": [
+      "https://docs.astro.build/en/install-and-setup/"
+    ],
+    "learning_curve": [
+      "https://docs.astro.build/en/install-and-setup/"
+    ],
+    "maintainability": [
+      "https://docs.astro.build/en/basics/project-structure/"
+    ],
+    "ecosystem_maturity": [
+      "https://docs.astro.build/en/upgrade-astro/",
+      "https://docs.astro.build/en/guides/testing/"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://docs.astro.build/en/guides/deploy/"
+    ]
+  },
+  "supported_services": {},
+  "service_roles": []
+}

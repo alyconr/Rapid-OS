@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from rapid_os.domain.project import ProjectModel
+from rapid_os.domain.stack_aliases import LEGACY_STACKS
 
 CATALOG_SCHEMA_VERSION = 1
 GENERIC_STACK_ID = "generic"
@@ -19,6 +20,24 @@ class CatalogError(ValueError):
     """Invalid catalog sidecar (RAPID1401)."""
 
     code = "RAPID1401"
+
+
+COMPONENTS = ("frontend", "backend", "baas", "docs")
+# The qualitative factors every catalog stack of a component describes, each with its sources.
+FACTOR_KEYS = (
+    "performance",
+    "memory_footprint",
+    "cold_start",
+    "concurrency_model",
+    "typing",
+    "productivity",
+    "learning_curve",
+    "maintainability",
+    "ecosystem_maturity",
+    "hiring_pool",
+    "hosting_fit",
+)
+HOSTING_FITS = ("serverless", "containers", "PaaS")
 
 
 @dataclass(frozen=True)
@@ -34,6 +53,25 @@ class StackEntry:
     suggested_services: tuple[str, ...] = ()
     # Roles of infrastructure services the stack can use; None means all of them.
     service_roles: tuple[str, ...] | None = None
+    # The component the stack is listed under (None: a flat sidecar such as `generic`) and the
+    # components it fills when it is chosen without `--component`.
+    component: str | None = None
+    covers: tuple[str, ...] = ()
+    factors: dict[str, str] = field(default_factory=dict)
+    factor_sources: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    default_test_command: tuple[str, ...] = ()
+    package_manager: str = ""
+    # engine -> {"driver": ..., "url": ...}; None means every engine of the catalog.
+    supported_services: dict[str, dict[str, str]] | None = None
+    # Id of the idiomatic architecture profile (`rapid_os.domain.architecture.PROFILES`).
+    architecture: str = ""
+    # Directory of the Markdown template below `templates/stacks`.
+    template: str = ""
+
+    @property
+    def monolith(self) -> bool:
+        """A backend framework that also covers the frontend (Rails, Django, Laravel...)."""
+        return self.component is not None and len(set(self.covers)) > 1 and self.component != "frontend"
 
 
 SERVICE_ROLES = ("database", "cache", "queue", "stream", "search", "object-storage")
@@ -69,6 +107,8 @@ class TopologyEntry:
     summary: str
     fits: tuple[str, ...]
     avoid_if: tuple[str, ...]
+    # The components the topology needs a stack for, in the order they are asked.
+    components: tuple[str, ...] = ()
 
 
 DOC_SITE_TOPOLOGY = "doc-site"
@@ -91,9 +131,37 @@ class Catalog:
     def topology_ids(self) -> tuple[str, ...]:
         return tuple(sorted(set(self.topologies) | set(self.sidecarless_topologies)))
 
+    def entry(self, stack_id: str) -> StackEntry | None:
+        """The catalog entry of a stack id; a legacy id (`python-api`...) resolves to the stack it maps to."""
+        entry = self.stacks.get(stack_id)
+        if entry is not None:
+            return entry
+        legacy = LEGACY_STACKS.get(stack_id)
+        if legacy is not None:
+            return self.stacks.get(legacy.primary_id())
+        return None
+
+    def components_of(self, topology_id: str | None) -> tuple[str, ...]:
+        """The components a topology needs a stack for (empty when the topology is unknown)."""
+        entry = self.topologies.get(topology_id or "")
+        if entry is not None:
+            return entry.components
+        return DEFAULT_TOPOLOGY_COMPONENTS.get(topology_id or "", ())
+
+    def options_for(self, component: str) -> tuple[StackEntry, ...]:
+        """Stacks that can fill a component: the ones listed under it and the monolithic ones that cover it."""
+        return tuple(
+            entry
+            for entry in self.stacks.values()
+            if entry.component == component or component in entry.covers
+        )
+
     def compatible_topologies(self, stack_id: str) -> tuple[str, ...] | None:
         """Compatible topologies for a known stack, None when the stack is not in the catalog."""
-        entry = self.stacks.get(stack_id)
+        legacy = LEGACY_STACKS.get(stack_id)
+        if legacy is not None and legacy.topologies:
+            return tuple(t for t in legacy.topologies if t in self.topology_ids)
+        entry = self.entry(stack_id)
         if entry is not None:
             return entry.compatible_topologies
         if stack_id in self.sidecarless_stacks:
@@ -124,7 +192,7 @@ class Catalog:
             and self.is_compatible(stack_name, suggested_topology) is not False
         ):
             return suggested_topology
-        entry = self.stacks.get(stack_name)
+        entry = self.entry(stack_name)
         if entry is not None and entry.default_topology in topologies:
             return entry.default_topology
         for name in topologies:
@@ -170,25 +238,35 @@ def _text_list(path: Path, data: dict, field: str, *, non_empty: bool = False) -
     return tuple(value)
 
 
+DEFAULT_TOPOLOGY_COMPONENTS = {
+    "front-end-only": ("frontend",),
+    "fullstack-separated": ("frontend", "backend"),
+    "fullstack-baas": ("frontend", "baas"),
+    "doc-site": ("docs",),
+}
+
+
 def _load_topology(path: Path) -> TopologyEntry:
     data = _read_sidecar(path)
+    if "components" in data:
+        components = _text_list(path, data, "components", non_empty=True)
+    else:
+        components = DEFAULT_TOPOLOGY_COMPONENTS.get(data["id"])
+        if components is None:
+            raise _fail(path, "missing field 'components'.")
+    unknown = [item for item in components if item not in COMPONENTS]
+    if unknown:
+        raise _fail(path, f"components references unknown component: {', '.join(unknown)}.")
     return TopologyEntry(
         id=data["id"],
         summary=_text(path, data, "summary"),
         fits=_text_list(path, data, "fits"),
         avoid_if=_text_list(path, data, "avoid_if"),
+        components=tuple(components),
     )
 
 
-def _load_stack(path: Path, topology_ids: set[str]) -> StackEntry:
-    data = _read_sidecar(path)
-    compatible = _text_list(path, data, "compatible_topologies", non_empty=True)
-    default = _text(path, data, "default_topology")
-    unknown = [item for item in compatible if item not in topology_ids]
-    if unknown:
-        raise _fail(path, f"compatible_topologies references unknown topology: {', '.join(unknown)}.")
-    if default not in compatible:
-        raise _fail(path, f"default_topology '{default}' is not listed in compatible_topologies.")
+def _check_services_fields(path: Path, data: dict) -> tuple[tuple[str, ...], tuple[str, ...] | None]:
     suggested = _text_list(path, data, "suggested_services") if "suggested_services" in data else ()
     for item in suggested:
         role, _, engine = item.partition(":")
@@ -200,6 +278,24 @@ def _load_stack(path: Path, topology_ids: set[str]) -> StackEntry:
         unknown_roles = [r for r in service_roles if r not in SERVICE_ROLES]
         if unknown_roles:
             raise _fail(path, f"service_roles references unknown role: {', '.join(unknown_roles)}.")
+    return suggested, service_roles
+
+
+def _load_stack(path: Path, topologies: dict[str, TopologyEntry], known_topologies: set[str]) -> StackEntry:
+    """A flat sidecar (`generic`, `docs-modern`) lists its topologies; one under a component
+    directory is compatible with the topologies that include its component."""
+    data = _read_sidecar(path)
+    suggested, service_roles = _check_services_fields(path, data)
+    if path.parent.name in COMPONENTS:
+        return _load_component_stack(path, data, topologies, suggested, service_roles)
+    compatible = _text_list(path, data, "compatible_topologies", non_empty=True)
+    default = _text(path, data, "default_topology")
+    unknown = [item for item in compatible if item not in known_topologies]
+    if unknown:
+        raise _fail(path, f"compatible_topologies references unknown topology: {', '.join(unknown)}.")
+    if default not in compatible:
+        raise _fail(path, f"default_topology '{default}' is not listed in compatible_topologies.")
+    covers = _text_list(path, data, "covers") if "covers" in data else ()
     return StackEntry(
         id=data["id"],
         summary=_text(path, data, "summary"),
@@ -210,6 +306,94 @@ def _load_stack(path: Path, topology_ids: set[str]) -> StackEntry:
         default_topology=default,
         suggested_services=suggested,
         service_roles=service_roles,
+        covers=tuple(covers),
+        template=data["id"],
+    )
+
+
+def _url_list(path: Path, value: object, label: str) -> tuple[str, ...]:
+    if (
+        not isinstance(value, list)
+        or not value
+        or not all(isinstance(item, str) and item.startswith("https://") for item in value)
+    ):
+        raise _fail(path, f"{label} must be a non-empty list of https URLs.")
+    return tuple(value)
+
+
+def _load_component_stack(
+    path: Path,
+    data: dict,
+    topologies: dict[str, TopologyEntry],
+    suggested: tuple[str, ...],
+    service_roles: tuple[str, ...] | None,
+) -> StackEntry:
+    component = _text(path, data, "component")
+    if component != path.parent.name:
+        raise _fail(path, f"component '{component}' does not match its directory '{path.parent.name}'.")
+    covers = _text_list(path, data, "covers", non_empty=True)
+    unknown = [item for item in covers if item not in COMPONENTS]
+    if unknown or component not in covers:
+        raise _fail(path, "covers must list known components and include the stack's own component.")
+    raw_factors = data.get("factors")
+    if not isinstance(raw_factors, dict) or set(raw_factors) != set(FACTOR_KEYS):
+        raise _fail(path, f"field 'factors' must have exactly: {', '.join(FACTOR_KEYS)}.")
+    factors: dict[str, str] = {}
+    for key in FACTOR_KEYS:
+        value = raw_factors[key]
+        if not isinstance(value, str) or not value.strip():
+            raise _fail(path, f"factor '{key}' must be a non-empty text.")
+        factors[key] = value
+    hosting = [token.strip() for token in factors["hosting_fit"].split(",")]
+    if not all(token in HOSTING_FITS for token in hosting):
+        raise _fail(path, f"factor 'hosting_fit' must list values of: {', '.join(HOSTING_FITS)}.")
+    raw_sources = data.get("sources")
+    if not isinstance(raw_sources, dict) or set(raw_sources) != set(FACTOR_KEYS):
+        raise _fail(path, "field 'sources' must give the sources of every factor.")
+    sources = {key: _url_list(path, raw_sources[key], f"sources.{key}") for key in FACTOR_KEYS}
+    command = _text_list(path, data, "default_test_command", non_empty=True)
+    supported = data.get("supported_services")
+    if not isinstance(supported, dict) or not all(
+        isinstance(engine, str)
+        and isinstance(item, dict)
+        and isinstance(item.get("driver"), str)
+        and item["driver"]
+        and isinstance(item.get("url"), str)
+        and item["url"]
+        for engine, item in supported.items()
+    ):
+        raise _fail(path, "field 'supported_services' must map each engine to {driver, url}.")
+    compatible = tuple(
+        topology_id
+        for topology_id, topology in sorted(topologies.items())
+        if component in topology.components
+    )
+    if not compatible:
+        raise _fail(path, "no topology includes the stack's component.")
+    default = data.get("default_topology") or (
+        "fullstack-separated" if component == "backend" or len(covers) > 1 else "front-end-only"
+    )
+    if default not in compatible:
+        default = compatible[0]
+    return StackEntry(
+        id=data["id"],
+        summary=_text(path, data, "summary"),
+        language=_text(path, data, "language"),
+        fits=_text_list(path, data, "fits", non_empty=True),
+        avoid_if=_text_list(path, data, "avoid_if", non_empty=True),
+        compatible_topologies=compatible,
+        default_topology=default,
+        suggested_services=suggested,
+        service_roles=service_roles,
+        component=component,
+        covers=tuple(covers),
+        factors=factors,
+        factor_sources=sources,
+        default_test_command=tuple(command),
+        package_manager=_text(path, data, "package_manager"),
+        supported_services={engine: dict(item) for engine, item in supported.items()},
+        architecture=_text(path, data, "architecture"),
+        template=f"{component}/{data['id']}",
     )
 
 
@@ -339,15 +523,25 @@ def load_catalog(templates_dir: Path) -> Catalog:
         topologies[entry.id] = entry
     known_topologies = set(topologies) | set(sidecarless_topologies)
     stacks = {}
-    for path in sorted(stack_dir.glob("*.json")):
-        entry = _load_stack(path, known_topologies)
+    for path in [*sorted(stack_dir.glob("*.json")), *sorted(stack_dir.glob("*/*.json"))]:
+        entry = _load_stack(path, topologies, known_topologies)
+        if entry.id in stacks:
+            raise _fail(path, f"the stack id '{entry.id}' is defined twice.")
         stacks[entry.id] = entry
+    services = load_services(templates_dir)
+    for entry in stacks.values():
+        unknown = [engine for engine in (entry.supported_services or {}) if engine not in services]
+        if services and unknown:
+            raise CatalogError(
+                f"RAPID1401 Invalid catalog sidecar '{entry.id}.json': supported_services names an engine "
+                f"that is not in the catalog: {', '.join(unknown)}."
+            )
     return Catalog(
         stacks=stacks,
         topologies=topologies,
         sidecarless_stacks=sidecarless_stacks,
         sidecarless_topologies=sidecarless_topologies,
-        services=load_services(templates_dir),
+        services=services,
     )
 
 
