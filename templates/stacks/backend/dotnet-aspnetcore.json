@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "id": "dotnet-aspnetcore",
+  "component": "backend",
+  "covers": [
+    "backend"
+  ],
+  "summary": "API en C# con ASP.NET Core: Minimal APIs o controladores, Entity Framework Core y herramientas de Microsoft.",
+  "language": "C#",
+  "fits": [
+    "APIs empresariales en organizaciones con ecosistema Microsoft",
+    "servicios que se despliegan en Azure o en contenedores",
+    "equipos con experiencia en C#"
+  ],
+  "avoid_if": [
+    "el equipo no usa C#",
+    "se necesita un binario mínimo sin runtime administrado",
+    "un sitio de documentación es el objetivo"
+  ],
+  "suggested_services": [
+    "database:postgresql"
+  ],
+  "package_manager": "nuget",
+  "default_test_command": [
+    "dotnet",
+    "test"
+  ],
+  "architecture": "dotnet-aspnetcore",
+  "factors": {
+    "performance": "alto: la documentación lo describe como framework de alto rendimiento con servidor Kestrel",
+    "memory_footprint": "medio; Native AOT puede requerir menos memoria que la ejecución con JIT",
+    "cold_start": "medio con JIT; Native AOT reduce el tiempo de arranque",
+    "concurrency_model": "async/await sobre el grupo de hilos de .NET",
+    "typing": "tipado estático (C#)",
+    "productivity": "alto: Minimal APIs, inyección de dependencias, EF Core y herramientas integradas",
+    "learning_curve": "media: C# y un framework grande",
+    "maintainability": "alta: tipado estático, proyectos por capa y pruebas arquitectónicas con NetArchTest",
+    "ecosystem_maturity": "alto: .NET 10 es LTS con tres años de soporte; NuGet y EF Core maduros",
+    "hiring_pool": "alto: C# lo usa el 29,9 % y ASP.NET Core el 21,3 % de los desarrolladores profesionales (Stack Overflow 2025)",
+    "hosting_fit": "containers, PaaS"
+  },
+  "sources": {
+    "performance": [
+      "https://learn.microsoft.com/en-us/aspnet/core/introduction-to-aspnet-core"
+    ],
+    "memory_footprint": [
+      "https://learn.microsoft.com/en-us/aspnet/core/fundamentals/native-aot"
+    ],
+    "cold_start": [
+      "https://learn.microsoft.com/en-us/aspnet/core/fundamentals/native-aot"
+    ],
+    "concurrency_model": [
+      "https://learn.microsoft.com/en-us/aspnet/core/introduction-to-aspnet-core"
+    ],
+    "typing": [
+      "https://learn.microsoft.com/en-us/aspnet/core/introduction-to-aspnet-core"
+    ],
+    "productivity": [
+      "https://learn.microsoft.com/en-us/aspnet/core/introduction-to-aspnet-core",
+      "https://learn.microsoft.com/en-us/ef/core/"
+    ],
+    "learning_curve": [
+      "https://learn.microsoft.com/en-us/aspnet/core/introduction-to-aspnet-core"
+    ],
+    "maintainability": [
+      "https://github.com/BenMorris/NetArchTest",
+      "https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests"
+    ],
+    "ecosystem_maturity": [
+      "https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core",
+      "https://learn.microsoft.com/en-us/ef/core/"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://learn.microsoft.com/en-us/aspnet/core/fundamentals/native-aot"
+    ]
+  },
+  "supported_services": {
+    "postgresql": {
+      "driver": "Npgsql",
+      "url": "Host=127.0.0.1;Port=5432;Username=app;Password=app_local_only;Database=app"
+    },
+    "mysql": {
+      "driver": "MySqlConnector",
+      "url": "Server=127.0.0.1;Port=3306;User ID=app;Password=app_local_only;Database=app"
+    },
+    "mariadb": {
+      "driver": "MySqlConnector",
+      "url": "Server=127.0.0.1;Port=3306;User ID=app;Password=app_local_only;Database=app"
+    },
+    "mongodb": {
+      "driver": "MongoDB.Driver",
+      "url": "mongodb://app:app_local_only@127.0.0.1:27017/app?authSource=admin"
+    },
+    "redis": {
+      "driver": "StackExchange.Redis",
+      "url": "127.0.0.1:6379"
+    },
+    "rabbitmq": {
+      "driver": "RabbitMQ.Client",
+      "url": "amqp://app:app_local_only@127.0.0.1:5672/"
+    },
+    "kafka": {
+      "driver": "Confluent.Kafka",
+      "url": "localhost:9092"
+    }
+  }
+}

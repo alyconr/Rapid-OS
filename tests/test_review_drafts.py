@@ -21,6 +21,7 @@ from rapid_os.domain.setup import (
     StackChoice,
 )
 from rapid_os.orchestration.setup_conductor import next_setup_action
+from tests.stack_helpers import complete_stacks
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATES = ROOT / "templates"
@@ -49,7 +50,7 @@ BUSINESS = (
 def decided(**docs) -> SetupState:
     """Every decision taken; `docs` maps a document id to its DocState."""
     return SetupState(
-        stack=StackChoice("generic", "generic"),
+        stacks=complete_stacks("generic"),
         topology="fullstack-baas",
         archetype="mvp",
         ai=False,

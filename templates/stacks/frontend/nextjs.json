@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "id": "nextjs",
+  "component": "frontend",
+  "covers": [
+    "frontend",
+    "backend"
+  ],
+  "summary": "Aplicación web full-stack en Next.js con TypeScript: interfaz y Route Handlers en el mismo proyecto.",
+  "language": "TypeScript",
+  "fits": [
+    "aplicaciones web y SaaS con renderizado en servidor",
+    "sitios con contenido dinámico y SEO",
+    "equipos pequeños que quieren interfaz y API en un solo proyecto"
+  ],
+  "avoid_if": [
+    "el equipo estandariza otro lenguaje para el backend",
+    "se necesitan conexiones persistentes de larga duración",
+    "un sitio de documentación es el objetivo"
+  ],
+  "suggested_services": [
+    "database:postgresql"
+  ],
+  "package_manager": "pnpm",
+  "default_test_command": [
+    "pnpm",
+    "exec",
+    "vitest",
+    "run"
+  ],
+  "architecture": "nextjs",
+  "factors": {
+    "performance": "alto: Turbopack es el bundler por defecto; renderizado en servidor, estático o híbrido",
+    "memory_footprint": "medio a alto: servidor Node.js para el renderizado dinámico; la caché es por instancia en cómputo efímero",
+    "cold_start": "medio: servidor Node.js; la exportación estática no necesita servidor",
+    "concurrency_model": "servidor Node.js con E/S asíncrona; Route Handlers sobre las APIs Web Request y Response",
+    "typing": "TypeScript por defecto en create-next-app (mínimo 5.1)",
+    "productivity": "alto: enrutado por archivos, Route Handlers, linting y bundler integrados",
+    "learning_curve": "media a alta: App Router, componentes de servidor y modelo de caché",
+    "maintainability": "media: no impone la organización de carpetas; permite colocación junto a las rutas",
+    "ecosystem_maturity": "muy alto: política de soporte con LTS activo (16.x) y de mantenimiento (15.x)",
+    "hiring_pool": "alto: Next.js lo usa el 21,5 % y React el 46,9 % de los desarrolladores profesionales (Stack Overflow 2025)",
+    "hosting_fit": "containers, PaaS, serverless"
+  },
+  "sources": {
+    "performance": [
+      "https://nextjs.org/docs/app/getting-started/installation"
+    ],
+    "memory_footprint": [
+      "https://nextjs.org/docs/app/guides/self-hosting"
+    ],
+    "cold_start": [
+      "https://nextjs.org/docs/app/building-your-application/deploying"
+    ],
+    "concurrency_model": [
+      "https://nextjs.org/docs/app/api-reference/file-conventions/route"
+    ],
+    "typing": [
+      "https://nextjs.org/docs/app/getting-started/installation"
+    ],
+    "productivity": [
+      "https://nextjs.org/docs",
+      "https://nextjs.org/docs/app/api-reference/file-conventions/route"
+    ],
+    "learning_curve": [
+      "https://nextjs.org/docs"
+    ],
+    "maintainability": [
+      "https://nextjs.org/docs/app/getting-started/project-structure"
+    ],
+    "ecosystem_maturity": [
+      "https://nextjs.org/support-policy"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://nextjs.org/docs/app/building-your-application/deploying"
+    ]
+  },
+  "supported_services": {
+    "postgresql": {
+      "driver": "pg",
+      "url": "postgresql://app:app_local_only@127.0.0.1:5432/app"
+    },
+    "mysql": {
+      "driver": "mysql2",
+      "url": "mysql://app:app_local_only@127.0.0.1:3306/app"
+    },
+    "mariadb": {
+      "driver": "mariadb",
+      "url": "mariadb://app:app_local_only@127.0.0.1:3306/app"
+    },
+    "mongodb": {
+      "driver": "mongodb",
+      "url": "mongodb://app:app_local_only@127.0.0.1:27017/app?authSource=admin"
+    },
+    "redis": {
+      "driver": "redis",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "valkey": {
+      "driver": "iovalkey",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "rabbitmq": {
+      "driver": "amqplib",
+      "url": "amqp://app:app_local_only@127.0.0.1:5672/"
+    },
+    "kafka": {
+      "driver": "kafkajs",
+      "url": "localhost:9092"
+    }
+  },
+  "default_topology": "fullstack-separated"
+}

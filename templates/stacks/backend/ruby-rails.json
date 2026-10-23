@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "id": "ruby-rails",
+  "component": "backend",
+  "covers": [
+    "backend",
+    "frontend"
+  ],
+  "summary": "Aplicación web en Ruby on Rails: convención sobre configuración, Active Record y vistas de servidor.",
+  "language": "Ruby",
+  "fits": [
+    "productos con modelo de datos relacional y mucha lógica de CRUD",
+    "monolitos con vistas de servidor (cubre frontend y backend)",
+    "equipos pequeños que priorizan velocidad de desarrollo"
+  ],
+  "avoid_if": [
+    "se necesita paralelismo de CPU dentro de un proceso",
+    "el equipo no usa Ruby",
+    "un sitio de documentación es el objetivo"
+  ],
+  "suggested_services": [
+    "database:postgresql"
+  ],
+  "package_manager": "bundler",
+  "default_test_command": [
+    "bin/rails",
+    "test"
+  ],
+  "architecture": "ruby-rails",
+  "factors": {
+    "performance": "bajo a medio: CRuby con GVL; un proceso nunca usa más de un núcleo de CPU y se escala con procesos",
+    "memory_footprint": "medio a alto: varios procesos de Puma; el Dockerfile generado preconfigura jemalloc",
+    "cold_start": "medio: arranque del framework y carga de código con Zeitwerk",
+    "concurrency_model": "Puma con hilos (RAILS_MAX_THREADS) y procesos (WEB_CONCURRENCY); el GVL limita el paralelismo de CPU por proceso",
+    "typing": "Ruby dinámico; los tipos son opcionales (por ejemplo con Sorbet)",
+    "productivity": "alto: convención sobre configuración, generadores, Active Record y Minitest incluidos",
+    "learning_curve": "media: muchas convenciones implícitas que aprender",
+    "maintainability": "media: packwerk permite imponer límites entre paquetes, pero las constantes se cargan por convención",
+    "ecosystem_maturity": "alto: Rails 8.1 con política de mantenimiento publicada y gemas maduras",
+    "hiring_pool": "bajo: Ruby lo usa el 6,9 % y Ruby on Rails el 6,2 % de los desarrolladores profesionales (Stack Overflow 2025)",
+    "hosting_fit": "containers, PaaS"
+  },
+  "sources": {
+    "performance": [
+      "https://guides.rubyonrails.org/tuning_performance_for_deployment.html"
+    ],
+    "memory_footprint": [
+      "https://guides.rubyonrails.org/tuning_performance_for_deployment.html"
+    ],
+    "cold_start": [
+      "https://guides.rubyonrails.org/getting_started.html"
+    ],
+    "concurrency_model": [
+      "https://guides.rubyonrails.org/tuning_performance_for_deployment.html"
+    ],
+    "typing": [
+      "https://github.com/Shopify/packwerk"
+    ],
+    "productivity": [
+      "https://guides.rubyonrails.org/getting_started.html",
+      "https://guides.rubyonrails.org/testing.html"
+    ],
+    "learning_curve": [
+      "https://guides.rubyonrails.org/getting_started.html"
+    ],
+    "maintainability": [
+      "https://github.com/Shopify/packwerk",
+      "https://github.com/Shopify/packwerk/blob/main/USAGE.md"
+    ],
+    "ecosystem_maturity": [
+      "https://guides.rubyonrails.org/maintenance_policy.html",
+      "https://www.ruby-lang.org/en/downloads/branches/"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://guides.rubyonrails.org/getting_started.html"
+    ]
+  },
+  "supported_services": {
+    "postgresql": {
+      "driver": "pg",
+      "url": "postgresql://app:app_local_only@127.0.0.1:5432/app"
+    },
+    "mysql": {
+      "driver": "mysql2",
+      "url": "mysql://app:app_local_only@127.0.0.1:3306/app"
+    },
+    "mariadb": {
+      "driver": "mysql2",
+      "url": "mariadb://app:app_local_only@127.0.0.1:3306/app"
+    },
+    "mongodb": {
+      "driver": "mongoid",
+      "url": "mongodb://app:app_local_only@127.0.0.1:27017/app?authSource=admin"
+    },
+    "redis": {
+      "driver": "redis",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "rabbitmq": {
+      "driver": "bunny",
+      "url": "amqp://app:app_local_only@127.0.0.1:5672/"
+    },
+    "kafka": {
+      "driver": "rdkafka",
+      "url": "localhost:9092"
+    }
+  }
+}

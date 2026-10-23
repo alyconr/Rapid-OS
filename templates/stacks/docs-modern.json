@@ -17,5 +17,8 @@
   ],
   "default_topology": "doc-site",
   "suggested_services": [],
-  "service_roles": []
+  "service_roles": [],
+  "covers": [
+    "docs"
+  ]
 }

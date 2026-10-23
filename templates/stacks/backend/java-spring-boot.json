@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "id": "java-spring-boot",
+  "component": "backend",
+  "covers": [
+    "backend"
+  ],
+  "summary": "Sistemas empresariales en Java con Spring Boot y Spring Modulith.",
+  "language": "Java",
+  "fits": [
+    "sistemas empresariales con equipos grandes",
+    "monolitos modulares con Spring Modulith",
+    "equipos con experiencia en Java y Spring"
+  ],
+  "avoid_if": [
+    "se necesita arranque mínimo y poca memoria sin imagen nativa",
+    "el equipo no usa Java",
+    "un sitio de documentación es el objetivo"
+  ],
+  "suggested_services": [
+    "database:postgresql"
+  ],
+  "package_manager": "maven",
+  "default_test_command": [
+    "./mvnw",
+    "test"
+  ],
+  "architecture": "java-spring-boot",
+  "factors": {
+    "performance": "alto en estado estable: JVM con optimización en ejecución",
+    "memory_footprint": "alto frente a binarios nativos: JVM; la imagen nativa con GraalVM la reduce",
+    "cold_start": "alto con JVM; la imagen nativa con GraalVM lo reduce",
+    "concurrency_model": "hilos de la plataforma JVM; los hilos virtuales están disponibles desde Java 21",
+    "typing": "tipado estático (Java)",
+    "productivity": "alto: starters y autoconfiguración para datos, mensajería y seguridad",
+    "learning_curve": "media: Java y un ecosistema Spring extenso",
+    "maintainability": "alta: Spring Modulith verifica que los módulos solo accedan a los paquetes de API de otros módulos",
+    "ecosystem_maturity": "muy alto: Spring Boot 4.1 con versiones de soporte publicadas y starters para datos y mensajería",
+    "hiring_pool": "alto: Java lo usa el 29,6 % y Spring Boot el 15,6 % de los desarrolladores profesionales (Stack Overflow 2025)",
+    "hosting_fit": "containers, PaaS"
+  },
+  "sources": {
+    "performance": [
+      "https://spring.io/projects/spring-boot"
+    ],
+    "memory_footprint": [
+      "https://docs.spring.io/spring-boot/system-requirements.html"
+    ],
+    "cold_start": [
+      "https://docs.spring.io/spring-boot/system-requirements.html"
+    ],
+    "concurrency_model": [
+      "https://docs.spring.io/spring-boot/reference/"
+    ],
+    "typing": [
+      "https://docs.spring.io/spring-boot/system-requirements.html"
+    ],
+    "productivity": [
+      "https://docs.spring.io/spring-boot/reference/"
+    ],
+    "learning_curve": [
+      "https://docs.spring.io/spring-boot/reference/"
+    ],
+    "maintainability": [
+      "https://docs.spring.io/spring-modulith/reference/",
+      "https://docs.spring.io/spring-modulith/reference/verification.html"
+    ],
+    "ecosystem_maturity": [
+      "https://spring.io/projects/spring-boot",
+      "https://docs.spring.io/spring-boot/system-requirements.html"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://docs.spring.io/spring-boot/reference/"
+    ]
+  },
+  "supported_services": {
+    "postgresql": {
+      "driver": "pgjdbc",
+      "url": "jdbc:postgresql://127.0.0.1:5432/app"
+    },
+    "mysql": {
+      "driver": "mysql-connector-j",
+      "url": "jdbc:mysql://127.0.0.1:3306/app"
+    },
+    "mariadb": {
+      "driver": "mariadb-java-client",
+      "url": "jdbc:mariadb://127.0.0.1:3306/app"
+    },
+    "mongodb": {
+      "driver": "spring-boot-starter-data-mongodb",
+      "url": "mongodb://app:app_local_only@127.0.0.1:27017/app?authSource=admin"
+    },
+    "redis": {
+      "driver": "spring-boot-starter-data-redis",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "rabbitmq": {
+      "driver": "spring-boot-starter-amqp",
+      "url": "amqp://app:app_local_only@127.0.0.1:5672/"
+    },
+    "kafka": {
+      "driver": "spring-kafka",
+      "url": "localhost:9092"
+    }
+  }
+}

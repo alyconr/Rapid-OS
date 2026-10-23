@@ -33,11 +33,15 @@ ARCHITECTURE_BODY = (
 
 class Project(GitIsolated):
     def decide(self, stack, topology, test_command="none"):
-        for key, value in (
-            ("stack", stack), ("topology", topology), ("archetype", "mvp"), ("ai", "no"),
-            ("agents", "claude"), ("test-command", test_command), ("services", "none"),
-        ):
-            result = self.rapid("setup", "set", key, value)
+        steps = [("stack", stack), ("topology", topology)]
+        if topology == "fullstack-separated" and stack in ("python-api", "python-ai", "nodejs-ai"):
+            steps.append(("stack", "generic", "--component", "frontend"))  # no rule: the backend keeps the root
+        steps += [
+            ("archetype", "mvp"), ("ai", "no"), ("agents", "claude"), ("test-command", test_command),
+            ("services", "none"),
+        ]
+        for step in steps:
+            result = self.rapid("setup", "set", *step)
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def finish_onboarding(self, stack, topology, test_command="none"):

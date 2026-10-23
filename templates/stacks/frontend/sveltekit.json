@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "id": "sveltekit",
+  "component": "frontend",
+  "covers": [
+    "frontend",
+    "backend"
+  ],
+  "summary": "Aplicación full-stack en SvelteKit con TypeScript: renderizado en servidor y endpoints +server.",
+  "language": "TypeScript",
+  "fits": [
+    "sitios y aplicaciones Svelte con SEO y renderizado en servidor",
+    "equipos Svelte que quieren interfaz y API en un solo proyecto",
+    "despliegue con adaptadores (Node, estático, Vercel, Cloudflare, Netlify)"
+  ],
+  "avoid_if": [
+    "el equipo estandariza otro lenguaje para el backend",
+    "se necesitan conexiones persistentes de larga duración",
+    "un sitio de documentación es el objetivo"
+  ],
+  "suggested_services": [
+    "database:postgresql"
+  ],
+  "package_manager": "pnpm",
+  "default_test_command": [
+    "pnpm",
+    "exec",
+    "vitest",
+    "run"
+  ],
+  "architecture": "sveltekit",
+  "factors": {
+    "performance": "alto: Svelte compila a JavaScript ajustado y SvelteKit carga solo el código mínimo necesario",
+    "memory_footprint": "bajo a medio: componentes compilados y servidor Node.js si se usa el adaptador de Node",
+    "cold_start": "medio: depende del adaptador; el adaptador estático no necesita servidor",
+    "concurrency_model": "servidor Node.js con E/S asíncrona cuando se usa el adaptador de Node",
+    "typing": "TypeScript con tipos generados ($types) y tsconfig extendido",
+    "productivity": "alto: enrutado por archivos, +server para endpoints y adaptadores",
+    "learning_curve": "media: Svelte más el modelo de carga de datos y los adaptadores",
+    "maintainability": "media: src/lib y src/routes como convención; la regla de features de Rapid OS aporta los límites",
+    "ecosystem_maturity": "medio: documentación oficial completa; el SvelteKit de Svelte 5 es reciente",
+    "hiring_pool": "bajo a medio: Svelte lo usa el 6,9 % de los desarrolladores profesionales (Stack Overflow 2025); SvelteKit no aparece en la encuesta",
+    "hosting_fit": "containers, PaaS, serverless"
+  },
+  "sources": {
+    "performance": [
+      "https://svelte.dev/docs/kit/introduction"
+    ],
+    "memory_footprint": [
+      "https://svelte.dev/docs/kit/adapters"
+    ],
+    "cold_start": [
+      "https://svelte.dev/docs/kit/adapters"
+    ],
+    "concurrency_model": [
+      "https://svelte.dev/docs/kit/adapters"
+    ],
+    "typing": [
+      "https://svelte.dev/docs/kit/routing"
+    ],
+    "productivity": [
+      "https://svelte.dev/docs/kit/routing"
+    ],
+    "learning_curve": [
+      "https://svelte.dev/docs/kit/introduction"
+    ],
+    "maintainability": [
+      "https://svelte.dev/docs/kit/project-structure"
+    ],
+    "ecosystem_maturity": [
+      "https://svelte.dev/docs/kit/adapters"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://svelte.dev/docs/kit/adapters"
+    ]
+  },
+  "supported_services": {
+    "postgresql": {
+      "driver": "pg",
+      "url": "postgresql://app:app_local_only@127.0.0.1:5432/app"
+    },
+    "mysql": {
+      "driver": "mysql2",
+      "url": "mysql://app:app_local_only@127.0.0.1:3306/app"
+    },
+    "mariadb": {
+      "driver": "mariadb",
+      "url": "mariadb://app:app_local_only@127.0.0.1:3306/app"
+    },
+    "mongodb": {
+      "driver": "mongodb",
+      "url": "mongodb://app:app_local_only@127.0.0.1:27017/app?authSource=admin"
+    },
+    "redis": {
+      "driver": "redis",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "valkey": {
+      "driver": "iovalkey",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "rabbitmq": {
+      "driver": "amqplib",
+      "url": "amqp://app:app_local_only@127.0.0.1:5672/"
+    },
+    "kafka": {
+      "driver": "kafkajs",
+      "url": "localhost:9092"
+    }
+  },
+  "default_topology": "fullstack-separated"
+}

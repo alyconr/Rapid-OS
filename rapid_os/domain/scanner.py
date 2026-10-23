@@ -138,15 +138,20 @@ class InitSuggestion:
 class InitSuggestions:
     stack: InitSuggestion | None = None
     topology: InitSuggestion | None = None
+    # The stack suggested for each component (`frontend`, `backend`, `docs`); `stack` is the first.
+    stacks: "dict[str, InitSuggestion] | None" = None
 
     def has_any(self):
         return self.stack is not None or self.topology is not None
 
     def to_dict(self):
-        return {
+        data = {
             "stack": self.stack.to_dict() if self.stack else None,
             "topology": self.topology.to_dict() if self.topology else None,
         }
+        if self.stacks:
+            data["stacks"] = {component: item.to_dict() for component, item in self.stacks.items()}
+        return data
 
 
 def build_project_model(project_dir: Path) -> ProjectModel:
@@ -174,6 +179,7 @@ def _run_detectors(files, root: Path, package_manifests) -> list[ProjectFact]:
     facts: list[ProjectFact] = []
     facts.extend(_detect_languages(files, root, package_manifests))
     facts.extend(_detect_frameworks(files, root, package_manifests, text_cache))
+    facts.extend(_detect_ecosystems(files, root, text_cache))
     facts.extend(_detect_package_managers(files, root))
     facts.extend(_detect_docker(files, root))
     facts.extend(_detect_testing(files, root, package_manifests))
@@ -184,89 +190,120 @@ def _run_detectors(files, root: Path, package_manifests) -> list[ProjectFact]:
 
 
 def suggest_init_choices(scan: ProjectModel | ProjectScan) -> InitSuggestions:
+    """The stack of each component the repository points at, and the topology that follows from them.
+
+    Only unambiguous evidence suggests: two backends (or two frontends) in one repository suggest
+    nothing for that component, and a documentation site is never mixed with an application."""
     model = scan.to_model() if isinstance(scan, ProjectScan) else scan
-    framework_values = set(model.values("framework"))
-    language_values = set(model.values("language"))
+    frameworks = set(model.values("framework"))
+    languages = set(model.values("language"))
     database_values = set(model.values("database"))
 
-    app_frameworks = framework_values & {
-        "docusaurus",
-        "nextjs",
-        "fastapi",
-    }
-    has_conflict = len(app_frameworks) > 1
+    def suggestion(stack_id, confidence, reason, category, value):
+        return InitSuggestion("stack", stack_id, confidence, reason, _first_evidence(model, category, value))
 
-    stack = None
+    app_frameworks = frameworks & {"docusaurus", "nextjs", "fastapi", "django"}
+    has_conflict = len(app_frameworks) > 1
+    stacks: dict[str, InitSuggestion] = {}
     topology = None
 
-    if not has_conflict and model.has("framework", "docusaurus"):
-        evidence = _first_evidence(model, "framework", "docusaurus")
-        stack = InitSuggestion(
-            "stack",
-            "docs-modern",
-            Confidence.HIGH,
-            "Docusaurus project detected.",
-            evidence,
-        )
-        topology = InitSuggestion(
-            "topology",
-            "doc-site",
-            Confidence.HIGH,
-            "Docusaurus projects match the doc-site topology.",
-            evidence,
-        )
-    elif not has_conflict and model.has("framework", "nextjs"):
-        evidence = _first_evidence(model, "framework", "nextjs")
-        stack = InitSuggestion(
-            "stack",
-            "web-modern",
-            Confidence.HIGH,
-            "Next.js project detected.",
-            evidence,
-        )
-        if "supabase" in database_values:
+    if model.has("framework", "docusaurus"):
+        if not has_conflict:
+            evidence = _first_evidence(model, "framework", "docusaurus")
+            stacks["docs"] = InitSuggestion("stack", "docs-modern", Confidence.HIGH, "Docusaurus project detected.", evidence)
             topology = InitSuggestion(
-                "topology",
-                "fullstack-baas",
-                Confidence.MEDIUM,
-                "Next.js and Supabase hints were detected.",
-                evidence + _first_evidence(model, "database", "supabase"),
+                "topology", "doc-site", Confidence.HIGH, "Docusaurus projects match the doc-site topology.", evidence
             )
-    elif not has_conflict and model.has("framework", "fastapi"):
-        evidence = _first_evidence(model, "framework", "fastapi")
-        if "python" in language_values:
-            stack = InitSuggestion(
-                "stack",
-                "python-ai",
-                Confidence.HIGH,
-                "Python and FastAPI project detected.",
-                evidence,
-            )
-            topology = InitSuggestion(
-                "topology",
-                "fullstack-separated",
-                Confidence.MEDIUM,
-                "FastAPI usually acts as a separate backend service.",
-                evidence,
-            )
-    elif not has_conflict and _has_node_ai_hints(model):
+        return InitSuggestions(stack=stacks.get("docs"), topology=topology, stacks=stacks or None)
+    if has_conflict:
+        return InitSuggestions()
+
+    # --- backend: one candidate or none
+    backends: list[tuple[str, InitSuggestion]] = []
+    if "fastapi" in frameworks and "python" in languages:
+        backends.append(("python-fastapi", suggestion("python-fastapi", Confidence.HIGH, "Python and FastAPI project detected.", "framework", "fastapi")))
+    if "django" in frameworks and "python" in languages:
+        backends.append(("python-django", suggestion("python-django", Confidence.HIGH, "Python and Django project detected.", "framework", "django")))
+    if "nestjs" in frameworks:
+        backends.append(("node-nestjs", suggestion("node-nestjs", Confidence.HIGH, "NestJS project detected.", "framework", "nestjs")))
+    if "fastify" in frameworks:
+        backends.append(("node-fastify", suggestion("node-fastify", Confidence.HIGH, "Fastify project detected.", "framework", "fastify")))
+    if "go" in languages:
+        backends.append(("go", suggestion("go", Confidence.HIGH, "Go module detected.", "language", "go")))
+    if "axum" in frameworks:
+        backends.append(("rust-axum", suggestion("rust-axum", Confidence.HIGH, "Rust and Axum project detected.", "framework", "axum")))
+    if "rails" in frameworks:
+        backends.append(("ruby-rails", suggestion("ruby-rails", Confidence.HIGH, "Ruby on Rails project detected.", "framework", "rails")))
+    if "aspnetcore" in frameworks:
+        backends.append(("dotnet-aspnetcore", suggestion("dotnet-aspnetcore", Confidence.HIGH, "ASP.NET Core project detected.", "framework", "aspnetcore")))
+    if "spring-boot" in frameworks:
+        stack_id = "kotlin-spring-boot" if "kotlin" in languages else "java-spring-boot"
+        backends.append((stack_id, suggestion(stack_id, Confidence.HIGH, "Spring Boot project detected.", "framework", "spring-boot")))
+    if "laravel" in frameworks:
+        backends.append(("php-laravel", suggestion("php-laravel", Confidence.HIGH, "Laravel project detected.", "framework", "laravel")))
+    if not backends and _has_node_ai_hints(model):
         evidence = (
             _first_evidence(model, "framework", "langchain")
             or _first_evidence(model, "framework", "langgraph")
             or _first_evidence(model, "framework", "crewai")
         )
-        stack = InitSuggestion(
-            "stack",
-            "nodejs-ai",
+        backends.append(
+            ("node-fastify", InitSuggestion("stack", "node-fastify", Confidence.MEDIUM, "Node.js AI framework hints were detected.", evidence))
+        )
+
+    # --- frontend: one candidate or none (Next.js, Nuxt and SvelteKit also host the backend)
+    frontends: list[tuple[str, InitSuggestion]] = []
+    if "nextjs" in frameworks:
+        frontends.append(("nextjs", suggestion("nextjs", Confidence.HIGH, "Next.js project detected.", "framework", "nextjs")))
+    elif "nuxt" in frameworks:
+        frontends.append(("nuxt", suggestion("nuxt", Confidence.HIGH, "Nuxt project detected.", "framework", "nuxt")))
+    elif "sveltekit" in frameworks:
+        frontends.append(("sveltekit", suggestion("sveltekit", Confidence.HIGH, "SvelteKit project detected.", "framework", "sveltekit")))
+    elif "angular" in frameworks:
+        frontends.append(("angular", suggestion("angular", Confidence.HIGH, "Angular project detected.", "framework", "angular")))
+    elif "astro" in frameworks:
+        frontends.append(("astro", suggestion("astro", Confidence.HIGH, "Astro project detected.", "framework", "astro")))
+    elif "vue" in frameworks:
+        frontends.append(("vue-vite", suggestion("vue-vite", Confidence.MEDIUM, "Vue project detected.", "framework", "vue")))
+    elif "svelte" in frameworks:
+        frontends.append(("svelte-vite", suggestion("svelte-vite", Confidence.MEDIUM, "Svelte project detected.", "framework", "svelte")))
+    elif "react" in frameworks and "vite" in frameworks:
+        frontends.append(("react-vite", suggestion("react-vite", Confidence.MEDIUM, "React and Vite project detected.", "framework", "react")))
+
+    if len(backends) == 1:
+        stacks["backend"] = backends[0][1]
+    if len(frontends) == 1:
+        stacks["frontend"] = frontends[0][1]
+        if frontends[0][0] in ("nextjs", "nuxt", "sveltekit") and "backend" not in stacks:
+            stacks["backend"] = frontends[0][1]
+
+    if "nextjs" in frameworks and "supabase" in database_values:
+        evidence = _first_evidence(model, "framework", "nextjs")
+        topology = InitSuggestion(
+            "topology",
+            "fullstack-baas",
             Confidence.MEDIUM,
-            "Node.js AI framework hints were detected.",
-            evidence,
+            "Next.js and Supabase hints were detected.",
+            evidence + _first_evidence(model, "database", "supabase"),
         )
-    elif not has_conflict and _has_frontend_without_backend(model):
-        evidence = (
-            _first_evidence(model, "framework", "react")
-            or _first_evidence(model, "framework", "vite")
+    elif "backend" in stacks and "frontend" in stacks and stacks["backend"].value != stacks["frontend"].value:
+        topology = InitSuggestion(
+            "topology",
+            "fullstack-separated",
+            Confidence.MEDIUM,
+            "A frontend and a backend were detected.",
+            stacks["backend"].evidence,
         )
+    elif "backend" in stacks and "frontend" not in stacks:
+        topology = InitSuggestion(
+            "topology",
+            "fullstack-separated",
+            Confidence.MEDIUM,
+            "A backend usually acts as a separate service.",
+            stacks["backend"].evidence,
+        )
+    elif "backend" not in stacks and _has_frontend_without_backend(model):
+        evidence = _first_evidence(model, "framework", "react") or _first_evidence(model, "framework", "vite")
         topology = InitSuggestion(
             "topology",
             "front-end-only",
@@ -275,7 +312,8 @@ def suggest_init_choices(scan: ProjectModel | ProjectScan) -> InitSuggestions:
             evidence,
         )
 
-    return InitSuggestions(stack=stack, topology=topology)
+    primary = stacks.get("backend") or stacks.get("frontend") or stacks.get("docs")
+    return InitSuggestions(stack=primary, topology=topology, stacks=stacks or None)
 
 
 def _collect_files(root: Path):
@@ -473,6 +511,14 @@ def _detect_frameworks(files, root, package_manifests, text_cache):
             "@langchain/langgraph": "langgraph",
             "langgraph": "langgraph",
             "crewai": "crewai",
+            "vue": "vue",
+            "nuxt": "nuxt",
+            "svelte": "svelte",
+            "@sveltejs/kit": "sveltekit",
+            "astro": "astro",
+            "@angular/core": "angular",
+            "@nestjs/core": "nestjs",
+            "fastify": "fastify",
         }
         for dependency, framework in dependency_map.items():
             if dependency in dependencies:
@@ -508,7 +554,7 @@ def _detect_frameworks(files, root, package_manifests, text_cache):
 
     for path in _python_manifest_files(files):
         content = _read_text(path, text_cache).lower()
-        for framework in ("fastapi", "langchain", "langgraph", "crewai"):
+        for framework in ("fastapi", "django", "langchain", "langgraph", "crewai"):
             if framework in content:
                 facts.append(
                     _fact(
@@ -521,6 +567,52 @@ def _detect_frameworks(files, root, package_manifests, text_cache):
                     )
                 )
 
+    return facts
+
+
+def _detect_ecosystems(files, root, text_cache):
+    """Languages and frameworks of the other ecosystems, read from their manifests (never run)."""
+    facts = []
+
+    def add(category, value, confidence, path, reason, source_type=SourceType.MANIFEST):
+        facts.append(_fact(category, value, confidence, path, reason, source_type=source_type))
+
+    for path in files:
+        name = path.name
+        lowered = name.lower()
+        if name == "angular.json":
+            add("framework", "angular", Confidence.HIGH, path, name, SourceType.CONFIG)
+        elif name == "Gemfile":
+            add("language", "ruby", Confidence.HIGH, path, name)
+            if re.search(r"^\s*gem\s+['\"]rails['\"]", _read_text(path, text_cache), re.MULTILINE):
+                add("framework", "rails", Confidence.HIGH, path, "rails gem", SourceType.DEPENDENCY)
+        elif name == "composer.json":
+            add("language", "php", Confidence.HIGH, path, name)
+            if "laravel/framework" in _read_text(path, text_cache):
+                add("framework", "laravel", Confidence.HIGH, path, "laravel/framework dependency", SourceType.DEPENDENCY)
+        elif lowered.endswith(".csproj"):
+            add("language", "csharp", Confidence.HIGH, path, name)
+            content = _read_text(path, text_cache)
+            if "Microsoft.NET.Sdk.Web" in content or "Microsoft.AspNetCore" in content:
+                add("framework", "aspnetcore", Confidence.HIGH, path, "ASP.NET Core project", SourceType.DEPENDENCY)
+        elif name in ("pom.xml", "build.gradle", "build.gradle.kts"):
+            content = _read_text(path, text_cache)
+            kotlin = name == "build.gradle.kts" or "kotlin" in content.lower()
+            add("language", "kotlin" if kotlin and "kotlin" in content.lower() else "java", Confidence.HIGH, path, name)
+            if "spring-boot" in content or "org.springframework.boot" in content:
+                add("framework", "spring-boot", Confidence.HIGH, path, "spring-boot dependency", SourceType.DEPENDENCY)
+        elif name == "Cargo.toml":
+            if re.search(r"^\s*axum\s*=", _read_text(path, text_cache), re.MULTILINE):
+                add("framework", "axum", Confidence.HIGH, path, "axum dependency", SourceType.DEPENDENCY)
+        elif name == "manage.py":
+            if "django" in _read_text(path, text_cache).lower():
+                add("framework", "django", Confidence.MEDIUM, path, "manage.py", SourceType.FILE)
+        elif _matches_config(name, "nuxt.config"):
+            add("framework", "nuxt", Confidence.HIGH, path, name, SourceType.CONFIG)
+        elif _matches_config(name, "svelte.config"):
+            add("framework", "svelte", Confidence.MEDIUM, path, name, SourceType.CONFIG)
+        elif _matches_config(name, "astro.config"):
+            add("framework", "astro", Confidence.HIGH, path, name, SourceType.CONFIG)
     return facts
 
 
@@ -1043,6 +1135,7 @@ SOURCE_SUFFIXES = frozenset(
         ".py", ".pyi", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".vue", ".svelte",
         ".go", ".rs", ".java", ".kt", ".kts", ".scala", ".cs", ".rb", ".php", ".swift",
         ".c", ".cc", ".cpp", ".h", ".hpp", ".m", ".mm", ".lua", ".dart", ".ex", ".exs", ".clj", ".sh",
+        ".astro",
     }
 )
 

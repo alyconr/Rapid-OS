@@ -8,5 +8,9 @@
   ],
   "avoid_if": [
     "a small team that wants a single deployable"
+  ],
+  "components": [
+    "frontend",
+    "backend"
   ]
 }

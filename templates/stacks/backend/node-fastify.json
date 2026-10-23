@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "id": "node-fastify",
+  "component": "backend",
+  "covers": [
+    "backend"
+  ],
+  "summary": "API en TypeScript con Fastify: núcleo pequeño, plugins encapsulados y validación con JSON Schema.",
+  "language": "TypeScript",
+  "fits": [
+    "APIs de alto rendimiento y poca configuración",
+    "servicios de agentes de IA en TypeScript (con ai=yes)",
+    "equipos que prefieren un núcleo mínimo"
+  ],
+  "avoid_if": [
+    "el equipo quiere una estructura impuesta por el framework",
+    "el equipo no usa TypeScript",
+    "un sitio de documentación es el objetivo"
+  ],
+  "suggested_services": [
+    "database:postgresql"
+  ],
+  "package_manager": "pnpm",
+  "default_test_command": [
+    "pnpm",
+    "test"
+  ],
+  "architecture": "node-fastify",
+  "factors": {
+    "performance": "medio a alto en E/S: Node.js (V8); la documentación destaca una serialización 2-3 veces más rápida con JSON Schema",
+    "memory_footprint": "medio: proceso Node.js con un núcleo pequeño",
+    "cold_start": "bajo a medio: la documentación incluye guías para Lambda, Cloud Run y Vercel",
+    "concurrency_model": "bucle de eventos de un hilo con E/S asíncrona; worker threads para CPU",
+    "typing": "TypeScript soportado con type providers (TypeBox, json-schema-to-ts)",
+    "productivity": "medio: ofrece lo esencial y el resto se compone con plugins",
+    "learning_curve": "media: plugins, encapsulación y JSON Schema",
+    "maintainability": "alta: cada plugin crea su propio ámbito y forma un grafo de dependencias",
+    "ecosystem_maturity": "medio: plugins oficiales para PostgreSQL, MySQL, Redis y MongoDB; más joven que Express",
+    "hiring_pool": "medio: TypeScript lo usa el 48,8 % de los desarrolladores profesionales y Fastify el 3,1 % (Stack Overflow 2025)",
+    "hosting_fit": "containers, PaaS, serverless"
+  },
+  "sources": {
+    "performance": [
+      "https://fastify.dev/docs/latest/Guides/Getting-Started/"
+    ],
+    "memory_footprint": [
+      "https://fastify.dev/docs/latest/"
+    ],
+    "cold_start": [
+      "https://fastify.dev/docs/latest/Guides/Serverless/"
+    ],
+    "concurrency_model": [
+      "https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick"
+    ],
+    "typing": [
+      "https://fastify.dev/docs/latest/Reference/TypeScript/"
+    ],
+    "productivity": [
+      "https://fastify.dev/docs/latest/Guides/Getting-Started/"
+    ],
+    "learning_curve": [
+      "https://fastify.dev/docs/latest/Reference/Plugins/"
+    ],
+    "maintainability": [
+      "https://fastify.dev/docs/latest/Reference/Plugins/"
+    ],
+    "ecosystem_maturity": [
+      "https://fastify.dev/docs/latest/Guides/Database/",
+      "https://fastify.dev/docs/latest/Reference/LTS/"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://fastify.dev/docs/latest/Guides/Serverless/"
+    ]
+  },
+  "supported_services": {
+    "postgresql": {
+      "driver": "pg",
+      "url": "postgresql://app:app_local_only@127.0.0.1:5432/app"
+    },
+    "mysql": {
+      "driver": "mysql2",
+      "url": "mysql://app:app_local_only@127.0.0.1:3306/app"
+    },
+    "mariadb": {
+      "driver": "mariadb",
+      "url": "mariadb://app:app_local_only@127.0.0.1:3306/app"
+    },
+    "mongodb": {
+      "driver": "mongodb",
+      "url": "mongodb://app:app_local_only@127.0.0.1:27017/app?authSource=admin"
+    },
+    "redis": {
+      "driver": "redis",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "valkey": {
+      "driver": "iovalkey",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "rabbitmq": {
+      "driver": "amqplib",
+      "url": "amqp://app:app_local_only@127.0.0.1:5672/"
+    },
+    "kafka": {
+      "driver": "kafkajs",
+      "url": "localhost:9092"
+    }
+  }
+}

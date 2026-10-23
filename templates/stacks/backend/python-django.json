@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "id": "python-django",
+  "component": "backend",
+  "covers": [
+    "backend",
+    "frontend"
+  ],
+  "summary": "Aplicación web o API en Python con Django: ORM, migraciones y administración incluidos.",
+  "language": "Python",
+  "fits": [
+    "productos con modelo de datos relacional y administración",
+    "monolitos con plantillas de servidor (cubre frontend y backend)",
+    "equipos que ya dominan Python"
+  ],
+  "avoid_if": [
+    "se necesita concurrencia asíncrona de E/S como eje del producto",
+    "el equipo no usa Python",
+    "un sitio de documentación es el objetivo"
+  ],
+  "suggested_services": [
+    "database:postgresql"
+  ],
+  "package_manager": "pip",
+  "default_test_command": [
+    "python",
+    "manage.py",
+    "test"
+  ],
+  "architecture": "python-django",
+  "factors": {
+    "performance": "medio: CPython interpretado; WSGI por defecto y ASGI disponible",
+    "memory_footprint": "medio: un proceso CPython por worker con el framework cargado",
+    "cold_start": "medio: arranque del intérprete e importación de apps y modelos",
+    "concurrency_model": "WSGI por defecto (PEP 3333); soporta ASGI; el GIL de CPython limita el paralelismo de CPU dentro de un proceso",
+    "typing": "Python dinámico con anotaciones opcionales; los modelos se declaran como atributos de clase",
+    "productivity": "alto: ORM, migraciones, formularios y administración incluidos",
+    "learning_curve": "media: muchas piezas incluidas que aprender, con documentación extensa",
+    "maintainability": "alta con apps por capacidad y convenciones del framework",
+    "ecosystem_maturity": "alto: Django tiene versiones LTS y una política de soporte publicada",
+    "hiring_pool": "alto: Python lo usa el 54,8 % de los desarrolladores profesionales y Django el 11,7 % (Stack Overflow 2025)",
+    "hosting_fit": "containers, PaaS"
+  },
+  "sources": {
+    "performance": [
+      "https://docs.djangoproject.com/en/stable/faq/install/"
+    ],
+    "memory_footprint": [
+      "https://docs.djangoproject.com/en/stable/faq/install/"
+    ],
+    "cold_start": [
+      "https://docs.djangoproject.com/en/stable/faq/install/"
+    ],
+    "concurrency_model": [
+      "https://docs.djangoproject.com/en/stable/faq/install/",
+      "https://docs.python.org/3/glossary.html#term-global-interpreter-lock"
+    ],
+    "typing": [
+      "https://docs.djangoproject.com/en/stable/topics/db/models/"
+    ],
+    "productivity": [
+      "https://docs.djangoproject.com/en/stable/topics/db/models/"
+    ],
+    "learning_curve": [
+      "https://www.djangoproject.com/download/"
+    ],
+    "maintainability": [
+      "https://docs.djangoproject.com/en/stable/intro/reusable-apps/"
+    ],
+    "ecosystem_maturity": [
+      "https://www.djangoproject.com/download/"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://docs.djangoproject.com/en/stable/faq/install/"
+    ]
+  },
+  "supported_services": {
+    "postgresql": {
+      "driver": "psycopg",
+      "url": "postgresql://app:app_local_only@127.0.0.1:5432/app"
+    },
+    "mysql": {
+      "driver": "mysqlclient",
+      "url": "mysql://app:app_local_only@127.0.0.1:3306/app"
+    },
+    "mariadb": {
+      "driver": "mysqlclient",
+      "url": "mariadb://app:app_local_only@127.0.0.1:3306/app"
+    },
+    "mongodb": {
+      "driver": "django-mongodb-backend",
+      "url": "mongodb://app:app_local_only@127.0.0.1:27017/app?authSource=admin"
+    }
+  }
+}

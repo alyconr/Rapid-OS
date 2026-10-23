@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "id": "svelte-vite",
+  "component": "frontend",
+  "covers": [
+    "frontend"
+  ],
+  "summary": "Aplicación de una sola página en Svelte 5 con Vite y TypeScript.",
+  "language": "TypeScript",
+  "fits": [
+    "interfaces ligeras y rápidas de cargar",
+    "equipos que prefieren menos código repetitivo en los componentes",
+    "aplicaciones servidas como archivos estáticos"
+  ],
+  "avoid_if": [
+    "el SEO o el renderizado en servidor son requisitos desde el inicio (usa SvelteKit)",
+    "se quiere un backend en la misma aplicación",
+    "un sitio de documentación es el objetivo"
+  ],
+  "suggested_services": [],
+  "package_manager": "pnpm",
+  "default_test_command": [
+    "pnpm",
+    "exec",
+    "vitest",
+    "run"
+  ],
+  "architecture": "svelte-vite",
+  "factors": {
+    "performance": "alto: el compilador convierte los componentes en JavaScript ajustado y reduce el código del framework en el navegador",
+    "memory_footprint": "bajo a medio: sin DOM virtual; el compilador genera actualizaciones directas",
+    "cold_start": "bajo en el servidor (archivos estáticos); bundle pequeño",
+    "concurrency_model": "hilo principal del navegador con trabajo asíncrono mediante promesas",
+    "typing": "TypeScript con <script lang=\"ts\">",
+    "productivity": "alto: sintaxis concisa con runes y Vitest recomendado",
+    "learning_curve": "baja a media: sintaxis cercana a HTML y runes de Svelte 5",
+    "maintainability": "media: no hay estructura oficial para un proyecto Vite; la regla de features de Rapid OS aporta los límites",
+    "ecosystem_maturity": "medio: Svelte 5 con documentación y pruebas oficiales; ecosistema menor que React o Vue",
+    "hiring_pool": "bajo a medio: Svelte lo usa el 6,9 % de los desarrolladores profesionales (Stack Overflow 2025)",
+    "hosting_fit": "serverless, PaaS"
+  },
+  "sources": {
+    "performance": [
+      "https://svelte.dev/docs/svelte/overview"
+    ],
+    "memory_footprint": [
+      "https://svelte.dev/docs/svelte/overview"
+    ],
+    "cold_start": [
+      "https://svelte.dev/docs/svelte/getting-started"
+    ],
+    "concurrency_model": [
+      "https://svelte.dev/docs/svelte/overview"
+    ],
+    "typing": [
+      "https://svelte.dev/docs/svelte/overview"
+    ],
+    "productivity": [
+      "https://svelte.dev/docs/svelte/getting-started",
+      "https://svelte.dev/docs/svelte/testing"
+    ],
+    "learning_curve": [
+      "https://svelte.dev/docs/svelte/overview"
+    ],
+    "maintainability": [
+      "https://svelte.dev/docs/svelte/getting-started"
+    ],
+    "ecosystem_maturity": [
+      "https://svelte.dev/docs/svelte/testing"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://svelte.dev/docs/svelte/getting-started"
+    ]
+  },
+  "supported_services": {},
+  "service_roles": []
+}

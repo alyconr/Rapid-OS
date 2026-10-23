@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "id": "node-nestjs",
+  "component": "backend",
+  "covers": [
+    "backend"
+  ],
+  "summary": "API en TypeScript con NestJS: módulos, inyección de dependencias y decoradores.",
+  "language": "TypeScript",
+  "fits": [
+    "APIs grandes con equipos que valoran una estructura impuesta por el framework",
+    "equipos con experiencia en Angular",
+    "monolitos modulares en TypeScript"
+  ],
+  "avoid_if": [
+    "el equipo prefiere pocas abstracciones y arranque mínimo",
+    "el equipo no usa TypeScript",
+    "un sitio de documentación es el objetivo"
+  ],
+  "suggested_services": [
+    "database:postgresql"
+  ],
+  "package_manager": "pnpm",
+  "default_test_command": [
+    "pnpm",
+    "test"
+  ],
+  "architecture": "node-nestjs",
+  "factors": {
+    "performance": "medio a alto en E/S: Node.js (V8) con Express por defecto o Fastify opcional",
+    "memory_footprint": "medio: proceso Node.js con el contenedor de inyección de dependencias cargado",
+    "cold_start": "medio: la documentación aconseja empaquetar con webpack y cargar módulos de forma perezosa en serverless",
+    "concurrency_model": "bucle de eventos de un hilo con E/S asíncrona; worker threads para CPU",
+    "typing": "TypeScript de primera clase; los proyectos nuevos activan el modo estricto",
+    "productivity": "alto: CLI, módulos, pipes de validación y pruebas integrados",
+    "learning_curve": "media: decoradores, módulos e inyección de dependencias",
+    "maintainability": "alta: un módulo encapsula sus providers y solo exporta su API pública",
+    "ecosystem_maturity": "alto: Node.js y npm; integraciones oficiales con TypeORM, Drizzle, Mongoose y otros",
+    "hiring_pool": "medio: TypeScript lo usa el 48,8 % de los desarrolladores profesionales y NestJS el 7,4 % (Stack Overflow 2025)",
+    "hosting_fit": "containers, PaaS, serverless"
+  },
+  "sources": {
+    "performance": [
+      "https://docs.nestjs.com/"
+    ],
+    "memory_footprint": [
+      "https://docs.nestjs.com/"
+    ],
+    "cold_start": [
+      "https://docs.nestjs.com/faq/serverless"
+    ],
+    "concurrency_model": [
+      "https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick"
+    ],
+    "typing": [
+      "https://docs.nestjs.com/",
+      "https://docs.nestjs.com/first-steps"
+    ],
+    "productivity": [
+      "https://docs.nestjs.com/first-steps"
+    ],
+    "learning_curve": [
+      "https://docs.nestjs.com/modules"
+    ],
+    "maintainability": [
+      "https://docs.nestjs.com/modules"
+    ],
+    "ecosystem_maturity": [
+      "https://docs.nestjs.com/techniques/database"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://docs.nestjs.com/faq/serverless"
+    ]
+  },
+  "supported_services": {
+    "postgresql": {
+      "driver": "pg",
+      "url": "postgresql://app:app_local_only@127.0.0.1:5432/app"
+    },
+    "mysql": {
+      "driver": "mysql2",
+      "url": "mysql://app:app_local_only@127.0.0.1:3306/app"
+    },
+    "mariadb": {
+      "driver": "mariadb",
+      "url": "mariadb://app:app_local_only@127.0.0.1:3306/app"
+    },
+    "mongodb": {
+      "driver": "mongodb",
+      "url": "mongodb://app:app_local_only@127.0.0.1:27017/app?authSource=admin"
+    },
+    "redis": {
+      "driver": "redis",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "valkey": {
+      "driver": "iovalkey",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "rabbitmq": {
+      "driver": "amqplib",
+      "url": "amqp://app:app_local_only@127.0.0.1:5672/"
+    },
+    "kafka": {
+      "driver": "kafkajs",
+      "url": "localhost:9092"
+    }
+  }
+}

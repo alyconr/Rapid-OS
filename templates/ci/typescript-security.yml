@@ -12,6 +12,7 @@ permissions:
   contents: read
 
 jobs:
+# if primary
   secrets:
     name: Secretos (gitleaks)
     runs-on: ubuntu-latest
@@ -27,6 +28,7 @@ jobs:
           tar -xzf gitleaks.tar.gz gitleaks
       - name: Buscar secretos en el historial
         run: ./gitleaks git --redact --verbose --exit-code 1
+# endif
 
   static:
     name: Análisis estático (semgrep OWASP Top 10)

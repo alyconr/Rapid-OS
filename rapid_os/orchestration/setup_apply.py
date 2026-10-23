@@ -48,14 +48,18 @@ from rapid_os.domain.services import (
 from rapid_os.domain.security import (
     CI_WORKFLOW_PATH,
     ci_language,
+    ci_languages,
+    ci_workflow_path,
     effective_ai,
     has_api,
     is_ai_stack,
     render_ci_workflow,
     render_security_standard,
 )
-from rapid_os.domain.architecture import default_config as default_architecture_config
+from rapid_os.domain.architecture import architecture_document, render_architecture_markdown, rules_for
+from rapid_os.domain.stack_aliases import LEGACY_STACKS
 from rapid_os.domain.catalog import (
+    COMPONENTS,
     CUSTOM_STACK_ID,
     DOC_SITE_TOPOLOGY,
     GENERIC_STACK_ID,
@@ -80,7 +84,15 @@ from rapid_os.domain.project_docs import (
 )
 from rapid_os.orchestration.git import run_git
 from rapid_os.orchestration.session import git_trust_command, git_work_tree_state
-from rapid_os.domain.setup import ARCHETYPES, DocState, SetupAction, SetupActionKind, SetupState, StackChoice
+from rapid_os.domain.setup import (
+    ARCHETYPES,
+    STACK_COMPONENTS,
+    DocState,
+    SetupAction,
+    SetupActionKind,
+    SetupState,
+    StackChoice,
+)
 
 DECISION_KEYS = ("stack", "topology", "archetype", "ai", "services", "agents", "test-command")
 NO_TEST_COMMAND = "none"
@@ -136,12 +148,68 @@ def _identifier(value: str, label: str) -> str:
         raise _fail("RAPID1413", str(exc)) from exc
 
 
+@dataclass(frozen=True)
+class StackResolution:
+    """What `rapid setup set stack <id> [--component c]` fills: the stack of each component it covers."""
+
+    stacks: dict[str, StackChoice]
+    ai: bool = False
+    notes: tuple[str, ...] = ()
+
+
+def resolve_stack(
+    stack_id: str, catalog: Catalog, *, component: str | None = None, topology: str | None = None
+) -> StackResolution:
+    """The components a stack id fills. A stack id of before the component catalog (`python-api`,
+    `web-modern`...) maps to the stacks that replace it; `--component` restricts a stack that covers
+    several components to one of them."""
+    # A Markdown template without a sidecar is a stack of its own, even when its name is an old id.
+    legacy = LEGACY_STACKS.get(stack_id) if stack_id not in catalog.sidecarless_stacks else None
+    if legacy is not None:
+        stacks = {
+            c: StackChoice(sid, "catalog", legacy.profile if c == "frontend" else None)
+            for c, sid in legacy.stacks.items()
+        }
+        covers = tuple(stacks)
+        notes = (f"'{stack_id}' is a stack id of before the component catalog: it maps to {', '.join(f'{c} {s.id}' for c, s in stacks.items())}.",)
+    elif stack_id == CUSTOM_STACK_ID:
+        raise _fail(
+            "RAPID1413",
+            "The 'custom' stack comes from your own file: use 'rapid setup stack --custom --file -'.",
+        )
+    else:
+        entry = catalog.stacks.get(stack_id)
+        if entry is not None:
+            source = "generic" if stack_id == GENERIC_STACK_ID else "catalog"
+            covers = entry.covers or ((entry.component,) if entry.component else COMPONENTS)
+        elif stack_id in catalog.sidecarless_stacks:
+            source, covers = "custom", COMPONENTS
+        else:
+            known = sorted({*catalog.stacks, *catalog.sidecarless_stacks})
+            raise _fail("RAPID1413", f"Unknown stack '{stack_id}'. Known stacks: {', '.join(known)}.")
+        stacks = {c: StackChoice(stack_id, source) for c in covers}
+        notes = ()
+    if component is not None:
+        if component not in COMPONENTS:
+            raise _fail("RAPID1413", f"Unknown component '{component}'. Use one of: {', '.join(COMPONENTS)}.")
+        if component not in stacks:
+            raise _fail(
+                "RAPID1413",
+                f"Stack '{stack_id}' cannot fill the component '{component}'; it fills: {', '.join(covers)}.",
+            )
+        return StackResolution({component: stacks[component]}, bool(legacy and legacy.ai), notes)
+    wanted = catalog.components_of(topology)
+    fills = tuple(c for c in covers if c in wanted) or tuple(covers)
+    return StackResolution({c: stacks[c] for c in fills}, bool(legacy and legacy.ai), notes)
+
+
 def set_decision(
     state: SetupState,
     key: str,
     value: str | None,
     catalog: Catalog,
     agent_ids: Sequence[str],
+    component: str | None = None,
 ) -> tuple[SetupState, tuple[str, ...]]:
     """Apply `rapid setup set <key> <value>` to the state. Returns the new state and notes."""
     if key not in DECISION_KEYS:
@@ -151,37 +219,34 @@ def set_decision(
     value = value.strip()
     notes: list[str] = []
 
+    if component is not None and key != "stack":
+        raise _fail("RAPID1413", "--component only goes with 'rapid setup set stack <id>'.")
+
     if key == "stack":
         stack_id = _identifier(value, "stack")
-        if stack_id == CUSTOM_STACK_ID:
-            raise _fail(
-                "RAPID1413",
-                "The 'custom' stack comes from your own file: use 'rapid setup stack --custom --file -'.",
-            )
-        if stack_id in catalog.stacks:
-            source = "generic" if stack_id == GENERIC_STACK_ID else "catalog"
-        elif stack_id in catalog.sidecarless_stacks:
-            source = "custom"
-        else:
-            known = sorted({*catalog.stacks, *catalog.sidecarless_stacks})
-            raise _fail("RAPID1413", f"Unknown stack '{stack_id}'. Known stacks: {', '.join(known)}.")
+        resolution = resolve_stack(stack_id, catalog, component=component, topology=state.topology)
+        stacks = {**state.stacks, **resolution.stacks}
+        notes.extend(resolution.notes)
         topology = state.topology
-        if topology is not None and topology not in allowed_topologies(catalog, stack_id):
-            notes.append(
-                f"Topology '{topology}' does not fit stack '{stack_id}'; it is undecided again."
-            )
+        ids = {choice.id for choice in stacks.values()}
+        if topology is not None and not all(topology in allowed_topologies(catalog, sid) for sid in ids):
+            notes.append(f"Topology '{topology}' does not fit stack '{stack_id}'; it is undecided again.")
             topology = None
+        updated = replace(
+            state,
+            stacks=stacks,
+            topology=topology,
+            ai=True if resolution.ai else state.ai,
+            finished=False,
+        )
         services = state.services
         if services:
             try:
-                check_stack_compatibility(services, stack_id, catalog)
+                check_stack_compatibility(services, updated.stack.id if updated.stack else None, catalog)
             except ServiceInputError:
                 notes.append(f"The services do not fit stack '{stack_id}'; they are undecided again.")
                 services = None
-        return (
-            replace(state, stack=StackChoice(stack_id, source), topology=topology, services=services, finished=False),
-            tuple(notes),
-        )
+        return replace(updated, services=services), tuple(notes)
 
     if key == "topology":
         topology_id = _identifier(value, "topology")
@@ -190,12 +255,13 @@ def set_decision(
                 "RAPID1413",
                 f"Unknown topology '{topology_id}'. Known topologies: {', '.join(catalog.topology_ids)}.",
             )
-        if state.stack is not None and topology_id not in allowed_topologies(catalog, state.stack.id):
-            raise _fail(
-                "RAPID1402",
-                f"Stack '{state.stack.id}' and topology '{topology_id}' are incompatible. "
-                f"Compatible topologies: {', '.join(allowed_topologies(catalog, state.stack.id))}.",
-            )
+        for decided in state.stack_ids:
+            if topology_id not in allowed_topologies(catalog, decided):
+                raise _fail(
+                    "RAPID1402",
+                    f"Stack '{decided}' and topology '{topology_id}' are incompatible. "
+                    f"Compatible topologies: {', '.join(allowed_topologies(catalog, decided))}.",
+                )
         return replace(state, topology=topology_id, finished=False), ()
 
     if key == "archetype":
@@ -217,9 +283,9 @@ def set_decision(
         if answer not in AI_ANSWERS:
             raise _fail("RAPID1413", f"Invalid value '{value}' for 'ai': use yes or no.")
         uses_ai = AI_ANSWERS[answer]
-        if not uses_ai and state.stack is not None and is_ai_stack(state.stack.id):
+        if not uses_ai and is_ai_stack(state.stack_ids):
             notes.append(
-                f"El stack '{state.stack.id}' es de IA: el estándar de seguridad incluye siempre la sección de IA."
+                f"El stack '{', '.join(state.stack_ids)}' es de IA: el estándar de seguridad incluye siempre la sección de IA."
             )
         return replace(state, ai=uses_ai, finished=False), tuple(notes)
 
@@ -297,7 +363,10 @@ def write_custom_stack(
     topology = state.topology
     if topology is not None and topology not in allowed_topologies(catalog, CUSTOM_STACK_ID):
         topology = None
-    return replace(state, stack=StackChoice(CUSTOM_STACK_ID, "custom"), topology=topology, finished=False)
+    custom = StackChoice(CUSTOM_STACK_ID, "custom")
+    return replace(
+        state, stacks={c: custom for c in STACK_COMPONENTS}, topology=topology, finished=False
+    )
 
 
 # --- documents ------------------------------------------------------------------------------
@@ -545,16 +614,64 @@ def is_rapid_security(path: Path) -> bool:
     return BASELINE_TITLE in text or MINIMAL_SECURITY_TITLE in text
 
 
-def _apply_services_to_stack(target: Path, stack_id: str, state: SetupState, catalog: Catalog) -> None:
-    """Rewrite the database lines of a freshly copied `tech-stack.md` from the services decision."""
-    entry = catalog.stacks.get(stack_id)
+def services_stack_entry(state: SetupState, catalog: Catalog):
+    """The catalog entry of the stack the services are judged against: the project's primary stack."""
+    return catalog.entry(state.stack.id) if state.stack else None
+
+
+def _services_text(text: str, stack_id: str, state: SetupState, catalog: Catalog) -> str:
+    """Rewrite the database lines of a stack's `tech-stack.md` from the services decision."""
+    entry = catalog.entry(stack_id)
     if state.services is None or not catalog.services or (entry is not None and entry.service_roles == ()):
-        return  # undecided (`rapid init`), no catalog, or a static site: the template stays as it is
-    text = target.read_text(encoding="utf-8")
-    language = stack_language(catalog, stack_id)
-    safe_write_text(
-        target, render_tech_stack(text, language, state.services, catalog), encoding="utf-8", backup=False
-    )
+        return text  # undecided (`rapid init`), no catalog, or a static site: the template stays as it is
+    return render_tech_stack(text, stack_language(catalog, stack_id), state.services, catalog, entry)
+
+
+def render_tech_stack_file(
+    state: SetupState,
+    catalog: Catalog,
+    templates_dir: Path,
+    *,
+    model: ProjectModel,
+    scanned: bool,
+) -> str | None:
+    """The whole `tech-stack.md` of the decided stacks (one block each, the backend's first), or None
+    when a stack the person wrote is among them (its file is the person's)."""
+    blocks: list[str] = []
+    primary = state.stack.id if state.stack else None
+    for stack_id in state.stack_ids:
+        choice = next(c for comp in ("backend", "frontend", "baas", "docs") if (c := state.stacks.get(comp)) and c.id == stack_id)
+        if stack_id == CUSTOM_STACK_ID:
+            return None
+        entry = catalog.stacks.get(stack_id)
+        if stack_id == GENERIC_STACK_ID and (entry is None or not (templates_dir / "stacks" / f"{entry.template}.md").exists()):
+            block = build_generic_stack(model, scanned=scanned).rstrip("\n")
+        elif entry is not None or stack_id in catalog.sidecarless_stacks:
+            try:
+                template = resolve_child_path(
+                    templates_dir / "stacks", f"{entry.template if entry is not None else _identifier(stack_id, 'stack')}.md"
+                )
+            except ValueError as exc:
+                raise _fail("RAPID1413", str(exc)) from exc
+            if not template.is_file():
+                raise _fail("RAPID1413", f"Template de stack no encontrado: {stack_id} ({template})")
+            block = template.read_text(encoding="utf-8").rstrip("\n")
+            fragments = []
+            if state.ai:
+                fragments.append(template.with_name(f"{template.stem}.ai.md"))
+            if choice.profile:
+                fragments.append(template.with_name(f"{template.stem}.{choice.profile}.md"))
+            for fragment in fragments:
+                if fragment.is_file():
+                    block += "\n" + fragment.read_text(encoding="utf-8").strip("\n")
+            if stack_id == primary:
+                block = _services_text(block, stack_id, state, catalog)
+        else:
+            raise _fail("RAPID1413", f"Template de stack no encontrado: {stack_id}")
+        components = [c for c in ("backend", "frontend", "baas", "docs") if state.stacks.get(c) and state.stacks[c].id == stack_id]
+        marker = " ".join(f"{c}={stack_id}" for c in components)
+        blocks.append(f"{block}\n<!-- rapid-stack: {marker} -->")
+    return "\n\n".join(blocks) + "\n"
 
 
 def find_compose_file(project_root: Path) -> Path | None:
@@ -604,6 +721,7 @@ def write_local_environment(
         return [], []
     languages = scan_model.values("language") if scan_model is not None else ()
     language = stack_language(catalog, state.stack.id if state.stack else None, ci_language_or_default(state, languages))
+    stack = services_stack_entry(state, catalog)
     written: list[str] = []
     warnings: list[str] = []
     compose = find_compose_file(root)
@@ -631,12 +749,12 @@ def write_local_environment(
         except (OSError, UnicodeDecodeError):
             current = None
         if current is not None:
-            updated = merge_env_example(current, choices, catalog, language)
+            updated = merge_env_example(current, choices, catalog, language, stack)
             if updated != current:
                 safe_write_text(env_path, updated, encoding="utf-8", backup=True)
                 written.append(ENV_EXAMPLE_FILE)
     else:
-        safe_write_text(env_path, render_env_example(choices, catalog, language), encoding="utf-8", backup=False)
+        safe_write_text(env_path, render_env_example(choices, catalog, language, stack), encoding="utf-8", backup=False)
         written.append(ENV_EXAMPLE_FILE)
     _ensure_env_ignored(root)
     return written, warnings
@@ -661,7 +779,7 @@ def _write_coding_rules(templates_dir: Path, standards: Path, archetype: str) ->
 
 
 def _write_security(
-    templates_dir: Path, standards: Path, archetype: str, stack_id: str, uses_ai: bool
+    templates_dir: Path, standards: Path, archetype: str, stack_id: "str | Sequence[str]", uses_ai: bool
 ) -> tuple[Path | None, str | None]:
     """`standards/security.md`: the security baseline at the archetype's level (with backup).
 
@@ -704,7 +822,7 @@ def refresh_archetype_files(
     standards.mkdir(parents=True, exist_ok=True)
     _write_coding_rules(Path(templates_dir), standards, state.archetype)
     _path, warning = _write_security(
-        Path(templates_dir), standards, state.archetype, state.stack.id, effective_ai(state.stack.id, state.ai)
+        Path(templates_dir), standards, state.archetype, state.stack_ids, effective_ai(state.stack_ids, state.ai)
     )
     warnings = (warning,) if warning else ()
     if project_has_standards(Path(rapid_dir), Path(config_file)):
@@ -712,66 +830,93 @@ def refresh_archetype_files(
     return warnings
 
 
-def planned_ci_workflow(project_root: Path, stack_id: str | None, scan_model: ProjectModel | None = None) -> str | None:
-    """The CI workflow `setup finish` would write, or None. Only in an empty repository without one."""
+def planned_ci_workflows(
+    project_root: Path, stack_ids: "str | Sequence[str] | None", scan_model: ProjectModel | None = None
+) -> list[tuple[str, str]]:
+    """`(path, language)` of the CI workflows `setup finish` would write: one per language of the
+    project (the backend's first), only in an empty repository and never over one that exists."""
     from rapid_os.domain.scanner import is_empty_repository
 
     root = Path(project_root)
-    if (root / CI_WORKFLOW_PATH).exists() or not is_empty_repository(root):
-        return None
+    if not is_empty_repository(root):
+        return []
+    ids = [stack_ids] if isinstance(stack_ids, str) else list(stack_ids or ())
     languages = scan_model.values("language") if scan_model is not None else ()
-    return CI_WORKFLOW_PATH if ci_language(stack_id, languages) else None
+    planned = []
+    for index, language in enumerate(ci_languages(ids, languages)):
+        path = ci_workflow_path(language, index)
+        if not (root / path).exists():
+            planned.append((path, language))
+    return planned
 
 
-def _write_ci_workflow(
-    project_root: Path, templates_dir: Path, archetype: str, stack_id: str, scan_model: ProjectModel | None
-) -> str | None:
-    """Write `.github/workflows/rapid-security.yml` from `templates/ci/<language>-security.yml`.
+def planned_ci_workflow(project_root: Path, stack_id: "str | Sequence[str] | None", scan_model: ProjectModel | None = None) -> str | None:
+    """The first CI workflow `setup finish` would write, or None."""
+    planned = planned_ci_workflows(project_root, stack_id, scan_model)
+    return planned[0][0] if planned else None
 
-    Rapid OS writes it, not the agent. Only in an empty repository and never over a workflow that
-    already exists. Returns its path relative to the project, or None."""
-    if planned_ci_workflow(project_root, stack_id, scan_model) is None:
-        return None
-    language = ci_language(stack_id, scan_model.values("language") if scan_model is not None else ())
-    try:
-        source = resolve_child_path(templates_dir / "ci", f"{language}-security.yml", single_segment=True)
-    except ValueError as exc:
-        raise _fail("RAPID1413", str(exc)) from exc
-    if not source.is_file():
-        return None
-    try:
-        body = render_ci_workflow(source.read_text(encoding="utf-8"), archetype=archetype)
-    except (OSError, UnicodeDecodeError) as exc:
-        raise _fail("RAPID1413", f"No se pudo leer el workflow de seguridad: {exc}") from exc
-    safe_write_text(
-        Path(project_root) / CI_WORKFLOW_PATH, body, encoding="utf-8", backup=False, create_parents=True, allow_overwrite=False
-    )
-    return CI_WORKFLOW_PATH
+
+def _write_ci_workflows(
+    project_root: Path, templates_dir: Path, archetype: str, stack_ids: Sequence[str], scan_model: ProjectModel | None
+) -> list[str]:
+    """Write `.github/workflows/rapid-security.yml` (and one more per extra language) from
+    `templates/ci/<language>-security.yml`.
+
+    Rapid OS writes them, not the agent. Only in an empty repository and never over a workflow that
+    already exists. Returns the paths relative to the project."""
+    written: list[str] = []
+    for path, language in planned_ci_workflows(project_root, stack_ids, scan_model):
+        try:
+            source = resolve_child_path(templates_dir / "ci", f"{language}-security.yml", single_segment=True)
+        except ValueError as exc:
+            raise _fail("RAPID1413", str(exc)) from exc
+        if not source.is_file():
+            continue
+        try:
+            body = render_ci_workflow(
+                source.read_text(encoding="utf-8"), archetype=archetype, primary=path == CI_WORKFLOW_PATH
+            )
+        except (OSError, UnicodeDecodeError) as exc:
+            raise _fail("RAPID1413", f"No se pudo leer el workflow de seguridad: {exc}") from exc
+        safe_write_text(
+            Path(project_root) / path, body, encoding="utf-8", backup=False, create_parents=True, allow_overwrite=False
+        )
+        written.append(path)
+    return written
 
 
 def render_architecture_standard(text: str, stack_id: str) -> str:
-    """The modular-monolith standard for one stack: the rule plus only the tree of that stack.
+    """The modular-monolith standard for the stack ids of a project (accepts the ids of before
+    the component catalog): the language-neutral rule plus the structure of each stack."""
+    from rapid_os.domain.architecture import stacks_of_legacy
 
-    The template has a `### ...` subsection per group of stacks under `## Estructura por stack`
-    (the heading names the stacks it is for); the others are dropped.
-    """
-    lines = text.splitlines(keepends=True)
-    kept: list[str] = []
-    in_stacks = False
-    keep_subsection = True
-    for line in lines:
-        stripped = line.strip()
-        if stripped.startswith("## "):
-            in_stacks = stripped == _STACK_SECTION_HEADING
-            keep_subsection = True
-        elif in_stacks and stripped.startswith("### "):
-            keep_subsection = stack_id in re.split(r"[^a-z0-9-]+", stripped[4:].lower())
-            if not keep_subsection:
-                continue
-        elif in_stacks and not keep_subsection:
-            continue
-        kept.append(line)
-    return "".join(kept)
+    return render_architecture_markdown(text, rules_for(stacks_of_legacy(stack_id)))
+
+
+def _stack_key(state: SetupState) -> tuple:
+    """What identifies the stack decision on disk: each component's stack id and profile."""
+    return tuple(
+        (c, state.stacks[c].id, state.stacks[c].profile) for c in STACK_COMPONENTS if c in state.stacks
+    )
+
+
+def _stacks_differ(on_disk: SetupState, state: SetupState, tech_stack_file: Path) -> bool:
+    """Whether `tech-stack.md` must be rewritten for the decided stacks.
+
+    A file Rapid OS wrote carries its markers and says every component it covers. A file from before
+    the component catalog, or one the person edited, only says what it says: a component it does not
+    mention does not make it stale (the person's file is not rewritten to add it)."""
+    try:
+        marked = "rapid-stack:" in tech_stack_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        marked = True
+    if marked:
+        return _stack_key(on_disk) != _stack_key(state)
+    return any(
+        (choice.id, choice.profile)
+        != ((state.stacks[c].id, state.stacks[c].profile) if c in state.stacks else None)
+        for c, choice in on_disk.stacks.items()
+    )
 
 
 def apply_setup(
@@ -817,36 +962,24 @@ def apply_setup(
 
     # Stack
     stack = state.stack
-    if on_disk is None or on_disk.stack is None or on_disk.stack.id != stack.id:
-        target = standards / "tech-stack.md"
-        try:
-            template = resolve_child_path(templates_dir / "stacks", f"{_identifier(stack.id, 'stack')}.md", single_segment=True)
-        except ValueError as exc:
-            raise _fail("RAPID1413", str(exc)) from exc
-        if stack.id == GENERIC_STACK_ID and not template.exists():
-            model = scan_model if scan_model is not None else ProjectModel(root=project_root)
-            safe_write_text(
-                target, build_generic_stack(model, scanned=scanned), encoding="utf-8", backup=True, create_parents=True
+    target = standards / "tech-stack.md"
+    stacks_changed = on_disk is None or _stacks_differ(on_disk, state, target)
+    if stacks_changed or services_changed:
+        if CUSTOM_STACK_ID in state.stack_ids and not target.is_file():
+            raise _fail(
+                "RAPID1413",
+                "The custom stack has no tech-stack.md: run 'rapid setup stack --custom --file -'.",
             )
-        elif stack.id == CUSTOM_STACK_ID:
-            if not target.is_file():
-                raise _fail(
-                    "RAPID1413",
-                    "The custom stack has no tech-stack.md: run 'rapid setup stack --custom --file -'.",
-                )
-        elif template.exists():
-            _copy_template(template, target, f"el stack '{stack.id}'")
-            _apply_services_to_stack(target, stack.id, state, catalog)
-        else:
-            raise _fail("RAPID1413", f"Template de stack no encontrado: {stack.id} ({template})")
-        written.append(rel(target))
-    elif services_changed and stack.id in catalog.stacks and stack.id not in (GENERIC_STACK_ID, CUSTOM_STACK_ID):
-        # The stack no longer imposes the engine: when the services change, so do its database lines.
-        template = templates_dir / "stacks" / f"{stack.id}.md"
-        if template.is_file():
-            _copy_template(template, standards / "tech-stack.md", f"el stack '{stack.id}'")
-            _apply_services_to_stack(standards / "tech-stack.md", stack.id, state, catalog)
-            written.append(rel(standards / "tech-stack.md"))
+        model = scan_model if scan_model is not None else ProjectModel(root=project_root)
+        text = render_tech_stack_file(state, catalog, templates_dir, model=model, scanned=scanned)
+        if text is not None:
+            if target.is_file() and text == target.read_text(encoding="utf-8"):
+                pass  # nothing to rewrite
+            else:
+                safe_write_text(target, text, encoding="utf-8", backup=True, create_parents=True)
+                written.append(rel(target))
+        elif stacks_changed:
+            written.append(rel(target))
 
     # Topology
     topology = state.topology
@@ -863,7 +996,7 @@ def apply_setup(
     # Archetype and security
     if state.archetype not in ARCHETYPES and (on_disk is None or on_disk.archetype != state.archetype):
         raise _fail("RAPID1413", f"Arquetipo no soportado: '{state.archetype}'. Usa 'mvp' o 'corporate'.")
-    uses_ai = effective_ai(stack.id, state.ai)
+    uses_ai = effective_ai(state.stack_ids, state.ai)
     archetype_changed = on_disk is None or on_disk.archetype != state.archetype
     if archetype_changed:
         written.extend(rel(path) for path in _write_coding_rules(templates_dir, standards, state.archetype))
@@ -874,26 +1007,26 @@ def apply_setup(
         archetype_changed
         or on_disk.ai != uses_ai
         or on_disk.stack is None
-        or has_api(on_disk.stack.id) != has_api(stack.id)
+        or has_api(on_disk.stack_ids) != has_api(state.stack_ids)
     )
     # Only a standard Rapid OS wrote follows its decisions: a security.md the person wrote is theirs
     # (`rapid setup set archetype <id> --refresh` replaces it on request, keeping a backup).
     security_changed = not security_file.exists() or (decision_changed and is_rapid_security(security_file))
     security_warning: str | None = None
     if security_changed:
-        security_path, security_warning = _write_security(templates_dir, standards, state.archetype, stack.id, uses_ai)
+        security_path, security_warning = _write_security(templates_dir, standards, state.archetype, state.stack_ids, uses_ai)
         if security_path is not None:
             written.append(rel(security_path))
 
     # Architecture: a backend starts as a modular monolith. The text goes to the agent as a
     # standard and the machine form is what `rapid arch check` and `gate.architecture` read.
-    architecture = default_architecture_config(stack.id)
+    wanted = state.stacks
+    architecture = architecture_document({c: choice.id for c, choice in wanted.items()})
     architecture_warning: str | None = None
     if architecture:
-        stack_changed = on_disk is None or on_disk.stack is None or on_disk.stack.id != stack.id
         arch_md, arch_json = standards / "architecture.md", standards / "architecture.json"
         template = None
-        if stack_changed or not arch_md.exists() or not arch_json.exists():
+        if stacks_changed or not arch_md.exists() or not arch_json.exists():
             try:
                 template = resolve_child_path(templates_dir / "architecture", ARCHITECTURE_TEMPLATE, single_segment=True)
             except ValueError as exc:
@@ -911,7 +1044,11 @@ def apply_setup(
             except (OSError, UnicodeDecodeError) as exc:
                 raise _fail("RAPID1413", f"No se pudo leer la regla de arquitectura: {exc}") from exc
             safe_write_text(
-                arch_md, render_architecture_standard(body, stack.id), encoding="utf-8", backup=True, create_parents=True
+                arch_md,
+                render_architecture_markdown(body, rules_for({c: choice.id for c, choice in wanted.items()})),
+                encoding="utf-8",
+                backup=True,
+                create_parents=True,
             )
             safe_write_text(
                 arch_json,
@@ -927,9 +1064,7 @@ def apply_setup(
     written.extend(env_written)
 
     # CI: the security scans run from the first PR, written by Rapid OS in a new repository.
-    ci_workflow = _write_ci_workflow(project_root, templates_dir, state.archetype, stack.id, scan_model)
-    if ci_workflow is not None:
-        written.append(ci_workflow)
+    written.extend(_write_ci_workflows(project_root, templates_dir, state.archetype, state.stack_ids, scan_model))
 
     # Config
     existing = inspect_project_config_file(config_file)

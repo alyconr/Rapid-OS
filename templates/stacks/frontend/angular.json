@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "id": "angular",
+  "component": "frontend",
+  "covers": [
+    "frontend"
+  ],
+  "summary": "Aplicación de una sola página en Angular: framework completo con TypeScript, inyección de dependencias y CLI.",
+  "language": "TypeScript",
+  "fits": [
+    "aplicaciones empresariales grandes con muchos equipos",
+    "equipos que valoran un framework con decisiones ya tomadas",
+    "interfaces con formularios complejos"
+  ],
+  "avoid_if": [
+    "el equipo quiere una biblioteca ligera y elegir cada pieza",
+    "se quiere un backend en la misma aplicación",
+    "un sitio de documentación es el objetivo"
+  ],
+  "suggested_services": [],
+  "package_manager": "pnpm",
+  "default_test_command": [
+    "ng",
+    "test",
+    "--no-watch",
+    "--no-progress"
+  ],
+  "architecture": "angular",
+  "factors": {
+    "performance": "medio a alto: compilación anticipada, signals, vistas diferidas e hidratación",
+    "memory_footprint": "medio a alto: framework completo con inyección de dependencias en el navegador",
+    "cold_start": "medio: bundle inicial mayor que el de bibliotecas pequeñas; hay renderizado en servidor e hidratación",
+    "concurrency_model": "hilo principal del navegador; reactividad con signals y RxJS",
+    "typing": "TypeScript obligatorio; la versión 22 exige TypeScript 6.0",
+    "productivity": "alto: CLI, router, formularios, HttpClient y pruebas incluidos",
+    "learning_curve": "alta: TypeScript, inyección de dependencias, signals o RxJS y la CLI",
+    "maintainability": "alta: guía de estilo oficial con carpetas por funcionalidad",
+    "ecosystem_maturity": "alto: un lanzamiento mayor cada 12 meses, con soporte activo y LTS publicados",
+    "hiring_pool": "alto: Angular lo usa el 19,8 % de los desarrolladores profesionales (Stack Overflow 2025)",
+    "hosting_fit": "serverless, PaaS"
+  },
+  "sources": {
+    "performance": [
+      "https://angular.dev/"
+    ],
+    "memory_footprint": [
+      "https://angular.dev/"
+    ],
+    "cold_start": [
+      "https://angular.dev/"
+    ],
+    "concurrency_model": [
+      "https://angular.dev/"
+    ],
+    "typing": [
+      "https://angular.dev/reference/versions"
+    ],
+    "productivity": [
+      "https://angular.dev/installation"
+    ],
+    "learning_curve": [
+      "https://angular.dev/"
+    ],
+    "maintainability": [
+      "https://angular.dev/style-guide"
+    ],
+    "ecosystem_maturity": [
+      "https://angular.dev/reference/releases"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://angular.dev/installation"
+    ]
+  },
+  "supported_services": {},
+  "service_roles": []
+}

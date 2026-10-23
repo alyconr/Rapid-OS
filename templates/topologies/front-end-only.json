@@ -8,5 +8,8 @@
   ],
   "avoid_if": [
     "the product needs a backend or database of its own"
+  ],
+  "components": [
+    "frontend"
   ]
 }

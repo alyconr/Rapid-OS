@@ -460,6 +460,7 @@ def init_project(args):
     from rapid_os.orchestration.setup_apply import (
         SetupApplyError,
         apply_setup,
+        resolve_stack,
         update_gitignore,
         write_doc,
     )
@@ -512,7 +513,12 @@ def init_project(args):
         if not stacks_path.exists():
             print_error(f"Templates no encontrados en {stacks_path}")
             return
-        stacks = sorted([f.stem for f in stacks_path.glob("*.md")])
+        try:
+            menu_catalog = load_catalog(TEMPLATES_DIR)
+        except CatalogError as exc:
+            print_error(str(exc))
+            return
+        stacks = sorted({*menu_catalog.stacks, *menu_catalog.sidecarless_stacks})
         if not stacks:
             print_error(f"No se encontraron templates de stack en {stacks_path}")
             return
@@ -534,16 +540,11 @@ def init_project(args):
 
     try:
         stack_name = validate_identifier(stack_name, "stack")
-        stack_src = resolve_child_path(
-            TEMPLATES_DIR / "stacks", f"{stack_name}.md", single_segment=True
+        resolution = resolve_stack(
+            stack_name, catalog, topology=getattr(args, "topology", None)
         )
-    except ValueError as exc:
-        print_error(str(exc))
-        return
-
-    is_generic_stack = stack_name == GENERIC_STACK_ID and not stack_src.exists()
-    if not is_generic_stack and not stack_src.exists():
-        print_error(f"Template de stack no encontrado: {stack_name} ({stack_src})")
+    except (ValueError, SetupApplyError) as exc:
+        print_error(" ".join(getattr(exc, "lines", None) or (str(exc),)))
         return
 
     # 2. Topología
@@ -670,13 +671,6 @@ def init_project(args):
 
     # Same state and same writes as `rapid setup`: nothing below is specific to init.
     registry_ids = set(DEFAULT_AGENT_REGISTRY.ids())
-    stack_source = (
-        "generic"
-        if is_generic_stack
-        else "catalog"
-        if stack_name in catalog.stacks
-        else "custom"
-    )
     docs = {}
     for doc_id, (status, _text) in doc_choices.items():
         if status == "keep":
@@ -686,7 +680,8 @@ def init_project(args):
         elif status == "pending":
             docs[doc_id] = DocState()
     state = SetupState(
-        stack=StackChoice(stack_name, stack_source),
+        stacks=resolution.stacks,
+        ai=True if resolution.ai else None,
         topology=topo_name,
         archetype=archetype,
         agents=tuple(tool for tool in selected_tools if tool in registry_ids),
@@ -3383,6 +3378,8 @@ def _format_setup_action(action) -> list[str]:
     kind = data["kind"]
     lines = [f"Setup next: {kind}"]
     if kind == "choose_stack":
+        if data.get("component"):
+            lines.append(f"Component: {data['component']}")
         facts = ", ".join(f"{f['category']}={f['value']}" for f in data["facts"]) or "none detected"
         top = ", ".join(f"{o['id']} ({o['score']})" for o in data["options"][:4])
         lines += [f"Detected: {facts}", f"Options: {top}", f"Recommended: {data['recommended'] or 'none'}"]
@@ -3494,7 +3491,12 @@ def _setup_write(args, action_name, state, catalog, doc_banks):
         if refresh and key != "archetype":
             raise apply.SetupApplyError("RAPID1413", "--refresh only goes with 'rapid setup set archetype <id>'.")
         new_state, notes = apply.set_decision(
-            state, key, getattr(args, "value", None), catalog, DEFAULT_AGENT_REGISTRY.ids()
+            state,
+            key,
+            getattr(args, "value", None),
+            catalog,
+            DEFAULT_AGENT_REGISTRY.ids(),
+            component=getattr(args, "component", None),
         )
         write_setup(PROJECT_RAPID_DIR, new_state)
         summary = f"Setup: {key} = {args.value.strip()}"
@@ -3581,6 +3583,7 @@ def arch_command(args):
     """Execute rapid arch check: the imports against the modular-monolith rule. Read-only."""
     from rapid_os.adapters.architecture_files import collect_sources, config_path
     from rapid_os.domain.architecture import ArchitectureConfigError, check_architecture
+    from rapid_os.orchestration.arch_delegate import run_delegate
     from rapid_os.orchestration.architecture_rule import RUN_DEMANDS_RULE_MESSAGE, resolve_architecture_rule
 
     as_json = getattr(args, "json", False)
@@ -3598,8 +3601,8 @@ def arch_command(args):
         rule = resolve_architecture_rule(CURRENT_DIR, PROJECT_RAPID_DIR)
     except ArchitectureConfigError as exc:
         fail(str(exc))
-    config = rule.config
-    if config is None:
+    configs = rule.configs
+    if not configs:
         if rule.run_demands_gate:
             # The run needs this gate: with no rule to check, it must not look satisfied.
             fail(RUN_DEMANDS_RULE_MESSAGE)
@@ -3613,36 +3616,57 @@ def arch_command(args):
             print(f"WARNING {warning}")
         return 0
 
-    report = check_architecture(config, collect_sources(CURRENT_DIR, config))
+    reports = []
+    delegated = []
+    for config in configs:
+        if config.delegate:
+            delegated.append((config, run_delegate(config.delegate, CURRENT_DIR)))
+            continue
+        reports.append((config, check_architecture(config, collect_sources(CURRENT_DIR, config))))
+    violations = [v for _c, r in reports for v in r.violations]
+    skipped = [line for _c, r in reports for line in r.skipped]
+    delegate_failed = [(c, d) for c, d in delegated if not d.ok]
+    ok = not violations and not delegate_failed
+    checked = sum(r.checked_files for _c, r in reports)
+    modules = sorted({m for _c, r in reports for m in r.modules})
     if as_json:
-        print(
-            json.dumps(
-                {
-                    "schema_version": 1,
-                    "ok": report.ok,
-                    "language": report.language,
-                    "modules": list(report.modules),
-                    "checked_files": report.checked_files,
-                    "violations": [v.to_dict() for v in report.violations],
-                    "skipped": list(report.skipped),
-                },
-                indent=2,
-                ensure_ascii=False,
-            )
-        )
+        payload = {
+            "schema_version": 1,
+            "ok": ok,
+            "language": configs[0].language,
+            "modules": modules,
+            "checked_files": checked,
+            "violations": [v.to_dict() for v in violations],
+            "skipped": skipped,
+        }
+        if delegated:
+            payload["delegated"] = [
+                {"tool": c.delegate, "ok": d.ok, "missing": d.missing, "output": d.output} for c, d in delegated
+            ]
+        if len(configs) > 1:
+            payload["rules"] = [
+                {"component": c.component, "language": c.language, "modules_root": c.modules_root} for c in configs
+            ]
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
     else:
-        for line in report.skipped:
+        for line in skipped:
             print(f"WARNING {line}")
-        for violation in report.violations:
+        for violation in violations:
             print(violation.to_line())
-        if not report.violations:
-            if report.checked_files:
-                print(f"Arquitectura OK: {report.checked_files} archivo(s) en {len(report.modules)} módulo(s).")
-            else:
-                print(f"Sin módulos todavía en {config.modules_root}/: nada que verificar.")
-        else:
-            print(f"{len(report.violations)} violación(es) de la arquitectura (regla en .rapid-os/standards/architecture.md).")
-    return 0 if report.ok else 1
+        for config, result in delegated:
+            if result.output:
+                print(result.output, file=sys.stderr if not result.ok else sys.stdout)
+            if result.ok:
+                print(f"Arquitectura OK según {config.delegate}.")
+        if not violations and not delegate_failed:
+            if checked:
+                print(f"Arquitectura OK: {checked} archivo(s) en {len(modules)} módulo(s).")
+            elif not delegated:
+                roots = ", ".join(c.modules_root for c in configs)
+                print(f"Sin módulos todavía en {roots}/: nada que verificar.")
+        elif violations:
+            print(f"{len(violations)} violación(es) de la arquitectura (regla en .rapid-os/standards/architecture.md).")
+    return 0 if ok else 1
 
 
 def setup_command(args):
@@ -3682,7 +3706,7 @@ def setup_command(args):
         if as_json:
             print(json.dumps({"origin": snapshot.origin, "state": state}, indent=2))
             return 0
-        stack = state["stack"]["id"] if state["stack"] else "-"
+        stack = ", ".join(f"{c}={choice['id']}" for c, choice in state["stacks"].items()) or "-"
         docs = ", ".join(f"{k}={v['status']}" for k, v in state["docs"].items()) or "-"
         test_command = " ".join(state["test_command"]) if state["test_command"] else "-"
         print(f"Setup state ({snapshot.origin}): finished={str(state['finished']).lower()}")
@@ -3708,9 +3732,10 @@ def setup_command(args):
 
     def report_added(result):
         """Files Rapid OS wrote on its own (not the agent): the person should look at them."""
-        if CI_WORKFLOW_PATH in result.written:
-            added_files.append({"file": CI_WORKFLOW_PATH, "note": CI_ADDED_NOTE})
-            print(f"{CI_ADDED_NOTE}: {CI_WORKFLOW_PATH}")
+        for workflow in result.written:
+            if workflow == CI_WORKFLOW_PATH or workflow.startswith(".github/workflows/rapid-security-"):
+                added_files.append({"file": workflow, "note": CI_ADDED_NOTE})
+                print(f"{CI_ADDED_NOTE}: {workflow}")
         for name in result.written:
             if name in LOCAL_SERVICES_FILES or name.endswith(".yaml") and name.startswith(("compose", "docker-compose")):
                 added_files.append({"file": name, "note": LOCAL_SERVICES_NOTE})
@@ -3778,8 +3803,10 @@ def setup_command(args):
         """During the review of the drafts, the workflow that `finish` is going to write."""
         if action.kind != SetupActionKind.REVIEW_DRAFTS or current_state.stack is None:
             return []
-        path = apply.planned_ci_workflow(CURRENT_DIR, current_state.stack.id, project_model)
-        planned = [{"file": path, "note": CI_PLANNED_NOTE}] if path else []
+        planned = [
+            {"file": path, "note": CI_PLANNED_NOTE}
+            for path, _language in apply.planned_ci_workflows(CURRENT_DIR, current_state.stack_ids, project_model)
+        ]
         for name in apply.planned_local_environment(CURRENT_DIR, current_state, catalog, project_model):
             planned.append({"file": name, "note": LOCAL_SERVICES_PLANNED_NOTE})
         return planned
@@ -5110,12 +5137,17 @@ def create_parser():
         help="Record a decision: stack, topology, archetype, ai, agents or test-command (writes state).",
         description=(
             "Record one onboarding decision in .rapid-os/setup.json. Standards are written by 'rapid setup finish'. "
-            "Keys: stack <id>, topology <id>, archetype <mvp|corporate>, ai <yes|no>, agents <id,id>, "
+            "Keys: stack <id> [--component frontend|backend], topology <id>, archetype <mvp|corporate>, ai <yes|no>, agents <id,id>, "
             "test-command '<cmd>' ('none' for no command)."
         ),
     )
     _sp.add_argument("key", nargs="?", help="stack, topology, archetype, ai, agents or test-command.")
     _sp.add_argument("value", nargs="?", help="Value of the decision.")
+    _sp.add_argument(
+        "--component",
+        choices=["frontend", "backend", "baas", "docs"],
+        help="With 'stack <id>': fill only this component of the topology (a stack that covers several fills them all).",
+    )
     _sp.add_argument(
         "--refresh",
         action="store_true",

@@ -23,9 +23,14 @@ RUN_DEMANDS_RULE_MESSAGE = "RAPID1420 el run exige gate.architecture y no hay ar
 
 @dataclass(frozen=True)
 class ArchitectureRule:
-    config: ArchitectureConfig | None
+    configs: tuple[ArchitectureConfig, ...]
     source: Path | None  # the architecture.json that was read
     run_demands_gate: bool
+
+    @property
+    def config(self) -> ArchitectureConfig | None:
+        """The first rule (the backend's): kept for callers that look at one."""
+        return self.configs[0] if self.configs else None
 
 
 def _main_project_rapid_dir(current_dir: Path) -> Path | None:
@@ -66,5 +71,5 @@ def resolve_architecture_rule(current_dir: Path, project_rapid_dir: Path) -> Arc
 
     for candidate in (project_rapid_dir, demanded_by if demands and demanded_by != project_rapid_dir else None):
         if candidate is not None and config_path(candidate).is_file():
-            return ArchitectureRule(load_config(candidate), config_path(candidate), demands)
-    return ArchitectureRule(None, None, demands)
+            return ArchitectureRule(tuple(load_config(candidate) or ()), config_path(candidate), demands)
+    return ArchitectureRule((), None, demands)

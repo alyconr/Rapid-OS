@@ -16,5 +16,11 @@
     "fullstack-separated"
   ],
   "default_topology": "fullstack-separated",
-  "suggested_services": []
+  "suggested_services": [],
+  "covers": [
+    "frontend",
+    "backend",
+    "baas",
+    "docs"
+  ]
 }

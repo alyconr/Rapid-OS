@@ -24,6 +24,7 @@ from rapid_os.domain.services import (
 )
 from rapid_os.domain.setup import DocState, ServiceChoice, SetupActionKind, SetupState, StackChoice
 from rapid_os.orchestration.setup_conductor import next_setup_action
+from tests.stack_helpers import complete_stacks
 from tests.test_no_git import GitIsolated, approve
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,7 +45,7 @@ def next_action(state):
 
 def decided(services=None, skipped=("brief", "business"), stack="python-api") -> SetupState:
     return SetupState(
-        stack=StackChoice(stack, "catalog"), topology="fullstack-separated", archetype="mvp", ai=False,
+        stacks=complete_stacks(stack), topology="fullstack-separated", archetype="mvp", ai=False,
         agents=("codex",), test_command=(), services=services,
         docs={doc: DocState("skipped") for doc in skipped},
     )
@@ -181,7 +182,7 @@ class ComposeTests(unittest.TestCase):
 
 class TechStackTests(unittest.TestCase):
     def test_database_lines_follow_the_decision(self):
-        template = (TEMPLATES / "stacks" / "python-api.md").read_text(encoding="utf-8")
+        template = (TEMPLATES / "stacks" / "backend" / "python-fastapi.md").read_text(encoding="utf-8")
         mysql = render_tech_stack(template, "python", (ServiceChoice("database", "mysql", "now"),), CATALOG)
         self.assertIn("asyncmy", mysql)
         self.assertNotIn("asyncpg", mysql)
@@ -209,7 +210,7 @@ class BodyValidationTests(unittest.TestCase):
 class Project(GitIsolated):
     def write_state(self, services, stack="python-api"):
         state = SetupState(
-            stack=StackChoice(stack, "catalog"), topology="fullstack-separated", archetype="mvp", ai=False,
+            stacks=complete_stacks(stack), topology="fullstack-separated", archetype="mvp", ai=False,
             agents=("codex",), test_command=(), services=tuple(ServiceChoice(**s) for s in services),
             docs={doc: DocState("skipped") for doc in ALL_DOCS},
         )
@@ -226,8 +227,8 @@ class Project(GitIsolated):
 
 class SetServicesCommandTests(Project):
     def decide(self):
-        for key, value in (("stack", "python-api"), ("topology", "fullstack-separated"), ("archetype", "mvp"),
-                           ("ai", "no"), ("agents", "codex"), ("test-command", "none")):
+        for key, value in (("stack", "python-api"), ("topology", "fullstack-separated"), ("stack", "react-vite"),
+                           ("archetype", "mvp"), ("ai", "no"), ("agents", "codex"), ("test-command", "none")):
             self.assertEqual(self.rapid("setup", "set", key, value).returncode, 0)
 
     def test_valid_and_invalid_decisions(self):
@@ -379,7 +380,8 @@ class ConfigTests(unittest.TestCase):
 
     def onboard(self):
         for key, value in (
-            ("stack", "python-api"), ("topology", "fullstack-separated"), ("archetype", "mvp"), ("ai", "no"),
+            ("stack", "python-api"), ("topology", "fullstack-separated"), ("stack", "react-vite"),
+            ("archetype", "mvp"), ("ai", "no"),
             ("agents", "codex"), ("test-command", self.TEST_COMMAND), ("services", "database:mysql@now"),
         ):
             self.assertEqual(self.rapid("setup", "set", key, value).returncode, 0)

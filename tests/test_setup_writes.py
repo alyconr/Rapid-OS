@@ -47,6 +47,7 @@ def decide_everything(cwd, *, agents="claude"):
     for argv in (
         ("set", "stack", "python-ai"),
         ("set", "topology", "fullstack-separated"),
+        ("set", "stack", "react-vite"),
         ("set", "archetype", "mvp"),
         ("set", "agents", agents),
         ("set", "test-command", "python -m unittest"),
@@ -82,8 +83,10 @@ class SetDecisionTests(SetupWriteBase):
         result = rapid(self.root, "setup", "set", "stack", "python-ai", "--json")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["kind"], "choose_topology")
-        self.assertEqual(self.setup_state().stack.id, "python-ai")
+        # `python-ai` is an id of before the component catalog: it maps to the backend stack and ai=yes
+        self.assertEqual(self.setup_state().stack.id, "python-fastapi")
         self.assertEqual(self.setup_state().stack.source, "catalog")
+        self.assertTrue(self.setup_state().ai)
         self.assertFalse((self.root / ".rapid-os" / "standards").exists())
 
     def test_invalid_key_or_value_is_rapid1413(self):
@@ -119,11 +122,12 @@ class SetDecisionTests(SetupWriteBase):
         data = json.loads(result.stdout)
         self.assertEqual(data["kind"], "choose_topology")
         self.assertEqual(
-            data["notes"], ["Topology 'doc-site' does not fit stack 'python-ai'; it is undecided again."]
+            data["notes"][-1], "Topology 'doc-site' does not fit stack 'python-ai'; it is undecided again."
         )
+        self.assertIn("python-fastapi", data["notes"][0])
 
     def test_notes_are_omitted_from_the_json_when_there_are_none(self):
-        result = rapid(self.root, "setup", "set", "stack", "python-ai", "--json")
+        result = rapid(self.root, "setup", "set", "stack", "go", "--json")
         self.assertNotIn("notes", json.loads(result.stdout))
 
     def test_test_command_none_is_a_decision(self):
@@ -416,6 +420,7 @@ class FinishTests(SetupWriteBase):
             json.dumps({"tools": ["claude"], "test_command": ["pytest"]}), encoding="utf-8"
         )
         rapid(self.root, "setup", "set", "topology", "fullstack-separated")
+        rapid(self.root, "setup", "set", "stack", "react-vite")
         rapid(self.root, "setup", "set", "archetype", "mvp")
         rapid(self.root, "setup", "set", "ai", "no")
         rapid(self.root, "setup", "set", "services", "none")
@@ -487,7 +492,9 @@ class InitSharesTheSetupTests(unittest.TestCase):
              "deployment": "pending"},
         )
         self.assertFalse(state.finished)
-        self.assertEqual((state.stack.id, state.topology, state.archetype), ("python-ai", "fullstack-separated", "mvp"))
+        self.assertEqual(
+            (state.stack.id, state.topology, state.archetype), ("python-fastapi", "fullstack-separated", "mvp")
+        )
         self.assertTrue(output.rstrip().endswith("Completa la documentación con /rapid-init o rapid setup next"))
         self.assertIn("directorio", output)
 
@@ -506,7 +513,9 @@ class InitSharesTheSetupTests(unittest.TestCase):
         self.assertTrue(output.rstrip().endswith("Completa la documentación con /rapid-init o rapid setup next"))
         self.assertFalse((self.project / "docs").exists())
         result = rapid(self.project, "setup", "next", "--json")
-        self.assertEqual(json.loads(result.stdout)["kind"], "resolve_doc")
+        # `init` takes one stack: the other component of the topology is still to be chosen.
+        action = json.loads(result.stdout)
+        self.assertEqual((action["kind"], action["component"]), ("choose_stack", "frontend"))
 
     def test_business_file_flag_is_provided_and_other_docs_stay_pending(self):
         source = self.project / "reglas.md"
@@ -544,7 +553,11 @@ class InitSharesTheSetupTests(unittest.TestCase):
         def standard(root, name):
             text = (root / ".rapid-os" / "standards" / name).read_text(encoding="utf-8")
             # The database lines follow the services decision (setup) or the template (init).
-            return "\n".join(l for l in text.split("\n") if not l.startswith(("- **Database:**", "- **ORM:**")))
+            if name == "tech-stack.md":
+                text = text.split("\n\n# ")[0]  # `init` takes one stack: compare the backend's block
+            return "\n".join(
+                l for l in text.strip().split("\n") if not l.startswith(("- **Database:**", "- **ORM:**"))
+            )
 
         for name in ("tech-stack.md", "topology.md", "coding-rules.md", "security.md"):
             self.assertEqual(standard(self.project, name), standard(other, name), name)

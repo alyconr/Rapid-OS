@@ -20,6 +20,7 @@ from rapid_os.domain.security import (
 )
 from rapid_os.domain.setup import DocState, SetupActionKind, SetupState, SetupStateError, StackChoice
 from rapid_os.orchestration.setup_conductor import ARCHETYPE_SUMMARIES, next_setup_action
+from tests.stack_helpers import complete_stacks
 from tests.test_no_git import GitIsolated
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,7 +56,7 @@ def render(archetype="mvp", stack="python-api", ai=None):
 
 def decided(stack="python-api", archetype="mvp", **extra) -> SetupState:
     return SetupState(
-        stack=StackChoice(stack, "catalog"), topology="fullstack-separated", archetype=archetype, **extra
+        stacks=complete_stacks(stack), topology="fullstack-separated", archetype=archetype, **extra
     )
 
 
@@ -195,14 +196,15 @@ class ConductorTests(unittest.TestCase):
         self.assertEqual(payload["command"], ["rapid", "setup", "set", "ai", "<yes|no>"])
         self.assertEqual([o["id"] for o in payload["options"]], ["yes", "no"])
         for stack in ("python-ai", "nodejs-ai"):
-            self.assertEqual(next_action(decided(stack)).kind, SetupActionKind.CHOOSE_AGENTS, stack)
+            # (the ids of before the component catalog answer `ai: yes` themselves)
+            self.assertEqual(next_action(decided(stack, ai=True)).kind, SetupActionKind.CHOOSE_AGENTS, stack)
 
     def test_an_answer_moves_on_to_the_agents(self):
         for answer in (True, False):
             self.assertEqual(next_action(decided("python-api", ai=answer)).kind, SetupActionKind.CHOOSE_AGENTS)
 
     def test_the_archetype_comes_first(self):
-        state = SetupState(stack=StackChoice("python-api", "catalog"), topology="fullstack-separated")
+        state = SetupState(stacks=complete_stacks("python-api"), topology="fullstack-separated")
         self.assertEqual(next_action(state).kind, SetupActionKind.CHOOSE_ARCHETYPE)
 
     def test_both_archetypes_say_they_include_the_baseline(self):
@@ -236,7 +238,10 @@ class StateCompatibilityTests(unittest.TestCase):
 
 class Project(GitIsolated):
     def decide(self, stack, topology, archetype, ai=None):
-        steps = [("stack", stack), ("topology", topology), ("archetype", archetype)]
+        steps = [("stack", stack), ("topology", topology)]
+        if topology == "fullstack-separated" and stack in ("python-api", "python-ai", "nodejs-ai"):
+            steps.append(("stack", "react-vite"))  # the frontend of the topology
+        steps.append(("archetype", archetype))
         if ai is not None:
             steps.append(("ai", ai))
         steps += [("agents", "codex"), ("test-command", "none"), ("services", "none")]
@@ -248,7 +253,7 @@ class Project(GitIsolated):
         """The decisions of a complete onboarding, written as `setup.json` (what the `set` and `doc
         --skip` commands leave), so the tests that are not about those commands stay fast."""
         state = SetupState(
-            stack=StackChoice(stack, "catalog"), topology=topology, archetype=archetype,
+            stacks=complete_stacks(stack), topology=topology, archetype=archetype,
             ai=None if ai is None else ai == "yes", agents=("codex",), test_command=(), services=(),
             docs={doc: DocState("skipped") for doc in ("brief", "business", "data-model", "architecture", "deployment")},
         )
@@ -294,7 +299,9 @@ class SecurityStandardInTheProjectTests(Project):
         self.assertIn("A01 Broken Access Control", self.security())
 
     def test_python_ai_is_never_asked_and_gets_the_ai_section(self):
-        for key, value in (("stack", "python-ai"), ("topology", "fullstack-separated"), ("archetype", "mvp")):
+        for key, value in (
+            ("stack", "python-ai"), ("topology", "fullstack-separated"), ("stack", "react-vite"), ("archetype", "mvp"),
+        ):
             self.assertEqual(self.rapid("setup", "set", key, value).returncode, 0)
         action = json.loads(self.rapid("setup", "next", "--json").stdout)
         self.assertEqual(action["kind"], "choose_agents")

@@ -12,6 +12,7 @@ const sidebars: SidebarsConfig = {
         'concepts/why-rapid-os',
         'concepts/core-concepts',
         'concepts/project-docs',
+        'concepts/stacks',
         'concepts/architecture',
         'concepts/security-baseline',
         'concepts/infrastructure-services',
@@ -124,6 +125,7 @@ const sidebars: SidebarsConfig = {
         'guides/project-layout',
         'guides/ci-cd-integration',
         'guides/deployment',
+        'guides/setup-json-migration',
       ],
     },
     {

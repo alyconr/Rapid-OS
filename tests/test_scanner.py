@@ -95,7 +95,7 @@ class ScannerTests(unittest.TestCase):
 
             self.assertIn("nextjs", scan.values("framework"))
             self.assertIn("supabase", scan.values("database"))
-            self.assertEqual(suggestions.stack.value, "web-modern")
+            self.assertEqual(suggestions.stack.value, "nextjs")
             self.assertEqual(suggestions.topology.value, "fullstack-baas")
 
     def test_detects_python_fastapi_and_suggests_separated_backend(self):
@@ -111,7 +111,7 @@ class ScannerTests(unittest.TestCase):
 
             self.assertIn("python", scan.values("language"))
             self.assertIn("fastapi", scan.values("framework"))
-            self.assertEqual(suggestions.stack.value, "python-ai")
+            self.assertEqual(suggestions.stack.value, "python-fastapi")
             self.assertEqual(suggestions.topology.value, "fullstack-separated")
 
     def test_detects_node_ai_hints(self):
@@ -127,7 +127,7 @@ class ScannerTests(unittest.TestCase):
             suggestions = suggest_init_choices(scan)
 
             self.assertIn("langchain", scan.values("framework"))
-            self.assertEqual(suggestions.stack.value, "nodejs-ai")
+            self.assertEqual(suggestions.stack.value, "node-fastify")
 
     def test_detects_frontend_without_backend_as_frontend_only(self):
         with workspace_tempdir() as tmp:

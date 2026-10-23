@@ -352,7 +352,7 @@ rapid init --no-scan
 Si pasas `--stack`, ese valor manda sobre cualquier sugerencia del scanner:
 
 ```bash
-rapid init --stack web-modern
+rapid init --stack nextjs
 ```
 
 También puedes fijar el arquetipo directamente por CLI (`mvp` o `corporate`) sin pregunta interactiva:

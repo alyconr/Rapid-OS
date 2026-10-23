@@ -8,5 +8,8 @@
   ],
   "avoid_if": [
     "the product needs user accounts or a database"
+  ],
+  "components": [
+    "docs"
   ]
 }

@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "id": "php-laravel",
+  "component": "backend",
+  "covers": [
+    "backend",
+    "frontend"
+  ],
+  "summary": "Aplicación web o API en PHP con Laravel: Eloquent, colas y vistas de servidor.",
+  "language": "PHP",
+  "fits": [
+    "productos con modelo relacional, colas y tareas programadas",
+    "monolitos con vistas de servidor (cubre frontend y backend)",
+    "equipos con experiencia en PHP"
+  ],
+  "avoid_if": [
+    "el equipo no usa PHP",
+    "se necesitan conexiones persistentes de larga duración sin Octane",
+    "un sitio de documentación es el objetivo"
+  ],
+  "suggested_services": [
+    "database:mysql"
+  ],
+  "package_manager": "composer",
+  "default_test_command": [
+    "php",
+    "artisan",
+    "test"
+  ],
+  "architecture": "php-laravel",
+  "factors": {
+    "performance": "medio: PHP-FPM atiende cada petición; Octane mantiene la aplicación en memoria entre peticiones",
+    "memory_footprint": "medio: workers de PHP-FPM u Octane (un worker por núcleo por defecto)",
+    "cold_start": "medio con PHP-FPM; con Octane la aplicación arranca una vez por worker",
+    "concurrency_model": "un worker por petición con PHP-FPM; Octane (FrankenPHP, Swoole, RoadRunner) mantiene workers en memoria",
+    "typing": "PHP con declaraciones de tipos; Pint y PHPStan ayudan a mantener el código consistente",
+    "productivity": "alto: Eloquent, colas, autenticación y pruebas incluidos",
+    "learning_curve": "baja a media: convenciones claras y documentación extensa",
+    "maintainability": "media: casi no impone ubicación de clases; los límites entre módulos los imponen herramientas como Deptrac",
+    "ecosystem_maturity": "alto: Laravel 13 con política de soporte publicada y ecosistema Composer",
+    "hiring_pool": "medio: PHP lo usa el 19,1 % y Laravel el 9,3 % de los desarrolladores profesionales (Stack Overflow 2025)",
+    "hosting_fit": "containers, PaaS, serverless"
+  },
+  "sources": {
+    "performance": [
+      "https://laravel.com/docs/octane"
+    ],
+    "memory_footprint": [
+      "https://laravel.com/docs/octane"
+    ],
+    "cold_start": [
+      "https://laravel.com/docs/octane"
+    ],
+    "concurrency_model": [
+      "https://laravel.com/docs/octane",
+      "https://laravel.com/docs/deployment"
+    ],
+    "typing": [
+      "https://laravel.com/docs/pint"
+    ],
+    "productivity": [
+      "https://laravel.com/docs/",
+      "https://laravel.com/docs/testing"
+    ],
+    "learning_curve": [
+      "https://laravel.com/docs/"
+    ],
+    "maintainability": [
+      "https://laravel.com/docs/structure",
+      "https://github.com/deptrac/deptrac"
+    ],
+    "ecosystem_maturity": [
+      "https://laravel.com/docs/releases"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://laravel.com/docs/deployment"
+    ]
+  },
+  "supported_services": {
+    "postgresql": {
+      "driver": "pdo_pgsql",
+      "url": "postgresql://app:app_local_only@127.0.0.1:5432/app"
+    },
+    "mysql": {
+      "driver": "pdo_mysql",
+      "url": "mysql://app:app_local_only@127.0.0.1:3306/app"
+    },
+    "mariadb": {
+      "driver": "pdo_mysql",
+      "url": "mariadb://app:app_local_only@127.0.0.1:3306/app"
+    },
+    "mongodb": {
+      "driver": "mongodb/laravel-mongodb",
+      "url": "mongodb://app:app_local_only@127.0.0.1:27017/app?authSource=admin"
+    },
+    "redis": {
+      "driver": "phpredis",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "valkey": {
+      "driver": "predis",
+      "url": "redis://127.0.0.1:6379/0"
+    },
+    "rabbitmq": {
+      "driver": "php-amqplib",
+      "url": "amqp://app:app_local_only@127.0.0.1:5672/"
+    },
+    "kafka": {
+      "driver": "php-rdkafka",
+      "url": "localhost:9092"
+    }
+  }
+}

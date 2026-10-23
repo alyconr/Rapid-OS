@@ -13,8 +13,10 @@ from pathlib import Path
 from rapid_os.domain.architecture import (
     ArchitectureConfig,
     ArchitectureConfigError,
+    architecture_document,
     check_architecture,
     default_config,
+    load_rules,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,16 +30,36 @@ def rules(report):
 
 class ConfigTests(unittest.TestCase):
     def test_defaults_per_stack(self):
-        for stack in ("python-api", "python-ai"):
+        for stack in ("python-api", "python-ai", "python-fastapi"):
             self.assertEqual(default_config(stack)["modules_root"], "app/modules")
             self.assertEqual(default_config(stack)["public_entry"], "public.py")
             self.assertIn("sqlalchemy", default_config(stack)["domain_forbidden_imports"])
-        for stack in ("nodejs-ai", "web-modern"):
+        for stack in ("nodejs-ai", "web-modern", "node-fastify", "nextjs"):
             self.assertEqual(default_config(stack)["modules_root"], "src/modules")
             self.assertEqual(default_config(stack)["public_entry"], "index.ts")
-            self.assertIn("@prisma/client", default_config(stack)["domain_forbidden_imports"])
-        for stack in ("docs-modern", "frontend-creative", "generic", "custom"):
+        self.assertIn("@prisma/client", default_config("web-modern")["domain_forbidden_imports"])
+        for stack in ("docs-modern", "generic", "custom"):
             self.assertEqual(default_config(stack), {})
+
+    def test_a_frontend_gets_the_feature_rule(self):
+        for stack in ("react-vite", "vue-vite", "svelte-vite", "astro", "angular", "nuxt", "sveltekit"):
+            config = default_config(stack)
+            self.assertEqual(config["component"] if stack in ("react-vite", "vue-vite", "svelte-vite", "astro", "angular") else config["rules"][-1]["component"], "frontend")
+        self.assertEqual(default_config("react-vite")["modules_root"], "src/features")
+        self.assertEqual(default_config("react-vite")["pure_layer"], "model")
+        self.assertEqual(default_config("angular")["modules_root"], "src/app/features")
+        self.assertEqual(default_config("frontend-creative")["modules_root"], "src/features")
+
+    def test_a_framework_that_covers_both_gets_two_rules_at_the_root(self):
+        document = default_config("nextjs")
+        self.assertEqual([r["modules_root"] for r in document["rules"]], ["src/modules", "src/features"])
+        self.assertTrue(all("root" not in r for r in document["rules"]))
+
+    def test_a_separate_backend_and_frontend_live_in_their_own_folders(self):
+        document = architecture_document({"backend": "go", "frontend": "vue-vite"})
+        self.assertEqual([(r["component"], r["root"]) for r in document["rules"]], [("backend", "backend"), ("frontend", "frontend")])
+        rules = load_rules(document)
+        self.assertEqual([c.modules_root for c in rules], ["backend/internal", "frontend/src/features"])
 
     def test_layers_are_the_ones_of_the_task(self):
         self.assertEqual(
@@ -48,7 +70,7 @@ class ConfigTests(unittest.TestCase):
 
     def test_an_invalid_config_is_rapid1420(self):
         for bad in (
-            [], {"schema_version": 2}, {**default_config("python-api"), "language": "go"},
+            [], {"schema_version": 2}, {**default_config("python-api"), "language": "cobol"},
             {**default_config("python-api"), "modules_root": "../x"},
             {**default_config("python-api"), "layers": {"api": ["ghost"]}},
             {**default_config("python-api"), "domain_forbidden_imports": "sqlalchemy"},

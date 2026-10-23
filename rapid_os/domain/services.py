@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass
 from typing import Iterable
 
-from rapid_os.domain.catalog import SERVICE_ROLES, Catalog, ServiceEntry
+from rapid_os.domain.catalog import SERVICE_ROLES, Catalog, ServiceEntry, StackEntry
 from rapid_os.domain.setup import SERVICE_WHEN, ServiceChoice
 
 NO_SERVICES = "none"
@@ -98,9 +98,26 @@ def parse_services(value: str, catalog: Catalog) -> tuple[ServiceChoice, ...]:
     return tuple(choices)
 
 
+def driver_for(
+    catalog: Catalog, engine: str, language: str, stack: StackEntry | None = None
+) -> dict[str, str] | None:
+    """`{package, url[, orm]}` of the client library for an engine: the stack's own when its sidecar
+    declares `supported_services`, else the engine's driver for Python or TypeScript."""
+    if stack is not None and stack.supported_services is not None:
+        item = stack.supported_services.get(engine)
+        if item is None:
+            return None
+        driver = {"package": item["driver"], "url": item["url"]}
+        if item.get("orm"):
+            driver["orm"] = item["orm"]
+        return driver
+    service = catalog.services.get(engine)
+    return service.drivers.get(language) if service is not None else None
+
+
 def check_stack_compatibility(choices: Iterable[ServiceChoice], stack_id: str | None, catalog: Catalog) -> None:
     """RAPID1402 when the stack cannot use a chosen service (like an incompatible topology)."""
-    entry = catalog.stacks.get(stack_id or "")
+    entry = catalog.entry(stack_id or "")
     if entry is None:
         return  # custom or sidecarless stacks accept every service
     language = entry.language.lower()
@@ -113,6 +130,15 @@ def check_stack_compatibility(choices: Iterable[ServiceChoice], stack_id: str | 
                 f"this stack does not use {choice.role} services (roles it supports: {usable}). "
                 "Choose another stack or 'none'.",
             )
+        if entry.supported_services is not None:
+            if choice.engine not in entry.supported_services:
+                supported = ", ".join(sorted(entry.supported_services)) or "none"
+                raise ServiceInputError(
+                    "RAPID1402",
+                    f"Stack '{entry.id}' ({entry.language}) has no driver for '{choice.engine}'. "
+                    f"Engines it supports: {supported}.",
+                )
+            continue
         service = catalog.services.get(choice.engine)
         if service is not None and language in ("python", "typescript") and language not in service.drivers:
             raise ServiceInputError(
@@ -124,7 +150,7 @@ def check_stack_compatibility(choices: Iterable[ServiceChoice], stack_id: str | 
 
 def stack_language(catalog: Catalog, stack_id: str | None, fallback: str = "typescript") -> str:
     """`python` or `typescript`: the language of the drivers and connection URLs for the stack."""
-    entry = catalog.stacks.get(stack_id or "")
+    entry = catalog.entry(stack_id or "")
     language = entry.language.lower() if entry is not None else fallback
     return language if language in ("python", "typescript") else fallback
 
@@ -310,7 +336,9 @@ _ENV_HEADER = """# Variables del entorno local. Copia este archivo a .env (que e
 """
 
 
-def env_entries(choices: Iterable[ServiceChoice], catalog: Catalog, language: str) -> list[tuple[str, str, str]]:
+def env_entries(
+    choices: Iterable[ServiceChoice], catalog: Catalog, language: str, stack: StackEntry | None = None
+) -> list[tuple[str, str, str]]:
     """(service, NAME, value) for the `@now` services: their variables and their connection URL."""
     entries: list[tuple[str, str, str]] = []
     used: set[str] = set()
@@ -325,14 +353,17 @@ def env_entries(choices: Iterable[ServiceChoice], catalog: Catalog, language: st
         if connection in used:  # two databases: the second one gets its engine as prefix
             connection = f"{entry.id.upper()}_{connection}"
         used.add(connection)
-        entries.append((entry.id, connection, entry.drivers[language]["url"]))
+        driver = driver_for(catalog, entry.id, language, stack) or entry.drivers.get(language) or {}
+        entries.append((entry.id, connection, driver.get("url", "")))
     return entries
 
 
-def render_env_example(choices: Iterable[ServiceChoice], catalog: Catalog, language: str) -> str:
+def render_env_example(
+    choices: Iterable[ServiceChoice], catalog: Catalog, language: str, stack: StackEntry | None = None
+) -> str:
     lines = _ENV_HEADER.splitlines()
     current = None
-    for service, name, value in env_entries(choices, catalog, language):
+    for service, name, value in env_entries(choices, catalog, language, stack):
         if service != current:
             lines += ["", f"# {service}"]
             current = service
@@ -340,10 +371,12 @@ def render_env_example(choices: Iterable[ServiceChoice], catalog: Catalog, langu
     return "\n".join(lines) + "\n"
 
 
-def merge_env_example(existing: str, choices: Iterable[ServiceChoice], catalog: Catalog, language: str) -> str:
+def merge_env_example(
+    existing: str, choices: Iterable[ServiceChoice], catalog: Catalog, language: str, stack: StackEntry | None = None
+) -> str:
     """Append only the variables the file does not define yet; never change a line that is there."""
     defined = {m.group(1) for ln in existing.splitlines() if (m := re.match(r"^\s*([A-Za-z_][A-Za-z0-9_]*)=", ln))}
-    missing = [(s, n, v) for s, n, v in env_entries(choices, catalog, language) if n not in defined]
+    missing = [(s, n, v) for s, n, v in env_entries(choices, catalog, language, stack) if n not in defined]
     if not missing:
         return existing
     out = existing.rstrip("\n")
@@ -377,7 +410,9 @@ _ROLE_LABEL = {
 }
 
 
-def render_tech_stack(text: str, language: str, choices: Iterable[ServiceChoice] | None, catalog: Catalog) -> str:
+def render_tech_stack(
+    text: str, language: str, choices: Iterable[ServiceChoice] | None, catalog: Catalog, stack: StackEntry | None = None
+) -> str:
     """The database and driver lines of a stack's `tech-stack.md`, from the services decision.
 
     The stack no longer imposes the engine: `- **Database:**` (and the `- **ORM:**` line, which only
@@ -387,7 +422,7 @@ def render_tech_stack(text: str, language: str, choices: Iterable[ServiceChoice]
     database = next((c for c in chosen if c.role == "database"), None)
     entry = catalog.services.get(database.engine) if database else None
     when = " (más adelante)" if database and database.when == "later" else ""
-    driver = entry.drivers.get(language) if entry else None
+    driver = driver_for(catalog, entry.id, language, stack) if entry else None
 
     lines = text.split("\n")
     had_database_line = any(ln.startswith("- **Database:**") for ln in lines)
@@ -398,7 +433,7 @@ def render_tech_stack(text: str, language: str, choices: Iterable[ServiceChoice]
         if orm:
             new.append(f"- **ORM:** {orm}.")
         new.append(f"- **Database:** {_DISPLAY.get(entry.id, entry.id)} {entry.version} + {driver['package']}{when}.")
-        if not orm and language == "python":
+        if not orm and language == "python" and (stack is None or stack.language.lower() == "python"):
             new.append("- **Migrations:** versioned scripts (no SQL ORM for this engine).")
     elif had_database_line:
         new.append("- **Database:** none (no database service was decided).")
@@ -409,7 +444,7 @@ def render_tech_stack(text: str, language: str, choices: Iterable[ServiceChoice]
         if service is None:
             continue
         label = _ROLE_LABEL.get(choice.role, choice.role.title())
-        package = service.drivers.get(language, {}).get("package", "")
+        package = (driver_for(catalog, service.id, language, stack) or {}).get("package", "")
         moment = " (más adelante)" if choice.when == "later" else ""
         new.append(f"- **{label}:** {_DISPLAY.get(service.id, service.id)} {service.version} + {package}{moment}.".replace(" + .", "."))
     # Right before Version Control when the stack has that line, else at the end.

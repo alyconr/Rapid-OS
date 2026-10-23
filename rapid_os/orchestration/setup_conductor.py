@@ -19,7 +19,7 @@ from rapid_os.domain.catalog import (
 )
 from rapid_os.domain.project import ProjectModel
 from rapid_os.domain.scanner import suggest_init_choices
-from rapid_os.domain.security import is_ai_stack
+from rapid_os.domain.stack_aliases import LEGACY_STACKS
 from rapid_os.domain.services import active_conditions, describe_services
 from rapid_os.domain.setup import (
     ARCHETYPES,
@@ -35,6 +35,12 @@ FRAMEWORK_MATCH_SCORE = 20
 DOC_CHOICES = ("provided", "drafted", "skip")
 DOC_COMMAND = ("rapid", "setup", "doc", "<id>", "--source", "<provided|drafted>", "--file", "-")
 STACK_COMMAND = ("rapid", "setup", "set", "stack", "<id>")
+STACK_INSTRUCTION = (
+    "Haz las preguntas que el brief no responda. Recomienda una opción y una alternativa, y explica la "
+    "diferencia con los factors del catálogo aplicados a este producto (p. ej. consumo de memoria y "
+    "concurrencia frente a velocidad de desarrollo). No afirmes nada que el catálogo no diga. "
+    "La persona decide."
+)
 STACK_CUSTOM_COMMAND = ("rapid", "setup", "stack", "--custom", "--file", "-")
 TOPOLOGY_COMMAND = ("rapid", "setup", "set", "topology", "<id>")
 ARCHETYPE_COMMAND = ("rapid", "setup", "set", "archetype", "<id>")
@@ -92,9 +98,17 @@ def next_setup_action(
     detected harness) arrives as an argument: this function reads nothing.
     """
     if state.stack is None:
-        return _choose_stack(project_model, catalog, stack_questions)
+        # A topology the person already chose says which component comes first; otherwise the
+        # first stack can be of any component and the topology follows from it.
+        components = [c for c in catalog.components_of(state.topology) if c != "baas"]
+        return _choose_stack(project_model, catalog, stack_questions, components[0] if components else None, state)
     if state.topology is None:
         return _choose_topology(state, project_model, catalog)
+    for component in catalog.components_of(state.topology):
+        # A finished onboarding (a project from before the component catalog included) is not reopened
+        # because its topology asks for a component it never had to decide.
+        if component != "baas" and component not in state.stacks and not state.finished:
+            return _choose_stack(project_model, catalog, stack_questions, component, state)
     if state.archetype is None:
         return _action(
             SetupActionKind.CHOOSE_ARCHETYPE,
@@ -102,8 +116,8 @@ def next_setup_action(
             recommended=None,
             command=list(ARCHETYPE_COMMAND),
         )
-    if state.ai is None and not is_ai_stack(state.stack.id):
-        # python-ai and nodejs-ai are AI products by definition: they are not asked.
+    if state.ai is None:
+        # (`python-ai` and `nodejs-ai`, the ids of before the component catalog, set `ai` themselves.)
         return _action(
             SetupActionKind.CHOOSE_AI,
             question=AI_QUESTION,
@@ -183,22 +197,45 @@ def _stack_score(entry: StackEntry, model: ProjectModel) -> int:
     return score
 
 
+def _stack_option(entry: StackEntry, model: ProjectModel) -> dict:
+    option = {
+        "id": entry.id,
+        "source": "generic" if entry.id == "generic" else "catalog",
+        "summary": entry.summary,
+        "language": entry.language,
+        "score": _stack_score(entry, model),
+        "fits": list(entry.fits),
+        "avoid_if": list(entry.avoid_if),
+        "compatible_topologies": list(entry.compatible_topologies),
+    }
+    if entry.component:
+        option.update(
+            component=entry.component,
+            covers=list(entry.covers),
+            monolith=entry.monolith or len(entry.covers) > 1,
+            factors=dict(entry.factors),
+            factor_sources={k: list(v) for k, v in entry.factor_sources.items()},
+            package_manager=entry.package_manager,
+            default_test_command=list(entry.default_test_command),
+            supported_services=sorted(entry.supported_services or {}),
+        )
+    return option
+
+
 def _choose_stack(
-    model: ProjectModel, catalog: Catalog, questions: Sequence[SetupQuestion]
+    model: ProjectModel,
+    catalog: Catalog,
+    questions: Sequence[SetupQuestion],
+    component: str | None = None,
+    state: SetupState | None = None,
 ) -> SetupAction:
-    options = [
-        {
-            "id": entry.id,
-            "source": "generic" if entry.id == "generic" else "catalog",
-            "summary": entry.summary,
-            "language": entry.language,
-            "score": _stack_score(entry, model),
-            "fits": list(entry.fits),
-            "avoid_if": list(entry.avoid_if),
-            "compatible_topologies": list(entry.compatible_topologies),
-        }
-        for entry in catalog.stacks.values()
-    ]
+    """One stack per component of the topology (`component` names the one asked now)."""
+    entries = catalog.options_for(component) if component else tuple(catalog.stacks.values())
+    flat = [e for e in catalog.stacks.values() if not e.component and (component is None or component in e.covers)]
+    unique = {}
+    for entry in [*entries, *flat]:
+        unique.setdefault(entry.id, entry)
+    options = [_stack_option(entry, model) for entry in unique.values()]
     options += [
         {
             "id": stack_id,
@@ -214,18 +251,31 @@ def _choose_stack(
     ]
     options.sort(key=lambda o: (-o["score"], o["source"] == "generic", o["id"]))
 
-    suggestion = suggest_init_choices(model).stack
-    recommended = suggestion.value if suggestion and any(o["id"] == suggestion.value for o in options) else None
+    suggestions = suggest_init_choices(model)
+    suggestion = (suggestions.stacks or {}).get(component) if component else suggestions.stack
+    suggested = suggestion.value if suggestion else None
+    legacy = LEGACY_STACKS.get(suggested or "")
+    if legacy is not None:
+        suggested = legacy.stacks.get(component or "backend") or legacy.primary_id()
+    recommended = suggested if suggested and any(o["id"] == suggested for o in options) else None
     facts = sorted({(f.category, f.value) for f in model.facts})
-    return _action(
-        SetupActionKind.CHOOSE_STACK,
+    command = list(STACK_COMMAND) + (["--component", component] if component else [])
+    payload = dict(
         facts=[{"category": c, "value": v} for c, v in facts],
         options=options,
         recommended=recommended,
-        questions=[] if recommended else [_question(q) for q in questions],
-        command=list(STACK_COMMAND),
+        questions=[_question(q) for q in questions],
+        instruction=STACK_INSTRUCTION,
+        command=command,
         alt_command=list(STACK_CUSTOM_COMMAND),
     )
+    if component:
+        payload["component"] = component
+        payload["decided"] = {c: s.id for c, s in (state.stacks if state else {}).items()}
+        if state is not None and state.topology is not None:
+            payload["topology"] = state.topology
+            payload["components"] = list(catalog.components_of(state.topology))
+    return _action(SetupActionKind.CHOOSE_STACK, **payload)
 
 
 def _question(question: SetupQuestion) -> dict:
@@ -237,10 +287,13 @@ def _question(question: SetupQuestion) -> dict:
 
 def _choose_topology(state: SetupState, model: ProjectModel, catalog: Catalog) -> SetupAction:
     stack_id = state.stack.id
-    compatible = catalog.compatible_topologies(stack_id)
-    if compatible is None:
-        compatible = tuple(t for t in catalog.topology_ids if t != DOC_SITE_TOPOLOGY)
-    ids = sorted(compatible)
+    compatible = None
+    for decided in state.stack_ids:
+        allowed = catalog.compatible_topologies(decided)
+        if allowed is None:
+            allowed = tuple(t for t in catalog.topology_ids if t != DOC_SITE_TOPOLOGY)
+        compatible = allowed if compatible is None else tuple(t for t in compatible if t in allowed)
+    ids = sorted(compatible or ())
     suggestion = suggest_init_choices(model).topology
     recommended = catalog.default_topology_for_stack(
         stack_id, suggestion.value if suggestion else None, ids
@@ -259,6 +312,7 @@ def _choose_topology(state: SetupState, model: ProjectModel, catalog: Catalog) -
     return _action(
         SetupActionKind.CHOOSE_TOPOLOGY,
         stack=stack_id,
+        stacks={c: choice.id for c, choice in state.stacks.items()},
         options=options,
         recommended=recommended,
         command=list(TOPOLOGY_COMMAND),
@@ -268,7 +322,7 @@ def _choose_topology(state: SetupState, model: ProjectModel, catalog: Catalog) -
 def _choose_services(state: SetupState, catalog: Catalog) -> SetupAction:
     """The infrastructure services come from a recorded decision, not from the stack: the stack only
     suggests a minimum."""
-    entry = catalog.stacks.get(state.stack.id) if state.stack else None
+    entry = catalog.entry(state.stack.id) if state.stack else None
     return _action(
         SetupActionKind.CHOOSE_SERVICES,
         roles=list(SERVICE_ROLES),
