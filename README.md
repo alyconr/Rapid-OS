@@ -73,7 +73,7 @@ El portal público incluye la documentación completa, estructurada en las sigui
   - [Refactor Lab](https://alyconr.github.io/Rapid-OS/tutorials/refactor-lab)
   - [Hardening Lab](https://alyconr.github.io/Rapid-OS/tutorials/hardening-lab)
   - [Research Lab](https://alyconr.github.io/Rapid-OS/tutorials/research-lab)
-  - [Bajo el capó (avanzado: el bucle a mano)](https://alyconr.github.io/Rapid-OS/tutorials/first-governed-project)
+  - [Recorrido manual con comandos v3 (avanzado)](https://alyconr.github.io/Rapid-OS/tutorials/first-governed-project)
 - **Integraciones con Coding Harnesses**:
   - [Codex](https://alyconr.github.io/Rapid-OS/integrations/codex) · [Claude Code](https://alyconr.github.io/Rapid-OS/integrations/claude-code)
   - [Cursor](https://alyconr.github.io/Rapid-OS/integrations/cursor) · [VS Code](https://alyconr.github.io/Rapid-OS/integrations/vscode) · [Google Antigravity](https://alyconr.github.io/Rapid-OS/integrations/antigravity)

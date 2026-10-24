@@ -727,7 +727,7 @@ class DocumentationContractTests(unittest.TestCase):
         text = (DOCS / "getting-started.md").read_text(encoding="utf-8")
         for needle in ("rapid init --shortcuts", "rapid shortcuts install --global", "/rapid-init", "/rapid-feature",
                        "rapid approve", "## 2. Mapa de esta sección", "## Modo avanzado",
-                       "rapid scan --write", "rapid spec create", "rapid evidence verify", "rapid eval run"):
+                       "governance-loop.md", "tutorials/first-governed-project.md"):
             with self.subTest(needle=needle):
                 self.assertIn(needle, text)
         for sub in ("first-project", "existing-project", "first-spec", "first-context", "next-steps"):
@@ -805,8 +805,9 @@ class DocumentationContractTests(unittest.TestCase):
                 self.assertLess(text.index("/rapid-init"), text.index("Modo avanzado"))
                 self.assertLess(text.index("/rapid-feature"), text.index("Modo avanzado"))
         first_project = (DOCS / "getting-started" / "first-project.md").read_text(encoding="utf-8")
-        self.assertLess(first_project.index("/rapid-init"), first_project.index("## Paso 1"))
-        self.assertIn("rapid scan --write", first_project)  # the plumbing route is kept
+        # The plumbing route lives in the manual walkthrough, linked from the advanced section.
+        advanced = first_project[first_project.index("## Modo avanzado"):]
+        self.assertIn("tutorials/first-governed-project.md", advanced)
 
     def test_shortcuts_quickstart_functional_end_to_end(self):
         """The shortcut route: init --shortcuts, then the agent step simulated with `rapid start feature --spec-file -`."""
@@ -884,9 +885,8 @@ class DocumentationContractTests(unittest.TestCase):
                 for needle in (f"examples/{lab}-lab/starter", "/rapid-init", f"/rapid-{lab}", "rapid approve",
                                "/rapid-next", "rapid shortcuts install --global", "rapid init --shortcuts"):
                     self.assertIn(needle, route)
-                self.assertLess(text.index("## Modo avanzado"), text.index("## 1. Overview"))
-                self.assertIn("## 5. Guided Procedure", text)  # not deleted, only folded
-                self.assertIn("rapid run create", text)
+                self.assertIn("first-governed-project.md", text[text.index("## Modo avanzado"):])
+                self.assertNotIn("rapid run create", text)  # the plumbing route lives in the manual walkthrough
         hardening = (DOCS / "tutorials" / "hardening-lab.md").read_text(encoding="utf-8")
         route = hardening[:hardening.index("## Modo avanzado")]
         self.assertIn("`corporate`", route)
@@ -950,9 +950,35 @@ class DocumentationContractTests(unittest.TestCase):
 
     def test_tutorial_labs_start_with_the_shortcut_labs_and_end_under_the_hood(self):
         sidebars = (WEBSITE / "sidebars.ts").read_text(encoding="utf-8")
-        labs = [lab for lab in re.findall(r"'tutorials/([a-z-]+)'", sidebars) if lab != "index"]
-        self.assertEqual(labs[0], "feature-lab")
-        self.assertEqual(labs[-1], "first-governed-project")
+        labs_block = sidebars[sidebars.index("label: 'Laboratorios Prácticos'"):]
+        labs_block = labs_block[:labs_block.index("],")]
+        labs = [lab for lab in re.findall(r"'tutorials/([a-z-]+)'", labs_block) if lab != "index"]
+        self.assertEqual(labs, ["feature-lab", "bugfix-lab", "refactor-lab", "hardening-lab", "research-lab"])
+        how_it_works = sidebars[sidebars.index("label: 'Cómo funciona'"):]
+        how_it_works = how_it_works[:how_it_works.index("],")]
+        self.assertIn("'tutorials/first-governed-project'", how_it_works)
+
+    # Learning pages: no command anywhere on the page (folded or not) carries more than two flags.
+    LEARNING_PAGES = (
+        "index.md",
+        "getting-started.md",
+        "getting-started/*.md",
+        "tutorials/*.md",
+        "installation/*.md",
+        "guides/shortcuts.md",
+    )
+
+    def test_learning_pages_never_show_heavy_commands(self):
+        pages = sorted({page for pattern in self.LEARNING_PAGES for page in DOCS.glob(pattern)})
+        self.assertIn(DOCS / "tutorials" / "first-governed-project.md", pages)
+        for page in pages:
+            text = page.read_text(encoding="utf-8").replace("\\\n", " ")
+            commands = [line.strip() for line in text.splitlines() if line.strip().startswith("rapid ")]
+            commands += re.findall(r"`(rapid [^`\n]*)`", text)
+            for command in commands:
+                command = command.split("#", 1)[0]
+                with self.subTest(page=page.relative_to(DOCS).as_posix(), command=command[:80]):
+                    self.assertLessEqual(command.count(" --"), 2)
 
     def test_antigravity_advanced_mode_includes_baseline_and_activation(self):
         text = (DOCS / "integrations" / "antigravity.md").read_text(encoding="utf-8")

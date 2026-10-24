@@ -4,15 +4,15 @@ import ComponentCreator from '@docusaurus/ComponentCreator';
 export default [
   {
     path: '/Rapid-OS/',
-    component: ComponentCreator('/Rapid-OS/', '6ba'),
+    component: ComponentCreator('/Rapid-OS/', '079'),
     routes: [
       {
         path: '/Rapid-OS/',
-        component: ComponentCreator('/Rapid-OS/', 'bc6'),
+        component: ComponentCreator('/Rapid-OS/', 'b12'),
         routes: [
           {
             path: '/Rapid-OS/',
-            component: ComponentCreator('/Rapid-OS/', '597'),
+            component: ComponentCreator('/Rapid-OS/', 'a24'),
             routes: [
               {
                 path: '/Rapid-OS/architecture/orchestration',
@@ -159,43 +159,43 @@ export default [
               },
               {
                 path: '/Rapid-OS/getting-started',
-                component: ComponentCreator('/Rapid-OS/getting-started', '1ac'),
+                component: ComponentCreator('/Rapid-OS/getting-started', '5a2'),
                 exact: true,
                 sidebar: "docs"
               },
               {
                 path: '/Rapid-OS/getting-started/existing-project',
-                component: ComponentCreator('/Rapid-OS/getting-started/existing-project', '0e2'),
+                component: ComponentCreator('/Rapid-OS/getting-started/existing-project', '55b'),
                 exact: true,
                 sidebar: "docs"
               },
               {
                 path: '/Rapid-OS/getting-started/first-context',
-                component: ComponentCreator('/Rapid-OS/getting-started/first-context', 'e5a'),
+                component: ComponentCreator('/Rapid-OS/getting-started/first-context', 'a26'),
                 exact: true,
                 sidebar: "docs"
               },
               {
                 path: '/Rapid-OS/getting-started/first-project',
-                component: ComponentCreator('/Rapid-OS/getting-started/first-project', '806'),
+                component: ComponentCreator('/Rapid-OS/getting-started/first-project', '786'),
                 exact: true,
                 sidebar: "docs"
               },
               {
                 path: '/Rapid-OS/getting-started/first-spec',
-                component: ComponentCreator('/Rapid-OS/getting-started/first-spec', '34b'),
+                component: ComponentCreator('/Rapid-OS/getting-started/first-spec', '494'),
                 exact: true,
                 sidebar: "docs"
               },
               {
                 path: '/Rapid-OS/getting-started/next-steps',
-                component: ComponentCreator('/Rapid-OS/getting-started/next-steps', 'e32'),
+                component: ComponentCreator('/Rapid-OS/getting-started/next-steps', 'f6b'),
                 exact: true,
                 sidebar: "docs"
               },
               {
                 path: '/Rapid-OS/getting-started/when-the-agent-stops',
-                component: ComponentCreator('/Rapid-OS/getting-started/when-the-agent-stops', 'b40'),
+                component: ComponentCreator('/Rapid-OS/getting-started/when-the-agent-stops', '630'),
                 exact: true,
                 sidebar: "docs"
               },
@@ -345,25 +345,25 @@ export default [
               },
               {
                 path: '/Rapid-OS/integrations/claude-code',
-                component: ComponentCreator('/Rapid-OS/integrations/claude-code', '5d3'),
+                component: ComponentCreator('/Rapid-OS/integrations/claude-code', '2dd'),
                 exact: true,
                 sidebar: "docs"
               },
               {
                 path: '/Rapid-OS/integrations/codex',
-                component: ComponentCreator('/Rapid-OS/integrations/codex', '0ff'),
+                component: ComponentCreator('/Rapid-OS/integrations/codex', 'eb3'),
                 exact: true,
                 sidebar: "docs"
               },
               {
                 path: '/Rapid-OS/integrations/cursor',
-                component: ComponentCreator('/Rapid-OS/integrations/cursor', 'b61'),
+                component: ComponentCreator('/Rapid-OS/integrations/cursor', '15c'),
                 exact: true,
                 sidebar: "docs"
               },
               {
                 path: '/Rapid-OS/integrations/vscode',
-                component: ComponentCreator('/Rapid-OS/integrations/vscode', '10e'),
+                component: ComponentCreator('/Rapid-OS/integrations/vscode', '3a1'),
                 exact: true,
                 sidebar: "docs"
               },
@@ -471,7 +471,7 @@ export default [
               },
               {
                 path: '/Rapid-OS/',
-                component: ComponentCreator('/Rapid-OS/', '2ef'),
+                component: ComponentCreator('/Rapid-OS/', '40e'),
                 exact: true,
                 sidebar: "docs"
               }

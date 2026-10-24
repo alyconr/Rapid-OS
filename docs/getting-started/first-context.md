@@ -87,35 +87,32 @@ flowchart LR
 
 ## Ejemplo: Compilar contexto para una Feature
 
-Supongamos que deseamos implementar la especificación `rate-limiting` utilizando Codex:
+Supongamos una spec `api-rate-limiting` en estado `ready` (ver [Cómo se escribe la spec](./first-spec.md)):
 
 ```bash
-rapid context \
-  --mode feature \
-  --spec rate-limiting \
-  --harness codex \
-  --max-chars 8000 \
-  --manifest
+rapid context --spec api-rate-limiting --manifest
 ```
+
+Con `--mode`, `--harness` o `--max-chars` (ver la tabla de arriba) ajustas el modo, el agente destino y el presupuesto.
 
 ### ¿Qué contiene la salida?
 El comando emite en `stdout` un documento Markdown estructurado listo para ser pegado en el prompt o inyectado por una herramienta de automatización:
 1. **Directivas generales del proyecto:** Estándares clave de arquitectura y codificación extraídos de `.rapid-os/standards/`.
-2. **Hechos relevantes del escaneo:** Lenguaje, frameworks de pruebas y librerías pertinentes al modo `feature`.
+2. **Hechos relevantes del escaneo:** Lenguaje, frameworks de pruebas y librerías pertinentes al modo.
 3. **Especificación activa:** Los objetivos, alcance, criterios de aceptación y tareas de la revisión congelada de la spec.
 4. **Resumen de manifiesto (`--manifest`):**
    ```text
    Rapid OS Context Manifest
 
-   Mode: feature
-   Harness: codex
-   Budget: 4230 / 8000 chars
+   Mode: general
+   Harness: cursor
+   Budget: 17550 / 24000 chars
 
    SELECTED
-     standard.topology      high      776 chars
-     standard.tech-stack    high      456 chars
-     spec.rate-limiting     high      1200 chars
-     project.intelligence   medium    19 chars
+     standard.security      critical  9450 chars   relevant to general mode
+     standard.architecture  high      5159 chars   relevant to general mode
+     standard.tech-stack    high      445 chars    relevant to general mode
+     spec.api-rate-limiting.requirements high      467 chars    relevant to general mode; selected spec 'api-rate-limiting'
    ```
 
 ---

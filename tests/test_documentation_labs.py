@@ -65,16 +65,9 @@ class Sprint4DocumentationLabsTests(unittest.TestCase):
             self.assertTrue(path.is_file(), f"Missing required document: {path}")
 
     def test_all_tutorial_labs_follow_canonical_pedagogical_template(self):
-        """Each lab must include the canonical structure."""
-        lab_files = [
-            DOCS / "tutorials" / "first-governed-project.md",
-            DOCS / "tutorials" / "feature-lab.md",
-            DOCS / "tutorials" / "bugfix-lab.md",
-            DOCS / "tutorials" / "refactor-lab.md",
-            DOCS / "tutorials" / "hardening-lab.md",
-            DOCS / "tutorials" / "research-lab.md",
-        ]
-        required_sections = [
+        """The manual walkthrough keeps the full template; mode labs are shortcut routes with their details."""
+        manual = (DOCS / "tutorials" / "first-governed-project.md").read_text(encoding="utf-8")
+        for section in (
             "Overview",
             "Learning Outcomes",
             "Initial State",
@@ -84,15 +77,13 @@ class Sprint4DocumentationLabsTests(unittest.TestCase):
             "Evidence Collection",
             "Evaluation",
             "Assessment",
-        ]
-        for lab in lab_files:
-            content = lab.read_text(encoding="utf-8")
-            for section in required_sections:
-                self.assertIn(
-                    section,
-                    content,
-                    f"Lab {lab.name} is missing mandatory section: {section}",
-                )
+        ):
+            self.assertIn(section, manual, f"first-governed-project.md is missing mandatory section: {section}")
+        for lab in ("feature", "bugfix", "refactor", "hardening", "research"):
+            content = (DOCS / "tutorials" / f"{lab}-lab.md").read_text(encoding="utf-8")
+            for section in ("## Con shortcuts", "### Estado inicial", "### Requisitos", "## Modo avanzado",
+                            "first-governed-project.md"):
+                self.assertIn(section, content, f"Lab {lab}-lab.md is missing mandatory section: {section}")
 
     def test_all_example_labs_starters_and_solutions_pass_tests(self):
         """Every example starter and solution test suite must execute according to its specification.

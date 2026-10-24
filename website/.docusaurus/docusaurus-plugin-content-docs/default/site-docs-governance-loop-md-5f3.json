@@ -20,7 +20,7 @@
     "permalink": "/Rapid-OS/cookbooks/behavioral-evaluations"
   },
   "next": {
-    "title": "Capabilities y permisos",
-    "permalink": "/Rapid-OS/guides/permissions-capabilities"
+    "title": "Recorrido manual: el bucle de gobernanza a mano (Bajo el capó)",
+    "permalink": "/Rapid-OS/tutorials/first-governed-project"
   }
 }
