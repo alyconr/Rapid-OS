@@ -20,6 +20,7 @@ El modo **Refactor** gobierna cambios en la estructura interna del código (simp
 Qué hace su playbook (`templates/modes/refactor.json` y las reglas del Conductor):
 
 - La baseline es obligatoria (`gate.baseline`): es la referencia de no regresión.
+- **Arquitectura:** si el proyecto tiene `.rapid-os/standards/architecture.json` (lo escribe el onboarding con el stack elegido), el contrato incluye el gate de máquina `gate.architecture` (obligatorio, no dispensable) y `rapid next` propone `rapid check --gate gate.architecture -- rapid arch check`. Una violación de capas o de contrato público es `RAPID1420` y `rapid finish` no da `PASS` hasta que se corrija el código. Detalle en [Arquitectura por stack](../../concepts/architecture.md#el-gate-gatearchitecture).
 - Cuando todas las tareas terminan, si el último `test_result` tiene menos tests pasados que la baseline, `rapid next` devuelve `blocked` con la diferencia: un refactor no puede reducir los tests que pasan.
 - Es una regla del Conductor (`rapid_os/orchestration/conductor.py`), no del evaluador.
 

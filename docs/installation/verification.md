@@ -102,6 +102,7 @@ rapid shortcuts list
 Con el proyecto inicializado, `rapid doctor` revisa también la capa porcelain. Dos avisos son esperables y no indican un fallo de instalación:
 
 - **`RAPID1319`**: no se pudo leer el árbol de procesos, así que `rapid approve` no puede comprobar si lo lanza un agente. Aprobar sigue exigiendo una terminal interactiva.
+- **`RAPID1414`**: hay shortcuts o hooks instalados pero `rapid` no está en el `PATH` del shell que usa el agente. Es un aviso (exit 0), no un error: instala Rapid OS con el instalador o con `pipx install git+https://github.com/alyconr/Rapid-OS.git` y lanza el agente desde una terminal donde `rapid --version` funcione. Si ofreciste `/rapid-init` global, se comprueba igual: el skill ejecuta `rapid` desde ese shell.
 - **`RAPID1339`**: hay hooks de Claude Code instalados pero `rapid` no se resuelve en el `PATH` que ve Claude Code. Instala Rapid OS donde lo vea (por ejemplo `pipx install git+https://github.com/alyconr/Rapid-OS.git`) o añade su directorio de scripts al `PATH`; si no usas hooks, no aparece.
 
 ---

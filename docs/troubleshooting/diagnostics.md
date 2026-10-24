@@ -9,7 +9,7 @@ Cuando ejecutas `rapid validate`, `rapid scan`, o comandos de gobernanza, RAPID 
 
 ---
 
-## 1. Configuración de Proyecto y Plantillas (`RAPID100–RAPID123`)
+## 1. Configuración de Proyecto y Plantillas (`RAPID100–RAPID110`)
 
 | Código | Severidad | Causa común | Acción de remediación |
 | :--- | :--- | :--- | :--- |
@@ -18,8 +18,12 @@ Cuando ejecutas `rapid validate`, `rapid scan`, o comandos de gobernanza, RAPID 
 | `RAPID102` | ERROR | Error de sintaxis JSON en `.rapid-os/config.json`. | Corregir la sintaxis JSON o restaurar desde el archivo de backup `.bak`. |
 | `RAPID103` | ERROR | Versión de esquema incompatible o inválida. | Verificar que `schema_version` coincida con la versión soportada. |
 | `RAPID104` | ERROR | Campos requeridos ausentes en `config.json`. | Regenerar la configuración con `rapid init`. |
-| `RAPID120` | WARNING | Archivos de plantilla faltantes en `templates/`. | Ejecutar `rapid doctor` para verificar la disponibilidad de plantillas integradas. |
-| `RAPID121` | ERROR | Plantilla requerida dañada o ilegible. | Reinstalar RAPID OS o restaurar la carpeta `templates/`. |
+| `RAPID105` | ERROR | Una carpeta de plantillas obligatoria (`stacks` o `topologies`) no tiene ninguna plantilla Markdown. | Reinstalar Rapid OS o restaurar la carpeta `templates/`. |
+| `RAPID106` | ERROR | Un archivo de plantilla no es UTF-8 válido. | Guardarlo como UTF-8 o restaurar la plantilla original. |
+| `RAPID107` | ERROR | Un archivo de plantilla no se pudo leer (permisos o error de disco). | Revisar los permisos de `templates/` o reinstalar Rapid OS. |
+| `RAPID108` | WARNING | Un archivo de plantilla está vacío. | Restaurar la plantilla o eliminar el archivo. |
+| `RAPID109` | ERROR | Una plantilla `.json` no es JSON válido. | Corregir la sintaxis indicada en el mensaje o restaurar la plantilla. |
+| `RAPID110` | WARNING | Una plantilla contiene marcadores sin resolver (`{{...}}`, `TODO`, `REPLACE_ME`...). | Sustituir los marcadores; solo importa si editaste las plantillas. |
 
 ---
 
@@ -96,6 +100,7 @@ Cuando ejecutas `rapid validate`, `rapid scan`, o comandos de gobernanza, RAPID 
 | `RAPID1102` | ERROR | Perfil de harness (`HarnessProfile`) inválido. | Corregir `.rapid-os/harnesses/<id>.json` según el schema v1. |
 | `RAPID1103` | ERROR | Perfil de harness no encontrado. | Inicializar el perfil con `rapid harness init <id>` o usar uno integrado. |
 | `RAPID1104` | ERROR | Formato de harness ID inválido. | Usar nombres alfanuméricos en minúsculas con guiones. |
+| `RAPID1105` | ERROR | Ruta insegura o ilegible en el registro de harnesses o en `.rapid-os/capabilities.lock`: es un symlink, escapa de la raíz del proyecto o no es un directorio o archivo regular. | Reemplazarla por un directorio o archivo real dentro del proyecto (`.rapid-os/harnesses/`, `.rapid-os/capabilities.lock`); `rapid harness lock` regenera el lock. |
 | `RAPID1106` | ERROR | Nivel de soporte inválido en perfil. | Usar `supported`, `unsupported`, o `unknown`. |
 | `RAPID1107` | ERROR | Requerimiento de capability malformado en contrato. | Verificar la especificación de capacidades del contrato. |
 | `RAPID1108` | ERROR | Objeto `CapabilityResolution` inválido. | Ejecutar nuevamente `rapid harness resolve --run <id>`. |
@@ -202,3 +207,61 @@ Cuando ejecutas `rapid validate`, `rapid scan`, o comandos de gobernanza, RAPID 
 | `RAPID1416` | ERROR | `rapid start` en una carpeta que no es un repositorio git, sin git instalado, o en un repositorio en el que git no confía. Rapid OS observa los cambios del run con git y el run nunca podría pasar. Se comprueba antes de crear el run y antes del rechazo de repositorio vacío (`RAPID1413`): no se escribe nada en `.rapid-os/runs` ni en `session.json`. | Ejecutar `git init`, o `rapid setup finish`, que crea el repositorio (sin commits) si falta; instalar git si no está. **Carpeta en la que git no confía** (`detected dubious ownership`, habitual en Windows en otra unidad o en carpetas creadas por otro usuario): el mismo código, otro texto (`RAPID1416 git no confía en esta carpeta (dubious ownership) ...`); `git init` no lo arregla, hay que ejecutar `git config --global --add safe.directory <ruta>` con la ruta que imprime el mensaje. `rapid setup finish` no ejecuta `git init` en ese caso: avisa con el mismo comando. Rapid OS ejecuta todos sus comandos git con `-c safe.directory=<raíz del proyecto>`, así que `untrusted` solo ocurre si git no respeta ese ajuste (versiones anteriores a 2.38) o si el repositorio está en una carpeta superior a la raíz del proyecto. El caso habitual del sandbox de Codex en Windows (otro usuario) ya no bloquea a Rapid OS: lo único pendiente es la excepción para el git de la persona, que llega como `person_actions` (`git-safe-directory`) en `rapid setup finish`, `rapid setup next --json` y `rapid doctor`. Ver [Windows: sandbox y git](../integrations/codex.md#windows-sandbox-y-git). |
 | `RAPID1420` | ERROR | `rapid arch check` encontró un import que rompe la regla de arquitectura de `.rapid-os/standards/architecture.json`; se emite una por violación, con archivo, línea, import y regla: `layer` (una capa importa una capa que no le toca), `cross_module` (un módulo importa de otro algo distinto de su punto público), `shared` (`shared` importa un módulo), `init_reexport` (el `__init__.py` de un módulo de Python importa algo distinto de su propio `public.py`) o `domain_forbidden_import` (`domain` importa `fastapi`, `sqlalchemy`, `react`, `@prisma/client`... según el stack). También se usa para un `architecture.json` ilegible o inválido y para un run cuyo contrato incluye `gate.architecture` cuando no hay `architecture.json` en el directorio actual ni en el proyecto principal de la sesión (`el run exige gate.architecture y no hay architecture.json`). En un run, hace fallar `rapid check --gate gate.architecture` y `rapid finish` no da `PASS`. | Cambiar el código para respetar la regla (importar solo el punto público del otro módulo, mover la lógica a la capa que toca, quitar la librería del `domain`). Nunca desactives ni edites `architecture.json` para que pase: pide a la persona que cambie la regla. En un proyecto con Ruby on Rails la regla delega en `bin/packwerk check`: si packwerk no está (`RAPID1420 packwerk no está disponible...`) el check termina con 1 y el gate no se da por satisfecho; instálalo con `bundle add packwerk --group development && bundle binstub packwerk`. Con un `architecture.json` de varias reglas (`rules`) se juzga cada una en su carpeta. |
 | `RAPID1421` | WARNING | `rapid doctor` encontró `.rapid-os/standards/security.md` y no menciona OWASP ASVS: el proyecto se inicializó antes de la base de seguridad (OWASP Top 10:2025, ASVS 5.0.0, SSDF, SLSA). No cambia el exit code. | Ejecutar `rapid setup set archetype <el actual> --refresh` (el aviso lo escribe con el arquetipo del proyecto): regenera `security.md` y `coding-rules.md` y deja las copias anteriores en `.rapid-os/backups/`. |
+
+---
+
+## 11. Validación del proyecto: estándares, configuración, stack y contexto (`RAPID200–RAPID502`)
+
+Los emiten `rapid validate` y `rapid doctor` sobre `.rapid-os/`.
+
+| Código | Severidad | Causa común | Acción de remediación |
+| :--- | :--- | :--- | :--- |
+| `RAPID200` | ERROR | Falta la carpeta `.rapid-os/` del proyecto. | Ejecutar `rapid init` (o `rapid setup next`) en la raíz del proyecto. |
+| `RAPID201` | ERROR | Falta `.rapid-os/standards/`. | Ejecutar `rapid init` para regenerar los estándares. |
+| `RAPID202` | ERROR | Falta un estándar obligatorio (`tech-stack.md` o `topology.md`). | Ejecutar `rapid setup finish` o `rapid init` para generarlo. |
+| `RAPID203` | WARNING | Falta un estándar opcional (`security.md`, `business.md` o `coding-rules.md`). | Informativo; `rapid setup finish` escribe `security.md` y `coding-rules.md`. |
+| `RAPID204` | ERROR | Un estándar no es UTF-8 válido. | Guardarlo como UTF-8 o regenerarlo. |
+| `RAPID205` | ERROR | Un estándar no se pudo leer. | Revisar permisos y existencia del archivo. |
+| `RAPID206` | ERROR | Un estándar obligatorio está vacío. | Regenerarlo con `rapid init` o `rapid setup finish`. |
+| `RAPID207` | WARNING | Un estándar opcional está vacío. | Completarlo o eliminarlo. |
+| `RAPID208` | WARNING | Un estándar contiene marcadores sin resolver (`{{...}}`, `TODO`, `REPLACE_ME`...). | Sustituirlos por el contenido real. |
+| `RAPID300` | WARNING | Falta `.rapid-os/config.json`; se usan las herramientas por defecto. | Ejecutar `rapid init` o `rapid setup set agents <ids>`. |
+| `RAPID301` | ERROR | `config.json` no es JSON válido. | Corregir la sintaxis o restaurar el archivo desde `.rapid-os/backups/` o su `.bak`. |
+| `RAPID302` | ERROR | `config.json` no se pudo leer. | Revisar permisos del archivo. |
+| `RAPID303` | ERROR | El esquema de `config.json` es inválido (por ejemplo `tools` no es una lista). | Corregir el campo que indica el mensaje. |
+| `RAPID304` | WARNING | No hay herramientas seleccionadas en `config.json`. | Elegirlas con `rapid setup set agents <ids>`. |
+| `RAPID305` | ERROR | Los ids de `tools` en `config.json` deben ser cadenas. | Dejar solo ids de texto en `tools`. |
+| `RAPID306` | INFO | Se seleccionó una herramienta de investigación conocida (`context7`, `firecrawl`). | Informativo. |
+| `RAPID307` | ERROR | Referencia a una herramienta desconocida en `config.json`. | Usar un agente registrado o una herramienta de investigación conocida (el aviso las lista). |
+| `RAPID308` | ERROR | El agente seleccionado no tiene adaptador registrado. | Elegir un agente de la lista soportada. |
+| `RAPID309` | ERROR | El adaptador falló al renderizar el contexto de validación. | Reinstalar Rapid OS; si persiste, abrir un issue con el mensaje. |
+| `RAPID310` | ERROR | El adaptador no renderizó una de las salidas que declara. | Reinstalar Rapid OS; es un defecto del adaptador. |
+| `RAPID311` | ERROR | El adaptador declara una ruta de salida insegura (absoluta o con `..`). | Reinstalar Rapid OS; es un defecto del adaptador. |
+| `RAPID400` | INFO | Stack detectado en `tech-stack.md`. | Informativo. |
+| `RAPID401` | INFO | Topología detectada en `topology.md`. | Informativo. |
+| `RAPID402` | ERROR | El stack solo admite la topología `doc-site`. | Cambiar la topología con `rapid setup set topology doc-site` o elegir otro stack. |
+| `RAPID403` | ERROR | La topología `doc-site` debe usar el stack `docs-modern`. | `rapid setup set stack docs-modern` o cambiar de topología. |
+| `RAPID404` | ERROR | El stack no es compatible con la topología elegida (el mensaje lista las compatibles). | Elegir una topología compatible o cambiar el stack. |
+| `RAPID405` | WARNING | `fullstack-baas` con `python-ai`: la topología está pensada para aplicaciones web integradas. | Confirmar que la combinación es intencional. |
+| `RAPID500` | ERROR | El contexto ensamblado del proyecto está vacío. | Regenerar los estándares con `rapid init` o `rapid setup finish`. |
+| `RAPID501` | INFO | Longitud del contexto ensamblado. | Informativo. |
+| `RAPID502` | WARNING | El contexto ensamblado contiene marcadores sin resolver. | Sustituir los marcadores en los estándares que los contengan. |
+
+---
+
+## 12. Entorno de `rapid validate` (`RAPID900–RAPID909`)
+
+`rapid validate` abre su informe con el entorno que usó; son informativos salvo `RAPID906`.
+
+| Código | Severidad | Causa común | Acción de remediación |
+| :--- | :--- | :--- | :--- |
+| `RAPID900` | INFO | Directorio actual. | Informativo. |
+| `RAPID901` | INFO | Directorio de Rapid OS (`RAPID_HOME`). | Informativo. |
+| `RAPID902` | INFO | Directorio del script. | Informativo. |
+| `RAPID903` | INFO | Directorio de plantillas en uso. | Informativo. |
+| `RAPID904` | INFO | Directorio `.rapid-os/` del proyecto. | Informativo. |
+| `RAPID905` | INFO | Archivo de configuración en uso. | Informativo. |
+| `RAPID906` | WARNING | Node.js/npx no está disponible: los skills remotos y algunos flujos MCP no funcionarán. | Instalar Node.js si usas esos flujos. |
+| `RAPID907` | INFO | No hay un proyecto Rapid OS en el directorio actual. | Ejecutar `rapid init` o entrar a la raíz del proyecto. |
+| `RAPID908` | INFO | Harness por defecto de `config.json`. | Informativo. |
+| `RAPID909` | INFO | Comando de test de `config.json`. | Informativo; se cambia con `rapid setup set test-command <cmd>`. |

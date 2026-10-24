@@ -43,6 +43,10 @@ irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.ps1 | iex
 6. Si un instalador anterior dejó una función `rapid` en tu `$PROFILE`, la quita (con copia `.rapid-os.bak`).
 7. Abre una ventana nueva de PowerShell para que tome el PATH.
 
+:::note `/rapid-init` global (desde 3.2.0)
+Al terminar, el instalador puede ofrecer `/rapid-init` en tu carpeta de usuario (`rapid shortcuts install --global --only rapid-init --harness <id>`), para que funcione en cualquier proyecto sin instalarlo en cada uno. Solo lo ofrece si el `rapid` instalado tiene `--global` y hay una terminal interactiva, y nunca por defecto. La versión estable actual (`v3.1.1`) no tiene `--global`, así que no lo ofrece; en ella instala el shortcut en cada proyecto con `rapid init --shortcuts`.
+:::
+
 :::warning Shortcuts y hooks necesitan `rapid` en el PATH
 Claude Code ejecuta los comandos de los shortcuts y los hooks en Git Bash, no en PowerShell. Por eso `rapid` tiene que ser un ejecutable en el PATH: una función de PowerShell o un `rapid` dentro de un `venv` activado solo en tu terminal no le llegan al agente. El instalador (Método A) y `pipx` lo resuelven; compruébalo dentro de Claude Code con `! which rapid`.
 :::

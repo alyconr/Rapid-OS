@@ -21,6 +21,7 @@ Qué hace su playbook (`templates/modes/feature.json` y las reglas del Conductor
 
 - `rapid next` entrega la plantilla de spec (`action.spec_template`: título, objetivo de negocio, alcance, criterios de aceptación y tareas atómicas `T001…`) y el agente la rellena desde tu objetivo.
 - Riesgo medio por defecto: la baseline se verifica y registra al iniciar (`gate.baseline`), las tareas se verifican con `rapid check`, y quedan `gate.tests` y `gate.final-verification` (humano).
+- **Arquitectura:** si el proyecto tiene `.rapid-os/standards/architecture.json` (lo escribe el onboarding con el stack elegido), el contrato incluye el gate de máquina `gate.architecture` (obligatorio, no dispensable) y `rapid next` propone `rapid check --gate gate.architecture -- rapid arch check`. Una violación de capas o de contrato público es `RAPID1420` y `rapid finish` no da `PASS` hasta que se corrija el código. Detalle en [Arquitectura por stack](../../concepts/architecture.md#el-gate-gatearchitecture).
 - El bucle es implementar cada tarea → `rapid check -- <test_command>` → `rapid finish`; la aprobación final la das tú en tu terminal.
 
 ### En un proyecto nuevo (sin código ni tests)

@@ -92,7 +92,7 @@ Esto generará el run `spec-booking-conflict-check-r1-run-001`.
 rapid run show spec-booking-conflict-check-r1-run-001
 ```
 
-La política exige los gates asociados a la clasificación del feature (como `gate.baseline`, `gate.tests` y `gate.final-verification` según el nivel de riesgo).
+La política exige los gates asociados a la clasificación del feature (como `gate.baseline`, `gate.tests` y `gate.final-verification` según el nivel de riesgo). Si el proyecto tiene `architecture.json`, añade además `gate.architecture`: `rapid next` propone `rapid check --gate gate.architecture -- rapid arch check` y una violación (`RAPID1420`) impide el `PASS`. Ver [Arquitectura por stack](../concepts/architecture.md#el-gate-gatearchitecture).
 
 ---
 

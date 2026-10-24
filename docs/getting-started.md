@@ -27,7 +27,7 @@ rapid --version
 
 Los canales (versión estable y desarrollo) y la actualización se explican en [Instalación](./installation/index.md) y [Actualización](./installation/upgrade.md).
 
-### Paso 2: inicializar el proyecto con shortcuts
+### Paso 2: inicializar el proyecto con `rapid init`
 
 Desde la raíz de tu proyecto. No hace falta que ya sea un repositorio git: el onboarding (`rapid init` o `rapid setup finish`) lo crea, siempre en la rama `main`, sin hacer commits:
 
@@ -44,7 +44,17 @@ Esto crea `.rapid-os/` (estándares y `config.json`) y genera los 9 shortcuts `/
 
 Define el comando de tests que usará `rapid check` (por ejemplo `rapid init --test-command "python -m unittest discover"`, o `test_command` en `.rapid-os/config.json`). En un proyecto ya inicializado usa `rapid shortcuts install`.
 
-### Paso 3: pedir el trabajo
+### Paso 3: completar el onboarding con `/rapid-init`
+
+En tu agente (en Codex, `$rapid-init`), o a mano con `rapid setup next`:
+
+```text
+/rapid-init una API en Python para validar nombres de usuario
+```
+
+El agente lee `rapid setup next --json` y te propone, una decisión a la vez: el stack de cada componente, la arquitectura, los servicios y los documentos del proyecto. Lo que redacta el agente queda como **borrador** (`status: draft`) y entra al contexto como supuesto. Antes de cerrar, `rapid setup next` devuelve `review_drafts`: el agente te resume cada borrador y tú decides cuáles confirmas (`rapid setup doc <id> --confirm`) y cuáles se quedan como supuesto; después `rapid setup review --done` y `rapid setup finish`. Rapid OS nunca confirma por ti. Detalle en [Tu primer proyecto](./getting-started/first-project.md).
+
+### Paso 4: pedir el trabajo
 
 En tu agente:
 

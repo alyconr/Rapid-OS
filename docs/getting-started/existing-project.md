@@ -23,7 +23,7 @@ rapid init --agents claude --shortcuts --test-command "python -m unittest discov
 .rapid-os/scratch/
 ```
 
-Y pide el trabajo a tu agente, por ejemplo `/rapid-bugfix el descuento del 10% devuelve un total negativo`. El primer paso de cada run es un *baseline* de tus tests: si tu suite ya está en rojo, el run no avanza hasta que lo resuelvas o ejecutes `rapid abort`. Detalle por harness en la [guía de shortcuts](../guides/shortcuts.md).
+Después completa el onboarding con `/rapid-init` en tu agente (o con `rapid setup next`): en un proyecto existente propone lo que detecta, tú eliges el stack de cada componente y los documentos, y antes de cerrar revisas los borradores que redactó el agente (`rapid setup doc <id> --confirm` confirma uno; lo que no confirmes sigue siendo un supuesto). La ruta es `rapid init` → `/rapid-init` → `/rapid-feature`. Y pide el trabajo a tu agente, por ejemplo `/rapid-bugfix el descuento del 10% devuelve un total negativo`. El primer paso de cada run es un *baseline* de tus tests: si tu suite ya está en rojo, el run no avanza hasta que lo resuelvas o ejecutes `rapid abort`. Detalle por harness en la [guía de shortcuts](../guides/shortcuts.md).
 
 ## Modo avanzado
 

@@ -51,6 +51,18 @@ rapid shortcuts install --harness claude --hooks      # además, los hooks (secc
 
 Genera `.claude/skills/rapid-*/SKILL.md` (los 9 shortcuts; [documentación de skills](https://code.claude.com/docs/en/skills)). Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`.
 
+### Primer paso: `/rapid-init` (onboarding)
+
+El punto de entrada de un proyecto es `/rapid-init`: conduce el onboarding (`rapid setup next`), te pregunta el stack de cada componente, la arquitectura, los servicios y los documentos, y revisa contigo los borradores antes de cerrar. Después usas `/rapid-feature` y los demás modos. Ver [Primer proyecto](../getting-started/first-project.md).
+
+Para tenerlo en todos tus proyectos sin instalarlo en cada uno, instálalo en tu carpeta de usuario (`~/.claude/skills/`):
+
+```bash
+rapid shortcuts install --global --harness claude --only rapid-init
+```
+
+Los shortcuts y los hooks ejecutan `rapid` desde el shell del agente: si no está en el `PATH`, `rapid init` y `rapid doctor` avisan con `RAPID1414` (aviso, no error). Ver la [guía de shortcuts](../guides/shortcuts.md).
+
 ### Invocación
 
 Escribe `/rapid-` en Claude Code y elige un shortcut, o lánzalo directamente:

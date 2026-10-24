@@ -50,6 +50,14 @@ rapid shortcuts install --harness vscode              # en un proyecto ya inicia
 
 Genera `.github/prompts/rapid-*.prompt.md` (los 9 shortcuts como *prompt files*; [documentación](https://code.visualstudio.com/docs/copilot/customization/prompt-files)). Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`.
 
+### Primer paso: `/rapid-init` (onboarding)
+
+El punto de entrada de un proyecto es `/rapid-init`: conduce el onboarding (`rapid setup next`), te pregunta el stack de cada componente, la arquitectura, los servicios y los documentos, y revisa contigo los borradores antes de cerrar. Después usas `/rapid-feature` y los demás modos. Ver [Primer proyecto](../getting-started/first-project.md).
+
+`--global` no existe para VS Code: no hay una carpeta de usuario documentada para los *prompt files* de este uso, así que `rapid shortcuts install --global --harness vscode` falla con `RAPID1413` y no escribe nada. Instala `/rapid-init` en cada proyecto con `rapid shortcuts install --harness vscode`.
+
+Los shortcuts y los hooks ejecutan `rapid` desde el shell del agente: si no está en el `PATH`, `rapid init` y `rapid doctor` avisan con `RAPID1414` (aviso, no error). Ver la [guía de shortcuts](../guides/shortcuts.md).
+
 ### Invocación
 
 En la vista de Chat escribe `/` seguido del nombre (o usa el comando **Chat: Run Prompt**):

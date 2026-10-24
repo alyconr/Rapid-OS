@@ -47,6 +47,8 @@ Each layer binds cryptographically (via canonical SHA-256 digests) to its upstre
 
 ---
 
+**Machine gate `gate.architecture`.** In `feature`, `bugfix` and `refactor` runs, when `.rapid-os/standards/architecture.json` exists the contract includes `gate.architecture` (required, not waivable). `rapid next` proposes `rapid check --gate gate.architecture -- rapid arch check`; a violation is `RAPID1420` and `rapid finish` does not return `PASS` until it is satisfied. See [Architecture by stack](./concepts/architecture.md).
+
 ## 3. Declarations vs. Capabilities vs. Evidence vs. Verdicts
 
 Rapid OS v3 enforces a strict separation between four concepts that are frequently conflated in AI tooling:

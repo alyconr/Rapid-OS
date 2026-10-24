@@ -44,6 +44,10 @@ curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.sh | 
 - Si `~/.local/bin` no está en tu PATH, lo añade a `~/.zshrc` (el shell por defecto de macOS), y quita el `alias rapid=` de instaladores anteriores.
 - Abre una terminal nueva, o ejecuta `source ~/.zshrc`.
 
+:::note `/rapid-init` global (desde 3.2.0)
+Al terminar, el instalador puede ofrecer `/rapid-init` en tu carpeta de usuario (`rapid shortcuts install --global --only rapid-init --harness <id>`), para que funcione en cualquier proyecto sin instalarlo en cada uno. Solo lo ofrece si el `rapid` instalado tiene `--global` y hay una terminal interactiva, y nunca por defecto. La versión estable actual (`v3.1.1`) no tiene `--global`, así que no lo ofrece; en ella instala el shortcut en cada proyecto con `rapid init --shortcuts`.
+:::
+
 :::warning Shortcuts y hooks necesitan `rapid` en el PATH
 Los agentes y sus hooks no ven alias de shell: lanza tu agente desde una terminal donde `rapid --version` funcione.
 :::
