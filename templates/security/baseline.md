@@ -24,7 +24,7 @@ Estas reglas son obligatorias para todo código nuevo y todo cambio. Cada regla 
 ### A03 Software Supply Chain Failures
 
 - Declara y fija cada dependencia; revisa una dependencia nueva antes de añadirla y prefiere las mantenidas. [OWASP A03:2025, CWE-1104]
-- Las dependencias se auditan en cada PR (el workflow `rapid-security.yml` ya lo hace); un hallazgo alto o crítico bloquea el merge. [OWASP A03:2025]
+- Las dependencias se auditan en cada PR (el workflow `rapid-security-<lenguaje>.yml` ya lo hace); un hallazgo alto o crítico bloquea el merge. [OWASP A03:2025]
 
 ### A04 Cryptographic Failures
 
@@ -90,7 +90,7 @@ Estas reglas son obligatorias para todo código nuevo y todo cambio. Cada regla 
 - Versiona el lockfile y fija las dependencias a versiones exactas en todos los proyectos. [SLSA 1.2, OWASP A03:2025]
 - Fija las acciones de CI por SHA completo del commit, con la versión en un comentario; nunca por etiqueta ni por rama. [SLSA 1.2, OWASP A03:2025]
 <!-- if corporate -->
-- Build L2: el artefacto que se publica sale de una plataforma de build alojada y lleva procedencia firmada (el workflow `rapid-security.yml` la genera con una atestación). [SLSA 1.2 Build L2]
+- Build L2: el artefacto que se publica sale de una plataforma de build alojada y lleva procedencia firmada (el workflow `rapid-security-<lenguaje>.yml` la genera con una atestación). [SLSA 1.2 Build L2]
 - Source L2 (historial y procedencia): el historial de `main` es continuo, inmutable y conservado (rama `main` protegida, sin push forzado ni borrado) y la plataforma de código emite la procedencia de cada revisión. Como práctica del proyecto, todo cambio entra además por PR con revisión. Esta parte se completa al configurar el repositorio. [SLSA 1.2 Source L2]
 <!-- endif -->
 

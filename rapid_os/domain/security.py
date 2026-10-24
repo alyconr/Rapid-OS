@@ -65,7 +65,10 @@ _SCANNED_CI_LANGUAGES: Mapping[str, str] = {
     "kotlin": "kotlin",
     "php": "php",
 }
-CI_WORKFLOW_PATH = ".github/workflows/rapid-security.yml"
+# A workflow per language: `rapid-security-<language>.yml`, named `rapid-security (<language>)`.
+CI_WORKFLOW_PREFIX = ".github/workflows/rapid-security"
+# The path of before the language was part of it: a project that has it is left as it is.
+CI_WORKFLOW_PATH = f"{CI_WORKFLOW_PREFIX}.yml"
 CI_ADDED_NOTE = "Rapid OS añadió este workflow; revísalo antes del primer commit"
 CI_PLANNED_NOTE = "Rapid OS añadirá este workflow al cerrar el onboarding; revísalo antes del primer commit"
 
@@ -127,10 +130,14 @@ def render_security_standard(
     return body.replace(ASVS_LEVEL_TOKEN, ASVS_LEVELS.get(archetype, "L1"))
 
 
-def render_ci_workflow(template: str, *, archetype: str, primary: bool = True) -> str:
+def render_ci_workflow(template: str, *, archetype: str, primary: bool = True, language: str | None = None) -> str:
     """The CI workflow: Corporate adds the SBOM and the provenance, and only the first workflow of a
-    project scans the secrets (a second language would repeat the same scan)."""
-    return render_conditionals(template, {archetype, "primary"} if primary else {archetype})
+    project scans the secrets (a second language would repeat the same scan). With a `language`,
+    the workflow is named after it so the two of a project do not look alike on GitHub."""
+    body = render_conditionals(template, {archetype, "primary"} if primary else {archetype})
+    if language:
+        body = re.sub(r"^name: rapid-security[ \t]*$", f"name: rapid-security ({language})", body, count=1, flags=re.MULTILINE)
+    return body
 
 
 def ci_language(stack_id: str | None, scanned_languages: Collection[str] = ()) -> str | None:
@@ -155,9 +162,9 @@ def ci_languages(stack_ids: Iterable[str], scanned_languages: Collection[str] = 
     return found
 
 
-def ci_workflow_path(language: str, index: int) -> str:
-    """The first workflow keeps the well-known path; another language gets its own file."""
-    return CI_WORKFLOW_PATH if index == 0 else f".github/workflows/rapid-security-{language}.yml"
+def ci_workflow_path(language: str) -> str:
+    """The workflow of a language, also when the project has just one."""
+    return f"{CI_WORKFLOW_PREFIX}-{language}.yml"
 
 
 def security_mentions_asvs(text: str | None) -> bool:

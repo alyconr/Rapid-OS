@@ -95,6 +95,8 @@ class ServiceEntry:
     sources: tuple[str, ...]
     hostname: str | None = None
     migrations: dict[str, str] | None = None
+    # The image is a long-term-support line (MySQL 9.7): `tech-stack.md` says so.
+    lts: bool = False
 
     @property
     def version(self) -> str:
@@ -438,6 +440,11 @@ def _load_service(path: Path) -> ServiceEntry:
     retries = health.get("retries")
     if isinstance(retries, bool) or not isinstance(retries, int) or retries <= 0:
         raise _fail(path, "healthcheck 'retries' must be a positive integer.")
+    if "start_period" in health and (not isinstance(health["start_period"], str) or not health["start_period"]):
+        raise _fail(path, "healthcheck 'start_period' must be a duration such as '30s'.")
+    lts = data.get("lts", False)
+    if not isinstance(lts, bool):
+        raise _fail(path, "field 'lts' must be a boolean.")
     volume = data.get("volume")
     if volume is not None:
         if (
@@ -487,6 +494,7 @@ def _load_service(path: Path) -> ServiceEntry:
         sources=sources,
         hostname=hostname,
         migrations=migrations,
+        lts=lts,
     )
 
 

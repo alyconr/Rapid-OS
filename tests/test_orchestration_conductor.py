@@ -488,6 +488,7 @@ class OrchestrationConductorTests(unittest.TestCase):
         self.assertEqual(action_base.kind, ActionKind.RUN_BASELINE)
         self.assertIsNone(action_base.command)
         self.assertIn("RAPID1301", action_base.instructions)
+        self.assertIn("rapid setup set test-command", action_base.instructions)
 
         # Task verification without test_command
         self.run_registry.transition_gate(record.id, "gate.baseline", GateDisposition.ACKNOWLEDGED, reason="Base OK")
@@ -506,6 +507,7 @@ class OrchestrationConductorTests(unittest.TestCase):
         self.assertEqual(action_verify.kind, ActionKind.VERIFY)
         self.assertIsNone(action_verify.command)
         self.assertIn("RAPID1301", action_verify.instructions)
+        self.assertIn("rapid setup set test-command", action_verify.instructions)
 
     def test_unverified_tests_execute_capability_proposes_rapid_check_test_command(self):
         record = self.run_registry.create(spec_id=self.spec.id, spec_revision=1)

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "mysql",
   "role": "database",
-  "image": "mysql:9",
+  "image": "mysql:9.7",
   "ports": [
     3306
   ],
@@ -44,6 +44,8 @@
   "sources": [
     "https://hub.docker.com/_/mysql",
     "https://dev.mysql.com/doc/refman/en/mysqladmin.html",
-    "https://dev.mysql.com/doc/refman/en/connection-options.html"
-  ]
+    "https://dev.mysql.com/doc/refman/en/connection-options.html",
+    "https://docs.oracle.com/en-us/iaas/mysql-database/doc/mysql-server-versions.html"
+  ],
+  "lts": true
 }

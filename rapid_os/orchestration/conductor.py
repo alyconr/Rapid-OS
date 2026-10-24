@@ -8,6 +8,7 @@ from rapid_os.domain.evals import (
 )
 from rapid_os.domain.evidence import EvidenceKind, RunEvidence
 from rapid_os.domain.execution import (
+    TEST_COMMAND_FIX,
     ExecutionContract,
     GateDisposition,
     GateKind,
@@ -18,6 +19,9 @@ from rapid_os.domain.execution import (
 )
 from rapid_os.orchestration.actions import ActionKind, NextAction
 from rapid_os.orchestration.playbooks import Playbook
+
+NO_TEST_COMMAND_NOTICE = f"No test_command configured (RAPID1301). {TEST_COMMAND_FIX}."
+
 
 HUMAN_GATE_KINDS = frozenset(
     {
@@ -325,8 +329,7 @@ def next_action(
                     else:
                         cmd = None
                         instr = (
-                            f"{playbook.get_instruction(ActionKind.RUN_BASELINE)} "
-                            "No test_command configured (RAPID1301). Please configure test_command in .rapid-os/config.json or pass --test-command."
+                            f"{playbook.get_instruction(ActionKind.RUN_BASELINE)} {NO_TEST_COMMAND_NOTICE}"
                         )
                     return NextAction(
                         schema_version=1,
@@ -442,8 +445,7 @@ def next_action(
                     )
                 else:
                     instructions = (
-                        f"{instructions} "
-                        "No test_command configured (RAPID1301). Please configure test_command in .rapid-os/config.json or pass --test-command."
+                        f"{instructions} {NO_TEST_COMMAND_NOTICE}"
                     )
             # research: spike without mandatory tests; findings are attached as evidence.
             if mode == "research" and target_task.status == TaskStatus.IN_PROGRESS:
@@ -551,8 +553,7 @@ def next_action(
         else:
             cmd = None
             instr = (
-                f"{playbook.get_instruction(ActionKind.VERIFY)} "
-                "No test_command configured (RAPID1301). Please configure test_command in .rapid-os/config.json or pass --test-command."
+                f"{playbook.get_instruction(ActionKind.VERIFY)} {NO_TEST_COMMAND_NOTICE}"
             )
         return NextAction(
             schema_version=1,
@@ -595,8 +596,7 @@ def next_action(
             else:
                 cmd = None
                 instr = (
-                    f"{playbook.get_instruction(ActionKind.VERIFY)} "
-                    "No test_command configured (RAPID1301). Please configure test_command in .rapid-os/config.json or pass --test-command."
+                    f"{playbook.get_instruction(ActionKind.VERIFY)} {NO_TEST_COMMAND_NOTICE}"
                 )
         elif gate_kind == GateKind.ARCHITECTURE_CHECK:
             cmd = ("rapid", "check", "--gate", first_mg.id, "--", "rapid", "arch", "check")
@@ -660,8 +660,7 @@ def next_action(
             else:
                 cmd = None
                 instr = (
-                    f"{playbook.get_instruction(ActionKind.VERIFY)} "
-                    "No test_command configured (RAPID1301). Please configure test_command in .rapid-os/config.json or pass --test-command."
+                    f"{playbook.get_instruction(ActionKind.VERIFY)} {NO_TEST_COMMAND_NOTICE}"
                 )
             return NextAction(
                 schema_version=1,

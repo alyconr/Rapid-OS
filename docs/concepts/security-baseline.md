@@ -41,7 +41,7 @@ Los ids `python-ai` y `nodejs-ai` (de antes del catálogo por componentes) respo
 
 ## El CI de seguridad lo escribe Rapid OS
 
-Al cerrar el onboarding de un **repositorio vacío**, `rapid setup finish` escribe `.github/workflows/rapid-security.yml` desde `templates/ci/<lenguaje>-security.yml` (Python o TypeScript). Corre en `pull_request` y en `push` a `main`:
+Al cerrar el onboarding de un **repositorio vacío**, `rapid setup finish` escribe un workflow por lenguaje, `.github/workflows/rapid-security-<lenguaje>.yml` (por ejemplo `rapid-security-python.yml`), desde `templates/ci/<lenguaje>-security.yml`. Cada uno se llama `rapid-security (<lenguaje>)` en la pestaña Actions, así que dos componentes con lenguajes distintos dan dos workflows distinguibles. Un proyecto que ya tiene `rapid-security.yml` (de antes de este cambio) se deja como está y no recibe otros. Corre en `pull_request` y en `push` a `main`:
 
 - **Secretos:** gitleaks (el binario se descarga con su suma de verificación fijada).
 - **Análisis estático:** semgrep con las reglas `p/owasp-top-ten` (funciona en repositorios privados); Python añade bandit.
@@ -58,7 +58,7 @@ La regla de `security.md` solo cambia por decisión de la persona. Para un proye
 rapid setup set archetype mvp --refresh
 ```
 
-Regenera `security.md` y `coding-rules.md` del arquetipo con las plantillas actuales y deja las copias anteriores como `.bak`. `rapid doctor` lo sugiere con un aviso `RAPID1421` cuando `security.md` no menciona ASVS. Un `security.md` escrito a mano (que no es el de Rapid OS) nunca se reescribe salvo con `--refresh`.
+Regenera `security.md` y `coding-rules.md` del arquetipo con las plantillas actuales y deja las copias anteriores en `.rapid-os/backups/` (las 5 más recientes por archivo), no junto a `standards/`. `rapid doctor` lo sugiere con un aviso `RAPID1421` cuando `security.md` no menciona ASVS. Un `security.md` escrito a mano (que no es el de Rapid OS) nunca se reescribe salvo con `--refresh`.
 
 ## Modo hardening
 

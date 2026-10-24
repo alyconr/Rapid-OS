@@ -19,7 +19,7 @@ Plantilla de partida para `docs/DEPLOYMENT.md`. Rapid OS no despliega: lo haces 
 | cache (redis) | Azure Managed Redis |
 | queue | Azure Service Bus (cola o tema propio de Azure, no es RabbitMQ) |
 | stream (kafka) | Azure Event Hubs con endpoint Kafka (niveles standard, premium y dedicated) |
-| database (mariadb) | Azure Database for MariaDB está en camino de retiro y Microsoft recomienda migrar a Azure Database for MySQL: usa MySQL flexible server, o MariaDB en un contenedor en Azure Container Apps |
+| database (mariadb) | Azure Database for MariaDB se retiró el 19 de septiembre de 2025 (así lo anunció Microsoft; la página oficial de Learn que sigue disponible lo llama «on the retirement path» y recomienda migrar a Azure Database for MySQL): usa MySQL flexible server, o MariaDB en un contenedor en Azure Container Apps |
 | cache (valkey), queue (rabbitmq) | Sin servicio gestionado documentado: contenedor en Azure Container Apps |
 
 ## Verificación y reversión
@@ -36,4 +36,5 @@ Plantilla de partida para `docs/DEPLOYMENT.md`. Rapid OS no despliega: lo haces 
 - https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-messaging-overview
 - https://learn.microsoft.com/en-us/azure/event-hubs/azure-event-hubs-apache-kafka-overview
 - https://learn.microsoft.com/en-us/azure/key-vault/general/overview
-- https://learn.microsoft.com/en-us/azure/mariadb/overview
+- https://learn.microsoft.com/en-us/azure/mariadb/overview (página oficial de Learn: «on the retirement path», recomienda Azure Database for MySQL; no trae la fecha)
+- https://techcommunity.microsoft.com/t5/azure-database-for-mysql-blog/azure-database-for-mariadb-is-being-retired-on-19-september-2025/ba-p/3935681 (anuncio de Microsoft con la fecha, 19 de septiembre de 2025; no se pudo abrir desde el entorno de verificación: la fecha consta en el título de su URL y en https://petri.com/microsoft-sunsetting-azure-database-for-mariadb/)
