@@ -106,7 +106,7 @@ En la ventana de Composer de Cursor, referencia el archivo generado:
 Comprueba que los tests pasen en la terminal integrada de Cursor.
 
 5. **Registrar Evidencia:**
-Ingiere los resultados mediante `rapid evidence add` (ver estructuras en el [Tutorial del Primer Proyecto Gobernado](../tutorials/first-governed-project.md#7-evidence-collection)):
+Ingiere los resultados mediante `rapid evidence add` (ver estructuras en el [laboratorio Bajo el capó](../tutorials/first-governed-project.md#7-evidence-collection)):
 - [`evidence_files.json`](../tutorials/first-governed-project.md#3-registrar-evidencia-de-cambios-en-el-código-file_change): evidencia de modificación de archivos.
 - [`evidence_tests.json`](../tutorials/first-governed-project.md#4-registrar-evidencia-de-pruebas-aprobadas-test_result): resultado de pruebas con log adjunto.
 - [`evidence_workspace.json`](../tutorials/first-governed-project.md#5-registrar-evidencia-de-espacio-de-trabajo-workspace): espacio de trabajo actual (`workspace.current`).

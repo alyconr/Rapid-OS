@@ -44,6 +44,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'getting-started/first-project',
         'getting-started/existing-project',
+        'getting-started/when-the-agent-stops',
         'getting-started/first-spec',
         'getting-started/first-context',
         'getting-started/next-steps',

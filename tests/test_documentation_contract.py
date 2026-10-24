@@ -906,12 +906,16 @@ class DocumentationContractTests(unittest.TestCase):
         "tutorials/refactor-lab.md": "## Modo avanzado",
         "tutorials/hardening-lab.md": "## Modo avanzado",
         "tutorials/research-lab.md": "## Modo avanzado",
+        "getting-started/when-the-agent-stops.md": None,
+        "getting-started/first-spec.md": "## Modo avanzado",
+        "getting-started/first-context.md": "## Modo avanzado",
+        "getting-started/next-steps.md": "## Modo avanzado",
     }
 
     def test_beginner_routes_only_show_light_commands(self):
         for relative, end_marker in self.LIGHT_ROUTES.items():
             text = (DOCS / relative).read_text(encoding="utf-8")
-            route = text[:text.index(end_marker)]
+            route = text[:text.index(end_marker)] if end_marker else text
             route = re.sub(r"<details>.*?</details>", "", route, flags=re.DOTALL)
             commands = [line.strip() for line in route.splitlines() if line.strip().startswith("rapid ")]
             commands += re.findall(r"`(rapid [^`\n]*)`", route)
@@ -922,6 +926,27 @@ class DocumentationContractTests(unittest.TestCase):
                     self.assertLessEqual(command.count(" --"), 2, f"too heavy for a beginner route: {command}")
         first = (DOCS / "tutorials" / "first-governed-project.md").read_text(encoding="utf-8")
         self.assertNotIn("Principiante", first)
+
+    def test_getting_started_section_is_a_learning_path(self):
+        sidebars = (WEBSITE / "sidebars.ts").read_text(encoding="utf-8")
+        pages = re.findall(r"'getting-started/([a-z-]+)'", sidebars)
+        self.assertEqual(
+            pages,
+            ["first-project", "existing-project", "when-the-agent-stops", "first-spec", "first-context", "next-steps"],
+        )
+        overview = (DOCS / "getting-started.md").read_text(encoding="utf-8")
+        section_map = overview[overview.index("## 2. Mapa de esta sección"):overview.index("## Modo avanzado")]
+        positions = [section_map.index(f"getting-started/{page}.md") for page in pages]
+        self.assertEqual(positions, sorted(positions), "the map lists the pages in reading order")
+        stops = (DOCS / "getting-started" / "when-the-agent-stops.md").read_text(encoding="utf-8")
+        for needle in ("rapid approve", "--reject", "--waive", "/rapid-status", "/rapid-next", "rapid abort",
+                       "pass_with_waivers", "unverified"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, stops)
+        # Next steps no longer ends the beginner path on the plumbing loop.
+        next_steps = (DOCS / "getting-started" / "next-steps.md").read_text(encoding="utf-8")
+        self.assertLess(next_steps.index("tutorials/feature-lab.md"), next_steps.index("## Modo avanzado"))
+        self.assertGreater(next_steps.index("rapid evidence add"), next_steps.index("<details>"))
 
     def test_tutorial_labs_start_with_the_shortcut_labs_and_end_under_the_hood(self):
         sidebars = (WEBSITE / "sidebars.ts").read_text(encoding="utf-8")

@@ -116,7 +116,7 @@ rapid run task <run-id> T001 in_progress
 
 ## 6. Registro de Resultados y Evidencia
 
-Una vez que Codex aplique los cambios y ejecute las pruebas en la terminal externa (consulta la definición canónica de cada evidencia en el [Tutorial del Primer Proyecto Gobernado](../tutorials/first-governed-project.md#7-evidence-collection)):
+Una vez que Codex aplique los cambios y ejecute las pruebas en la terminal externa (consulta la definición canónica de cada evidencia en el [laboratorio Bajo el capó](../tutorials/first-governed-project.md#7-evidence-collection)):
 
 1. Ingerir evidencia de los archivos modificados ([`evidence_files.json`](../tutorials/first-governed-project.md#3-registrar-evidencia-de-cambios-en-el-código-file_change)):
 ```bash

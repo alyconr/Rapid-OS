@@ -1,9 +1,9 @@
 ---
-title: Gobernar un proyecto existente
+title: Un proyecto que ya existe
 description: Cómo adoptar Rapid OS en repositorios con código preexistente sin riesgo para el código de negocio.
 ---
 
-# Gobernar un proyecto existente
+# Un proyecto que ya existe
 
 Adoptar Rapid OS en un repositorio que ya se encuentra en producción o desarrollo activo es un proceso seguro y no invasivo. Rapid OS está diseñado para **analizar y gobernar sin modificar tu código de negocio**.
 
@@ -23,7 +23,7 @@ Adoptar Rapid OS en un repositorio que ya se encuentra en producción o desarrol
    /rapid-bugfix el descuento del 10% devuelve un total negativo
    ```
 
-3. **Aprueba en tu terminal** cuando el agente te lo pida (te da el comando exacto, por ejemplo `rapid approve gate.final-verification`) y escribe `/rapid-next` para cerrar.
+3. **Aprueba en tu terminal** cuando el agente te lo pida (te da el comando exacto, por ejemplo `rapid approve gate.final-verification`) y escribe `/rapid-next` para cerrar. Más opciones en [Cuando el agente se detiene](./when-the-agent-stops.md).
 
 Rapid OS no toca tu código de negocio: escribe su configuración en `.rapid-os/`, los documentos en `docs/` y las instrucciones de tu agente (`CLAUDE.md`, `AGENTS.md`…); si añade algo más (por ejemplo un workflow de seguridad), te lo dice al cerrar el onboarding. El primer paso de cada run es un *baseline* de tus tests: si tu suite ya está en rojo, el run no avanza hasta que la arregles (o abandones el run con `rapid abort`).
 
