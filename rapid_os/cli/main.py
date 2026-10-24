@@ -11,7 +11,7 @@ from pathlib import Path
 from rapid_os import __version__
 from rapid_os.adapters.agents import DEFAULT_AGENT_REGISTRY
 from rapid_os.core.harness_detect import detect_harness
-from rapid_os.domain.security import CI_ADDED_NOTE, CI_PLANNED_NOTE, CI_WORKFLOW_PATH
+from rapid_os.domain.security import CI_ADDED_NOTE, CI_PLANNED_NOTE, CI_WORKFLOW_PREFIX
 from rapid_os.orchestration.git import person_action_lines, person_actions
 
 from rapid_os.adapters.mcp import (
@@ -109,6 +109,7 @@ from rapid_os.domain.evidence import (
     compute_evidence_set_digest,
 )
 from rapid_os.domain.execution import (
+    TEST_COMMAND_FIX,
     EXECUTION_POLICY_SCHEMA_VERSION,
     RUN_SCHEMA_VERSION,
     ExecutionError,
@@ -3205,7 +3206,7 @@ def task_command(args):
             if not test_cmd or not isinstance(test_cmd, (list, tuple)):
                 print(
                     "RAPID1301 No test_command configured in .rapid-os/config.json to verify task. "
-                    "Set it with: rapid setup set test-command <cmd>",
+                    f"{TEST_COMMAND_FIX}",
                     file=sys.stderr,
                 )
                 sys.exit(1)
@@ -3733,7 +3734,7 @@ def setup_command(args):
     def report_added(result):
         """Files Rapid OS wrote on its own (not the agent): the person should look at them."""
         for workflow in result.written:
-            if workflow == CI_WORKFLOW_PATH or workflow.startswith(".github/workflows/rapid-security-"):
+            if workflow.startswith(CI_WORKFLOW_PREFIX):
                 added_files.append({"file": workflow, "note": CI_ADDED_NOTE})
                 print(f"{CI_ADDED_NOTE}: {workflow}")
         for name in result.written:

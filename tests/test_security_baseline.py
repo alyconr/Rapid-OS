@@ -13,6 +13,7 @@ from rapid_os.domain.catalog import load_catalog, load_setup_doc_banks, load_sta
 from rapid_os.domain.project import ProjectModel
 from rapid_os.domain.security import (
     CI_WORKFLOW_PATH,
+    ci_workflow_path,
     ci_language,
     effective_ai,
     render_conditionals,
@@ -274,8 +275,8 @@ class Project(GitIsolated):
     def security(self) -> str:
         return (self.standards / "security.md").read_text(encoding="utf-8")
 
-    def workflow(self) -> Path:
-        return self.root / CI_WORKFLOW_PATH
+    def workflow(self, language: str = "python") -> Path:
+        return self.root / ci_workflow_path(language)
 
 
 class SecurityStandardInTheProjectTests(Project):
@@ -336,14 +337,14 @@ class SecurityStandardInTheProjectTests(Project):
 
 
 class CiWorkflowTests(Project):
-    def uses_lines(self):
-        return [l.strip() for l in self.workflow().read_text("utf-8").splitlines() if "uses:" in l]
+    def uses_lines(self, language="python"):
+        return [l.strip() for l in self.workflow(language).read_text("utf-8").splitlines() if "uses:" in l]
 
     def test_setup_finish_in_an_empty_repository_writes_the_workflow(self):
         result = self.finish("python-api", archetype="mvp", ai="no")
         self.assertTrue(self.workflow().is_file())
         self.assertIn("Rapid OS añadió este workflow; revísalo antes del primer commit", result.stdout)
-        self.assertIn(CI_WORKFLOW_PATH, result.stdout)
+        self.assertIn(ci_workflow_path("python"), result.stdout)
 
     def test_the_json_output_names_the_added_file(self):
         self.write_decisions("python-api", "fullstack-separated", "mvp", "no")
@@ -352,7 +353,7 @@ class CiWorkflowTests(Project):
         payload = json.loads(done.stdout)
         self.assertEqual(
             payload["added_files"],
-            [{"file": CI_WORKFLOW_PATH, "note": "Rapid OS añadió este workflow; revísalo antes del primer commit"}],
+            [{"file": ci_workflow_path("python"), "note": "Rapid OS añadió este workflow; revísalo antes del primer commit"}],
         )
 
     def test_the_review_of_the_drafts_announces_it_beforehand(self):
@@ -364,7 +365,7 @@ class CiWorkflowTests(Project):
             self.rapid("setup", "doc", doc, "--skip")
         review = json.loads(self.rapid("setup", "next", "--json").stdout)
         self.assertEqual(review["kind"], "review_drafts")
-        self.assertEqual(review["planned_files"][0]["file"], CI_WORKFLOW_PATH)
+        self.assertEqual(review["planned_files"][0]["file"], ci_workflow_path("python"))
         self.assertIn("revísalo antes del primer commit", review["planned_files"][0]["note"])
         self.assertFalse(self.workflow().exists())  # nothing is written until the onboarding closes
 
@@ -374,6 +375,21 @@ class CiWorkflowTests(Project):
         result = self.finish("python-api", ai="no")
         self.assertEqual(self.workflow().read_text("utf-8"), "name: mine\n")
         self.assertNotIn("Rapid OS añadió este workflow", result.stdout)
+
+    def test_a_project_with_the_workflow_of_before_is_left_as_it_is(self):
+        legacy = self.root / CI_WORKFLOW_PATH
+        legacy.parent.mkdir(parents=True)
+        legacy.write_text("name: rapid-security\n", encoding="utf-8")
+        result = self.finish("python-api", ai="no")
+        self.assertEqual(legacy.read_text("utf-8"), "name: rapid-security\n")
+        self.assertFalse(self.workflow().exists())  # no second workflow next to the one it already has
+        self.assertNotIn("Rapid OS añadió este workflow", result.stdout)
+
+    def test_the_workflow_is_named_after_its_language_also_with_one_component(self):
+        self.finish("python-api", ai="no")
+        self.assertFalse((self.root / CI_WORKFLOW_PATH).exists())
+        self.assertTrue(self.workflow().read_text("utf-8").startswith("# Escaneos"))
+        self.assertIn("\nname: rapid-security (python)\n", self.workflow().read_text("utf-8"))
 
     def test_a_repository_with_code_does_not_get_it(self):
         (self.root / "app").mkdir()
@@ -398,7 +414,7 @@ class CiWorkflowTests(Project):
 
     def test_typescript_jobs(self):
         self.finish("web-modern", "fullstack-baas", archetype="mvp", ai="no")
-        text = self.workflow().read_text("utf-8")
+        text = self.workflow("typescript").read_text("utf-8")
         self.assertIn("npm audit --audit-level=high", text)
         self.assertIn("semgrep scan --config p/owasp-top-ten", text)
         self.assertNotIn("bandit", text)
@@ -417,9 +433,10 @@ class CiWorkflowTests(Project):
             ("web-modern", "fullstack-baas", "corporate"),
         ):
             with self.subTest(stack=stack):
-                self.workflow().unlink(missing_ok=True)
+                language = "python" if stack == "python-api" else "typescript"
+                self.workflow(language).unlink(missing_ok=True)
                 self.finish(stack, topology, archetype, ai="no")  # `setup set` again: the setup is finished
-                lines = self.uses_lines()
+                lines = self.uses_lines(language)
                 self.assertGreater(len(lines), 5)
                 for line in lines:
                     self.assertRegex(line, r"uses: [\w./-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$", line)
@@ -467,9 +484,14 @@ class RefreshAndDoctorTests(Project):
         self.assertEqual(refreshed.returncode, 0, refreshed.stderr)
         self.assertIn("ASVS 5.0.0 nivel L1", self.security())
         self.assertIn("La velocidad nunca rebaja la base", (self.standards / "coding-rules.md").read_text("utf-8"))
-        backups = {p.read_text("utf-8") for p in self.standards.glob("*.bak")}
+        # The previous copies go to .rapid-os/backups/, not next to the standards the agent reads.
+        self.assertEqual(list(self.standards.glob("*.bak")), [])
+        backups_dir = self.root / ".rapid-os" / "backups"
+        backups = {p.read_text("utf-8") for p in backups_dir.glob("*.bak")}
         self.assertIn(self.OLD, backups)
         self.assertIn("old rules\n", backups)
+        self.assertTrue(any(p.name.startswith("security.md.") for p in backups_dir.glob("*.bak")))
+        self.assertTrue(any(p.name.startswith("coding-rules.md.") for p in backups_dir.glob("*.bak")))
         self.assertNotIn("RAPID1421", self.doctor_codes())
         self.assertIn("SEGURIDAD: BASE OBLIGATORIA", (self.root / "AGENTS.md").read_text("utf-8"))
 
@@ -518,7 +540,7 @@ class TemplatesTests(unittest.TestCase):
 
     def test_the_init_shortcut_covers_the_new_steps(self):
         text = (TEMPLATES / "shortcuts" / "rapid-init.md").read_text("utf-8")
-        for expected in ("choose_ai", "action.question", "planned_files", "added_files", "rapid-security.yml"):
+        for expected in ("choose_ai", "action.question", "planned_files", "added_files", "rapid-security"):
             with self.subTest(expected=expected):
                 self.assertIn(expected, text)
 

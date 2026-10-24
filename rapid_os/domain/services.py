@@ -222,6 +222,8 @@ def compose_block(entry: ServiceEntry) -> list[str]:
         f"      timeout: {health['timeout']}",
         f"      retries: {health['retries']}",
     ]
+    if health.get("start_period"):
+        lines.append(f"      start_period: {health['start_period']}")
     return lines
 
 
@@ -432,7 +434,8 @@ def render_tech_stack(
         orm = driver.get("orm")
         if orm:
             new.append(f"- **ORM:** {orm}.")
-        new.append(f"- **Database:** {_DISPLAY.get(entry.id, entry.id)} {entry.version} + {driver['package']}{when}.")
+        label = f"{_DISPLAY.get(entry.id, entry.id)} {entry.version}{' LTS' if entry.lts else ''}"
+        new.append(f"- **Database:** {label} + {driver['package']}{when}.")
         if not orm and language == "python" and (stack is None or stack.language.lower() == "python"):
             new.append("- **Migrations:** versioned scripts (no SQL ORM for this engine).")
     elif had_database_line:
@@ -446,7 +449,8 @@ def render_tech_stack(
         label = _ROLE_LABEL.get(choice.role, choice.role.title())
         package = (driver_for(catalog, service.id, language, stack) or {}).get("package", "")
         moment = " (más adelante)" if choice.when == "later" else ""
-        new.append(f"- **{label}:** {_DISPLAY.get(service.id, service.id)} {service.version} + {package}{moment}.".replace(" + .", "."))
+        engine = f"{_DISPLAY.get(service.id, service.id)} {service.version}{' LTS' if service.lts else ''}"
+        new.append(f"- **{label}:** {engine} + {package}{moment}.".replace(" + .", "."))
     # Right before Version Control when the stack has that line, else at the end.
     at = next((i for i, ln in enumerate(kept) if ln.startswith("- **Version Control:**")), None)
     if at is None:

@@ -366,6 +366,11 @@ def _forbidden(config: ArchitectureConfig, top: str) -> bool:
 # --- the check -----------------------------------------------------------------------------
 
 
+def _parenthesized(text: str) -> str:
+    """`(public.py)`; a text that already is a parenthesis (`(paquete raíz del módulo)`) is left alone."""
+    return text if text.startswith("(") and text.endswith(")") else f"({text})"
+
+
 def _violations_for_target(
     config: ArchitectureConfig,
     source: _Place,
@@ -401,7 +406,7 @@ def _violations_for_target(
                     Violation(
                         RULE_CROSS_MODULE, file, line, spelled,
                         f"el módulo '{source.module}' solo puede importar el punto público "
-                        f"({config.public_entry.replace('{m}', target.module or '').replace('{M}', target.module or '')}) "
+                        f"{_parenthesized(config.public_entry.replace('{m}', target.module or '').replace('{M}', target.module or ''))} "
                         f"del módulo '{target.module}', no su capa '{target.layer or target.rest[0]}'",
                     )
                 )

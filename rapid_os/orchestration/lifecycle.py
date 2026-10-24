@@ -42,6 +42,7 @@ from rapid_os.domain.execution import (
 from rapid_os.domain.execution import (
     BASELINE_WAIVER_EMPTY_REPOSITORY,
     ISOLATION_WAIVER_NO_COMMITS,
+    TEST_COMMAND_FIX,
     enforce_gate_transition_preconditions,
     validate_gate_transition,
 )
@@ -103,7 +104,7 @@ def _has_local_services(project_rapid_dir) -> bool:
     return state is not None and bool(services_now(state.services))
 
 
-SCAFFOLD_TEST_COMMAND_HINT = "Configura el comando con rapid setup set test-command <cmd> antes de cerrarla"
+SCAFFOLD_TEST_COMMAND_HINT = f"{TEST_COMMAND_FIX} antes de cerrarla"
 
 
 SCAFFOLD_ARCHITECTURE_HINT = (

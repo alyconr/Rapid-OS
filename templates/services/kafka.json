@@ -32,7 +32,8 @@
     "test": [
       "CMD-SHELL",
       "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"
-    ]
+    ],
+    "start_period": "30s"
   },
   "volume": {
     "name": "kafka-data",

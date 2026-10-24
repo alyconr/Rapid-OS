@@ -139,6 +139,10 @@ def next_setup_action(
             command=list(TEST_COMMAND_COMMAND),
         )
     for doc_id in SETUP_DOC_ORDER:
+        # A document that did not exist when the onboarding closed (`deployment`) reads as skipped: it can
+        # be written whenever the person wants, but the finished onboarding does not ask for it.
+        if state.finished and doc_id not in state.docs:
+            continue
         if state.doc(doc_id).status == "pending":
             if doc_id in AFTER_SERVICES_DOCS and state.services is None:
                 return _choose_services(state, catalog)

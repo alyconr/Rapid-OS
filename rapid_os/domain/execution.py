@@ -227,6 +227,8 @@ CANONICAL_EXECUTION_CONTRACT_KEYS = frozenset(
 BASELINE_WAIVER_EMPTY_REPOSITORY = "empty_repository"
 ALLOWED_BASELINE_WAIVERS = frozenset({BASELINE_WAIVER_EMPTY_REPOSITORY})
 BASELINE_GATE_ID = "gate.baseline"
+# What to do when a run needs a test command and the project has none (RAPID1301).
+TEST_COMMAND_FIX = "Configura el comando con rapid setup set test-command <cmd>"
 
 # Why a contract may omit the isolated workspace: the repository has no commit to branch a
 # worktree from. Optional like `baseline_waived`; the human gates stay.

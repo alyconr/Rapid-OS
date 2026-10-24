@@ -765,8 +765,13 @@ def ci_language_or_default(state: SetupState, languages) -> str:
     return ci_language(state.stack.id if state.stack else None, languages) or "typescript"
 
 
-def _write_coding_rules(templates_dir: Path, standards: Path, archetype: str) -> list[Path]:
-    """Copy the archetype's coding rules (with backup). Returns the files written."""
+def _write_coding_rules(
+    templates_dir: Path, standards: Path, archetype: str, backup_dir: Path | None = None
+) -> list[Path]:
+    """Copy the archetype's coding rules (with backup). Returns the files written.
+
+    With a `backup_dir` the previous copy goes there (at most `AGENT_BACKUPS_KEPT` of it) instead of
+    next to the file, so `standards/` keeps only what the agent reads."""
     try:
         archetype_dir = resolve_child_path(templates_dir / "archetypes", archetype, single_segment=True)
         rules_src = resolve_child_path(archetype_dir, "coding-rules.md", single_segment=True)
@@ -774,12 +779,33 @@ def _write_coding_rules(templates_dir: Path, standards: Path, archetype: str) ->
         raise _fail("RAPID1413", str(exc)) from exc
     if not rules_src.exists():
         return []
-    _copy_template(rules_src, standards / "coding-rules.md", "las reglas de codigo")
+    if backup_dir is not None:
+        try:
+            body = rules_src.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise _fail("RAPID1413", f"No se pudo copiar las reglas de codigo: {exc}") from exc
+        safe_write_text(
+            standards / "coding-rules.md", body, encoding="utf-8", backup=True, backup_dir=backup_dir,
+            keep_backups=_backups_kept(),
+        )
+    else:
+        _copy_template(rules_src, standards / "coding-rules.md", "las reglas de codigo")
     return [standards / "coding-rules.md"]
 
 
+def _backups_kept() -> int:
+    from rapid_os.adapters.agents.base import AGENT_BACKUPS_KEPT
+
+    return AGENT_BACKUPS_KEPT
+
+
 def _write_security(
-    templates_dir: Path, standards: Path, archetype: str, stack_id: "str | Sequence[str]", uses_ai: bool
+    templates_dir: Path,
+    standards: Path,
+    archetype: str,
+    stack_id: "str | Sequence[str]",
+    uses_ai: bool,
+    backup_dir: Path | None = None,
 ) -> tuple[Path | None, str | None]:
     """`standards/security.md`: the security baseline at the archetype's level (with backup).
 
@@ -798,7 +824,13 @@ def _write_security(
             )
         except (OSError, UnicodeDecodeError) as exc:
             raise _fail("RAPID1413", f"No se pudo leer la base de seguridad: {exc}") from exc
-        safe_write_text(target, body, encoding="utf-8", backup=True, create_parents=True)
+        if backup_dir is not None:
+            safe_write_text(
+                target, body, encoding="utf-8", create_parents=True, backup=True, backup_dir=backup_dir,
+                keep_backups=_backups_kept(),
+            )
+        else:
+            safe_write_text(target, body, encoding="utf-8", backup=True, create_parents=True)
         return target, None
     if not target.exists() and minimal.is_file():
         _copy_template(minimal, target, "el estandar de seguridad minimo")
@@ -820,9 +852,12 @@ def refresh_archetype_files(
         raise _fail("RAPID1413", "--refresh needs the stack and the archetype decided.")
     standards = Path(rapid_dir) / "standards"
     standards.mkdir(parents=True, exist_ok=True)
-    _write_coding_rules(Path(templates_dir), standards, state.archetype)
+    # The previous copies go to `.rapid-os/backups/`, not next to the standards the agent reads.
+    backups = Path(rapid_dir) / "backups"
+    _write_coding_rules(Path(templates_dir), standards, state.archetype, backups)
     _path, warning = _write_security(
-        Path(templates_dir), standards, state.archetype, state.stack_ids, effective_ai(state.stack_ids, state.ai)
+        Path(templates_dir), standards, state.archetype, state.stack_ids, effective_ai(state.stack_ids, state.ai),
+        backups,
     )
     warnings = (warning,) if warning else ()
     if project_has_standards(Path(rapid_dir), Path(config_file)):
@@ -838,13 +873,13 @@ def planned_ci_workflows(
     from rapid_os.domain.scanner import is_empty_repository
 
     root = Path(project_root)
-    if not is_empty_repository(root):
-        return []
+    if not is_empty_repository(root) or (root / CI_WORKFLOW_PATH).exists():
+        return []  # (a project with the workflow of before is left as it is)
     ids = [stack_ids] if isinstance(stack_ids, str) else list(stack_ids or ())
     languages = scan_model.values("language") if scan_model is not None else ()
     planned = []
-    for index, language in enumerate(ci_languages(ids, languages)):
-        path = ci_workflow_path(language, index)
+    for language in ci_languages(ids, languages):
+        path = ci_workflow_path(language)
         if not (root / path).exists():
             planned.append((path, language))
     return planned
@@ -859,12 +894,13 @@ def planned_ci_workflow(project_root: Path, stack_id: "str | Sequence[str] | Non
 def _write_ci_workflows(
     project_root: Path, templates_dir: Path, archetype: str, stack_ids: Sequence[str], scan_model: ProjectModel | None
 ) -> list[str]:
-    """Write `.github/workflows/rapid-security.yml` (and one more per extra language) from
+    """Write `.github/workflows/rapid-security-<language>.yml` (one per language) from
     `templates/ci/<language>-security.yml`.
 
     Rapid OS writes them, not the agent. Only in an empty repository and never over a workflow that
     already exists. Returns the paths relative to the project."""
     written: list[str] = []
+    all_languages = ci_languages(list(stack_ids), scan_model.values("language") if scan_model is not None else ())
     for path, language in planned_ci_workflows(project_root, stack_ids, scan_model):
         try:
             source = resolve_child_path(templates_dir / "ci", f"{language}-security.yml", single_segment=True)
@@ -874,7 +910,10 @@ def _write_ci_workflows(
             continue
         try:
             body = render_ci_workflow(
-                source.read_text(encoding="utf-8"), archetype=archetype, primary=path == CI_WORKFLOW_PATH
+                source.read_text(encoding="utf-8"),
+                archetype=archetype,
+                primary=language == all_languages[0],
+                language=language,
             )
         except (OSError, UnicodeDecodeError) as exc:
             raise _fail("RAPID1413", f"No se pudo leer el workflow de seguridad: {exc}") from exc

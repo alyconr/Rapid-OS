@@ -393,7 +393,7 @@ class FinishTests(SetupWriteBase):
         self.assertEqual(second.returncode, 0)
         # `added_files` tells what that run wrote (the CI workflow): a second run writes nothing.
         written, again = json.loads(first.stdout), json.loads(second.stdout)
-        self.assertEqual(written.pop("added_files")[0]["file"], ".github/workflows/rapid-security.yml")
+        self.assertEqual(written.pop("added_files")[0]["file"], ".github/workflows/rapid-security-python.yml")
         self.assertNotIn("added_files", again)
         self.assertEqual(again, written)
         self.assertEqual(claude.read_text(encoding="utf-8"), before)
