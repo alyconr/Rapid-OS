@@ -22,7 +22,7 @@ rapid shortcuts install --global --harness claude
 ```
 
 :::note VS Code y versiones anteriores
-VS Code no tiene carpeta de usuario para shortcuts: instálalos en cada proyecto con `rapid init --shortcuts`. Lo mismo en Rapid OS `v3.1.1`, que aún no trae `/rapid-init` ni `--global`.
+VS Code no tiene carpeta de usuario para shortcuts: instálalos en cada proyecto con `rapid init --shortcuts`. Lo mismo si tu versión de Rapid OS aún no trae `/rapid-init` ni `--global` (lo verás en `rapid shortcuts install --help`).
 :::
 
 ### Paso 2: describir el proyecto con `/rapid-init`
