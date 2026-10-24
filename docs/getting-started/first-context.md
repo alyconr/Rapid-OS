@@ -1,27 +1,55 @@
 ---
-title: Compilación de contexto estructurado
-description: Cómo generar contexto presupuestado, relevante y auditable para coding harnesses con rapid context.
+title: Qué sabe el agente de tu proyecto
+description: De dónde saca el agente las reglas de tu proyecto (documentos, estándares, spec), qué pasa con los borradores y cómo cambiarlos; la compilación a mano con rapid context queda como modo avanzado.
 ---
 
-# Compilación de contexto estructurado
+# Qué sabe el agente de tu proyecto
 
-Uno de los principales problemas al trabajar con coding agents es la sobrecarga y degradación del contexto. Enviar el repositorio entero a un modelo de lenguaje desperdicia presupuesto de tokens, satura la memoria del modelo e incrementa la probabilidad de alucinaciones.
-
-El subcomando `rapid context` actúa como un **compilador de contexto determinista**: selecciona, prioriza y presupuesta exactamente lo que el agente necesita saber para una tarea específica.
+Un agente sin contexto improvisa: inventa reglas de negocio, mezcla estilos de arquitectura y olvida decisiones previas. Rapid OS le da, en cada trabajo, solo lo que necesita saber.
 
 ## Con shortcuts
 
-Con shortcuts no compilas el contexto a mano: el run lo gestiona por ti. Al ejecutar `rapid start <modo> --spec-file -`, Rapid OS crea el contrato del run con la spec y los estándares del proyecto, y el shortcut le indica al agente que trabaje solo con la tarea que devuelve `rapid next --json` (`implement_task`). Los estándares de `.rapid-os/standards/` y los archivos de instrucciones del harness (`CLAUDE.md`, `AGENTS.md`…) los generó el onboarding (`/rapid-init` o `rapid init`).
+No tienes que hacer nada: el agente recibe el contexto en cada trabajo. Viene de tres sitios:
 
-```text
-/rapid-feature añadir exportación CSV al informe mensual
+| Qué | De dónde sale | Dónde vive |
+| :--- | :--- | :--- |
+| **Documentos del proyecto**: brief, reglas de negocio, modelo de datos, arquitectura | Los decidiste en `/rapid-init` (pegados, redactados por el agente u omitidos) | `docs/` |
+| **Estándares**: stack, arquitectura, seguridad, estilo de código | Rapid OS los genera con tus decisiones del onboarding | `.rapid-os/standards/` y el archivo de tu agente (`CLAUDE.md`, `AGENTS.md`…) |
+| **La spec del trabajo actual** | El agente la redacta con tu pedido | `.rapid-os/specs/` |
+
+### Borradores y documentos confirmados
+
+Lo que **confirmaste** el agente lo trata como regla del proyecto y la cumple sin discutirla. Lo que quedó como **borrador** (lo redactó el agente y no lo confirmaste) lo trata como supuesto: puede cuestionarlo y preguntarte, y cada trabajo te lo recuerda. Para confirmar un borrador más tarde:
+
+```bash
+rapid setup doc business --confirm
 ```
 
-Si necesitas ver exactamente qué contexto recibiría un harness (por ejemplo, para depurar una respuesta o para CI), usa `rapid context`, descrito en el modo avanzado.
+Cambia `business` por `brief`, `data-model` o `architecture`.
+
+### Cambiar un documento
+
+Los documentos de `docs/` los escribe Rapid OS (`rapid setup doc`), no se editan a mano. Si omitiste uno y ahora lo quieres, ábrelo de nuevo:
+
+```bash
+rapid setup doc business --reopen
+```
+
+Después escribe `/rapid-init` en el agente: te lo vuelve a ofrecer para pegarlo, redactarlo u omitirlo. Para reemplazar un documento que ya tiene contenido, ver [Documentos del proyecto](../concepts/project-docs.md).
+
+<details>
+<summary>Qué hace el agente por debajo</summary>
+
+Al ejecutar `rapid start <modo> --spec-file -`, Rapid OS crea el contrato del run con la spec y los estándares del proyecto, y el shortcut le indica al agente que trabaje solo con la tarea que devuelve `rapid next --json` (`implement_task`). Para ver exactamente qué contexto recibiría un harness (por ejemplo, para depurar una respuesta o para CI), usa `rapid context`, descrito en el modo avanzado.
+
+</details>
 
 ## Modo avanzado
 
-El resto de la página explica el compilador de contexto (`rapid context`): presupuesto, relevancia, manifiesto y procedencia.
+No lo necesitas con shortcuts. Explica el compilador de contexto (`rapid context`): presupuesto, relevancia, manifiesto y procedencia, útil para depurar y para CI.
+
+<details>
+<summary>Ver el compilador de contexto</summary>
 
 ---
 
@@ -97,3 +125,5 @@ El comando emite en `stdout` un documento Markdown estructurado listo para ser p
 Cada compilación genera un hash criptográfico de su contenido (`content_digest`). Cuando posteriormente se crea un run con `rapid run create`, este digest queda registrado de forma inmutable en el contrato de ejecución (`ExecutionContract.context_digest`).
 
 Esto garantiza una **auditoría perfecta**: meses después de implementado un cambio, el equipo puede reproducir con certeza matemática exactamente qué información y directivas vio el agente en el momento de la ejecución.
+
+</details>

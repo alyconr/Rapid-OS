@@ -1,9 +1,9 @@
 ---
-title: Tu primer proyecto gobernado con RAPID OS
+title: Tu primer proyecto
 description: De una carpeta vacía a tu primera funcionalidad aprobada con /rapid-init y /rapid-feature, y el mismo recorrido con los comandos v3 como modo avanzado.
 ---
 
-# Tu primer proyecto gobernado con RAPID OS
+# Tu primer proyecto
 
 De una carpeta vacía a tu primera funcionalidad terminada y aprobada. Escribes tres cosas en tu agente y una en tu terminal.
 
@@ -82,7 +82,7 @@ Cuando termina, el agente se detiene y te da el comando exacto. Ejecútalo en **
 rapid approve gate.final-verification
 ```
 
-Vuelve al agente y escribe `/rapid-next`: el run se cierra con su veredicto. Listo: tu primera funcionalidad quedó implementada, probada y aprobada por ti.
+Vuelve al agente y escribe `/rapid-next`: el run se cierra con su veredicto. Listo: tu primera funcionalidad quedó implementada, probada y aprobada por ti. Si quieres rechazar, ver en qué va o cancelar, mira [Cuando el agente se detiene](./when-the-agent-stops.md).
 
 :::note Sin agente: `rapid init`
 `rapid init` hace el onboarding desde la terminal con preguntas interactivas. Es la alternativa si no usas un agente; lo que no resuelvas queda pendiente para `/rapid-init`.
@@ -91,7 +91,7 @@ Vuelve al agente y escribe `/rapid-next`: el run se cierra con su veredicto. Lis
 ### Siguientes pasos
 
 - Un laboratorio por modo, con proyectos de ejemplo: [Laboratorios](../tutorials/index.md).
-- Adoptarlo en un repositorio que ya tiene código: [Gobernar un proyecto existente](./existing-project.md).
+- Adoptarlo en un repositorio que ya tiene código: [Un proyecto que ya existe](./existing-project.md).
 
 ---
 
@@ -307,7 +307,7 @@ flowchart LR
 - **Eval:** Evalúa deterministamente si el run pasa (`PASS`).
 
 Continúa explorando:
-- [Gobernar un proyecto existente](./existing-project.md)
+- [Un proyecto que ya existe](./existing-project.md)
 - [Ciclo de gobernanza completo](../governance-loop.md)
 - [Referencia de CLI](../cli.md)
 

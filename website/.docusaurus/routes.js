@@ -4,15 +4,15 @@ import ComponentCreator from '@docusaurus/ComponentCreator';
 export default [
   {
     path: '/Rapid-OS/',
-    component: ComponentCreator('/Rapid-OS/', 'da8'),
+    component: ComponentCreator('/Rapid-OS/', '6ba'),
     routes: [
       {
         path: '/Rapid-OS/',
-        component: ComponentCreator('/Rapid-OS/', 'fae'),
+        component: ComponentCreator('/Rapid-OS/', 'bc6'),
         routes: [
           {
             path: '/Rapid-OS/',
-            component: ComponentCreator('/Rapid-OS/', 'b09'),
+            component: ComponentCreator('/Rapid-OS/', '597'),
             routes: [
               {
                 path: '/Rapid-OS/architecture/orchestration',
@@ -159,7 +159,7 @@ export default [
               },
               {
                 path: '/Rapid-OS/getting-started',
-                component: ComponentCreator('/Rapid-OS/getting-started', 'f4f'),
+                component: ComponentCreator('/Rapid-OS/getting-started', '1ac'),
                 exact: true,
                 sidebar: "docs"
               },
@@ -190,6 +190,12 @@ export default [
               {
                 path: '/Rapid-OS/getting-started/next-steps',
                 component: ComponentCreator('/Rapid-OS/getting-started/next-steps', 'e32'),
+                exact: true,
+                sidebar: "docs"
+              },
+              {
+                path: '/Rapid-OS/getting-started/when-the-agent-stops',
+                component: ComponentCreator('/Rapid-OS/getting-started/when-the-agent-stops', 'b40'),
                 exact: true,
                 sidebar: "docs"
               },

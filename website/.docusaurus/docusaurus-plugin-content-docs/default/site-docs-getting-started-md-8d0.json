@@ -12,7 +12,7 @@
   "tags": [],
   "version": "current",
   "lastUpdatedBy": "Aly Contreras",
-  "lastUpdatedAt": 1792868434000,
+  "lastUpdatedAt": 1792868725000,
   "frontMatter": {
     "title": "Primeros pasos",
     "description": "Empieza en 3 pasos (instalar, /rapid-init, /rapid-feature), el mapa de la sección y, plegado, el recorrido avanzado con los comandos v3."
@@ -23,7 +23,7 @@
     "permalink": "/Rapid-OS/troubleshooting/installation"
   },
   "next": {
-    "title": "Tu primer proyecto gobernado con RAPID OS",
+    "title": "Tu primer proyecto",
     "permalink": "/Rapid-OS/getting-started/first-project"
   }
 }

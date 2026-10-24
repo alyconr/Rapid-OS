@@ -47,7 +47,7 @@ El agente redacta la spec, implementa tarea por tarea y corre los tests. Cuando 
 rapid approve gate.final-verification
 ```
 
-Después escribe `/rapid-next` en el agente y el run se cierra. Ningún shortcut aprueba por ti.
+Después escribe `/rapid-next` en el agente y el run se cierra. Ningún shortcut aprueba por ti. Qué hacer en cada parada está en [Cuando el agente se detiene](./getting-started/when-the-agent-stops.md).
 
 | Quieres… | Escribe en tu agente |
 | :--- | :--- |
@@ -65,13 +65,16 @@ Carpetas y forma de invocarlos en cada agente: [guía de shortcuts](./guides/sho
 
 ## 2. Mapa de esta sección
 
-| Página | Para qué sirve |
+Léela en este orden; cada página toma unos minutos.
+
+| Página | Qué aprendes |
 | :--- | :--- |
-| [Tu primer proyecto gobernado](./getting-started/first-project.md) | Tutorial guiado desde cero: shortcuts primero, comandos v3 después. |
-| [Gobernar un proyecto existente](./getting-started/existing-project.md) | Adoptar Rapid OS en un repositorio con código previo sin tocar tu código de negocio. |
-| [Creación y gestión de especificaciones](./getting-started/first-spec.md) | Qué es una spec, cómo la redacta el agente (`author_spec`) y cómo se crea a mano. |
-| [Compilación de contexto estructurado](./getting-started/first-context.md) | Qué contexto recibe el agente y cómo compilarlo a mano. |
-| [Próximos pasos](./getting-started/next-steps.md) | Hacia dónde seguir: laboratorios, integraciones y referencia. |
+| [1. Tu primer proyecto](./getting-started/first-project.md) | De una carpeta vacía a tu primera funcionalidad aprobada. |
+| [2. Un proyecto que ya existe](./getting-started/existing-project.md) | Usarlo en un repositorio con código, sin tocar tu código de negocio. |
+| [3. Cuando el agente se detiene](./getting-started/when-the-agent-stops.md) | Aprobar, rechazar, ver en qué va, cancelar y leer el veredicto. |
+| [4. Cómo se escribe la spec](./getting-started/first-spec.md) | Qué pide el agente para redactar la spec y cómo hacer un buen pedido. |
+| [5. Qué sabe el agente de tu proyecto](./getting-started/first-context.md) | De dónde salen sus reglas, borradores frente a confirmados y cómo cambiarlos. |
+| [6. Próximos pasos](./getting-started/next-steps.md) | Laboratorios, qué modo usar, trabajo en equipo y qué hacer si algo falla. |
 
 Fuera de esta sección:
 

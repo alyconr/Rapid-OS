@@ -100,7 +100,7 @@ En Copilot Chat, usa `#file:.rapid-os/runs/<run-id>/contract.json` para enfocar 
 Ejecuta la suite de pruebas desde la terminal o mediante el panel de testing de VS Code.
 
 5. **Registro de Evidencias:**
-Usa el CLI de RAPID OS en la terminal para registrar el progreso (ver detalles y esquemas en el [Tutorial del Primer Proyecto Gobernado](../tutorials/first-governed-project.md#7-evidence-collection)):
+Usa el CLI de RAPID OS en la terminal para registrar el progreso (ver detalles y esquemas en el [laboratorio Bajo el capó](../tutorials/first-governed-project.md#7-evidence-collection)):
 - [`evidence_files.json`](../tutorials/first-governed-project.md#3-registrar-evidencia-de-cambios-en-el-código-file_change): modificación de archivos (`file_change`).
 - [`evidence_test_result.json`](../tutorials/first-governed-project.md#4-registrar-evidencia-de-pruebas-aprobadas-test_result): resultado de pruebas con artefacto de log (`test_result`).
 - [`evidence_workspace.json`](../tutorials/first-governed-project.md#5-registrar-evidencia-de-espacio-de-trabajo-workspace): espacio de trabajo actual (`workspace.current`).

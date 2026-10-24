@@ -1,21 +1,34 @@
 ---
-title: Creación y gestión de especificaciones
-description: Cómo diseñar especificaciones inmutables y versionadas con rapid spec.
+title: Cómo se escribe la spec
+description: Qué es la spec de un trabajo, cómo la redacta el agente a partir de tu pedido y cómo escribir un buen pedido; la creación a mano con rapid spec queda como modo avanzado.
 ---
 
-# Creación y gestión de especificaciones
+# Cómo se escribe la spec
 
-En el desarrollo asistido por IA, una especificación imprecisa produce invariablemente código incorrecto o fuera de alcance. Rapid OS formaliza las intenciones del equipo en especificaciones versionadas e inmutables mediante el subcomando `rapid spec`.
+Cada trabajo empieza con una **spec**: una ficha corta que dice qué se va a construir y cómo se sabe que está terminado. Evita que el agente improvise o se salga del alcance.
 
 ## Con shortcuts
 
-Con shortcuts **no escribes la spec a mano**. Pides el trabajo y el agente la redacta:
+**No la escribes tú.** Pides el trabajo y el agente la redacta:
 
 ```text
 /rapid-feature añadir exportación CSV al informe mensual
 ```
 
-El agente redacta la spec (objetivo, alcance, criterios de aceptación y tareas) a partir de lo que escribiste; si no le alcanza, te pregunta antes de redactarla.
+La spec tiene cuatro partes que conviene que tu pedido deje claras:
+
+| Parte | Ejemplo |
+| :--- | :--- |
+| **Objetivo**: para qué | Compartir el informe mensual fuera de la app |
+| **Alcance**: qué entra y qué no | Solo el informe mensual; no el semanal |
+| **Criterios de aceptación**: cómo sabes que funciona | El informe se descarga como CSV con las mismas columnas que en pantalla |
+| **Tareas**: los pasos | `T001` Añadir la exportación, `T002` Añadir el botón |
+
+Si tu pedido no alcanza para alguna parte, el agente te pregunta antes de redactarla. Un pedido con un criterio concreto ("con las mismas columnas que en pantalla") produce una spec mejor que uno genérico ("mejorar el informe").
+
+Si ya tienes un brief del proyecto con historias (`- [ ] H001: ...`), escribe solo `/rapid-feature`: el agente te propone la siguiente historia y espera tu confirmación.
+
+Una vez redactada, la spec queda **congelada** para ese trabajo: si cambias de idea a mitad de camino, cancela el trabajo y pide uno nuevo (ver [Cuando el agente se detiene](./when-the-agent-stops.md)).
 
 <details>
 <summary>Qué hace el agente por debajo</summary>
@@ -34,7 +47,10 @@ Sin run activo, `rapid next` solo conoce la plantilla de `feature`; los demás s
 
 ## Modo avanzado
 
-El resto de la página describe la spec con los comandos v3 (`rapid spec create`, `revise` y `status`): la forma de crear specs a mano, desde CI o para auditoría.
+No lo necesitas con shortcuts. Es la forma de crear y versionar specs a mano con `rapid spec` (`create`, `revise`, `status`), útil desde CI o para auditoría.
+
+<details>
+<summary>Ver la spec con los comandos v3</summary>
 
 ---
 
@@ -122,3 +138,5 @@ rapid spec list --status ready
 rapid spec show rate-limiting
 rapid spec show rate-limiting --revision 0001
 ```
+
+</details>

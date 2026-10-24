@@ -160,6 +160,11 @@
               "sidebar": "docs"
             },
             {
+              "id": "getting-started/when-the-agent-stops",
+              "path": "/Rapid-OS/getting-started/when-the-agent-stops",
+              "sidebar": "docs"
+            },
+            {
               "id": "governance-loop",
               "path": "/Rapid-OS/governance-loop",
               "sidebar": "docs"
