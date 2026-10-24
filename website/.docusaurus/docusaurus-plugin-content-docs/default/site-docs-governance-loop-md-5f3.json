@@ -11,13 +11,13 @@
   "editUrl": "https://github.com/alyconr/Rapid-OS/edit/main/docs/../docs/governance-loop.md",
   "tags": [],
   "version": "current",
-  "lastUpdatedBy": "alyconr",
-  "lastUpdatedAt": 1791496992000,
+  "lastUpdatedBy": "Jeysson Aly Contreras",
+  "lastUpdatedAt": 1792866798000,
   "frontMatter": {},
   "sidebar": "docs",
   "previous": {
-    "title": "Casos de uso",
-    "permalink": "/Rapid-OS/guides/use-cases"
+    "title": "Evaluaciones de Comportamiento (Behavioral Evals)",
+    "permalink": "/Rapid-OS/cookbooks/behavioral-evaluations"
   },
   "next": {
     "title": "Capabilities y permisos",

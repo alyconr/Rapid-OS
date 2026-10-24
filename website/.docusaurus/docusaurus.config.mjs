@@ -11,6 +11,8 @@ export default {
   "organizationName": "alyconr",
   "projectName": "Rapid-OS",
   "onBrokenLinks": "throw",
+  "trailingSlash": false,
+  "favicon": "img/rapid-os-social-card.svg",
   "i18n": {
     "defaultLocale": "es",
     "locales": [
@@ -40,6 +42,40 @@ export default {
   ],
   "themeConfig": {
     "image": "img/rapid-os-social-card.svg",
+    "metadata": [
+      {
+        "name": "description",
+        "content": "Documentación oficial de RAPID OS v3: plataforma de gobernanza determinista para procesos de ingeniería asistidos por agentes de IA y coding harnesses."
+      },
+      {
+        "name": "keywords",
+        "content": "rapid-os, ai-coding-harness, software-engineering, deterministic-governance, prompt-engineering, specification-driven, qa-automation"
+      },
+      {
+        "property": "og:title",
+        "content": "Rapid OS — Contract-Driven Engineering OS for AI Coding Harnesses"
+      },
+      {
+        "property": "og:description",
+        "content": "Gobernanza determinista, contratos de ejecución, evidence engine y evaluaciones conductuales para coding harnesses."
+      },
+      {
+        "property": "og:type",
+        "content": "website"
+      },
+      {
+        "name": "twitter:card",
+        "content": "summary_large_image"
+      },
+      {
+        "name": "twitter:title",
+        "content": "Rapid OS — Contract-Driven Engineering OS for AI Coding Harnesses"
+      },
+      {
+        "name": "twitter:description",
+        "content": "Gobernanza determinista, contratos de ejecución, evidence engine y evaluaciones conductuales para coding harnesses."
+      }
+    ],
     "navbar": {
       "title": "Rapid OS",
       "items": [
@@ -49,8 +85,28 @@ export default {
           "position": "left"
         },
         {
-          "to": "/getting-started",
+          "to": "/installation",
           "label": "Instalación",
+          "position": "left"
+        },
+        {
+          "to": "/getting-started",
+          "label": "Primeros pasos",
+          "position": "left"
+        },
+        {
+          "to": "/guides/shortcuts",
+          "label": "Shortcuts",
+          "position": "left"
+        },
+        {
+          "to": "/guides/modes",
+          "label": "Modos",
+          "position": "left"
+        },
+        {
+          "to": "/cookbooks/policies-and-contracts",
+          "label": "Cookbooks",
           "position": "left"
         },
         {
@@ -82,12 +138,53 @@ export default {
               "to": "/concepts/what-is-rapid-os"
             },
             {
-              "label": "Casos de uso",
-              "to": "/guides/use-cases"
+              "label": "Por qué Rapid OS",
+              "to": "/concepts/why-rapid-os"
             },
             {
-              "label": "Capabilities y permisos",
-              "to": "/guides/permissions-capabilities"
+              "label": "Instalación",
+              "to": "/installation"
+            },
+            {
+              "label": "Primeros pasos",
+              "to": "/getting-started"
+            },
+            {
+              "label": "Shortcuts",
+              "to": "/guides/shortcuts"
+            },
+            {
+              "label": "Modos de ingeniería",
+              "to": "/guides/modes"
+            },
+            {
+              "label": "Casos de uso",
+              "to": "/guides/use-cases"
+            }
+          ]
+        },
+        {
+          "title": "Gobernanza y Práctica",
+          "items": [
+            {
+              "label": "Políticas y Contratos",
+              "to": "/cookbooks/policies-and-contracts"
+            },
+            {
+              "label": "Capabilities y Perfiles",
+              "to": "/cookbooks/harness-profiles"
+            },
+            {
+              "label": "Evidence Engine",
+              "to": "/cookbooks/evidence-engine"
+            },
+            {
+              "label": "Behavioral Evals",
+              "to": "/cookbooks/behavioral-evaluations"
+            },
+            {
+              "label": "Integración CI/CD",
+              "to": "/guides/ci-cd-integration"
             }
           ]
         },
@@ -99,12 +196,20 @@ export default {
               "to": "/cli"
             },
             {
+              "label": "Diagnósticos RAPIDxxx",
+              "to": "/troubleshooting/diagnostics"
+            },
+            {
               "label": "Arquitectura v3",
               "to": "/architecture/rapid-os-v3"
             },
             {
-              "label": "Release v3.0.0",
-              "to": "/release-v3.0.0"
+              "label": "Arquitectura de orquestación",
+              "to": "/architecture/orchestration"
+            },
+            {
+              "label": "Release v3.1.1",
+              "to": "/release-v3.1.1"
             }
           ]
         },
@@ -320,7 +425,8 @@ export default {
         "bash",
         "powershell",
         "json",
-        "toml"
+        "toml",
+        "yaml"
       ],
       "magicComments": [
         {
@@ -350,7 +456,6 @@ export default {
         "groupByYear": true
       }
     },
-    "metadata": [],
     "tableOfContents": {
       "minHeadingLevel": 2,
       "maxHeadingLevel": 3

@@ -308,8 +308,8 @@ rapid doctor
 El flujo principal de Rapid OS son los **shortcuts**: un comando `/rapid-<modo>` por modo de ingeniería que tu agente de código ejecuta para llevar el trabajo de principio a fin dentro de un run gobernado.
 
 ```bash
-rapid init --shortcuts          # 1. inicializa el proyecto e instala los shortcuts de tus agentes
-rapid shortcuts install         #    (en un proyecto ya inicializado; admite --harness y --hooks)
+rapid shortcuts install --global --harness claude   # 1. una vez: los shortcuts en todos tus proyectos (el instalador te lo pregunta)
+rapid init --shortcuts                              #    o, en VS Code / para versionarlos con el repo: en cada proyecto
 ```
 
 ```text
@@ -318,8 +318,8 @@ rapid shortcuts install         #    (en un proyecto ya inicializado; admite --h
 $rapid-feature añadir exportación CSV al informe mensual     #    Codex
 ```
 
-- `/rapid-init` conduce el onboarding con `rapid setup` (también a nivel usuario desde 3.2.0: `rapid shortcuts install --global --harness <id> --only rapid-init`). Hay un shortcut por modo (`/rapid-feature`, `-bugfix`, `-refactor`, `-hardening`, `-research`) y tres de apoyo (`/rapid-next`, `/rapid-status`, `/rapid-approve`).
-- El agente sigue el bucle `rapid next --json` → `rapid start` → `rapid task` / `rapid check` → `rapid finish`, y se detiene cuando hace falta una persona. Entonces tú ejecutas `rapid approve <gate>` **en tu terminal**: el agente nunca aprueba, aborta ni edita `.rapid-os/`.
+- `/rapid-init` conduce el onboarding con `rapid setup` (a nivel usuario desde 3.2.0 con `rapid shortcuts install --global --harness <id>`). Hay un shortcut por modo (`/rapid-feature`, `-bugfix`, `-refactor`, `-hardening`, `-research`) y tres de apoyo (`/rapid-next`, `/rapid-status`, `/rapid-approve`).
+- El agente sigue el bucle `rapid next --json` → `rapid start` → `rapid task` / `rapid check` → `rapid finish`, y se detiene cuando hace falta una persona. Entonces tú ejecutas en **tu terminal** el comando que te da (por ejemplo `rapid approve gate.final-verification`) y escribes `/rapid-next` para cerrar: el agente nunca aprueba, aborta ni edita `.rapid-os/`.
 - Detalle por harness (carpeta generada e invocación), aprobación humana y errores frecuentes: [Shortcuts por harness](https://alyconr.github.io/Rapid-OS/guides/shortcuts).
 - Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) siguen disponibles como **Modo avanzado** para CI, depuración y auditoría: ver [CLI Command Reference](#cli-reference).
 

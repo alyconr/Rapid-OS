@@ -12,18 +12,18 @@
   "tags": [],
   "version": "current",
   "lastUpdatedBy": "Jeysson Aly Contreras",
-  "lastUpdatedAt": 1791502007000,
+  "lastUpdatedAt": 1792866798000,
   "frontMatter": {
     "title": "Casos de uso",
     "description": "Escenarios prácticos en los que Rapid OS aporta contexto, gobernanza y evidencia."
   },
   "sidebar": "docs",
   "previous": {
-    "title": "Getting Started with Rapid OS v3.0.0",
-    "permalink": "/Rapid-OS/getting-started"
+    "title": "Límites y fronteras del producto",
+    "permalink": "/Rapid-OS/concepts/product-boundaries"
   },
   "next": {
-    "title": "Rapid OS v3 Governance Loop",
-    "permalink": "/Rapid-OS/governance-loop"
+    "title": "Instalación de Rapid OS",
+    "permalink": "/Rapid-OS/installation/"
   }
 }

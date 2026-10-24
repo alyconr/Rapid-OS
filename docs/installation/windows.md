@@ -43,8 +43,8 @@ irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.ps1 | iex
 6. Si un instalador anterior dejó una función `rapid` en tu `$PROFILE`, la quita (con copia `.rapid-os.bak`).
 7. Abre una ventana nueva de PowerShell para que tome el PATH.
 
-:::note `/rapid-init` global (desde 3.2.0)
-Al terminar, el instalador puede ofrecer `/rapid-init` en tu carpeta de usuario (`rapid shortcuts install --global --only rapid-init --harness <id>`), para que funcione en cualquier proyecto sin instalarlo en cada uno. Solo lo ofrece si el `rapid` instalado tiene `--global` y hay una terminal interactiva, y nunca por defecto. La versión estable actual (`v3.1.1`) no tiene `--global`, así que no lo ofrece; en ella instala el shortcut en cada proyecto con `rapid init --shortcuts`.
+:::note Shortcuts globales (desde 3.2.0)
+Al terminar, el instalador pregunta para qué agentes instalar los shortcuts en tu carpeta de usuario: escribe el tuyo (por ejemplo `claude`) y `/rapid-init`, `/rapid-feature` y el resto quedan disponibles en todos tus proyectos. Equivale a `rapid shortcuts install --global --harness <id>`, que puedes ejecutar después si te lo saltaste. Solo lo pregunta si el `rapid` instalado tiene `--global` y hay una terminal interactiva, y nunca instala nada sin tu respuesta. La versión estable actual (`v3.1.1`) no tiene `--global`, así que no lo pregunta; en ella instala los shortcuts en cada proyecto con `rapid init --shortcuts`.
 :::
 
 :::warning Shortcuts y hooks necesitan `rapid` en el PATH
@@ -106,12 +106,18 @@ Continúa a la sección de [Verificación detallada](./verification.md).
 
 ---
 
-## 6. Instalar los shortcuts en tu proyecto
+## 6. Empieza a usar los shortcuts
 
-Con `rapid` funcionando, ya puedes trabajar con shortcuts. Desde la raíz de tu repositorio:
+Si respondiste con tu agente a la pregunta final del instalador, ya está: abre tu agente en la carpeta de tu proyecto y escribe:
+
+```text
+/rapid-init
+```
+
+Si te la saltaste, una sola vez: `rapid shortcuts install --global --harness claude` (cambia `claude` por tu agente). En VS Code, en la versión `v3.1.1`, o si prefieres versionar los shortcuts con el repositorio, instálalos en la raíz del proyecto:
 
 ```powershell
 rapid init --shortcuts
 ```
 
-Esto inicializa `.rapid-os/` y genera los `/rapid-*` para los agentes que elijas. En un proyecto ya inicializado usa `rapid shortcuts install`. Después, en tu agente: `/rapid-feature <objetivo>`. Detalle en la [guía de shortcuts](../guides/shortcuts.md) y en [Primeros pasos](../getting-started.md).
+Después, en tu agente: `/rapid-feature <objetivo>`. Detalle en la [guía de shortcuts](../guides/shortcuts.md) y en [Primeros pasos](../getting-started.md).

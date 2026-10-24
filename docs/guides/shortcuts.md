@@ -9,12 +9,13 @@ Los **shortcuts** son el flujo principal de Rapid OS. El primero es `/rapid-init
 
 Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) siguen disponibles como **Modo avanzado**: CI, depuración y auditoría. Están descritos en la [referencia de CLI](../cli.md) y en el flujo manual de cada [guía de modo](./modes/index.md).
 
+Instálalos una sola vez para todos tus proyectos (el instalador de Rapid OS te lo pregunta al terminar; cambia `claude` por tu agente):
+
 ```bash
-rapid init --shortcuts                 # 1. inicializa el proyecto e instala los shortcuts
-# (o, en un proyecto ya inicializado: rapid shortcuts install)
+rapid shortcuts install --global --harness claude
 ```
 
-Después, en tu agente:
+En VS Code, o si prefieres versionarlos con el repositorio, instálalos en el proyecto con `rapid init --shortcuts`. Después, en tu agente:
 
 ```text
 /rapid-init API de facturación para pymes, en Python   # onboarding (en Codex: $rapid-init)
@@ -38,7 +39,7 @@ rapid shortcuts install --harness claude --harness codex
 rapid shortcuts install --harness claude --hooks        # además, los hooks de Claude Code
 rapid shortcuts install --harness claude --dry-run --json   # qué escribiría, sin escribir
 rapid shortcuts install --harness claude --only rapid-init   # solo un shortcut
-rapid shortcuts install --global --harness claude --only rapid-init   # en tu carpeta de usuario (ver abajo)
+rapid shortcuts install --global --harness claude   # los 9, en tu carpeta de usuario (ver abajo)
 rapid shortcuts list                                    # estado de cada archivo: installed, outdated, missing, unmanaged
 rapid shortcuts remove --harness codex                  # quita solo lo generado
 ```

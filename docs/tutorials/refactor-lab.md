@@ -1,24 +1,52 @@
-# Laboratorio 4: Refactor Engineering Lab
+# Laboratorio 3: Refactor Engineering Lab
 
-Aprende a gobernar refactorizaciones complejas con RAPID OS desacoplando lógica de negocio sin alterar contratos públicos ni romper compatibilidad.
+Refactoriza sin romper nada: separa el cálculo de comisiones del formato del informe sin cambiar la API pública. En tu agente escribes tres cosas; en la terminal solo preparas el ejemplo y apruebas.
 
 ## Con shortcuts
 
-Copia `examples/refactor-lab/starter` a una carpeta propia (repositorio git con un commit). La baseline es obligatoria y, si los tests que pasan bajan respecto a ella, `rapid next` se bloquea indicando la diferencia.
+### 1. Prepara el proyecto de ejemplo
 
 ```bash
-rapid init --agents claude --shortcuts
+cp -r ~/.rapid-os/examples/refactor-lab/starter commission-app && cd commission-app
+git init -b main && git add . && git commit -m "starter"
 ```
+
+En Windows PowerShell, la copia es `Copy-Item -Recurse $HOME\.rapid-os\examples\refactor-lab\starter commission-app`. Si instalaste Rapid OS con `pip`, el ejemplo está en [`examples/refactor-lab/starter`](https://github.com/alyconr/Rapid-OS/tree/main/examples/refactor-lab/starter).
+
+### 2. Configura el proyecto
+
+Abre tu agente en la carpeta y escribe `/rapid-init` (en Codex, `$rapid-init`). Detecta Python y propone `python -m unittest discover` como comando de tests: acéptalo. Los documentos del proyecto puedes omitirlos en este laboratorio.
+
+### 3. Pide el trabajo
 
 ```text
 /rapid-refactor extraer un CommissionCalculator puro sin cambiar la firma pública de CommissionReporter
 ```
 
-El agente sigue el bucle `rapid next` → `rapid start` → `rapid check` → `rapid finish` y se detiene cuando hace falta una persona: entonces tú ejecutas `rapid approve <gate>` en tu terminal (`/rapid-approve` te da el comando exacto). Las instalaciones por harness están en la [guía de shortcuts](../guides/shortcuts.md).
+Rapid OS guarda cuántos tests pasan antes del cambio (baseline). Si después del refactor pasan menos, el run se bloquea y el agente te muestra la diferencia.
 
-El resto del laboratorio es el **modo avanzado**: el mismo recorrido con comandos v3, para entender qué registra cada verbo y para CI y auditoría.
+### 4. Aprueba en tu terminal
+
+Cuando el agente termina, se detiene y te da el comando exacto. Ejecútalo en **otra terminal**, fuera del agente, por ejemplo:
+
+```bash
+rapid approve gate.final-verification
+```
+
+Vuelve al agente y escribe `/rapid-next` para cerrar el run.
+
+**Resultado:** `CommissionCalculator` existe, `CommissionReporter` conserva su firma, pasan los mismos tests que antes y el run termina con veredicto `pass`.
+
+¿No tienes los shortcuts? Una sola vez: `rapid shortcuts install --global --harness claude`, o dentro de la carpeta `rapid init --shortcuts`. Detalle en la [guía de shortcuts](../guides/shortcuts.md).
 
 ---
+
+## Modo avanzado
+
+No lo necesitas para hacer el laboratorio. Es el mismo recorrido con los comandos v3, para entender qué registra cada paso y para CI y auditoría.
+
+<details>
+<summary>Ver el laboratorio con comandos v3</summary>
 
 ## 1. Overview
 
@@ -194,3 +222,4 @@ rapid validate
 - [x] Evidencia de `review` aprobada por revisor humano/técnico.
 - [x] Veredicto `pass` obtenido.
 
+</details>

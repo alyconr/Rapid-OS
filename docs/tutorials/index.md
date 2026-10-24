@@ -1,63 +1,40 @@
-# Laboratorios Prácticos de RAPID OS
+# Laboratorios prácticos de RAPID OS
 
-Bienvenido a la sección de **Laboratorios Prácticos (Hands-on Tutorials & Reproducible Labs)** de RAPID OS v3.
+Cada laboratorio es un proyecto de ejemplo pequeño (Python, sin dependencias) y un modo de ingeniería. Todos se hacen igual, en cuatro pasos:
 
-Esta colección de tutoriales técnicos está diseñada para aprender a gobernar flujos de desarrollo asistidos por IA mediante ejercicios reales, código ejecutable y verificación estricta de evidencia determinista.
+1. **Prepara el ejemplo**: copias la carpeta `starter` y haces un commit.
+2. **`/rapid-init`** en tu agente: acepta lo que propone.
+3. **`/rapid-<modo>`** con el objetivo del laboratorio: el agente hace el trabajo.
+4. **`rapid approve`** en tu terminal cuando el agente te lo pida, y `/rapid-next` para cerrar.
 
----
-
-## Filosofía de Aprendizaje: Product Truth & External Execution
-
-En RAPID OS distinguimos de forma absoluta dos actores:
-
-1. **RAPID OS (El Plano de Gobernanza):** Gobierna contratos de ejecución (`ExecutionContract`), estados versionados (`RunState`), resolución declarada de capacidades de herramientas (`HarnessProfile`), ingesta append-only de evidencias verificadas (`RunEvidence`) y evaluación determinista de resultados (`EvaluationReport`). RAPID OS **no ejecuta de forma autónoma a los modelos LLM ni modifica código por sí mismo**.
-2. **Coding Harness o Desarrollador (El Plano de Ejecución Externa):** Edita código en el disco, invoca subagentes, ejecuta pruebas unitarias en la terminal e interactúa con herramientas de desarrollo dentro de los límites y permisos de su entorno.
+No necesitas aprender ningún otro comando. Si aún no tienes los shortcuts, una sola vez: `rapid shortcuts install --global --harness claude` (cambia `claude` por tu agente). Detalle en la [guía de shortcuts](../guides/shortcuts.md).
 
 ---
 
-## Con shortcuts
+## Elige un laboratorio
 
-Cada laboratorio tiene una sección **Con shortcuts**: inicializas con `rapid init --shortcuts` y pides el trabajo a tu agente; el agente conduce el run y tú apruebas los gates humanos en tu terminal. La [guía de shortcuts](../guides/shortcuts.md) explica la instalación por harness.
+| Laboratorio | Shortcut | Qué practicas |
+|---|---|---|
+| [1. Feature](feature-lab.md) | `/rapid-feature` | Añadir una funcionalidad con criterios de aceptación y tests. Empieza aquí. |
+| [2. Bugfix](bugfix-lab.md) | `/rapid-bugfix` | Reproducir el bug con un test en rojo antes de corregirlo. |
+| [3. Refactor](refactor-lab.md) | `/rapid-refactor` | Cambiar la estructura sin que bajen los tests que pasan. |
+| [4. Hardening](hardening-lab.md) | `/rapid-hardening` | Endurecer seguridad en una copia aislada del repositorio, con revisión humana. |
+| [5. Research](research-lab.md) | `/rapid-research` | Un spike que compara opciones y deja los hallazgos registrados. |
+| [6. Bajo el capó](first-governed-project.md) | Ninguno (modo avanzado) | El bucle de gobernanza completo con los comandos v3. Para integradores, CI y auditoría. |
 
-| Laboratorio | Shortcut |
-|---|---|
-| [Primer Proyecto Gobernado](first-governed-project.md) | Ruta avanzada con comandos v3; la versión con shortcuts es el [Feature Engineering](feature-lab.md) (`/rapid-feature`). |
-| [Feature Engineering](feature-lab.md) | `/rapid-feature` |
-| [Bugfix Engineering](bugfix-lab.md) | `/rapid-bugfix` |
-| [Refactor Engineering](refactor-lab.md) | `/rapid-refactor` |
-| [Hardening & Security](hardening-lab.md) | `/rapid-hardening` |
-| [Research & Spikes](research-lab.md) | `/rapid-research` |
-
-El procedimiento guiado de cada laboratorio es el **Modo avanzado**: los comandos v3 que el agente ejecuta por ti, útiles para CI, depuración y auditoría.
+Los ejemplos están en [`examples/`](https://github.com/alyconr/Rapid-OS/tree/main/examples) (con el instalador, en `~/.rapid-os/examples/`). Cada uno trae `starter/` (el punto de partida) y `solution/` (una solución de referencia).
 
 ---
 
-## Progresión Pedagógica
+## Qué hace Rapid OS y qué hace tu agente
 
-Los laboratorios siguen una ruta progresiva desde los fundamentos del Governance Loop hasta escenarios avanzados de refactorización y endurecimiento:
-
-| Laboratorio | Nivel | Modo | Foco Principal | Ejemplo de Código |
-|---|---|---|---|---|
-| [1. Primer Proyecto Gobernado](first-governed-project.md) | Principiante | `feature` | Governance Loop completo (de `init` a `eval` y `validate`) | [`examples/first-governed-project`](https://github.com/alyconr/Rapid-OS/tree/main/examples/first-governed-project) |
-| [2. Feature Engineering](feature-lab.md) | Intermedio | `feature` | Criterios de aceptación, validación de disponibilidad y gates de tests | [`examples/feature-lab`](https://github.com/alyconr/Rapid-OS/tree/main/examples/feature-lab) |
-| [3. Bugfix Engineering](bugfix-lab.md) | Intermedio | `bugfix` | Captura de baseline, reproducción de defecto y tests de regresión | [`examples/bugfix-lab`](https://github.com/alyconr/Rapid-OS/tree/main/examples/bugfix-lab) |
-| [4. Refactor Engineering](refactor-lab.md) | Avanzado | `refactor` | Desacoplamiento arquitectónico preservando contratos de API pública | [`examples/refactor-lab`](https://github.com/alyconr/Rapid-OS/tree/main/examples/refactor-lab) |
-| [5. Hardening & Security](hardening-lab.md) | Avanzado | `hardening` | Elevación de riesgo, mitigación defensiva y aislamiento de workspace | [`examples/hardening-lab`](https://github.com/alyconr/Rapid-OS/tree/main/examples/hardening-lab) |
-| [6. Research & Spikes](research-lab.md) | Intermedio | `research` | Spikes exploratorios sin sobreingeniería con evidencia empírica | [`examples/research-lab`](https://github.com/alyconr/Rapid-OS/tree/main/examples/research-lab) |
+- **Tu agente** edita el código, ejecuta los tests y redacta la spec.
+- **Rapid OS** fija las reglas del run (tareas, gates, tests obligatorios), registra la evidencia de lo que se ejecutó y da un veredicto. Nunca aprueba por ti: los gates humanos los apruebas tú en tu terminal.
 
 ---
 
-## Estructura Canónica de Cada Laboratorio
+## Modo avanzado
 
-Cada laboratorio en esta sección implementa una estructura idéntica y verificable:
-- **Overview:** Contexto, problema y objetivos.
-- **Learning Outcomes:** Capacidades concretas adquiridas.
-- **Initial State:** Estado del repositorio base antes del cambio.
-- **Engineering Requirements:** Requerimientos técnicos y criterios de aceptación.
-- **Guided Procedure:** Comandos del CLI y explicaciones paso a paso.
-- **Expected Artifacts:** Archivos generados bajo `.rapid-os/`.
-- **External Execution:** Modificaciones reales del código o suite de tests realizadas externamente.
-- **Evidence Collection:** Registro de evidencias canónicas con validación de hash SHA-256.
-- **Evaluation:** Ejecución del evaluador determinista (`rapid eval run`) e interpretación del veredicto.
-- **Validation:** Validación de integridad con `rapid validate`.
-- **Troubleshooting & Assessment:** Diagnóstico de errores comunes y criterios de éxito.
+Cada laboratorio incluye, plegado al final, el mismo recorrido con los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…). No lo necesitas para hacer los laboratorios; sirve para entender qué registra cada paso, para CI y para auditoría. Todos siguen la misma estructura: Overview, Learning Outcomes, Initial State, Engineering Requirements, Guided Procedure, External Execution, Evidence Collection, Evaluation, Validation y Assessment.
+
+Si algo falla, revisa la [guía de problemas en los laboratorios](../troubleshooting/tutorials.md).

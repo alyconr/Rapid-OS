@@ -12,14 +12,14 @@
   "tags": [],
   "version": "current",
   "lastUpdatedBy": "Jeysson Aly Contreras",
-  "lastUpdatedAt": 1791502046000,
+  "lastUpdatedAt": 1792866798000,
   "frontMatter": {
     "title": "Auditoría de cobertura documental",
     "description": "Cobertura inicial de la documentación frente a las capacidades implementadas en Rapid OS v3."
   },
   "sidebar": "docs",
   "previous": {
-    "title": "Rapid OS v3.0.0 Release Checklist",
+    "title": "Rapid OS v3.1.1 Release Checklist",
     "permalink": "/Rapid-OS/release-checklist"
   },
   "next": {

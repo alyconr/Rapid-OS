@@ -1,70 +1,65 @@
 ---
 title: Primeros pasos
-description: La ruta principal para trabajar con Rapid OS (instalar, rapid init --shortcuts, /rapid-feature), el mapa de la sección y el recorrido avanzado con los comandos v3.
+description: Empieza en 3 pasos (instalar, /rapid-init, /rapid-feature), el mapa de la sección y, plegado, el recorrido avanzado con los comandos v3.
 ---
 
 # Primeros pasos con Rapid OS
 
-Rapid OS gobierna el trabajo de tu agente de código: cada cambio ocurre dentro de un **run** con spec, tareas, gates y evidencia verificable. La forma habitual de usarlo es con **shortcuts**: tú describes el objetivo y el agente conduce el run. Los comandos v3 siguen disponibles como [Modo avanzado](#modo-avanzado).
+Rapid OS gobierna el trabajo de tu agente de código: cada cambio ocurre dentro de un **run** con spec, tareas, gates y evidencia verificable. Tú no tienes que aprender esos comandos: los ejecuta el agente a través de los **shortcuts** (`/rapid-…`). En tu terminal solo instalas y apruebas.
 
 ---
 
-## 1. Ruta principal: shortcuts
+## 1. Empieza en 3 pasos
 
-### Requisitos
-
-- **Python 3.10 o superior** (el núcleo de gobernanza usa solo la biblioteca estándar) y **Git**.
-- Un coding harness compatible: Claude Code, Codex, Antigravity, Cursor o VS Code (Copilot).
-- **Node.js / `npx` (opcional)**: solo para la instalación remota de skills (`rapid skill add`).
+Necesitas Python 3.10+, Git y un agente de código: Claude Code, Codex, Cursor, Antigravity o VS Code (Copilot).
 
 ### Paso 1: instalar
 
-Elige el método de tu sistema en [Instalación](./installation/index.md) ([Linux](./installation/linux.md), [macOS](./installation/macos.md), [Windows](./installation/windows.md) o [WSL](./installation/wsl.md)) y comprueba que el comando responde:
+Usa el instalador de tu sistema ([Linux](./installation/linux.md), [macOS](./installation/macos.md), [Windows](./installation/windows.md) o [WSL](./installation/wsl.md)). Al final pregunta para qué agentes instalar los shortcuts: escribe el tuyo (por ejemplo `claude`) y quedan disponibles en todos tus proyectos. Si te lo saltaste, una sola vez:
 
 ```bash
-rapid --version
+rapid shortcuts install --global --harness claude
 ```
 
-Los canales (versión estable y desarrollo) y la actualización se explican en [Instalación](./installation/index.md) y [Actualización](./installation/upgrade.md).
+:::note VS Code y versiones anteriores
+VS Code no tiene carpeta de usuario para shortcuts: instálalos en cada proyecto con `rapid init --shortcuts`. Lo mismo si tu versión de Rapid OS aún no trae `/rapid-init` ni `--global` (lo verás en `rapid shortcuts install --help`).
+:::
 
-### Paso 2: inicializar el proyecto con `rapid init`
+### Paso 2: describir el proyecto con `/rapid-init`
 
-Desde la raíz de tu proyecto. No hace falta que ya sea un repositorio git: el onboarding (`rapid init` o `rapid setup finish`) lo crea, siempre en la rama `main`, sin hacer commits:
-
-```bash
-rapid init --shortcuts
-```
-
-Esto crea `.rapid-os/` (estándares y `config.json`) y genera los 9 shortcuts `/rapid-*` para los agentes que elijas. Añade a `.gitignore` el estado local de la sesión:
-
-```gitignore
-.rapid-os/session.json
-.rapid-os/scratch/
-```
-
-Define el comando de tests que usará `rapid check` (por ejemplo `rapid init --test-command "python -m unittest discover"`, o `test_command` en `.rapid-os/config.json`). En un proyecto ya inicializado usa `rapid shortcuts install`.
-
-### Paso 3: completar el onboarding con `/rapid-init`
-
-En tu agente (en Codex, `$rapid-init`), o a mano con `rapid setup next`:
+Abre tu agente en la carpeta del proyecto (nueva o con código) y escribe:
 
 ```text
 /rapid-init una API en Python para validar nombres de usuario
 ```
 
-El agente lee `rapid setup next --json` y te propone, una decisión a la vez: el stack de cada componente, la arquitectura, los servicios y los documentos del proyecto. Lo que redacta el agente queda como **borrador** (`status: draft`) y entra al contexto como supuesto. Antes de cerrar, `rapid setup next` devuelve `review_drafts`: el agente te resume cada borrador y tú decides cuáles confirmas (`rapid setup doc <id> --confirm`) y cuáles se quedan como supuesto; después `rapid setup review --done` y `rapid setup finish`. Rapid OS nunca confirma por ti. Detalle en [Tu primer proyecto](./getting-started/first-project.md).
+El agente te propone, una decisión a la vez, el stack, el comando de tests y los documentos del proyecto (brief, reglas de negocio, modelo de datos, arquitectura). Para cada documento eliges: lo pegas, lo redacta el agente o lo omites. Lo que redacta queda como **borrador** hasta que tú digas que lo confirmas. En Codex se escribe `$rapid-init`.
 
-### Paso 4: pedir el trabajo
-
-En tu agente:
+### Paso 3: pedir el trabajo
 
 ```text
 /rapid-feature añadir exportación CSV al informe mensual
 ```
 
-El agente sigue el bucle `rapid next` → `rapid start` → `rapid check` → `rapid finish` y se detiene cuando hace falta una persona. Entonces tú ejecutas `rapid approve <gate>` **en tu propia terminal**: ningún shortcut aprueba gates humanos. Qué carpeta se genera en cada harness y cómo se invoca está en la [guía de shortcuts](./guides/shortcuts.md).
+El agente redacta la spec, implementa tarea por tarea y corre los tests. Cuando necesita a una persona se detiene y te da el comando exacto para **tu** terminal, por ejemplo:
 
-Los otros shortcuts: `/rapid-bugfix`, `/rapid-refactor`, `/rapid-hardening`, `/rapid-research`, `/rapid-next`, `/rapid-status` y `/rapid-approve`.
+```bash
+rapid approve gate.final-verification
+```
+
+Después escribe `/rapid-next` en el agente y el run se cierra. Ningún shortcut aprueba por ti.
+
+| Quieres… | Escribe en tu agente |
+| :--- | :--- |
+| Una funcionalidad nueva | `/rapid-feature <objetivo>` |
+| Corregir un bug | `/rapid-bugfix <qué falla>` |
+| Refactorizar sin romper tests | `/rapid-refactor <alcance>` |
+| Endurecer seguridad | `/rapid-hardening <área>` |
+| Investigar una opción | `/rapid-research <pregunta>` |
+| Ver en qué va o seguir | `/rapid-status` · `/rapid-next` |
+| Saber qué aprobar | `/rapid-approve` |
+
+Carpetas y forma de invocarlos en cada agente: [guía de shortcuts](./guides/shortcuts.md).
 
 ---
 
@@ -87,6 +82,12 @@ Fuera de esta sección:
 ---
 
 ## Modo avanzado
+
+No lo necesitas para usar Rapid OS. Los comandos v3 hacen a mano lo que hace el agente con los shortcuts; sirven para CI, depuración y auditoría. El ciclo completo, con diagramas, está en [Ciclo de gobernanza v3](./governance-loop.md).
+
+<details>
+<summary>Ver el recorrido completo con los comandos v3</summary>
+
 
 Los comandos v3 (`rapid scan`, `rapid spec`, `rapid context`, `rapid run`, `rapid evidence`, `rapid eval`, `rapid validate`) hacen a mano lo que hace el agente con los shortcuts. Son útiles para CI, depuración y auditoría, y para entender qué registra cada paso. El recorrido completo:
 
@@ -197,3 +198,5 @@ rapid validate
 ```
 
 When all required lifecycle, task, gate, and observable capability assertions are backed by verified evidence, `rapid eval run --require-pass` emits `Verdict: pass` and exits `0`.
+
+</details>

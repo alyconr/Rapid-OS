@@ -9,25 +9,32 @@ Adoptar Rapid OS en un repositorio que ya se encuentra en producción o desarrol
 
 ## Con shortcuts
 
-Con shortcuts no necesitas recorrer los pasos de abajo a mano. Desde la raíz del repositorio (si la carpeta aún no es un repositorio git, el onboarding lo crea; no hace falta ningún commit):
+1. **Abre tu agente en la raíz del repositorio** y escribe:
 
-```bash
-cd /ruta/a/tu-proyecto-existente
-rapid init --agents claude --shortcuts --test-command "python -m unittest discover"
-```
+   ```text
+   /rapid-init
+   ```
 
-`rapid init` solo crea `.rapid-os/` y los archivos de instrucciones del agente; los shortcuts se generan en la carpeta de cada harness (`.claude/skills/`, `.agents/skills/`, `.cursor/skills/` o `.github/prompts/`) y no modifican tu código de negocio. El `--test-command` queda en `.rapid-os/config.json` y es el que usa `rapid check`. Después añade a `.gitignore`:
+   El agente lee lo que detecta en tu repositorio (lenguaje, framework, carpeta de tests) y te lo propone como punto de partida: stack, comando de tests y documentos. Tú confirmas o cambias. Si la carpeta aún no es un repositorio git, lo crea en la rama `main`, sin commits.
 
-```gitignore
-.rapid-os/session.json
-.rapid-os/scratch/
-```
+2. **Pide el trabajo:**
 
-Después completa el onboarding con `/rapid-init` en tu agente (o con `rapid setup next`): en un proyecto existente propone lo que detecta, tú eliges el stack de cada componente y los documentos, y antes de cerrar revisas los borradores que redactó el agente (`rapid setup doc <id> --confirm` confirma uno; lo que no confirmes sigue siendo un supuesto). La ruta es `rapid init` → `/rapid-init` → `/rapid-feature`. Y pide el trabajo a tu agente, por ejemplo `/rapid-bugfix el descuento del 10% devuelve un total negativo`. El primer paso de cada run es un *baseline* de tus tests: si tu suite ya está en rojo, el run no avanza hasta que lo resuelvas o ejecutes `rapid abort`. Detalle por harness en la [guía de shortcuts](../guides/shortcuts.md).
+   ```text
+   /rapid-bugfix el descuento del 10% devuelve un total negativo
+   ```
+
+3. **Aprueba en tu terminal** cuando el agente te lo pida (te da el comando exacto, por ejemplo `rapid approve gate.final-verification`) y escribe `/rapid-next` para cerrar.
+
+Rapid OS no toca tu código de negocio: escribe su configuración en `.rapid-os/`, los documentos en `docs/` y las instrucciones de tu agente (`CLAUDE.md`, `AGENTS.md`…); si añade algo más (por ejemplo un workflow de seguridad), te lo dice al cerrar el onboarding. El primer paso de cada run es un *baseline* de tus tests: si tu suite ya está en rojo, el run no avanza hasta que la arregles (o abandones el run con `rapid abort`).
+
+¿Aún no tienes los shortcuts? Una sola vez: `rapid shortcuts install --global --harness claude` (cambia `claude` por tu agente), o dentro del repositorio `rapid init --shortcuts`. Detalle en la [guía de shortcuts](../guides/shortcuts.md).
 
 ## Modo avanzado
 
-Los pasos siguientes (`rapid doctor`, `rapid scan`, `rapid scope`…) son la ruta con comandos v3: útiles para entender qué descubre Rapid OS en tu repositorio, para CI y para auditoría.
+No lo necesitas para usar Rapid OS. Es la ruta con comandos v3 (`rapid doctor`, `rapid scan`…): útil para ver qué descubre Rapid OS en tu repositorio, para CI y para auditoría.
+
+<details>
+<summary>Ver los pasos con comandos v3</summary>
 
 ---
 
@@ -133,3 +140,5 @@ rapid validate --strict
 - `RAPID600–RAPID604`: Discrepancias en la instantánea de Project Intelligence.
 
 Una vez que `rapid validate` retorne código `0`, tu repositorio cuenta con una línea base de gobernanza verificada y está listo para recibir especificaciones y compilaciones de contexto.
+
+</details>

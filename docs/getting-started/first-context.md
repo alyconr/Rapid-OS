@@ -11,7 +11,7 @@ El subcomando `rapid context` actúa como un **compilador de contexto determinis
 
 ## Con shortcuts
 
-Con shortcuts no compilas el contexto a mano: el run lo gestiona por ti. Al ejecutar `rapid start <modo> --spec-file -`, Rapid OS crea el contrato del run con la spec y los estándares del proyecto, y el shortcut le indica al agente que trabaje solo con la tarea que devuelve `rapid next --json` (`implement_task`). Los estándares de `.rapid-os/standards/` y los archivos de instrucciones del harness (`CLAUDE.md`, `AGENTS.md`…) los generó `rapid init`.
+Con shortcuts no compilas el contexto a mano: el run lo gestiona por ti. Al ejecutar `rapid start <modo> --spec-file -`, Rapid OS crea el contrato del run con la spec y los estándares del proyecto, y el shortcut le indica al agente que trabaje solo con la tarea que devuelve `rapid next --json` (`implement_task`). Los estándares de `.rapid-os/standards/` y los archivos de instrucciones del harness (`CLAUDE.md`, `AGENTS.md`…) los generó el onboarding (`/rapid-init` o `rapid init`).
 
 ```text
 /rapid-feature añadir exportación CSV al informe mensual

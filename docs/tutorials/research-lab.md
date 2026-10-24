@@ -1,24 +1,52 @@
-# Laboratorio 6: Research & Spike Engineering Lab
+# Laboratorio 5: Research & Spike Engineering Lab
 
-Aprende a gobernar investigaciones técnicas y spikes exploratorios en RAPID OS sin sobreingeniería, documentando tradeoffs empíricos y preservando la trazabilidad del aprendizaje.
+Haz un spike: compara JSON y SQLite para guardar preferencias y deja el aprendizaje registrado. En tu agente escribes tres cosas; en la terminal solo preparas el ejemplo y apruebas.
 
 ## Con shortcuts
 
-Copia `examples/research-lab/starter` a una carpeta propia (repositorio git con un commit). Un spike no tiene baseline ni tests obligatorios: los hallazgos se registran con `rapid attach <ruta> --label "…"`.
+### 1. Prepara el proyecto de ejemplo
 
 ```bash
-rapid init --agents claude --shortcuts
+cp -r ~/.rapid-os/examples/research-lab/starter storage-spike && cd storage-spike
+git init -b main && git add . && git commit -m "starter"
 ```
+
+En Windows PowerShell, la copia es `Copy-Item -Recurse $HOME\.rapid-os\examples\research-lab\starter storage-spike`. Si instalaste Rapid OS con `pip`, el ejemplo está en [`examples/research-lab/starter`](https://github.com/alyconr/Rapid-OS/tree/main/examples/research-lab/starter).
+
+### 2. Configura el proyecto
+
+Abre tu agente en la carpeta y escribe `/rapid-init` (en Codex, `$rapid-init`). Detecta Python y propone `python -m unittest discover` como comando de tests: acéptalo. Los documentos del proyecto puedes omitirlos en este laboratorio.
+
+### 3. Pide el trabajo
 
 ```text
 /rapid-research comparar JSON y SQLite para guardar las preferencias
 ```
 
-El agente sigue el bucle `rapid next` → `rapid start` → `rapid check` → `rapid finish` y se detiene cuando hace falta una persona: entonces tú ejecutas `rapid approve <gate>` en tu terminal (`/rapid-approve` te da el comando exacto). Las instalaciones por harness están en la [guía de shortcuts](../guides/shortcuts.md).
+Un spike no exige baseline ni tests: el agente prueba las dos opciones y registra cada hallazgo como evidencia del run (`rapid attach <ruta> --label "…"`).
 
-El resto del laboratorio es el **modo avanzado**: el mismo recorrido con comandos v3, para entender qué registra cada verbo y para CI y auditoría.
+### 4. Aprueba en tu terminal
+
+Cuando el agente termina, se detiene y te da el comando exacto. Ejecútalo en **otra terminal**, fuera del agente, por ejemplo:
+
+```bash
+rapid approve gate.final-verification
+```
+
+Vuelve al agente y escribe `/rapid-next` para cerrar el run.
+
+**Resultado:** Una comparación con los datos medidos, registrada en el run, y un veredicto `pass`.
+
+¿No tienes los shortcuts? Una sola vez: `rapid shortcuts install --global --harness claude`, o dentro de la carpeta `rapid init --shortcuts`. Detalle en la [guía de shortcuts](../guides/shortcuts.md).
 
 ---
+
+## Modo avanzado
+
+No lo necesitas para hacer el laboratorio. Es el mismo recorrido con los comandos v3, para entender qué registra cada paso y para CI y auditoría.
+
+<details>
+<summary>Ver el laboratorio con comandos v3</summary>
 
 ## 1. Overview
 
@@ -201,3 +229,4 @@ rapid validate
 - [x] Conclusiones respaldadas por ejecuciones reales de la suite.
 - [x] Veredicto `pass` obtenido.
 
+</details>
