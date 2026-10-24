@@ -87,20 +87,21 @@ $Installed = & (Join-Path $BinDir "rapid.exe") --version; Assert-LastExit "rapid
 Write-Host "✅ $Installed installed at $BinDir\rapid.exe" -ForegroundColor Green
 Write-Host "👉 Open a new terminal before using 'rapid'. Launch your coding agent (claude, codex, cursor...) from a terminal where 'rapid --version' works."
 
-# Opt-in, never by default and never without a terminal: /rapid-init in your user-level skills
-# folder, so it works in every project. Supported: claude, codex, cursor, antigravity.
+# Opt-in, never by default and never without a terminal: /rapid-init and the /rapid-<mode>
+# shortcuts in your user-level skills folder, so they work in every project without a per-project
+# install. Supported: claude, codex, cursor, antigravity (VS Code has no user-level folder).
 # Only offered when the installed version has `--global` (releases before 3.2.0 do not).
 $HasGlobal = (& (Join-Path $BinDir "rapid.exe") shortcuts install --help | Out-String) -match "--global"
 if (-not $HasGlobal) {
     # This version has no user-level install: nothing to offer.
 } elseif (-not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected) {
-    $Harnesses = Read-Host "Install /rapid-init for your coding agents in your home folder (all projects)? Harnesses (comma-separated: claude,codex,cursor,antigravity) or Enter for none"
+    $Harnesses = Read-Host "Install /rapid-init and the /rapid-* shortcuts for your coding agents in your home folder (all projects)? Harnesses (comma-separated: claude,codex,cursor,antigravity) or Enter for none"
     if ($Harnesses -and $Harnesses.Trim()) {
         $HarnessArgs = @()
         foreach ($H in ($Harnesses -split "[,\s]+" | Where-Object { $_ })) { $HarnessArgs += @("--harness", $H) }
-        & (Join-Path $BinDir "rapid.exe") shortcuts install --global --only rapid-init @HarnessArgs
-        if ($LASTEXITCODE -ne 0) { Write-Host "WARNING: Could not install /rapid-init; run 'rapid shortcuts install --global --only rapid-init --harness <id>' later." }
+        & (Join-Path $BinDir "rapid.exe") shortcuts install --global @HarnessArgs
+        if ($LASTEXITCODE -ne 0) { Write-Host "WARNING: Could not install the shortcuts; run 'rapid shortcuts install --global --harness <id>' later." }
     }
 } else {
-    Write-Host "Tip: 'rapid shortcuts install --global --only rapid-init --harness claude' installs /rapid-init for all your projects."
+    Write-Host "Tip: 'rapid shortcuts install --global --harness claude' installs /rapid-init and the /rapid-* shortcuts for all your projects."
 }

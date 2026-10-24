@@ -1,6 +1,6 @@
-# Laboratorio 1: Primer Proyecto Gobernado
+# Laboratorio 6: Bajo el capó (el bucle de gobernanza a mano)
 
-> **Modo avanzado.** Este laboratorio es la ruta con los comandos v3 (`rapid scan`, `rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…): hace a mano lo que hace el agente. La ruta habitual es con shortcuts: sigue el [laboratorio Feature Engineering](feature-lab.md#con-shortcuts) (`/rapid-feature`) y la [guía de shortcuts](../guides/shortcuts.md).
+> **Modo avanzado.** No necesitas este laboratorio para usar Rapid OS: hace a mano, con los comandos v3 (`rapid scan`, `rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…), lo que el agente hace por ti con los shortcuts. Es para integradores, CI y auditoría. Si estás empezando, ve al [laboratorio Feature](feature-lab.md) (`/rapid-feature`).
 
 Aprende a ejecutar el Governance Loop completo de RAPID OS v3 sobre un proyecto Python real con un asistente o coding harness externo.
 
@@ -11,7 +11,7 @@ Aprende a ejecutar el Governance Loop completo de RAPID OS v3 sobre un proyecto 
 - **Nombre:** Task Tracker CLI Governance.
 - **Problema:** Un proyecto Python sin gobernanza arriesga cambios no validados introducidos por asistentes de IA. Se requiere implementar una nueva funcionalidad de prioridad de tareas bajo un contrato verificable.
 - **Objetivo:** Recorrer todo el ciclo de gobernanza desde `rapid init` hasta la evaluación de evidencia y validación final de integridad.
-- **Nivel de dificultad:** Principiante.
+- **Nivel de dificultad:** Avanzado.
 - **Conocimientos previos:** Uso básico de terminal y comandos de Python.
 - **Dependencias:** Python 3.10+ (exclusivamente biblioteca estándar).
 - **Archivos de referencia:** [`examples/first-governed-project/`](https://github.com/alyconr/Rapid-OS/tree/main/examples/first-governed-project).

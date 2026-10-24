@@ -15,6 +15,11 @@ Con shortcuts **no escribes la spec a mano**. Pides el trabajo y el agente la re
 /rapid-feature añadir exportación CSV al informe mensual
 ```
 
+El agente redacta la spec (objetivo, alcance, criterios de aceptación y tareas) a partir de lo que escribiste; si no le alcanza, te pregunta antes de redactarla.
+
+<details>
+<summary>Qué hace el agente por debajo</summary>
+
 1. El shortcut ejecuta `rapid next --json`. Sin run activo, la acción es `author_spec` e incluye `action.spec_template`: la plantilla del modo (título, objetivo de negocio, problema, alcance, criterios de aceptación, tareas…).
 2. El agente redacta la spec desde tu objetivo **siguiendo esa plantilla** y la pasa por stdin a `rapid start <modo> --spec-file -`. Los alias `acceptance` y `tasks` se aceptan en lugar de `acceptance_criteria` e `implementation_tasks`.
 3. `rapid start` crea la spec, el contrato y el run, y devuelve la siguiente acción (normalmente el baseline).
@@ -24,6 +29,8 @@ echo '{"title": "Exportar informe a CSV", "business_objective": "Compartir el in
 ```
 
 Sin run activo, `rapid next` solo conoce la plantilla de `feature`; los demás shortcuts piden la suya con `rapid start <modo> --json`. El bucle completo está en la [guía de shortcuts](../guides/shortcuts.md#4-el-bucle-que-siguen).
+
+</details>
 
 ## Modo avanzado
 

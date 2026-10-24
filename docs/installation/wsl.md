@@ -54,7 +54,7 @@ Comprueba el comando:
 rapid --version
 ```
 
-Después, desde la raíz de tu repositorio (dentro de WSL), instala los shortcuts: `rapid init --shortcuts` (o `rapid shortcuts install` en un proyecto ya inicializado). Detalle en la [guía de shortcuts](../guides/shortcuts.md).
+Después instala los shortcuts una sola vez para todos tus proyectos: `rapid shortcuts install --global --harness claude` (cambia `claude` por tu agente; desde 3.2.0). En la versión `v3.1.1`, o si prefieres versionarlos con el repositorio, usa `rapid init --shortcuts` en la raíz del proyecto (dentro de WSL). Detalle en la [guía de shortcuts](../guides/shortcuts.md).
 
 ---
 

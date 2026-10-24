@@ -82,12 +82,12 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       link: {type: 'doc', id: 'tutorials/index'},
       items: [
-        'tutorials/first-governed-project',
         'tutorials/feature-lab',
         'tutorials/bugfix-lab',
         'tutorials/refactor-lab',
         'tutorials/hardening-lab',
         'tutorials/research-lab',
+        'tutorials/first-governed-project',
         'troubleshooting/tutorials',
       ],
     },

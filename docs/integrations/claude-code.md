@@ -55,10 +55,10 @@ Genera `.claude/skills/rapid-*/SKILL.md` (los 9 shortcuts; [documentación de sk
 
 El punto de entrada de un proyecto es `/rapid-init`: conduce el onboarding (`rapid setup next`), te pregunta el stack de cada componente, la arquitectura, los servicios y los documentos, y revisa contigo los borradores antes de cerrar. Después usas `/rapid-feature` y los demás modos. Ver [Primer proyecto](../getting-started/first-project.md).
 
-Para tenerlo en todos tus proyectos sin instalarlo en cada uno, instálalo en tu carpeta de usuario (`~/.claude/skills/`):
+Para tener `/rapid-init` y los demás shortcuts en todos tus proyectos sin instalarlos en cada uno, instálalos en tu carpeta de usuario (`~/.claude/skills/`); el instalador de Rapid OS te lo pregunta al terminar:
 
 ```bash
-rapid shortcuts install --global --harness claude --only rapid-init
+rapid shortcuts install --global --harness claude
 ```
 
 Los shortcuts y los hooks ejecutan `rapid` desde el shell del agente: si no está en el `PATH`, `rapid init` y `rapid doctor` avisan con `RAPID1414` (aviso, no error). Ver la [guía de shortcuts](../guides/shortcuts.md).

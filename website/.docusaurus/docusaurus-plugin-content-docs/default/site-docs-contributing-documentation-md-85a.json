@@ -12,14 +12,14 @@
   "tags": [],
   "version": "current",
   "lastUpdatedBy": "Jeysson Aly Contreras",
-  "lastUpdatedAt": 1791502013000,
+  "lastUpdatedAt": 1792866798000,
   "frontMatter": {
     "title": "Mantener la documentación",
     "description": "Arquitectura de la documentación de Rapid OS y reglas para evitar drift entre producto, CLI y sitio."
   },
   "sidebar": "docs",
   "previous": {
-    "title": "Sprint 1 — Validación de la base documental",
-    "permalink": "/Rapid-OS/audit/sprint-1-validation"
+    "title": "Auditoría y Validación Técnica — Sprint 5",
+    "permalink": "/Rapid-OS/audit/sprint-5-validation"
   }
 }

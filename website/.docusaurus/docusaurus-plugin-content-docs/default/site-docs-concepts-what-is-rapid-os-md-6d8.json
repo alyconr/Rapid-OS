@@ -12,7 +12,7 @@
   "tags": [],
   "version": "current",
   "lastUpdatedBy": "Jeysson Aly Contreras",
-  "lastUpdatedAt": 1791502006000,
+  "lastUpdatedAt": 1792866798000,
   "frontMatter": {
     "title": "Qué es Rapid OS",
     "description": "Objetivo, alcance, usuarios y modelo mental de Rapid OS v3."
@@ -23,7 +23,7 @@
     "permalink": "/Rapid-OS/"
   },
   "next": {
-    "title": "Getting Started with Rapid OS v3.0.0",
-    "permalink": "/Rapid-OS/getting-started"
+    "title": "Por qué Rapid OS",
+    "permalink": "/Rapid-OS/concepts/why-rapid-os"
   }
 }

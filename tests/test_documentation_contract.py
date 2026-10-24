@@ -632,6 +632,10 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertLess(install_sh.index("grep -q -- '--global'"), install_sh.index("Install /rapid-init"))
         self.assertIn('shortcuts install --help', install_ps1)
         self.assertLess(install_ps1.index("$HasGlobal"), install_ps1.index("Read-Host"))
+        # The prompt installs every shortcut, so /rapid-feature exists once /rapid-init is done.
+        for script in (install_sh, install_ps1):
+            self.assertIn("shortcuts install --global", script)
+            self.assertNotIn("--only rapid-init", script)
 
     def test_cli_reference_documents_every_parser_flag(self):
         """The reverse of test_documented_flags_exist_in_parser: no parser flag is missing from cli.md."""
@@ -721,7 +725,8 @@ class DocumentationContractTests(unittest.TestCase):
 
     def test_getting_started_is_the_shortcuts_route_with_a_map_and_advanced_mode(self):
         text = (DOCS / "getting-started.md").read_text(encoding="utf-8")
-        for needle in ("rapid init --shortcuts", "/rapid-feature", "## 2. Mapa de esta sección", "## Modo avanzado",
+        for needle in ("rapid init --shortcuts", "rapid shortcuts install --global", "/rapid-init", "/rapid-feature",
+                       "rapid approve", "## 2. Mapa de esta sección", "## Modo avanzado",
                        "rapid scan --write", "rapid spec create", "rapid evidence verify", "rapid eval run"):
             with self.subTest(needle=needle):
                 self.assertIn(needle, text)
@@ -794,13 +799,13 @@ class DocumentationContractTests(unittest.TestCase):
         for relative in ("index.md", "getting-started/first-project.md"):
             text = (DOCS / relative).read_text(encoding="utf-8")
             with self.subTest(page=relative):
-                self.assertIn("rapid init", text)
-                self.assertIn("--shortcuts", text)
-                self.assertIn("/rapid-feature", text)
-                self.assertIn("Modo avanzado", text)
-                self.assertLess(text.index("--shortcuts"), text.index("Modo avanzado"))
+                for needle in ("/rapid-init", "rapid shortcuts install --global", "rapid init --shortcuts",
+                               "/rapid-feature", "rapid approve", "Modo avanzado"):
+                    self.assertIn(needle, text)
+                self.assertLess(text.index("/rapid-init"), text.index("Modo avanzado"))
+                self.assertLess(text.index("/rapid-feature"), text.index("Modo avanzado"))
         first_project = (DOCS / "getting-started" / "first-project.md").read_text(encoding="utf-8")
-        self.assertLess(first_project.index("--shortcuts"), first_project.index("## Paso 1"))
+        self.assertLess(first_project.index("/rapid-init"), first_project.index("## Paso 1"))
         self.assertIn("rapid scan --write", first_project)  # the plumbing route is kept
 
     def test_shortcuts_quickstart_functional_end_to_end(self):
@@ -875,15 +880,54 @@ class DocumentationContractTests(unittest.TestCase):
             text = (DOCS / "tutorials" / f"{lab}-lab.md").read_text(encoding="utf-8")
             with self.subTest(lab=lab):
                 self.assertIn("## Con shortcuts", text)
-                self.assertIn(f"/rapid-{lab}", text)
-                self.assertIn("--shortcuts", text)
-                self.assertIn("modo avanzado", text.lower())
-                self.assertLess(text.index("## Con shortcuts"), text.index("## 1. Overview"))
-                self.assertIn("## 5. Guided Procedure", text)  # not deleted
+                route = text[text.index("## Con shortcuts"):text.index("## Modo avanzado")]
+                for needle in (f"examples/{lab}-lab/starter", "/rapid-init", f"/rapid-{lab}", "rapid approve",
+                               "/rapid-next", "rapid shortcuts install --global", "rapid init --shortcuts"):
+                    self.assertIn(needle, route)
+                self.assertLess(text.index("## Modo avanzado"), text.index("## 1. Overview"))
+                self.assertIn("## 5. Guided Procedure", text)  # not deleted, only folded
                 self.assertIn("rapid run create", text)
         hardening = (DOCS / "tutorials" / "hardening-lab.md").read_text(encoding="utf-8")
-        self.assertIn("--archetype corporate", hardening)
-        self.assertIn("--worktree", hardening)
+        route = hardening[:hardening.index("## Modo avanzado")]
+        self.assertIn("`corporate`", route)
+        self.assertIn("--worktree", route)
+        self.assertIn("gate.review", route)
+
+    # Beginner routes: the commands a person types are short. The machinery stays folded in
+    # <details> or under "Modo avanzado"; a command with more than two flags does not belong here.
+    LIGHT_ROUTES = {
+        "index.md": "## Modo avanzado",
+        "getting-started.md": "## 2. Mapa de esta sección",
+        "getting-started/first-project.md": "## Modo avanzado",
+        "getting-started/existing-project.md": "## Modo avanzado",
+        "tutorials/index.md": "## Modo avanzado",
+        "tutorials/feature-lab.md": "## Modo avanzado",
+        "tutorials/bugfix-lab.md": "## Modo avanzado",
+        "tutorials/refactor-lab.md": "## Modo avanzado",
+        "tutorials/hardening-lab.md": "## Modo avanzado",
+        "tutorials/research-lab.md": "## Modo avanzado",
+    }
+
+    def test_beginner_routes_only_show_light_commands(self):
+        for relative, end_marker in self.LIGHT_ROUTES.items():
+            text = (DOCS / relative).read_text(encoding="utf-8")
+            route = text[:text.index(end_marker)]
+            route = re.sub(r"<details>.*?</details>", "", route, flags=re.DOTALL)
+            commands = [line.strip() for line in route.splitlines() if line.strip().startswith("rapid ")]
+            commands += re.findall(r"`(rapid [^`\n]*)`", route)
+            with self.subTest(page=relative):
+                self.assertTrue(commands or "/rapid-" in route)
+                for command in commands:
+                    command = command.split("#", 1)[0]
+                    self.assertLessEqual(command.count(" --"), 2, f"too heavy for a beginner route: {command}")
+        first = (DOCS / "tutorials" / "first-governed-project.md").read_text(encoding="utf-8")
+        self.assertNotIn("Principiante", first)
+
+    def test_tutorial_labs_start_with_the_shortcut_labs_and_end_under_the_hood(self):
+        sidebars = (WEBSITE / "sidebars.ts").read_text(encoding="utf-8")
+        labs = [lab for lab in re.findall(r"'tutorials/([a-z-]+)'", sidebars) if lab != "index"]
+        self.assertEqual(labs[0], "feature-lab")
+        self.assertEqual(labs[-1], "first-governed-project")
 
     def test_antigravity_advanced_mode_includes_baseline_and_activation(self):
         text = (DOCS / "integrations" / "antigravity.md").read_text(encoding="utf-8")

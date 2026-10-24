@@ -52,24 +52,41 @@ Rapid OS introduce contratos y registros deterministas alrededor de ese flujo.
   </div>
 </div>
 
-## Empieza con los shortcuts
+## Empieza en 3 pasos
 
-El flujo principal son los **shortcuts** `/rapid-<modo>`: un comando por modo de ingeniería que tu agente de código ejecuta para llevar el trabajo de principio a fin dentro de un run gobernado.
+No necesitas aprender comandos: trabajas con **shortcuts** (`/rapid-…`) dentro de tu agente de código, y en tu terminal solo instalas y apruebas.
 
-La ruta de entrada es `rapid init` → `/rapid-init` (o `rapid setup next`) → `/rapid-feature`:
+**1. Instala Rapid OS** ([Instalación](./installation/index.md)). Al final, el instalador pregunta para qué agentes instalar los shortcuts: escribe el tuyo (por ejemplo `claude`). Si te lo saltaste, una sola vez:
 
 ```bash
-rapid init --shortcuts
+rapid shortcuts install --global --harness claude
 ```
+
+**2. Describe tu proyecto en el agente.** Te propone el stack, el comando de tests y los documentos; tú decides:
 
 ```text
 /rapid-init una API en Python para validar nombres de usuario
+```
+
+**3. Pide el trabajo:**
+
+```text
 /rapid-feature añadir exportación CSV al informe mensual
 ```
 
-`/rapid-init` conduce el onboarding (stack por componente, arquitectura, servicios y documentos) y, antes de cerrarlo, te hace revisar los borradores que redactó el agente: nada queda confirmado sin que lo confirmes tú.
+Cuando termina, el agente se detiene y te da el comando para aprobar en **tu** terminal (por ejemplo `rapid approve gate.final-verification`). Después escribe `/rapid-next` para cerrar.
 
-El agente sigue el bucle `rapid next` → `rapid start` → `rapid check` → `rapid finish` y se detiene cuando hace falta una persona; entonces ejecutas `rapid approve <gate>` en tu terminal. La carpeta que se genera y la forma de invocarlo en cada harness están en la [guía de shortcuts](./guides/shortcuts.md); cómo encajan las piezas, en la [arquitectura de orquestación](./architecture/orchestration.md).
+| Quieres… | Escribe en tu agente |
+| :--- | :--- |
+| Configurar el proyecto | `/rapid-init <descripción>` |
+| Una funcionalidad nueva | `/rapid-feature <objetivo>` |
+| Corregir un bug | `/rapid-bugfix <qué falla>` |
+| Refactorizar sin romper tests | `/rapid-refactor <alcance>` |
+| Endurecer seguridad | `/rapid-hardening <área>` |
+| Investigar una opción | `/rapid-research <pregunta>` |
+| Ver en qué va o seguir | `/rapid-status` · `/rapid-next` |
+
+En Codex se escriben con `$` (`$rapid-init`). En VS Code, y si prefieres versionar los shortcuts con el repositorio, instálalos en el proyecto con `rapid init --shortcuts`. Detalle por agente en la [guía de shortcuts](./guides/shortcuts.md).
 
 ## Modo avanzado: el ciclo de gobernanza v3
 

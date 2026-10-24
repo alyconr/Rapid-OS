@@ -12,7 +12,7 @@
   "tags": [],
   "version": "current",
   "lastUpdatedBy": "Jeysson Aly Contreras",
-  "lastUpdatedAt": 1791503398000,
+  "lastUpdatedAt": 1792866798000,
   "frontMatter": {
     "title": "Sprint 1 — Validación de la base documental",
     "description": "Registro de auditoría y requisitos para cerrar el primer sprint de Docusaurus."
@@ -23,7 +23,7 @@
     "permalink": "/Rapid-OS/audit/documentation-scope"
   },
   "next": {
-    "title": "Mantener la documentación",
-    "permalink": "/Rapid-OS/contributing/documentation"
+    "title": "Sprint 2 — Validación de la base documental",
+    "permalink": "/Rapid-OS/audit/sprint-2-validation"
   }
 }

@@ -12,7 +12,7 @@
   "tags": [],
   "version": "current",
   "lastUpdatedBy": "Jeysson Aly Contreras",
-  "lastUpdatedAt": 1791502011000,
+  "lastUpdatedAt": 1792866798000,
   "frontMatter": {
     "title": "Estructura de archivos",
     "description": "Qué archivos crea Rapid OS, cuáles son inmutables y qué comandos son de solo lectura o escritura."
@@ -23,7 +23,7 @@
     "permalink": "/Rapid-OS/guides/permissions-capabilities"
   },
   "next": {
-    "title": "Rapid OS CLI Reference",
-    "permalink": "/Rapid-OS/cli"
+    "title": "Integración en CI/CD",
+    "permalink": "/Rapid-OS/guides/ci-cd-integration"
   }
 }

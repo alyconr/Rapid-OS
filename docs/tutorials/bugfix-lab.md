@@ -1,24 +1,54 @@
-# Laboratorio 3: Bugfix Engineering Lab
+# Laboratorio 2: Bugfix Engineering Lab
 
-Aprende a gobernar la corrección de defectos con RAPID OS garantizando la captura de baseline, pruebas de reproducción y prevención de regresiones.
+Corrige un bug real: un descuento del 10% sobre $100 devuelve un total negativo. En tu agente escribes tres cosas; en la terminal solo preparas el ejemplo y apruebas.
 
 ## Con shortcuts
 
-Copia `examples/bugfix-lab/starter` a una carpeta propia (repositorio git con un commit). El starter incluye `test_regression_expected_discount` en rojo: elimínalo antes de empezar para que la baseline sea verde, y deja que `T001` («Reproducir con un test en rojo») lo reescriba mediante `rapid check --expect fail`.
+### 1. Prepara el proyecto de ejemplo
 
 ```bash
-rapid init --agents claude --shortcuts
+cp -r ~/.rapid-os/examples/bugfix-lab/starter pricer-app && cd pricer-app
+git init -b main && git add . && git commit -m "starter"
 ```
+
+En Windows PowerShell, la copia es `Copy-Item -Recurse $HOME\.rapid-os\examples\bugfix-lab\starter pricer-app`. Si instalaste Rapid OS con `pip`, el ejemplo está en [`examples/bugfix-lab/starter`](https://github.com/alyconr/Rapid-OS/tree/main/examples/bugfix-lab/starter).
+
+El ejemplo trae un test en rojo (`test_regression_expected_discount` en `tests/test_pricer.py`). Bórralo antes de empezar: la baseline debe quedar en verde, y el agente escribirá su propio test que reproduce el bug.
+
+### 2. Configura el proyecto
+
+Abre tu agente en la carpeta y escribe `/rapid-init` (en Codex, `$rapid-init`). Detecta Python y propone `python -m unittest discover` como comando de tests: acéptalo. Los documentos del proyecto puedes omitirlos en este laboratorio.
+
+### 3. Pide el trabajo
 
 ```text
 /rapid-bugfix el descuento del 10% devuelve un total negativo
 ```
 
-El agente sigue el bucle `rapid next` → `rapid start` → `rapid check` → `rapid finish` y se detiene cuando hace falta una persona: entonces tú ejecutas `rapid approve <gate>` en tu terminal (`/rapid-approve` te da el comando exacto). Las instalaciones por harness están en la [guía de shortcuts](../guides/shortcuts.md).
+Primero el agente reproduce el bug con un test que falla (Rapid OS registra ese rojo como evidencia esperada), después corrige la fórmula y comprueba que el mismo test pasa.
 
-El resto del laboratorio es el **modo avanzado**: el mismo recorrido con comandos v3, para entender qué registra cada verbo y para CI y auditoría.
+### 4. Aprueba en tu terminal
+
+Cuando el agente termina, se detiene y te da el comando exacto. Ejecútalo en **otra terminal**, fuera del agente, por ejemplo:
+
+```bash
+rapid approve gate.final-verification
+```
+
+Vuelve al agente y escribe `/rapid-next` para cerrar el run.
+
+**Resultado:** El descuento se calcula bien, el test que reproducía el bug queda en verde y el run termina con veredicto `pass`.
+
+¿No tienes los shortcuts? Una sola vez: `rapid shortcuts install --global --harness claude`, o dentro de la carpeta `rapid init --shortcuts`. Detalle en la [guía de shortcuts](../guides/shortcuts.md).
 
 ---
+
+## Modo avanzado
+
+No lo necesitas para hacer el laboratorio. Es el mismo recorrido con los comandos v3, para entender qué registra cada paso y para CI y auditoría.
+
+<details>
+<summary>Ver el laboratorio con comandos v3</summary>
 
 ## 1. Overview
 
@@ -291,3 +321,4 @@ rapid validate
 - [x] Evidencia de regresión aprobada sin errores.
 - [x] Veredicto `pass` verificado deterministamente.
 
+</details>
