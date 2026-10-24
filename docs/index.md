@@ -56,13 +56,18 @@ Rapid OS introduce contratos y registros deterministas alrededor de ese flujo.
 
 El flujo principal son los **shortcuts** `/rapid-<modo>`: un comando por modo de ingeniería que tu agente de código ejecuta para llevar el trabajo de principio a fin dentro de un run gobernado.
 
+La ruta de entrada es `rapid init` → `/rapid-init` (o `rapid setup next`) → `/rapid-feature`:
+
 ```bash
 rapid init --shortcuts
 ```
 
 ```text
+/rapid-init una API en Python para validar nombres de usuario
 /rapid-feature añadir exportación CSV al informe mensual
 ```
+
+`/rapid-init` conduce el onboarding (stack por componente, arquitectura, servicios y documentos) y, antes de cerrarlo, te hace revisar los borradores que redactó el agente: nada queda confirmado sin que lo confirmes tú.
 
 El agente sigue el bucle `rapid next` → `rapid start` → `rapid check` → `rapid finish` y se detiene cuando hace falta una persona; entonces ejecutas `rapid approve <gate>` en tu terminal. La carpeta que se genera y la forma de invocarlo en cada harness están en la [guía de shortcuts](./guides/shortcuts.md); cómo encajan las piezas, en la [arquitectura de orquestación](./architecture/orchestration.md).
 

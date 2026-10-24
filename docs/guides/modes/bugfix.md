@@ -21,6 +21,7 @@ Qué hace su playbook (`templates/modes/bugfix.json` y las reglas del Conductor)
 
 - La baseline se toma en `rapid start`, **antes** de que exista el test de reproducción.
 - La primera tarea (`T001`) es «Reproducir con un test en rojo». Mientras está en curso y no hay una aserción `reproduction.T001` en PASS, `rapid next` propone `rapid check --expect fail --task T001 -- <test_command>`, que registra el fallo esperado como evidencia.
+- **Arquitectura:** si el proyecto tiene `.rapid-os/standards/architecture.json` (lo escribe el onboarding con el stack elegido), el contrato incluye el gate de máquina `gate.architecture` (obligatorio, no dispensable) y `rapid next` propone `rapid check --gate gate.architecture -- rapid arch check`. Una violación de capas o de contrato público es `RAPID1420` y `rapid finish` no da `PASS` hasta que se corrija el código. Detalle en [Arquitectura por stack](../../concepts/architecture.md#el-gate-gatearchitecture).
 - Con el fallo registrado, `T001` se cierra con `rapid task done T001 --no-check` (la suite está en rojo a propósito) y la corrección va en las tareas siguientes.
 
 El resto de esta guía describe el mismo ciclo con comandos v3 (**Modo avanzado**), útil para CI, depuración y auditoría.

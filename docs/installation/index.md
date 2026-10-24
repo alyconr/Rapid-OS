@@ -48,6 +48,10 @@ python -m pip install git+https://github.com/alyconr/Rapid-OS.git@v3.1.1
 
 ---
 
+## `/rapid-init` en tu carpeta de usuario
+
+Desde la versión 3.2.0, `rapid shortcuts install --global --only rapid-init --harness <id>` instala `/rapid-init` una vez para todos tus proyectos (Claude Code, Codex, Cursor y Antigravity; VS Code no lo admite: `RAPID1413`), y los instaladores lo ofrecen al terminar si el `rapid` instalado lo tiene. La versión estable `v3.1.1` no lo tiene y su instalador no lo ofrece. Comprueba el resultado en [Verificación](./verification.md) (`RAPID1414` si `rapid` no está en el `PATH`).
+
 ## Diferencia entre versión Estable y Desarrollo
 
 :::info Canales de instalación

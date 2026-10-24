@@ -20,6 +20,7 @@ El modo **Hardening** gobierna intervenciones de alta sensibilidad: parcheo de v
 Qué hace su playbook (`templates/modes/hardening.json` y las reglas del Conductor):
 
 - Riesgo `high`: el contrato exige un workspace aislado y la compuerta `gate.review` (dispensable) además de la baseline, los tests y la verificación final.
+- Cada hallazgo se reporta con su **CWE** y su vector **CVSS v4.0** (`CVSS:4.0/...`), la severidad que resulta y la regla de `.rapid-os/standards/security.md` que lo cubre (sección «Hallazgos: CWE y CVSS» de la base de seguridad). Crítica y alta se corrigen antes de publicar. Ver [Base de seguridad](../../concepts/security-baseline.md).
 - `rapid start hardening --spec-file - --worktree` crea un git worktree en `../<repo>-<run-id>` (rama `rapid/<run-id>`); el ledger se queda en el repositorio principal, `rapid check` ejecuta en el worktree y `rapid finish` toma los cambios de ahí. Sin la bandera, `rapid next` propone `rapid start --resume --worktree`.
 - El worktree parte de `HEAD` (los cambios sin commit del checkout principal no entran) y `rapid abort` no lo elimina.
 

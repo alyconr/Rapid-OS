@@ -94,6 +94,8 @@ El portal público incluye la documentación completa, estructurada en las sigui
 
 ## Rapid OS v3.1.0 Status <a name="rapid-os-v3-status"></a> <a name="rapid-os-v2-status"></a>
 
+> **Versión de desarrollo.** `main` está en `3.2.0.dev0`; la versión estable sigue siendo `v3.1.1` (los instaladores y la documentación de instalación apuntan a ese tag). Lo que `main` añade sobre la estable: el onboarding por `rapid setup` / `/rapid-init` con un stack por componente y documentos que revisas antes de cerrar, la arquitectura por stack con el gate `gate.architecture` (`rapid arch check`), los servicios de infraestructura y el documento de despliegue, la base de seguridad (OWASP ASVS 5.0.0, SSDF, SLSA) con un workflow de CI por lenguaje, y `rapid shortcuts install --global` para `/rapid-init` a nivel usuario. Ver el [CHANGELOG](CHANGELOG.md).
+
 Rapid OS `v3.1.0` is complete and preserves full backward compatibility with all v3.0 and v2 commands and generated file locations. It adds the porcelain layer, the five engineering modes, shortcuts and Claude Code hooks on top of the v3 governance engine.
 
 | Workstream | Status | Included in v3.1.0 |
@@ -316,7 +318,7 @@ rapid shortcuts install         #    (en un proyecto ya inicializado; admite --h
 $rapid-feature añadir exportación CSV al informe mensual     #    Codex
 ```
 
-- `/rapid-init` conduce el onboarding con `rapid setup` (también a nivel usuario: `rapid shortcuts install --global --harness <id> --only rapid-init`). Hay un shortcut por modo (`/rapid-feature`, `-bugfix`, `-refactor`, `-hardening`, `-research`) y tres de apoyo (`/rapid-next`, `/rapid-status`, `/rapid-approve`).
+- `/rapid-init` conduce el onboarding con `rapid setup` (también a nivel usuario desde 3.2.0: `rapid shortcuts install --global --harness <id> --only rapid-init`). Hay un shortcut por modo (`/rapid-feature`, `-bugfix`, `-refactor`, `-hardening`, `-research`) y tres de apoyo (`/rapid-next`, `/rapid-status`, `/rapid-approve`).
 - El agente sigue el bucle `rapid next --json` → `rapid start` → `rapid task` / `rapid check` → `rapid finish`, y se detiene cuando hace falta una persona. Entonces tú ejecutas `rapid approve <gate>` **en tu terminal**: el agente nunca aprueba, aborta ni edita `.rapid-os/`.
 - Detalle por harness (carpeta generada e invocación), aprobación humana y errores frecuentes: [Shortcuts por harness](https://alyconr.github.io/Rapid-OS/guides/shortcuts).
 - Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) siguen disponibles como **Modo avanzado** para CI, depuración y auditoría: ver [CLI Command Reference](#cli-reference).
@@ -450,11 +452,13 @@ rapid vision ruta/al/diseño.png
 Rapid OS incluye un stack especializado para crear sitios de documentación modernos:
 
 ```bash
-rapid init
-# Selecciona:
-# Stack: docs-modern
+rapid init --shortcuts
+# y en tu agente: /rapid-init (o rapid setup next)
+# Stack: docs-modern (componente docs)
 # Topology: doc-site
 ```
+
+O desde la terminal, sin agente: `rapid setup set topology doc-site` y `rapid setup set stack docs-modern`.
 
 **Incluye:**
 
@@ -862,7 +866,7 @@ Lo que Rapid OS **ES** y lo que **NO ES**:
 | **Gobernar Contratos de Ejecución**: Clasificar riesgo, exigir gates y fijar snapshots inmutables por Run. | **Invocar Agentes ni aprobar gates**: No lanza editores ni modelos y nunca aprueba gates humanos. Ejecuta solo el `test_command` configurado o el argv de `rapid check` (el plumbing no ejecuta nada) y crea un worktree solo con `rapid start --worktree`. |
 | **Refactorizar Legacy**: Definir reglas modernas para limpiar código antiguo.      | **Ejecutarse en la Nube**: Es una CLI 100% local. No sube tu código a ningún lado.                   |
 | **Estandarizar Equipos**: Que todos los devs (y sus IAs) escriban igual.           | **Compilar tu App**: No reemplaza a `npm run build` o compiladores.                                  |
-| **Generar Guías y Contexto**: Crea reglas de agentes, specs, MCPs y `DEPLOY.md`.   | **Desplegar Producción**: Genera las instrucciones en `DEPLOY.md`, pero TÚ ejecutas el deploy final. |
+| **Generar Guías y Contexto**: Crea reglas de agentes, specs, MCPs y el documento de despliegue (`docs/DEPLOYMENT.md`). | **Desplegar Producción**: `rapid deploy` imprime la plantilla de la plataforma (no escribe `DEPLOY.md`), pero TÚ ejecutas el deploy final. |
 
 ---
 
@@ -870,7 +874,7 @@ Lo que Rapid OS **ES** y lo que **NO ES**:
 
 **Escenario**: Tienes un proyecto React viejo con Redux y clases que quieres migrar a Hooks y Context API.
 
-1.  **Inyección**: Entras a la carpeta y ejecutas `rapid init`. Seleccionas "Web Moderno" (Force Functional Components).
+1.  **Inyección**: Entras a la carpeta y ejecutas `rapid init --shortcuts`; en tu agente, `/rapid-init` (o `rapid setup next`) te hace elegir el stack de cada componente (por ejemplo `react-vite` para el frontend).
 2.  **Scope**: Ejecutas `rapid scope`.
     - _Nombre_: "Migración Auth a Context"
     - _Modo_: "refactor"
@@ -890,11 +894,13 @@ Lo que Rapid OS **ES** y lo que **NO ES**:
 1.  **Inicialización**:
     ```bash
     mkdir my-docs && cd my-docs
-    rapid init
-    # Selecciona Stack: "docs-modern"
+    rapid init --shortcuts
+    # en tu agente: /rapid-init (o rapid setup next)
+    rapid setup set topology doc-site
+    rapid setup set stack docs-modern
     ```
 2.  **Definición de Reglas**:
-    - Editas `docs/BUSINESS_RULES.md` con: _"El tono de voz debe ser amigable pero técnico. Usar diagramas Mermaid para flujos complejos."_
+    - En el onboarding, el documento de reglas de negocio (`docs/BUSINESS_RULES.md`) lo aportas tú o lo redacta el agente como borrador; antes de cerrar lo revisas y lo confirmas con `rapid setup doc business --confirm`. Contenido de ejemplo: _"El tono de voz debe ser amigable pero técnico. Usar diagramas Mermaid para flujos complejos."_
 3.  **Ejecución**:
     - Abres tu editor con Cursor/Claude.
     - Prompt: _"Crea una página 'Getting Started' que explique cómo instalar la SDK, incluyendo un diagrama de flujo de autenticación."_
@@ -926,8 +932,6 @@ GitHub Actions ejecuta la suite de `unittest` y estos smoke checks en cada `push
 Rapid OS no se despliega a sí mismo (es una CLI local), pero ayuda a documentar y estandarizar el despliegue de tus aplicaciones.
 
 Usa `rapid deploy --target <plataforma>` para imprimir la plantilla de despliegue (`aws`, `azure`, `vercel`, `render`, `railway` o `dokploy`). No escribe archivos: el documento del proyecto es `docs/DEPLOYMENT.md`, que se retoma con `rapid setup doc deployment --reopen`. Una plataforma desconocida es `RAPID1413`.
-
-Target con template incluido actualmente: `aws`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

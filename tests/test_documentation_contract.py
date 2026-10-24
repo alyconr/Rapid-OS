@@ -607,6 +607,32 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertEqual(sorted(in_code - documented), [], "Used in rapid_os/ but not documented")
         self.assertEqual(sorted(documented - in_code), [], "Documented but not used in rapid_os/")
 
+    # Mentioned in rapid_os/ but never emitted as a diagnostic, so they have no row in diagnostics.md.
+    UNEMITTED_CODES = {
+        "RAPID1219": "upper end of the RAPID1201-RAPID1219 range quoted in a docstring (evidence.py, validation.py)",
+        "RAPID1239": "upper end of the RAPID1221-RAPID1239 range quoted in a docstring (evals.py, validation.py)",
+    }
+
+    def test_every_rapid_code_in_the_code_is_a_row_of_the_diagnostics_catalog_and_back(self):
+        """Every RAPIDxxx used in rapid_os/ has a row in diagnostics.md, and every row is used."""
+        in_code = set()
+        for path in (ROOT / "rapid_os").rglob("*.py"):
+            in_code |= set(re.findall(r"RAPID\d{3,4}(?!\d)", path.read_text(encoding="utf-8", errors="replace")))
+        diagnostics = (DOCS / "troubleshooting" / "diagnostics.md").read_text(encoding="utf-8")
+        documented = set(re.findall(r"^\| `(RAPID\d{3,4})` \|", diagnostics, re.MULTILINE))
+        in_code -= set(self.UNEMITTED_CODES)
+        self.assertEqual(sorted(in_code - documented), [], "Used in rapid_os/ but not documented")
+        self.assertEqual(sorted(documented - in_code), [], "Documented but not used in rapid_os/")
+
+    def test_installers_offer_the_global_rapid_init_only_when_the_installed_rapid_has_it(self):
+        """The installers pin a tag; releases before 3.2.0 have no `shortcuts install --global`."""
+        install_sh = (ROOT / "install.sh").read_text(encoding="utf-8")
+        install_ps1 = (ROOT / "install.ps1").read_text(encoding="utf-8")
+        self.assertRegex(install_sh, r"shortcuts install --help[^\n]*grep -q -- '--global'")
+        self.assertLess(install_sh.index("grep -q -- '--global'"), install_sh.index("Install /rapid-init"))
+        self.assertIn('shortcuts install --help', install_ps1)
+        self.assertLess(install_ps1.index("$HasGlobal"), install_ps1.index("Read-Host"))
+
     def test_cli_reference_documents_every_parser_flag(self):
         """The reverse of test_documented_flags_exist_in_parser: no parser flag is missing from cli.md."""
         import argparse

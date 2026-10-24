@@ -157,6 +157,7 @@ Cada verbo que registra evidencia lo hace con un productor identificable:
 
 El evaluador aplica por defecto el ruleset v2 (`rapid eval run --ruleset {1,2}`):
 
+- **`gate.architecture`:** en `feature`, `bugfix` y `refactor`, si existe `architecture.json`, el contrato añade este gate de máquina (`architecture_check`, posterior a la ejecución, obligatorio, no dispensable). `rapid next` propone `rapid check --gate gate.architecture -- rapid arch check` y las violaciones son `RAPID1420`. Ver [Arquitectura por stack](../concepts/architecture.md#el-gate-gatearchitecture).
 - **`expectation: "fail"`:** `rapid check --expect fail --task <id>` registra un fallo esperado. Genera la aserción `reproduction.<tarea>` en `PASS` si el comando falló de verdad (y en `FAIL` si no), y esa evidencia **no** cuenta como fallo de la tarea ni sirve de evidencia de `gate.baseline` o `gate.tests`. Solo se admite ligada a una tarea (`RAPID1320`).
 - **`harness:*` no cierra gates humanos:** la evidencia de revisión producida por un `harness:<id>` queda `UNVERIFIED` para los gates de revisión humana. Solo una revisión de `rapid approve` (productor `user`) puede respaldarlos.
 

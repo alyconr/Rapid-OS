@@ -54,6 +54,10 @@ curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.sh | 
 6. Si un instalador anterior dejó un `alias rapid=` en ese archivo, lo quita (con copia `.rapid-os.bak`).
 7. Abre una terminal nueva, o ejecuta `source ~/.bashrc` (o `source ~/.zshrc`).
 
+:::note `/rapid-init` global (desde 3.2.0)
+Al terminar, el instalador puede ofrecer `/rapid-init` en tu carpeta de usuario (`rapid shortcuts install --global --only rapid-init --harness <id>`), para que funcione en cualquier proyecto sin instalarlo en cada uno. Solo lo ofrece si el `rapid` instalado tiene `--global` y hay una terminal interactiva, y nunca por defecto. La versión estable actual (`v3.1.1`) no tiene `--global`, así que no lo ofrece; en ella instala el shortcut en cada proyecto con `rapid init --shortcuts`.
+:::
+
 :::warning Shortcuts y hooks necesitan `rapid` en el PATH
 Los agentes (Claude Code, Codex, Cursor...) y sus hooks ejecutan comandos en shells no interactivos, donde no existen los alias. Por eso `rapid` tiene que ser un ejecutable en el PATH de la terminal desde la que lanzas el agente. Compruébalo con `bash -c 'command -v rapid'`.
 :::

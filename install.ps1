@@ -89,7 +89,11 @@ Write-Host "👉 Open a new terminal before using 'rapid'. Launch your coding ag
 
 # Opt-in, never by default and never without a terminal: /rapid-init in your user-level skills
 # folder, so it works in every project. Supported: claude, codex, cursor, antigravity.
-if (-not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected) {
+# Only offered when the installed version has `--global` (releases before 3.2.0 do not).
+$HasGlobal = (& (Join-Path $BinDir "rapid.exe") shortcuts install --help | Out-String) -match "--global"
+if (-not $HasGlobal) {
+    # This version has no user-level install: nothing to offer.
+} elseif (-not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected) {
     $Harnesses = Read-Host "Install /rapid-init for your coding agents in your home folder (all projects)? Harnesses (comma-separated: claude,codex,cursor,antigravity) or Enter for none"
     if ($Harnesses -and $Harnesses.Trim()) {
         $HarnessArgs = @()
