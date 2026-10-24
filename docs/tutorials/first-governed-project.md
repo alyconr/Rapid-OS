@@ -1,6 +1,6 @@
-# Laboratorio 6: Bajo el capó (el bucle de gobernanza a mano)
+# Recorrido manual: el bucle de gobernanza a mano (Bajo el capó)
 
-> **Modo avanzado.** No necesitas este laboratorio para usar Rapid OS: hace a mano, con los comandos v3 (`rapid scan`, `rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…), lo que el agente hace por ti con los shortcuts. Es para integradores, CI y auditoría. Si estás empezando, ve al [laboratorio Feature](feature-lab.md) (`/rapid-feature`).
+> **Modo avanzado.** No necesitas este laboratorio para usar Rapid OS: hace a mano, con los comandos v3 (`rapid scan`, `rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…), lo que el agente hace por ti con los shortcuts. Es para integradores, CI y auditoría. Si estás empezando, ve a los [laboratorios](index.md), empezando por [Feature](feature-lab.md) (`/rapid-feature`).
 
 Aprende a ejecutar el Governance Loop completo de RAPID OS v3 sobre un proyecto Python real con un asistente o coding harness externo.
 
@@ -31,7 +31,7 @@ Al completar este laboratorio, sabrás cómo:
 8. Ejecutar la implementación externamente con tu herramienta o harness preferido.
 9. Actualizar tareas y gates en el estado versionado (`rapid run task` y `rapid run gate`).
 10. Registrar evidencia determinista vinculada a revisiones de estado (`rapid evidence add`).
-11. Evaluar el cumplimiento del Run (`rapid eval run --write --require-pass`).
+11. Evaluar el cumplimiento del Run (`rapid eval run`).
 12. Validar la integridad holística del proyecto (`rapid validate`).
 
 ---
@@ -123,13 +123,14 @@ En este estado inicial, `TaskTracker.add_task(title)` solo acepta el título de 
 
 ### Paso 1: Inicializar RAPID OS
 
-En la raíz del proyecto, inicializa el entorno de gobernanza especificando stack, topología, arquetipo y comando de pruebas de forma no interactiva:
+En la raíz del proyecto, inicializa Rapid OS sin preguntas (`--yes`) con un stack de Python y registra el comando de pruebas:
 
 ```bash
-rapid init --stack python-ai --topology fullstack-separated --archetype mvp --agents cursor --test-command "python -m unittest discover -s tests -t ." --yes --no-scan
+rapid init --stack python-ai --yes
+rapid setup set test-command "python -m unittest discover -s tests -t ."
 ```
 
-Esto crea la estructura `.rapid-os/` con sus estándares y configuración base sin requerir intervención interactiva.
+Esto crea la estructura `.rapid-os/` con sus estándares y configuración base. Lo demás (topología, arquetipo) toma los valores por defecto del stack.
 
 ### Paso 2: Escanear el proyecto
 
@@ -141,15 +142,11 @@ El scanner detecta el lenguaje (Python) y los directorios de pruebas (`tests/`),
 
 ### Paso 3: Crear la Especificación
 
-Crea la especificación formal con su tarea de implementación declarada (`--task`):
+Crea la especificación con su tarea de implementación (`--task`). El id sale del título (`task-priority`) y el modo por defecto es `feature`. Después márcala como lista:
 
 ```bash
-rapid spec create \
-  --id spec-task-priority \
-  --title "Añadir soporte de prioridades a TaskTracker" \
-  --mode feature \
-  --task "T001: Implementar soporte de prioridades en TaskTracker" \
-  --status ready
+rapid spec create --title "Task priority" --task "T001: Implementar soporte de prioridades en TaskTracker"
+rapid spec status task-priority ready
 ```
 
 ### Paso 4: Compilar el Context Bundle
@@ -175,10 +172,10 @@ Para una especificación en modo `feature`, el motor de políticas resuelve la c
 ### Paso 6: Crear el Run de Ejecución
 
 ```bash
-rapid run create --spec spec-task-priority --harness codex
+rapid run create --spec task-priority --harness codex
 ```
 
-Esto genera un identificador de run determinista (por ejemplo `spec-task-priority-r1-run-001`), calcula el digest SHA-256 del contrato y escribe el snapshot inicial `RunState s1` en estado `prepared`.
+Esto genera un identificador de run determinista (por ejemplo `task-priority-r1-run-001`), calcula el digest SHA-256 del contrato y escribe el snapshot inicial `RunState s1` en estado `prepared`.
 
 ### Paso 7: Resolver Capabilities del Harness
 
@@ -318,8 +315,8 @@ Prepara `evidence_baseline.json`:
 Ingiere la evidencia y reconoce la compuerta:
 
 ```bash
-rapid evidence add --run spec-task-priority-r1-run-001 --input evidence_baseline.json
-rapid run gate spec-task-priority-r1-run-001 gate.baseline acknowledged
+rapid evidence add --run task-priority-r1-run-001 --input evidence_baseline.json
+rapid run gate task-priority-r1-run-001 gate.baseline acknowledged
 ```
 
 ### 2. Activar el Run e iniciar la tarea
@@ -327,8 +324,8 @@ rapid run gate spec-task-priority-r1-run-001 gate.baseline acknowledged
 Una vez satisfecha la compuerta previa, pasa el run al estado `active` y marca la tarea en progreso:
 
 ```bash
-rapid run status spec-task-priority-r1-run-001 active
-rapid run task spec-task-priority-r1-run-001 T001 in_progress
+rapid run status task-priority-r1-run-001 active
+rapid run task task-priority-r1-run-001 T001 in_progress
 ```
 
 ### 3. Registrar evidencia de cambios en el código (`file_change`)
@@ -354,7 +351,7 @@ Prepara `evidence_file_change.json`:
 Ingiérelo en RAPID OS:
 
 ```bash
-rapid evidence add --run spec-task-priority-r1-run-001 --input evidence_file_change.json
+rapid evidence add --run task-priority-r1-run-001 --input evidence_file_change.json
 ```
 
 ### 4. Registrar evidencia de pruebas aprobadas (`test_result`)
@@ -385,7 +382,7 @@ Prepara `evidence_test_result.json`:
 Ingiérelo:
 
 ```bash
-rapid evidence add --run spec-task-priority-r1-run-001 --input evidence_test_result.json
+rapid evidence add --run task-priority-r1-run-001 --input evidence_test_result.json
 ```
 
 ### 4 bis. Registrar evidencia de arquitectura (`command_result`)
@@ -419,7 +416,7 @@ Prepara `evidence_architecture.json`:
 Ingiérelo:
 
 ```bash
-rapid evidence add --run spec-task-priority-r1-run-001 --input evidence_architecture.json
+rapid evidence add --run task-priority-r1-run-001 --input evidence_architecture.json
 ```
 
 ### 5. Registrar evidencia de espacio de trabajo (`workspace`)
@@ -445,7 +442,7 @@ Prepara `evidence_workspace.json`:
 Ingiérelo:
 
 ```bash
-rapid evidence add --run spec-task-priority-r1-run-001 --input evidence_workspace.json
+rapid evidence add --run task-priority-r1-run-001 --input evidence_workspace.json
 ```
 
 ### 6. Registrar evidencia de revisión final (`review`)
@@ -472,7 +469,7 @@ Prepara `evidence_review.json`:
 Ingiérelo:
 
 ```bash
-rapid evidence add --run spec-task-priority-r1-run-001 --input evidence_review.json
+rapid evidence add --run task-priority-r1-run-001 --input evidence_review.json
 ```
 
 ### 7. Marcar tarea completada, reconocer compuertas y finalizar Run
@@ -480,21 +477,22 @@ rapid evidence add --run spec-task-priority-r1-run-001 --input evidence_review.j
 Con toda la evidencia registrada y verificable, completa la tarea, reconoce las compuertas post-ejecución y transiciona el run a `finished`:
 
 ```bash
-rapid run task spec-task-priority-r1-run-001 T001 done
-rapid run gate spec-task-priority-r1-run-001 gate.tests acknowledged
-rapid run gate spec-task-priority-r1-run-001 gate.architecture acknowledged
-rapid run gate spec-task-priority-r1-run-001 gate.final-verification acknowledged
-rapid run status spec-task-priority-r1-run-001 finished
+rapid run task task-priority-r1-run-001 T001 done
+rapid run gate task-priority-r1-run-001 gate.tests acknowledged
+rapid run gate task-priority-r1-run-001 gate.architecture acknowledged
+rapid run gate task-priority-r1-run-001 gate.final-verification acknowledged
+rapid run status task-priority-r1-run-001 finished
 ```
 
 ---
 
 ## 8. Evaluation
 
-Ejecuta el evaluador conductual determinista exigiendo el veredicto exitoso (`--require-pass`):
+Ejecuta el evaluador conductual determinista: primero guarda el reporte (`--write`) y después exige el veredicto exitoso (`--require-pass`, que sale con error si no es `pass`):
 
 ```bash
-rapid eval run --run spec-task-priority-r1-run-001 --write --require-pass
+rapid eval run --run task-priority-r1-run-001 --write
+rapid eval run --run task-priority-r1-run-001 --require-pass
 ```
 
 El evaluador inspecciona las transiciones de estado, verifica que los gates requeridos (`gate.baseline`, `gate.tests`, `gate.architecture`, `gate.final-verification`) y las capacidades observadas estén satisfechos por la evidencia vinculada y emite el veredicto:
@@ -502,7 +500,7 @@ El evaluador inspecciona las transiciones de estado, verifica que los gates requ
 ```json
 {
   "verdict": "pass",
-  "run_id": "spec-task-priority-r1-run-001"
+  "run_id": "task-priority-r1-run-001"
 }
 ```
 

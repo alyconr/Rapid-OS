@@ -37,7 +37,7 @@ rapid init --shortcuts                                  # al inicializar, para l
 rapid shortcuts install                                 # para los harness de "tools" en .rapid-os/config.json
 rapid shortcuts install --harness claude --harness codex
 rapid shortcuts install --harness claude --hooks        # además, los hooks de Claude Code
-rapid shortcuts install --harness claude --dry-run --json   # qué escribiría, sin escribir
+rapid shortcuts install --harness claude --dry-run   # qué escribiría, sin escribir
 rapid shortcuts install --harness claude --only rapid-init   # solo un shortcut
 rapid shortcuts install --global --harness claude   # los 9, en tu carpeta de usuario (ver abajo)
 rapid shortcuts list                                    # estado de cada archivo: installed, outdated, missing, unmanaged

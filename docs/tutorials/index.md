@@ -20,7 +20,6 @@ No necesitas aprender ningún otro comando. Si aún no tienes los shortcuts, una
 | [3. Refactor](refactor-lab.md) | `/rapid-refactor` | Cambiar la estructura sin que bajen los tests que pasan. |
 | [4. Hardening](hardening-lab.md) | `/rapid-hardening` | Endurecer seguridad en una copia aislada del repositorio, con revisión humana. |
 | [5. Research](research-lab.md) | `/rapid-research` | Un spike que compara opciones y deja los hallazgos registrados. |
-| [6. Bajo el capó](first-governed-project.md) | Ninguno (modo avanzado) | El bucle de gobernanza completo con los comandos v3. Para integradores, CI y auditoría. |
 
 Los ejemplos están en [`examples/`](https://github.com/alyconr/Rapid-OS/tree/main/examples) (con el instalador, en `~/.rapid-os/examples/`). Cada uno trae `starter/` (el punto de partida) y `solution/` (una solución de referencia).
 
@@ -35,6 +34,6 @@ Los ejemplos están en [`examples/`](https://github.com/alyconr/Rapid-OS/tree/ma
 
 ## Modo avanzado
 
-Cada laboratorio incluye, plegado al final, el mismo recorrido con los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…). No lo necesitas para hacer los laboratorios; sirve para entender qué registra cada paso, para CI y para auditoría. Todos siguen la misma estructura: Overview, Learning Outcomes, Initial State, Engineering Requirements, Guided Procedure, External Execution, Evidence Collection, Evaluation, Validation y Assessment.
+Los laboratorios no usan los comandos v3. Si necesitas hacer el trabajo a mano (para CI, auditoría o para entender qué registra Rapid OS en cada paso), sigue el [recorrido manual (Bajo el capó)](first-governed-project.md), en la sección **Cómo funciona**.
 
 Si algo falla, revisa la [guía de problemas en los laboratorios](../troubleshooting/tutorials.md).

@@ -44,6 +44,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'getting-started/first-project',
         'getting-started/existing-project',
+        'getting-started/when-the-agent-stops',
         'getting-started/first-spec',
         'getting-started/first-context',
         'getting-started/next-steps',
@@ -87,7 +88,6 @@ const sidebars: SidebarsConfig = {
         'tutorials/refactor-lab',
         'tutorials/hardening-lab',
         'tutorials/research-lab',
-        'tutorials/first-governed-project',
         'troubleshooting/tutorials',
       ],
     },
@@ -121,6 +121,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'governance-loop',
+        'tutorials/first-governed-project',
         'guides/permissions-capabilities',
         'guides/project-layout',
         'guides/ci-cd-integration',

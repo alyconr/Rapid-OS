@@ -68,12 +68,12 @@ El portal público incluye la documentación completa, estructurada en las sigui
   - [Casos de Uso Reales](https://alyconr.github.io/Rapid-OS/guides/use-cases)
 - **Laboratorios Prácticos Reproducibles (Hands-on Tutorials)**:
   - [Catálogo de Laboratorios](https://alyconr.github.io/Rapid-OS/tutorials)
-  - [Primer Proyecto Gobernado](https://alyconr.github.io/Rapid-OS/tutorials/first-governed-project)
   - [Feature Lab](https://alyconr.github.io/Rapid-OS/tutorials/feature-lab)
   - [Bugfix Lab](https://alyconr.github.io/Rapid-OS/tutorials/bugfix-lab)
   - [Refactor Lab](https://alyconr.github.io/Rapid-OS/tutorials/refactor-lab)
   - [Hardening Lab](https://alyconr.github.io/Rapid-OS/tutorials/hardening-lab)
   - [Research Lab](https://alyconr.github.io/Rapid-OS/tutorials/research-lab)
+  - [Recorrido manual con comandos v3 (avanzado)](https://alyconr.github.io/Rapid-OS/tutorials/first-governed-project)
 - **Integraciones con Coding Harnesses**:
   - [Codex](https://alyconr.github.io/Rapid-OS/integrations/codex) · [Claude Code](https://alyconr.github.io/Rapid-OS/integrations/claude-code)
   - [Cursor](https://alyconr.github.io/Rapid-OS/integrations/cursor) · [VS Code](https://alyconr.github.io/Rapid-OS/integrations/vscode) · [Google Antigravity](https://alyconr.github.io/Rapid-OS/integrations/antigravity)

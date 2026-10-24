@@ -106,7 +106,7 @@ Pide a Claude Code en la terminal:
 Claude Code edita los archivos y corre `python -m unittest`.
 
 5. **Captura e Ingesta de Evidencias:**
-El desarrollador o el propio Claude Code invoca el CLI de RAPID OS para registrar el avance (ver la estructura canónica de cada archivo en el [Tutorial del Primer Proyecto Gobernado](../tutorials/first-governed-project.md#7-evidence-collection)):
+El desarrollador o el propio Claude Code invoca el CLI de RAPID OS para registrar el avance (ver la estructura canónica de cada archivo en el [laboratorio Bajo el capó](../tutorials/first-governed-project.md#7-evidence-collection)):
 - [`evidence_files.json`](../tutorials/first-governed-project.md#3-registrar-evidencia-de-cambios-en-el-código-file_change): evidencia de modificación de archivos (`file_change`).
 - [`evidence_tests.json`](../tutorials/first-governed-project.md#4-registrar-evidencia-de-pruebas-aprobadas-test_result): resultados de pruebas aprobadas con su archivo de log adjunto (`test_result`).
 - [`evidence_workspace.json`](../tutorials/first-governed-project.md#5-registrar-evidencia-de-espacio-de-trabajo-workspace): verificación de espacio de trabajo actual (`workspace`).
