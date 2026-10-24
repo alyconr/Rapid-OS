@@ -88,7 +88,6 @@ const sidebars: SidebarsConfig = {
         'tutorials/refactor-lab',
         'tutorials/hardening-lab',
         'tutorials/research-lab',
-        'tutorials/first-governed-project',
         'troubleshooting/tutorials',
       ],
     },
@@ -122,6 +121,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'governance-loop',
+        'tutorials/first-governed-project',
         'guides/permissions-capabilities',
         'guides/project-layout',
         'guides/ci-cd-integration',
