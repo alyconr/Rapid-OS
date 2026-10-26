@@ -1,6 +1,6 @@
 ---
 title: Next Steps
-description: What to do after your first Rapid OS task: practice with labs, choose a mode, work as a team, and learn what happens behind the scenes.
+description: "What to do after your first Rapid OS task: practice with labs, choose a mode, work as a team, and learn what happens behind the scenes."
 ---
 
 # Next Steps
