@@ -156,6 +156,7 @@ const sidebars: SidebarsConfig = {
         'release-v3.1.0',
         'release-checklist',
         'audit/documentation-scope',
+        'audit/release-3.2.0.dev0',
         'audit/sprint-1-validation',
         'audit/sprint-2-validation',
         'audit/sprint-3-validation',
