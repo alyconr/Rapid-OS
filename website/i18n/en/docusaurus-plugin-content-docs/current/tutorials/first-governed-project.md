@@ -1,5 +1,5 @@
 ---
-title: Manual Walkthrough: The Governance Loop
+title: "Manual Walkthrough: The Governance Loop"
 description: Run the complete Rapid OS governance loop manually on a Python project.
 ---
 
