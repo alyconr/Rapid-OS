@@ -1,29 +1,29 @@
 ---
-title: Solución de problemas de instalación
-description: Diagnóstico y resolución de incidencias comunes al instalar y configurar Rapid OS.
+title: Installation Troubleshooting
+description: Diagnosing and resolving common issues when installing and configuring Rapid OS.
 ---
 
-# Solución de problemas de instalación
+# Installation Troubleshooting
 
-Esta guía recopila los errores más habituales reportados durante la instalación de Rapid OS y sus soluciones comprobadas.
+This guide collects the most common errors reported during Rapid OS installation and their proven solutions.
 
 ---
 
-## 1. El comando `rapid` no se reconoce (*command not found*)
+## 1. The `rapid` command is not recognized (*command not found*)
 
-### Causa
-Desde la v3.1.1 los instaladores dejan un ejecutable `rapid` en el `PATH` (`~/.local/bin/rapid` en Linux/macOS/WSL, `$HOME\.rapid-os\bin\rapid.exe` en Windows). Si no se reconoce, la terminal se abrió antes de la instalación o esa carpeta no está en el `PATH`.
+### Cause
+Since v3.1.1 the installers leave a `rapid` executable on the `PATH` (`~/.local/bin/rapid` on Linux/macOS/WSL, `$HOME\.rapid-os\bin\rapid.exe` on Windows). If it is not recognized, the terminal was opened before the installation or that folder is not on the `PATH`.
 
-### Solución
+### Solution
 
-- **En Windows (PowerShell):** abre una ventana nueva y comprueba:
+- **On Windows (PowerShell):** open a new window and check:
   ```powershell
   Get-Command rapid                                   # ...\.rapid-os\bin\rapid.exe
   [Environment]::GetEnvironmentVariable("Path", "User") -split ";" | Select-String rapid-os
   ```
-  Si la carpeta no aparece, vuelve a ejecutar el instalador.
+  If the folder does not appear, run the installer again.
 
-- **En Linux / macOS / WSL:** abre una terminal nueva (o `source ~/.bashrc` / `source ~/.zshrc`) y comprueba:
+- **On Linux / macOS / WSL:** open a new terminal (or `source ~/.bashrc` / `source ~/.zshrc`) and check:
   ```bash
   command -v rapid        # ~/.local/bin/rapid
   ls -l ~/.local/bin/rapid
@@ -31,75 +31,75 @@ Desde la v3.1.1 los instaladores dejan un ejecutable `rapid` en el `PATH` (`~/.l
 
 ---
 
-## 1.1. `rapid` funciona en tu terminal pero no dentro del agente (*rapid: command not found* en un shortcut o hook)
+## 1.1. `rapid` works in your terminal but not inside the agent (*rapid: command not found* in a shortcut or hook)
 
-### Síntoma
-Un shortcut como `/rapid-feature` falla en su primer paso con `rapid: command not found`, o un hook de Claude Code no encuentra `rapid`.
+### Symptom
+A shortcut such as `/rapid-feature` fails on its first step with `rapid: command not found`, or a Claude Code hook cannot find `rapid`.
 
-### Causa
-El agente ejecuta comandos en su propio shell no interactivo (Claude Code usa Git Bash en Windows). Ese shell no ve alias, funciones de `$PROFILE` ni un `venv` activado solo en tu terminal. Los instaladores anteriores a v3.1.1 configuraban un alias o una función, que tiene este problema.
+### Cause
+The agent runs commands in its own non-interactive shell (Claude Code uses Git Bash on Windows). That shell does not see aliases, `$PROFILE` functions, or a `venv` activated only in your terminal. Installers prior to v3.1.1 configured an alias or a function, which has this problem.
 
-### Solución
-1. Instala con el instalador v3.1.1 o con `pipx install git+https://github.com/alyconr/Rapid-OS.git@v3.1.1`.
-2. Abre una terminal nueva, comprueba `rapid --version` y lanza el agente desde ella.
-3. Dentro de Claude Code, `! which rapid` debe encontrarlo.
+### Solution
+1. Install with the v3.1.1 installer or with `pipx install git+https://github.com/alyconr/Rapid-OS.git@v3.1.1`.
+2. Open a new terminal, check `rapid --version`, and launch the agent from it.
+3. Inside Claude Code, `! which rapid` must find it.
 
 ---
 
-## 2. Error de política de ejecución en PowerShell (*ExecutionPolicy*)
+## 2. PowerShell execution policy error (*ExecutionPolicy*)
 
-### Síntoma
+### Symptom
 ```text
 File ...\install.ps1 cannot be loaded because running scripts is disabled on this system.
 ```
 
-### Solución
-Windows bloquea por defecto la ejecución de scripts remotos en PowerShell. Habilita `RemoteSigned` para tu usuario actual (no requiere permisos de Administrador):
+### Solution
+Windows blocks running remote scripts in PowerShell by default. Enable `RemoteSigned` for your current user (it does not require Administrator permissions):
 
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
-Luego vuelve a ejecutar el instalador:
+Then run the installer again:
 ```powershell
 irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.ps1 | iex
 ```
 
 ---
 
-## 3. Versión de Python incompatible (< 3.10)
+## 3. Incompatible Python version (< 3.10)
 
-### Síntoma
-El instalador o el CLI arrojan errores de sintaxis (`SyntaxError`) o el instalador cancela con:
+### Symptom
+The installer or the CLI throws syntax errors (`SyntaxError`) or the installer aborts with:
 ```text
 Error: Python 3 is not installed. Please install Python 3.10+ first.
 ```
 
-### Solución
-Rapid OS requiere Python 3.10 como versión mínima para el tipado estático y coincidencia de patrones.
-1. Instala Python 3.10, 3.11, 3.12 o 3.13 desde [python.org](https://www.python.org/).
-2. En Windows, asegúrate de marcar **"Add python.exe to PATH"**.
-3. En Linux, instala `python3` actualizado desde el gestor de paquetes de tu distribución.
+### Solution
+Rapid OS requires Python 3.10 as the minimum version for static typing and pattern matching.
+1. Install Python 3.10, 3.11, 3.12, or 3.13 from [python.org](https://www.python.org/).
+2. On Windows, make sure to check **"Add python.exe to PATH"**.
+3. On Linux, install an up-to-date `python3` from your distribution's package manager.
 
 ---
 
-## 4. Conflictos al clonar en `$HOME/.rapid-os`
+## 4. Conflicts when cloning into `$HOME/.rapid-os`
 
-### Síntoma
+### Symptom
 ```text
 Error: .../.rapid-os already exists and is not a Git repository.
 ```
 
-### Solución
-Si ya tenías una carpeta antigua no versionada con ese nombre:
-1. Respalda o renombra la carpeta:
+### Solution
+If you already had an old unversioned folder with that name:
+1. Back up or rename the folder:
    ```bash
    mv ~/.rapid-os ~/.rapid-os.bak
    ```
-2. Vuelve a ejecutar el instalador.
+2. Run the installer again.
 
 ---
 
-## 5. El comando `rapid doctor` reporta advertencias
+## 5. The `rapid doctor` command reports warnings
 
-Ejecuta `rapid doctor --json` para obtener un diagnóstico estructurado con el código de advertencia exacto (`TOOLxxx`, `CONFIGxxx`, etc.). La mayoría de advertencias indican herramientas opcionales faltantes (como Node.js/npx para skills remotas) que no afectan el ciclo de gobernanza principal.
+Run `rapid doctor --json` to get a structured diagnosis with the exact warning code (`TOOLxxx`, `CONFIGxxx`, etc.). Most warnings indicate missing optional tools (such as Node.js/npx for remote skills) that do not affect the main governance cycle.

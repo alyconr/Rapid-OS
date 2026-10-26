@@ -1,73 +1,72 @@
 ---
-title: Cómo se escribe la spec
-description: Qué es la spec de un trabajo, cómo la redacta el agente a partir de tu pedido y cómo escribir un buen pedido; la creación a mano con rapid spec queda como modo avanzado.
+title: How the Spec Is Written
+description: What a task spec is, how the agent drafts it from your request, and how to make a good request; manual rapid spec authoring is covered in advanced mode.
 ---
 
-# Cómo se escribe la spec
+# How the Spec Is Written
 
-Cada trabajo empieza con una **spec**: una ficha corta que dice qué se va a construir y cómo se sabe que está terminado. Evita que el agente improvise o se salga del alcance.
+Every task starts with a **spec**: a short document that says what will be built and how to tell when it is done. It keeps the agent from improvising or going out of scope.
 
-## Con shortcuts
+## With shortcuts
 
-**No la escribes tú.** Pides el trabajo y el agente la redacta:
+**You do not write it yourself.** Describe the work and the agent drafts it:
 
 ```text
-/rapid-feature añadir exportación CSV al informe mensual
+/rapid-feature add CSV export to the monthly report
 ```
 
-La spec tiene cuatro partes que conviene que tu pedido deje claras:
+Your request should clarify these four parts of the spec:
 
-| Parte | Ejemplo |
-| :--- | :--- |
-| **Objetivo**: para qué | Compartir el informe mensual fuera de la app |
-| **Alcance**: qué entra y qué no | Solo el informe mensual; no el semanal |
-| **Criterios de aceptación**: cómo sabes que funciona | El informe se descarga como CSV con las mismas columnas que en pantalla |
-| **Tareas**: los pasos | `T001` Añadir la exportación, `T002` Añadir el botón |
+| Part | Example |
+|---|---|
+| **Goal:** why | Share the monthly report outside the app |
+| **Scope:** what is included and excluded | The monthly report only; not the weekly one |
+| **Acceptance criteria:** how to tell it works | The report downloads as a CSV with the same columns shown on screen |
+| **Tasks:** the steps | `T001` Add CSV export; `T002` Add the button |
 
-Si tu pedido no alcanza para alguna parte, el agente te pregunta antes de redactarla. Un pedido con un criterio concreto ("con las mismas columnas que en pantalla") produce una spec mejor que uno genérico ("mejorar el informe").
+If your request does not provide enough detail for a part, the agent asks before drafting. A request with a specific criterion ("with the same columns shown on screen") produces a better spec than a generic one ("improve the report").
 
-Si ya tienes un brief del proyecto con historias (`- [ ] H001: ...`), escribe solo `/rapid-feature`: el agente te propone la siguiente historia y espera tu confirmación.
+If the project brief has stories (`- [ ] H001: ...`), enter `/rapid-feature` by itself. The agent suggests the next story and waits for your confirmation.
 
-Una vez redactada, la spec queda **congelada** para ese trabajo: si cambias de idea a mitad de camino, cancela el trabajo y pide uno nuevo (ver [Cuando el agente se detiene](./when-the-agent-stops.md)).
+Once written, the spec is **frozen** for that task. If you change your mind partway through, cancel the task and request a new one (see [When the Agent Stops](./when-the-agent-stops.md)).
 
 <details>
-<summary>Qué hace el agente por debajo</summary>
+<summary>What the agent does behind the scenes</summary>
 
-1. El shortcut ejecuta `rapid next --json`. Sin run activo, la acción es `author_spec` e incluye `action.spec_template`: la plantilla del modo (título, objetivo de negocio, problema, alcance, criterios de aceptación, tareas…).
-2. El agente redacta la spec desde tu objetivo **siguiendo esa plantilla** y la pasa por stdin a `rapid start <modo> --spec-file -`. Los alias `acceptance` y `tasks` se aceptan en lugar de `acceptance_criteria` e `implementation_tasks`.
-3. `rapid start` crea la spec, el contrato y el run, y devuelve la siguiente acción (normalmente el baseline).
+1. The shortcut runs `rapid next --json`. With no active run, the action is `author_spec` and includes `action.spec_template`, the mode template (title, business goal, problem, scope, acceptance criteria, tasks, and more).
+2. The agent drafts the spec from your goal **using that template** and sends it through stdin to `rapid start <mode> --spec-file -`. The aliases `acceptance` and `tasks` are accepted in place of `acceptance_criteria` and `implementation_tasks`.
+3. `rapid start` creates the spec, contract, and run, then returns the next action (usually the baseline).
 
 ```bash
-echo '{"title": "Exportar informe a CSV", "business_objective": "Compartir el informe mensual", "problem_statement": "Hoy solo se puede ver en pantalla", "acceptance_criteria": ["El informe se descarga como CSV"], "tasks": ["T001: Añadir export_csv al informe"]}' | rapid start feature --spec-file - --json
+echo '{"title": "Export report to CSV", "business_objective": "Share the monthly report", "problem_statement": "It can only be viewed on screen today", "acceptance_criteria": ["The report downloads as a CSV"], "tasks": ["T001: Add export_csv to the report"]}' | rapid start feature --spec-file - --json
 ```
 
-Sin run activo, `rapid next` solo conoce la plantilla de `feature`; los demás shortcuts piden la suya con `rapid start <modo> --json`. El bucle completo está en la [guía de shortcuts](../guides/shortcuts.md#4-el-bucle-que-siguen).
+With no active run, `rapid next` only knows the `feature` template; other shortcuts get their template from `rapid start <mode> --json`. See the complete loop in the [shortcuts guide](../guides/shortcuts.md#4-the-loop-they-follow).
 
 </details>
 
-## Modo avanzado
+## Advanced mode
 
-No lo necesitas con shortcuts. Es la forma de crear specs a mano con `rapid spec`, útil desde CI o para auditoría.
+You do not need this when using shortcuts. This is how to create specs manually with `rapid spec`, useful in CI or for auditing.
 
 <details>
-<summary>Ver la spec con los comandos v3</summary>
+<summary>View the spec workflow with v3 commands</summary>
 
-Cada spec vive en `.rapid-os/specs/<spec-id>/`. Se crea con un título y sus tareas; el id sale del título y el modo por defecto es `feature` (cámbialo con `--mode`):
+Each spec lives in `.rapid-os/specs/<spec-id>/`. Create one with a title and tasks; its ID is derived from the title, and its mode defaults to `feature` (change it with `--mode`):
 
 ```bash
-rapid spec create --title "API Rate Limiting" --task "T001: Crear el middleware de rate limit"
+rapid spec create --title "API Rate Limiting" --task "T001: Create the rate limit middleware"
 rapid spec status api-rate-limiting ready
 ```
 
-Una spec nace como `draft` y solo entra a un run cuando está `ready`. Los demás campos (objetivo, alcance, criterios de aceptación…) se añaden con una revisión, que nunca sobrescribe la anterior y vuelve a dejar la spec en `draft`:
+A spec starts as `draft` and can enter a run only when it is `ready`. Add other fields (goal, scope, acceptance criteria, and more) with a revision. Revisions never overwrite earlier ones and return the spec to `draft`:
 
 ```bash
-rapid spec revise api-rate-limiting --acceptance "Responde HTTP 429 tras 5 intentos fallidos"
+rapid spec revise api-rate-limiting --acceptance "Respond with HTTP 429 after 5 failed attempts"
 rapid spec status api-rate-limiting ready
 ```
 
-Para consultarlas:
-
+To inspect specs:
 ```bash
 rapid spec list
 rapid spec show api-rate-limiting
@@ -82,6 +81,6 @@ stateDiagram-v2
     archived --> [*]
 ```
 
-Todos los campos (`--objective`, `--scope`, `--out-of-scope`, `--acceptance`, `--task`…) están en la [referencia de `rapid spec`](../cli.md#spec-registry-rapid-spec).
+All fields (`--objective`, `--scope`, `--out-of-scope`, `--acceptance`, `--task`, and more) are in the [`rapid spec` reference](../cli.md#spec-registry-rapid-spec).
 
 </details>

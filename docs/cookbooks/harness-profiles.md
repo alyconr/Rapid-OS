@@ -1,54 +1,54 @@
 ---
-title: Perfiles y Capabilities del Harness
-description: Cookbook para configurar perfiles de coding harness, resolver compatibilidad de capacidades y generar locks en RAPID OS.
+title: Harness Profiles and Capabilities
+description: Cookbook for configuring coding harness profiles, resolving capability compatibility, and generating locks in RAPID OS.
 ---
 
-# Perfiles y Capabilities del Harness
+# Harness Profiles and Capabilities
 
-En el ecosistema de ingeniería asistida por agentes, distintos editores y asistentes (Cursor, Claude Code, GitHub Copilot, Codex, Antigravity) ofrecen diferentes conjuntos de herramientas e integraciones.
+In the agent-assisted engineering ecosystem, different editors and assistants (Cursor, Claude Code, GitHub Copilot, Codex, Antigravity) offer different sets of tools and integrations.
 
-RAPID OS no asume que todos los entornos pueden ejecutar las mismas acciones. Mediante el **Harness Capability Registry**, declara, versiona y audita qué capacidades declara soportar cada asistente.
-
----
-
-## Product Truth: Qué representa una Capability
-
-> **Principio de Verdad del Producto**:
-> 1. Una capability declarada (ej. `repository.write`, `shell.execute`) expresa el **soporte que el harness declara ofrecer**.
-> 2. RAPID OS **no** invoca directamente el harness ni controla los procesos o permisos del sistema operativo.
-> 3. Que un harness declare una capability **no constituye evidencia** de que haya sido ejecutada o que el resultado esté libre de defectos.
+RAPID OS does not assume that all environments can perform the same actions. Through the **Harness Capability Registry**, it declares, versions, and audits which capabilities each assistant declares it supports.
 
 ---
 
-## Catálogo de Capabilities Canónicas
+## Product Truth: What a Capability Represents
 
-El catálogo de RAPID OS define exactamente las siguientes 11 capacidades canónicas:
+> **Product Truth Principle**:
+> 1. A declared capability (e.g. `repository.write`, `shell.execute`) expresses the **support the harness declares it offers**.
+> 2. RAPID OS does **not** directly invoke the harness or control the operating system's processes or permissions.
+> 3. A harness declaring a capability is **not evidence** that it was exercised or that the result is free of defects.
 
-| Identificador | Categoría | Descripción |
+---
+
+## Canonical Capabilities Catalog
+
+The RAPID OS catalog defines exactly the following 11 canonical capabilities:
+
+| Identifier | Category | Description |
 | :--- | :--- | :--- |
-| `context.consume` | `context` | Capacidad de leer y consumir el contexto compilado y contratos de ejecución. |
-| `git.inspect` | `git` | Capacidad de inspeccionar estado, historial y diffs de git. |
-| `git.modify` | `git` | Capacidad de crear ramas, commits o worktrees en git. |
-| `mcp.invoke` | `integration` | Capacidad de invocar herramientas y recursos Model Context Protocol (MCP). |
-| `repository.read` | `repository` | Capacidad de leer archivos y estructura del repositorio. |
-| `repository.write` | `repository` | Capacidad de crear o modificar archivos del repositorio durante la tarea. |
-| `shell.execute` | `execution` | Capacidad de ejecutar comandos de terminal o shell local. |
-| `subagents.delegate` | `delegation` | Capacidad de delegar subtareas a subagentes especializados. |
-| `tests.execute` | `testing` | Capacidad de ejecutar suites de pruebas automatizadas para verificación. |
-| `workspace.current` | `workspace` | Capacidad de operar en el working tree actual cuando la política lo permite. |
-| `workspace.isolated` | `workspace` | Capacidad de operar en un espacio de trabajo o worktree aislado cuando la política lo exige. |
+| `context.consume` | `context` | Ability to read and consume the compiled context and execution contracts. |
+| `git.inspect` | `git` | Ability to inspect git state, history, and diffs. |
+| `git.modify` | `git` | Ability to create branches, commits, or worktrees in git. |
+| `mcp.invoke` | `integration` | Ability to invoke Model Context Protocol (MCP) tools and resources. |
+| `repository.read` | `repository` | Ability to read repository files and structure. |
+| `repository.write` | `repository` | Ability to create or modify repository files during the task. |
+| `shell.execute` | `execution` | Ability to run terminal or local shell commands. |
+| `subagents.delegate` | `delegation` | Ability to delegate subtasks to specialized subagents. |
+| `tests.execute` | `testing` | Ability to run automated test suites for verification. |
+| `workspace.current` | `workspace` | Ability to operate in the current working tree when policy allows it. |
+| `workspace.isolated` | `workspace` | Ability to operate in an isolated workspace or worktree when policy requires it. |
 
 ---
 
-## 1. Perfiles integrados (Built-in Profiles)
+## 1. Built-in Profiles
 
-RAPID OS incluye perfiles canónicos predeterminados:
+RAPID OS ships with default canonical profiles:
 
 ```bash
-# Listar todos los perfiles disponibles
+# List all available profiles
 rapid harness list
 
-# Ver capacidades detalladas de un perfil integrado
+# View the detailed capabilities of a built-in profile
 rapid harness show codex
 rapid harness show claude
 rapid harness show cursor
@@ -57,121 +57,121 @@ rapid harness show antigravity
 
 ---
 
-## 2. Personalizar o crear un perfil local
+## 2. Customize or create a local profile
 
-Puedes sobrescribir un perfil predeterminado o registrar un harness propietario de tu equipo en `.rapid-os/harnesses/<id>.json`:
+You can override a default profile or register your team's proprietary harness in `.rapid-os/harnesses/<id>.json`:
 
 ```bash
-# Inicializar la plantilla de un perfil existente o nuevo
-rapid harness init mi-agente-interno
+# Initialize the template of an existing or new profile
+rapid harness init my-internal-agent
 ```
 
-### Estructura Canónica de `.rapid-os/harnesses/<id>.json`
+### Canonical Structure of `.rapid-os/harnesses/<id>.json`
 
-El archivo de perfil sigue el esquema versión 1 (`HarnessProfile`):
+The profile file follows schema version 1 (`HarnessProfile`):
 
 ```json
 {
   "schema_version": 1,
-  "id": "mi-agente-interno",
+  "id": "my-internal-agent",
   "capabilities": [
     {
       "capability_id": "context.consume",
       "status": "supported",
-      "reason": "Lee el contexto compilado directamente desde .rapid-os/context"
+      "reason": "Reads the compiled context directly from .rapid-os/context"
     },
     {
       "capability_id": "repository.read",
       "status": "supported",
-      "reason": "Acceso completo de lectura a todo el árbol del repositorio"
+      "reason": "Full read access to the entire repository tree"
     },
     {
       "capability_id": "repository.write",
       "status": "supported",
-      "reason": "Escritura restringida a archivos de código y pruebas"
+      "reason": "Write access restricted to code and test files"
     },
     {
       "capability_id": "shell.execute",
       "status": "supported",
-      "reason": "Ejecución de herramientas linters y comandos locales"
+      "reason": "Runs linter tools and local commands"
     },
     {
       "capability_id": "tests.execute",
       "status": "supported",
-      "reason": "Ejecución de suites de pytest en terminal"
+      "reason": "Runs pytest suites in the terminal"
     },
     {
       "capability_id": "git.inspect",
       "status": "supported",
-      "reason": "Inspección de diffs y estado de git"
+      "reason": "Inspects git diffs and status"
     },
     {
       "capability_id": "git.modify",
       "status": "unsupported",
-      "reason": "Los commits y modificaciones de ramas son gestionados por el desarrollador"
+      "reason": "Commits and branch changes are handled by the developer"
     },
     {
       "capability_id": "subagents.delegate",
       "status": "unknown",
-      "reason": "Soporte de subagentes pendiente de validación en entorno corporativo"
+      "reason": "Subagent support pending validation in the corporate environment"
     }
   ]
 }
 ```
 
-### Niveles de soporte permitidos (`CapabilitySupportStatus`)
+### Allowed support levels (`CapabilitySupportStatus`)
 
-Los únicos tres estados canónicos permitidos para `status` son:
+The only three canonical states allowed for `status` are:
 
-- **`supported`**: La capacidad está disponible y declarada como soportada por el entorno.
-- **`unsupported`**: La capacidad no está disponible ni soportada en este entorno de trabajo.
-- **`unknown`**: El estado de soporte no está determinado o no ha sido declarado explícitamente.
+- **`supported`**: The capability is available and declared as supported by the environment.
+- **`unsupported`**: The capability is neither available nor supported in this working environment.
+- **`unknown`**: The support status is undetermined or has not been explicitly declared.
 
-> **Importante**: RAPID OS **no** admite estados como `conditional`. Si una capacidad tiene restricciones operativas, se declara como `supported` o `unsupported` y las condiciones específicas se detallan en el campo `reason`.
+> **Important**: RAPID OS does **not** support states such as `conditional`. If a capability has operational restrictions, declare it as `supported` or `unsupported` and detail the specific conditions in the `reason` field.
 
 ---
 
-## 3. Bloqueo determinista (`rapid harness lock`)
+## 3. Deterministic Locking (`rapid harness lock`)
 
-Para garantizar que los pipelines de CI o los desarrolladores utilicen exactamente las mismas definiciones de perfiles y hashes de capabilities, puedes generar el archivo `.rapid-os/capabilities.lock`:
+To guarantee that CI pipelines or developers use exactly the same profile definitions and capability hashes, you can generate the `.rapid-os/capabilities.lock` file:
 
 ```bash
 rapid harness lock
 ```
 
-Este comando inspecciona todos los perfiles activos, calcula su digest SHA-256 canónico y los congela en un archivo inmutable versionado en git.
+This command inspects all active profiles, computes their canonical SHA-256 digest, and freezes them in an immutable file versioned in git.
 
 ---
 
-## 4. Resolución de Compatibilidad contra un Run
+## 4. Compatibility Resolution Against a Run
 
-Cuando se crea un `ExecutionContract`, este define qué capacidades requiere la tarea. Puedes verificar deterministamente si el harness asignado satisface dichos requisitos:
+When an `ExecutionContract` is created, it defines which capabilities the task requires. You can deterministically verify whether the assigned harness satisfies those requirements:
 
 ```bash
-# Resolución básica
-rapid harness resolve --run feature-pago-r1-run-001
+# Basic resolution
+rapid harness resolve --run feature-payment-r1-run-001
 
-# Resolución estricta contra el archivo lock (.rapid-os/capabilities.lock)
-rapid harness resolve --run feature-pago-r1-run-001 --locked
+# Strict resolution against the lock file (.rapid-os/capabilities.lock)
+rapid harness resolve --run feature-payment-r1-run-001 --locked
 
-# Resolución en modo compuerta de CI (exit code 1 si incompatible o unresolved)
-rapid harness resolve --run feature-pago-r1-run-001 --require-compatible
+# CI gate mode resolution (exit code 1 if incompatible or unresolved)
+rapid harness resolve --run feature-payment-r1-run-001 --require-compatible
 ```
 
-### Estados de resolución (`CapabilityResolutionStatus`):
-1. **`compatible`**: El harness declara soporte (`supported`) para todas las capabilities obligatorias exigidas por el contrato. (Exit code `0`).
-2. **`incompatible`**: El harness marca como no soportada (`unsupported`) al menos una capability requerida por el contrato. (Exit code `1` con diagnóstico `RAPID1110` bajo `--require-compatible`).
-3. **`unresolved`**: Una o más capabilities requeridas están en estado `unknown` o no han sido declaradas. (Exit code `1` bajo `--require-compatible`).
+### Resolution states (`CapabilityResolutionStatus`):
+1. **`compatible`**: The harness declares support (`supported`) for all mandatory capabilities required by the contract. (Exit code `0`).
+2. **`incompatible`**: The harness marks at least one capability required by the contract as unsupported (`unsupported`). (Exit code `1` with diagnostic `RAPID1110` under `--require-compatible`).
+3. **`unresolved`**: One or more required capabilities are in the `unknown` state or have not been declared. (Exit code `1` under `--require-compatible`).
 
 ---
 
-## 5. Exigir Capabilities adicionales en CLI
+## 5. Requiring Additional Capabilities in the CLI
 
-Si una corrida particular requiere una capacidad no exigida originalmente por la spec, puedes forzar su evaluación en tiempo de resolución:
+If a particular run requires a capability not originally required by the spec, you can force its evaluation at resolution time:
 
 ```bash
 rapid harness resolve \
-  --run feature-pago-r1-run-001 \
+  --run feature-payment-r1-run-001 \
   --require "shell.execute" \
   --require-compatible
 ```

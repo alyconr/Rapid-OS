@@ -1,107 +1,107 @@
 ---
-title: Modo Hardening
-description: Flujo de trabajo para endurecimiento de seguridad, mitigación de vulnerabilidades y revisión de dependencias críticas.
+title: Hardening Mode
+description: Workflow for security hardening, vulnerability mitigation, and review of critical dependencies.
 ---
 
-# Modo Hardening
+# Hardening Mode
 
-El modo **Hardening** gobierna intervenciones de alta sensibilidad: parcheo de vulnerabilidades (CVEs), actualización de dependencias críticas, fortalecimiento de políticas de autenticación/criptografía, y auditorías de seguridad en infraestructura de código.
+**Hardening** mode governs high-sensitivity interventions: patching vulnerabilities (CVEs), upgrading critical dependencies, strengthening authentication/cryptography policies, and security audits of code infrastructure.
 
 ---
 
-## Con el shortcut `/rapid-hardening`
+## With the `/rapid-hardening` shortcut
 
 ```text
-/rapid-hardening validar y acotar las entradas de register_user
+/rapid-hardening validate and bound the inputs of register_user
 ```
 
-(En Codex: `$rapid-hardening …`.) El shortcut conduce el run completo; la instalación y la invocación por harness están en la [guía de shortcuts](../shortcuts.md).
+(In Codex: `$rapid-hardening …`.) The shortcut drives the whole run; installation and per-harness invocation are in the [shortcuts guide](../shortcuts.md).
 
-Qué hace su playbook (`templates/modes/hardening.json` y las reglas del Conductor):
+What its playbook does (`templates/modes/hardening.json` and the Conductor's rules):
 
-- Riesgo `high`: el contrato exige un workspace aislado y la compuerta `gate.review` (dispensable) además de la baseline, los tests y la verificación final.
-- Cada hallazgo se reporta con su **CWE** y su vector **CVSS v4.0** (`CVSS:4.0/...`), la severidad que resulta y la regla de `.rapid-os/standards/security.md` que lo cubre (sección «Hallazgos: CWE y CVSS» de la base de seguridad). Crítica y alta se corrigen antes de publicar. Ver [Base de seguridad](../../concepts/security-baseline.md).
-- `rapid start hardening --spec-file - --worktree` crea un git worktree en `../<repo>-<run-id>` (rama `rapid/<run-id>`); el ledger se queda en el repositorio principal, `rapid check` ejecuta en el worktree y `rapid finish` toma los cambios de ahí. Sin la bandera, `rapid next` propone `rapid start --resume --worktree`.
-- El worktree parte de `HEAD` (los cambios sin commit del checkout principal no entran) y `rapid abort` no lo elimina.
+- `high` risk: the contract requires an isolated workspace and the `gate.review` gate (waivable) in addition to the baseline, the tests, and the final verification.
+- Each finding is reported with its **CWE** and its **CVSS v4.0** vector (`CVSS:4.0/...`), the resulting severity, and the rule in `.rapid-os/standards/security.md` that covers it (the "Findings: CWE and CVSS" section of the security baseline). Critical and high are fixed before publishing. See [Security baseline](../../concepts/security-baseline.md).
+- `rapid start hardening --spec-file - --worktree` creates a git worktree at `../<repo>-<run-id>` (branch `rapid/<run-id>`); the ledger stays in the main repository, `rapid check` runs in the worktree, and `rapid finish` takes the changes from there. Without the flag, `rapid next` proposes `rapid start --resume --worktree`.
+- The worktree starts from `HEAD` (uncommitted changes in the main checkout do not come along) and `rapid abort` does not remove it.
 
-El resto de esta guía describe el mismo ciclo con comandos v3 (**Modo avanzado**), útil para CI, depuración y auditoría.
+The rest of this guide describes the same cycle with v3 commands (**Advanced mode**), useful for CI, debugging, and auditing.
 
 ---
 
-## Características del modo Hardening en RAPID OS
+## Characteristics of Hardening mode in RAPID OS
 
-- **Riesgo elevado**: Típicamente evaluado en `high` (80) o `critical` (100).
-- **Workspace Isolation**: La política puede requerir un entorno o branch/worktree aislado (`isolated_required`).
-- **Compuertas obligatorias**:
-  - `security_review`: Aprobación formal de seguridad.
-  - `peer_review`: Revisión humana por pares.
-  - `final_verification`: Auditoría estática o escaneo de vulnerabilidades sin hallazgos críticos.
+- **Elevated risk**: Typically evaluated as `high` (80) or `critical` (100).
+- **Workspace Isolation**: The policy may require an isolated environment or branch/worktree (`isolated_required`).
+- **Mandatory gates**:
+  - `security_review`: Formal security approval.
+  - `peer_review`: Human peer review.
+  - `final_verification`: Static audit or vulnerability scan with no critical findings.
 
 ```mermaid
 flowchart TD
-    Vuln["Vulnerabilidad detectada"] --> Spec["rapid spec create --mode hardening"]
+    Vuln["Vulnerability detected"] --> Spec["rapid spec create --mode hardening"]
     Spec --> Run["rapid run create --risk high"]
     Run --> Iso["Workspace Isolation"]
-    Iso --> Patch["Aplicación del parche"]
-    Patch --> Scan["Escaneo SAST / Auditoría"]
+    Iso --> Patch["Patch application"]
+    Patch --> Scan["SAST scan / Audit"]
     Scan --> SecRev["Security Review"]
     SecRev --> Eval["rapid eval run --require-pass"]
 ```
 
 ---
 
-## 1. Especificación del Hardening
+## 1. Hardening specification
 
 ```bash
 rapid spec create \
-  --title "Mitigación CVE en parser XML y sanitización de inputs" \
+  --title "CVE mitigation in XML parser and input sanitization" \
   --mode hardening \
-  --objective "Actualizar parser XML vulnerable a XXE y restringir deserialización arbitraria" \
-  --scope "Módulo parsers/xml y dependencias pyproject.toml" \
-  --acceptance "DefLibraries actualizadas, cero alertas en escaneo SAST y tests de inyección bloqueados" \
-  --task "1. Actualizar biblioteca defensiva" \
-  --task "2. Configurar defusedxml deshabilitando entidades externas" \
-  --task "3. Añadir tests de ataque XXE simulados" \
+  --objective "Upgrade XML parser vulnerable to XXE and restrict arbitrary deserialization" \
+  --scope "parsers/xml module and pyproject.toml dependencies" \
+  --acceptance "Defensive libraries upgraded, zero alerts in SAST scan, and injection tests blocked" \
+  --task "1. Upgrade defensive library" \
+  --task "2. Configure defusedxml disabling external entities" \
+  --task "3. Add simulated XXE attack tests" \
   --status ready
 ```
 
 ---
 
-## 2. Compilar el Contexto de Seguridad
+## 2. Compile the security context
 
 ```bash
 rapid context \
-  --spec mitigacion-cve-en-parser-xml-y-sanitizacion-de-inputs \
+  --spec cve-mitigation-in-xml-parser-and-input-sanitization \
   --harness claude \
   --mode hardening \
-  --constraint "Prohibido el uso de parsers sin validación estricta" \
+  --constraint "Use of parsers without strict validation is forbidden" \
   --manifest
 ```
 
 ---
 
-## 3. Crear el Run de Alto Riesgo
+## 3. Create the high-risk run
 
 ```bash
 rapid run create \
-  --spec mitigacion-cve-en-parser-xml-y-sanitizacion-de-inputs \
+  --spec cve-mitigation-in-xml-parser-and-input-sanitization \
   --harness claude \
   --classification architectural \
   --risk high
 ```
 
-Al asignar riesgo `high`, el contrato de ejecución (`ExecutionContract`) activará las compuertas `security_review` y `workspace_isolation`.
+By assigning `high` risk, the execution contract (`ExecutionContract`) will activate the `security_review` and `workspace_isolation` gates.
 
 ---
 
-## 4. Ingesta de Evidencias de Seguridad
+## 4. Ingesting security evidence
 
-### Evidencia de escaneo estático / SAST (`command_result`)
+### Static scan / SAST evidence (`command_result`)
 ```json
 {
   "kind": "command_result",
   "producer": "bandit-scanner",
-  "summary": "Auditoría de seguridad Bandit sin hallazgos de severidad media o alta",
+  "summary": "Bandit security audit with no medium or high severity findings",
   "capability_ids": ["shell.execute"],
   "payload": {
     "label": "bandit -r src/xml_parser",
@@ -112,16 +112,16 @@ Al asignar riesgo `high`, el contrato de ejecución (`ExecutionContract`) activa
 
 ```bash
 rapid evidence add \
-  --run mitigacion-cve-en-parser-xml-y-sanitizacion-de-inputs-r1-run-001 \
+  --run cve-mitigation-in-xml-parser-and-input-sanitization-r1-run-001 \
   --input sast-evidence.json
 ```
 
-### Evidencia de revisión humana de seguridad (`review`)
+### Human security review evidence (`review`)
 ```json
 {
   "kind": "review",
   "producer": "appsec-portal",
-  "summary": "Aprobación formal del equipo de Application Security",
+  "summary": "Formal approval from the Application Security team",
   "gate_ids": ["security_review"],
   "payload": {
     "review_type": "security",
@@ -133,30 +133,29 @@ rapid evidence add \
 
 ```bash
 rapid evidence add \
-  --run mitigacion-cve-en-parser-xml-y-sanitizacion-de-inputs-r1-run-001 \
+  --run cve-mitigation-in-xml-parser-and-input-sanitization-r1-run-001 \
   --input review-evidence.json
 ```
 
-Reconoce la compuerta en el estado del run:
+Acknowledge the gate in the run state:
 
 ```bash
 rapid run gate \
-  mitigacion-cve-en-parser-xml-y-sanitizacion-de-inputs-r1-run-001 \
+  cve-mitigation-in-xml-parser-and-input-sanitization-r1-run-001 \
   security_review \
   acknowledged \
-  --reason "Revisión aprobada por equipo de seguridad"
+  --reason "Review approved by the security team"
 ```
 
 ---
 
-## 5. Evaluación de Cumplimiento
+## 5. Compliance evaluation
 
 ```bash
 rapid eval run \
-  --run mitigacion-cve-en-parser-xml-y-sanitizacion-de-inputs-r1-run-001 \
+  --run cve-mitigation-in-xml-parser-and-input-sanitization-r1-run-001 \
   --write \
   --require-pass
 ```
 
-El veredicto final certificará que los requerimientos de seguridad y las evidencias vinculadas satisfacen la política de ejecución antes de cualquier despliegue.
-
+The final verdict will certify that the security requirements and the linked evidence satisfy the execution policy before any deployment.

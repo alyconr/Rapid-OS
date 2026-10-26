@@ -1,0 +1,58 @@
+{
+  "version.label": {
+    "message": "Current",
+    "description": "The label for version current"
+  },
+  "sidebar.docs.category.Introduction and Concepts": {
+    "message": "Introducción y Conceptos",
+    "description": "The label for category 'Introducción y Conceptos' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Installation": {
+    "message": "Instalación",
+    "description": "The label for category 'Instalación' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Getting Started": {
+    "message": "Primeros pasos",
+    "description": "The label for category 'Primeros pasos' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Shortcuts and Orchestration": {
+    "message": "Shortcuts y orquestación",
+    "description": "The label for category 'Shortcuts y orquestación' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Engineering Modes": {
+    "message": "Modos de ingeniería",
+    "description": "The label for category 'Modos de ingeniería' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Hands-on Labs": {
+    "message": "Laboratorios Prácticos",
+    "description": "The label for category 'Laboratorios Prácticos' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Coding Harness Integrations": {
+    "message": "Integraciones con Coding Harnesses",
+    "description": "The label for category 'Integraciones con Coding Harnesses' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Governance Cookbooks": {
+    "message": "Cookbooks de Gobernanza",
+    "description": "The label for category 'Cookbooks de Gobernanza' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.How It Works": {
+    "message": "Cómo funciona",
+    "description": "The label for category 'Cómo funciona' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Diagnostics and Reference": {
+    "message": "Diagnósticos y Referencia",
+    "description": "The label for category 'Diagnósticos y Referencia' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Documentation Operations": {
+    "message": "Operaciones de Documentación",
+    "description": "The label for category 'Operaciones de Documentación' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Operations and Releases": {
+    "message": "Operación y release",
+    "description": "The label for category 'Operación y release' in sidebar 'docs'"
+  },
+  "sidebar.docs.link.Claude Code Hooks": {
+    "message": "Hooks de Claude Code",
+    "description": "The label for link 'Hooks de Claude Code' in sidebar 'docs', linking to '/integrations/claude-code#6-hooks-de-claude-code-refuerzo-opcional-del-bucle'"
+  }
+}

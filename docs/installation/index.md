@@ -1,69 +1,69 @@
 ---
-title: Instalación de Rapid OS
-description: Opciones de instalación, compatibilidad de plataformas y métodos recomendados para Rapid OS v3.
+title: Installing Rapid OS
+description: Installation options, platform compatibility, and recommended methods for Rapid OS v3.
 ---
 
-# Instalación de Rapid OS
+# Installing Rapid OS
 
-Rapid OS se distribuye como una herramienta de línea de comandos (`rapid` o `python rapid.py`). El núcleo de gobernanza está implementado íntegramente en Python y no requiere dependencias externas obligatorias para su funcionamiento básico.
+Rapid OS is distributed as a command-line tool (`rapid` or `python rapid.py`). The governance core is implemented entirely in Python and requires no mandatory external dependencies for basic operation.
 
 ---
 
-## Elige tu método de instalación
+## Choose your installation method
 
-Existen dos vías principales para instalar Rapid OS según tu flujo de trabajo:
+There are two main ways to install Rapid OS depending on your workflow:
 
 ```mermaid
 flowchart TD
-    A[¿Cómo deseas instalar Rapid OS?] -->|Instalación rápida recomendada| B[Instalador Oficial Shell / PowerShell]
-    A -->|Entorno Python existente / pip| C[Instalación vía pip / venv]
-    A -->|Contribución al proyecto| D[Instalación de Desarrollo editable]
+    A[How do you want to install Rapid OS?] -->|Recommended quick install| B[Official Shell / PowerShell Installer]
+    A -->|Existing Python environment / pip| C[Install via pip / venv]
+    A -->|Contributing to the project| D[Editable Development Install]
 
-    B --> E[Descarga ~/.rapid-os y deja el ejecutable 'rapid' en el PATH]
-    C --> F[Instala binario 'rapid' en el entorno de Python]
+    B --> E[Downloads ~/.rapid-os and puts the 'rapid' executable on the PATH]
+    C --> F[Installs the 'rapid' binary in the Python environment]
     D --> G[git clone + pip install -e .]
 ```
 
-### 1. Instalador rápido por sistema operativo (Recomendado)
+### 1. Quick installer per operating system (Recommended)
 
-Los instaladores automatizados clonan el repositorio en `~/.rapid-os`, fijan la versión estable e instalan un ejecutable `rapid` en tu PATH. Es el método recomendado si vas a usar shortcuts o hooks: los agentes solo encuentran `rapid` si es un ejecutable en el PATH, no un alias ni un `venv` activado en otra terminal.
+The automated installers clone the repository into `~/.rapid-os`, pin the stable version, and install a `rapid` executable on your PATH. This is the recommended method if you are going to use shortcuts or hooks: agents only find `rapid` if it is an executable on the PATH, not an alias or a `venv` activated in another terminal.
 
-- **[Instalación en Windows](./windows.md):** Script de PowerShell optimizado para Windows 10/11.
-- **[Instalación en Linux](./linux.md):** Script Bash compatible con Ubuntu, Debian, Fedora, Arch y derivados.
-- **[Instalación en macOS](./macos.md):** Compatible con Apple Silicon (M1/M2/M3/M4) e Intel.
-- **[Instalación en WSL](./wsl.md):** Guía específica para Windows Subsystem for Linux.
+- **[Windows installation](./windows.md):** PowerShell script optimized for Windows 10/11.
+- **[Linux installation](./linux.md):** Bash script compatible with Ubuntu, Debian, Fedora, Arch, and derivatives.
+- **[macOS installation](./macos.md):** Compatible with Apple Silicon (M1/M2/M3/M4) and Intel.
+- **[WSL installation](./wsl.md):** Specific guide for Windows Subsystem for Linux.
 
-### 2. Instalación mediante `pip` en un entorno virtual
+### 2. Installing with `pip` in a virtual environment
 
-Si prefieres gestionar Rapid OS dentro de un entorno virtual de Python (`venv`):
+If you prefer to manage Rapid OS inside a Python virtual environment (`venv`):
 
 ```bash
-# Crear y activar entorno virtual
+# Create and activate a virtual environment
 python -m venv .venv
-source .venv/bin/activate  # En Windows: .venv\Scripts\Activate.ps1
+source .venv/bin/activate  # On Windows: .venv\Scripts\Activate.ps1
 
-# Instalar desde el repositorio o paquete
+# Install from the repository or package
 python -m pip install git+https://github.com/alyconr/Rapid-OS.git@v3.1.1
 ```
 
 ---
 
-## Shortcuts en tu carpeta de usuario
+## Shortcuts in your user folder
 
-Desde la versión 3.2.0, `rapid shortcuts install --global --harness <id>` instala `/rapid-init` y los demás `/rapid-*` una vez para todos tus proyectos (Claude Code, Codex, Cursor y Antigravity; VS Code no lo admite: `RAPID1413`), y los instaladores lo preguntan al terminar si el `rapid` instalado lo tiene. La versión estable `v3.1.1` no lo tiene y su instalador no lo ofrece. Comprueba el resultado en [Verificación](./verification.md) (`RAPID1414` si `rapid` no está en el `PATH`).
+Since version 3.2.0, `rapid shortcuts install --global --harness <id>` installs `/rapid-init` and the other `/rapid-*` shortcuts once for all your projects (Claude Code, Codex, Cursor, and Antigravity; VS Code does not support it: `RAPID1413`), and the installers ask about it at the end if the installed `rapid` supports it. The stable `v3.1.1` version does not have it and its installer does not offer it. Check the result in [Verification](./verification.md) (`RAPID1414` if `rapid` is not on the `PATH`).
 
-## Diferencia entre versión Estable y Desarrollo
+## Difference between Stable and Development versions
 
-:::info Canales de instalación
-- **Versión Estable (`v3.1.1`):** Pinned al tag oficial [`v3.1.1`](https://github.com/alyconr/Rapid-OS/releases/tag/v3.1.1). Recomendada para producción y equipos de desarrollo.
-- **Versión de Desarrollo (`main`):** Obtenida mediante checkout de la rama `main` en desarrollo activo. Contiene las últimas características antes de su empaquetado formal.
+:::info Installation channels
+- **Stable version (`v3.1.1`):** Pinned to the official tag [`v3.1.1`](https://github.com/alyconr/Rapid-OS/releases/tag/v3.1.1). Recommended for production and development teams.
+- **Development version (`main`):** Obtained by checking out the `main` branch under active development. Contains the latest features before formal packaging.
 :::
 
 ---
 
-## Pasos siguientes
+## Next steps
 
-1. Revisa los [Requisitos del sistema](./requirements.md).
-2. Sigue la guía correspondiente a tu sistema operativo.
-3. Ejecuta la [Verificación de la instalación](./verification.md) para comprobar que el CLI responde correctamente.
-4. Instala los shortcuts en tu proyecto con `rapid init --shortcuts` (o `rapid shortcuts install` en un proyecto ya inicializado) y sigue [Primeros pasos](../getting-started.md).
+1. Review the [System requirements](./requirements.md).
+2. Follow the guide for your operating system.
+3. Run the [Installation verification](./verification.md) to check that the CLI responds correctly.
+4. Install the shortcuts in your project with `rapid init --shortcuts` (or `rapid shortcuts install` in an already initialized project) and follow [Getting started](../getting-started.md).

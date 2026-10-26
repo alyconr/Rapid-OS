@@ -1,99 +1,99 @@
-# Procedimiento de Despliegue de Documentación
+# Documentation Deployment Procedure
 
-Este runbook describe el procedimiento formal, seguro y determinista para publicar el portal de documentación de **RAPID OS v3** en GitHub Pages.
+This runbook describes the formal, secure, and deterministic procedure to publish the **RAPID OS v3** documentation portal to GitHub Pages.
 
 ---
 
-## 1. Alcance y Gobernanza
+## 1. Scope and Governance
 
-- **Portal:** Documentación canónica de RAPID OS v3.1.1.
-- **Framework:** Docusaurus 3 con Node.js 20.
+- **Portal:** Canonical RAPID OS v3.1.1 documentation.
+- **Framework:** Docusaurus 3 with Node.js 20.
 - **Hosting:** GitHub Pages (`alyconr.github.io/Rapid-OS/`).
-- **Mecanismo:** Despliegue desacoplado mediante GitHub Actions (`.github/workflows/docs-deploy.yml`).
-- **Aprobación requerida:** El despliegue a producción requiere autorización explícita del propietario del repositorio.
+- **Mechanism:** Decoupled deployment via GitHub Actions (`.github/workflows/docs-deploy.yml`).
+- **Required approval:** Deploying to production requires explicit authorization from the repository owner.
 
 ---
 
-## 2. Separación de Responsabilidades
+## 2. Separation of Responsibilities
 
-| Componente | Workflow | Evento | Permisos |
+| Component | Workflow | Event | Permissions |
 | :--- | :--- | :--- | :--- |
-| **Validación CI** | `.github/workflows/docs.yml` | Pull Request y Push a `main` | `contents: read` |
-| **Publicación** | `.github/workflows/docs-deploy.yml` | Solo `workflow_dispatch` (manual) | `contents: read`, `pages: write`, `id-token: write` |
+| **CI Validation** | `.github/workflows/docs.yml` | Pull Request and Push to `main` | `contents: read` |
+| **Publication** | `.github/workflows/docs-deploy.yml` | `workflow_dispatch` only (manual) | `contents: read`, `pages: write`, `id-token: write` |
 
-> **La publicación nunca es automática.** `docs-deploy.yml` se lanza **a mano** desde Actions; un merge a `main` no publica el portal. Tras etiquetar una release, ejecutarlo es un **paso obligatorio**: sin él, el portal publicado sigue mostrando la versión anterior (ver [checklist de release](../release-checklist.md)).
+> **Publication is never automatic.** `docs-deploy.yml` is launched **by hand** from Actions; a merge to `main` does not publish the portal. After tagging a release, running it is a **mandatory step**: without it, the published portal keeps showing the previous version (see the [release checklist](../release-checklist.md)).
 
-> **Nota de Seguridad:** Ningún Pull Request ni fork tiene acceso a publicar en GitHub Pages. Los tokens OIDC temporales solo se emiten en el entorno protegido `github-pages`.
+> **Security Note:** No Pull Request or fork has access to publish to GitHub Pages. Temporary OIDC tokens are only issued in the protected `github-pages` environment.
 
 ---
 
-## 3. Precondiciones Técnicas (Pre-flight Checklist)
+## 3. Technical Preconditions (Pre-flight Checklist)
 
-Antes de autorizar o ejecutar un despliegue, el equipo debe verificar:
+Before authorizing or running a deployment, the team must verify:
 
-1. **Suite de Pruebas Unitaria y E2E Verde:**
+1. **Unit and E2E Test Suite Green:**
    ```bash
    python -m unittest discover tests
    ```
-2. **Typecheck y Build de Docusaurus Exitosos:**
+2. **Docusaurus Typecheck and Build Successful:**
    ```bash
    cd website
    npm ci
    npm run typecheck
    npm run build
    ```
-3. **Validación de Artefactos Estáticos:**
-   - Confirmar que `website/build/index.html` existe.
-   - Confirmar que `website/build/404.html` existe.
-   - Confirmar que `website/build/sitemap.xml` contiene URLs con prefijo `/Rapid-OS/`.
-   - Verificar la ausencia de fugas de `localhost` o rutas absolutas de desarrollo (`file:///`).
-4. **Configuración de Producción en `website/docusaurus.config.ts`:**
+3. **Static Artifact Validation:**
+   - Confirm that `website/build/index.html` exists.
+   - Confirm that `website/build/404.html` exists.
+   - Confirm that `website/build/sitemap.xml` contains URLs with the `/Rapid-OS/` prefix.
+   - Verify there are no leaks of `localhost` or absolute development paths (`file:///`).
+4. **Production Configuration in `website/docusaurus.config.ts`:**
    - `url: 'https://alyconr.github.io'`
    - `baseUrl: '/Rapid-OS/'`
    - `trailingSlash: false`
    - `onBrokenLinks: 'throw'`
-5. **Configuración de GitHub Pages en el Repositorio:**
+5. **GitHub Pages Configuration in the Repository:**
    - Settings → Pages → Source: **GitHub Actions**.
 
 ---
 
-## 4. Ejecución del Despliegue Manual Controlado (`workflow_dispatch`)
+## 4. Running the Controlled Manual Deployment (`workflow_dispatch`)
 
-El despliegue a producción es estrictamente manual y requiere que el código se encuentre en la rama `main`:
+Deploying to production is strictly manual and requires the code to be on the `main` branch:
 
-1. Navegar a **Actions** en el repositorio GitHub.
-2. Seleccionar el workflow **Deploy Documentation**.
-3. Hacer clic en **Run workflow**.
-4. Seleccionar la rama `main`.
-5. Confirmar la ejecución.
-6. El workflow ejecutará secuencialmente:
-   - `build`: Compilación y verificación estática con permisos `contents: read`.
-   - `deploy`: Despliegue en GitHub Pages con permisos `pages: write` e `id-token: write`.
-   - `smoke-test`: Validación automática post-despliegue mediante pruebas HTTP en vivo.
+1. Navigate to **Actions** in the GitHub repository.
+2. Select the **Deploy Documentation** workflow.
+3. Click **Run workflow**.
+4. Select the `main` branch.
+5. Confirm the run.
+6. The workflow will sequentially execute:
+   - `build`: Compilation and static verification with `contents: read` permissions.
+   - `deploy`: Deployment to GitHub Pages with `pages: write` and `id-token: write` permissions.
+   - `smoke-test`: Automatic post-deployment validation through live HTTP tests.
 
 ---
 
-## 5. Verificación Post-Despliegue (Smoke Testing)
+## 5. Post-Deployment Verification (Smoke Testing)
 
-Una vez completada la ejecución del workflow de despliegue:
+Once the deployment workflow run has completed:
 
-1. **Estado del Job en GitHub Actions:**
-   - Verificar que el job `build` y el job `deploy` concluyeron con código 0.
-   - Inspeccionar la URL generada en la salida del step `deploy`.
-2. **Smoke Test HTTP de Producción:**
-   - Acceso a Home: `https://alyconr.github.io/Rapid-OS/` (código HTTP 200).
-   - Acceso a CLI Reference: `https://alyconr.github.io/Rapid-OS/cli` (código HTTP 200).
-   - Acceso a Laboratorios: `https://alyconr.github.io/Rapid-OS/tutorials/` (código HTTP 200).
-   - Acceso a Página 404 personalizada: `https://alyconr.github.io/Rapid-OS/non-existent-page` (código HTTP 404 con layout de Docusaurus).
-   - Inspección de `sitemap.xml`: `https://alyconr.github.io/Rapid-OS/sitemap.xml` (código HTTP 200).
-3. **Ejecución de Smoke Tests Automatizados:**
+1. **Job Status in GitHub Actions:**
+   - Verify that the `build` job and the `deploy` job finished with code 0.
+   - Inspect the URL generated in the output of the `deploy` step.
+2. **Production HTTP Smoke Test:**
+   - Home access: `https://alyconr.github.io/Rapid-OS/` (HTTP 200).
+   - CLI Reference access: `https://alyconr.github.io/Rapid-OS/cli` (HTTP 200).
+   - Labs access: `https://alyconr.github.io/Rapid-OS/tutorials/` (HTTP 200).
+   - Custom 404 page access: `https://alyconr.github.io/Rapid-OS/non-existent-page` (HTTP 404 with the Docusaurus layout).
+   - `sitemap.xml` inspection: `https://alyconr.github.io/Rapid-OS/sitemap.xml` (HTTP 200).
+3. **Running the Automated Smoke Tests:**
    ```bash
    RAPID_OS_LIVE_DOCS_URL=https://alyconr.github.io/Rapid-OS python -m unittest tests.test_documentation_deployment.TestLiveDocsSmoke
    ```
 
 ---
 
-## 6. Registro y Notificación
+## 6. Logging and Notification
 
-1. Anotar el commit SHA desplegado en la bitácora de release.
-2. Notificar en el canal del proyecto que la versión de documentación está en línea.
+1. Note the deployed commit SHA in the release log.
+2. Notify in the project channel that the documentation version is live.

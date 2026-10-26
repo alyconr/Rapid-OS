@@ -1,13 +1,13 @@
 # Hardening Lab — Boundary Validation & Input Hardening
 
-Acompaña al tutorial canónico [Hardening Engineering Lab](../../docs/tutorials/hardening-lab.md).
+Accompanies the canonical tutorial [Hardening Engineering Lab](../../docs/tutorials/hardening-lab.md).
 
-## Requisitos
+## Requirements
 
-- `starter/`: Registro de perfiles de usuario sin límites de longitud, formato ni saneamiento.
-- `solution/`: Validación defensiva contra cadenas arbitrarias, formatos de correo inválidos y bytes nulos, lanzando `ValidationError`.
+- `starter/`: User profile registry without limits on length, format or sanitization.
+- `solution/`: Defensive validation against arbitrary strings, invalid email formats and null bytes, raising `ValidationError`.
 
-## Ejecución de pruebas
+## Running the tests
 
 ```bash
 python -m unittest discover examples/hardening-lab/starter/tests

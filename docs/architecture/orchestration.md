@@ -1,41 +1,41 @@
 ---
-title: Arquitectura de orquestación
-description: "Cómo la capa porcelain (rapid start, next, check, finish…) conduce un run sobre el motor de gobernanza v3 (plumbing): Conductor, NextAction, session.json, productores de evidencia, ruleset v2 y defensas de rapid approve."
+title: Orchestration Architecture
+description: "How the porcelain layer (rapid start, next, check, finish…) drives a run on top of the v3 governance engine (plumbing): Conductor, NextAction, session.json, evidence producers, ruleset v2, and the defenses of rapid approve."
 ---
 
-# Arquitectura de orquestación
+# Orchestration Architecture
 
-Rapid OS tiene dos capas. El **plumbing** (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) es el motor de gobernanza v3: registros inmutables, contratos, evidencia y evaluación. El **porcelain** (`rapid start`, `rapid next`, `rapid check`, `rapid task`, `rapid attach`, `rapid finish`, `rapid approve`, `rapid status`, `rapid abort`) es la capa de intención que conduce un run *usando* el plumbing. Los [shortcuts](../guides/shortcuts.md) son archivos que enseñan a un agente a seguir ese bucle; el [modo avanzado](../governance-loop.md) usa el plumbing directamente.
+Rapid OS has two layers. The **plumbing** (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) is the v3 governance engine: immutable records, contracts, evidence, and evaluation. The **porcelain** (`rapid start`, `rapid next`, `rapid check`, `rapid task`, `rapid attach`, `rapid finish`, `rapid approve`, `rapid status`, `rapid abort`) is the intent layer that drives a run *using* the plumbing. The [shortcuts](../guides/shortcuts.md) are files that teach an agent to follow that loop; the [advanced mode](../governance-loop.md) uses the plumbing directly.
 
-Esta página describe cómo encajan las piezas. Los límites de lo que se ejecuta están en [límites del producto](../concepts/product-boundaries.md).
+This page describes how the pieces fit together. The limits of what gets executed are in [product boundaries](../concepts/product-boundaries.md).
 
 ---
 
-## 1. Porcelain sobre plumbing
+## 1. Porcelain on top of plumbing
 
 ```text
-  Persona / agente                     ¿quién decide?
-        │  /rapid-<modo> <objetivo>
+  Person / agent                       who decides?
+        │  /rapid-<mode> <goal>
         ▼
-  Shortcuts y hooks (por harness)      enseñan el bucle y vigilan al agente
+  Shortcuts and hooks (per harness)    teach the loop and watch the agent
         │  rapid next / start / check / task / attach / finish
         ▼
-  PORCELAIN  rapid_os/orchestration/   Conductor (puro) + lifecycle (E/S)
-        │  llama a los registries, nunca a funciones de la CLI
+  PORCELAIN  rapid_os/orchestration/   Conductor (pure) + lifecycle (I/O)
+        │  calls the registries, never CLI functions
         ▼
   PLUMBING   rapid_os/adapters/        SpecRegistry · RunRegistry · EvidenceRegistry · EvalRegistry
-             rapid_os/domain/          contratos, RunState, RunEvidence, BehavioralEvaluator
+             rapid_os/domain/          contracts, RunState, RunEvidence, BehavioralEvaluator
         ▼
-  .rapid-os/   specs/ runs/ evidence/ evals/   ledger append-only (+ session.json y scratch/)
+  .rapid-os/   specs/ runs/ evidence/ evals/   append-only ledger (+ session.json and scratch/)
 ```
 
-- El porcelain **no crea otro modelo de datos**: cada acción termina en registros del plumbing (specs, runs, estados, evidencia, reportes) con los mismos digests.
-- El ledger es append-only: ningún verbo reescribe archivos bajo `.rapid-os/runs`, `evidence` o `evals`.
-- Un gate humano nunca se reconoce automáticamente (ver [sección 8](#8-rapid-approve-capas-de-defensa-y-su-límite)).
+- The porcelain **does not create another data model**: every action ends in plumbing records (specs, runs, states, evidence, reports) with the same digests.
+- The ledger is append-only: no verb rewrites files under `.rapid-os/runs`, `evidence`, or `evals`.
+- A human gate is never acknowledged automatically (see [section 8](#8-rapid-approve-layers-of-defense-and-their-limit)).
 
 ---
 
-## 2. El bucle
+## 2. The loop
 
 ```text
         ┌────────────────────────────────────────────────────────────┐
@@ -43,50 +43,50 @@ Esta página describe cómo encajan las piezas. Los límites de lo que se ejecut
         ▼                                                            │
   rapid next --json ──► action.kind                                  │
         │                                                            │
-        ├─ author_spec ──► redactar la spec ──► rapid start <modo> --spec-file -
-        ├─ run_baseline / activate / verify ──► ejecutar action.command
-        ├─ implement_task ──► implementar ──► rapid check -- <tests> ──► action.after (rapid task done)
+        ├─ author_spec ──► write the spec ──► rapid start <mode> --spec-file -
+        ├─ run_baseline / activate / verify ──► run action.command
+        ├─ implement_task ──► implement ──► rapid check -- <tests> ──► action.after (rapid task done)
         │                                                            │
-        ├─ await_human_approval ──► SE DETIENE: una persona ejecuta rapid approve <gate> ──┐
-        ├─ blocked ──► explicar el motivo (p. ej. rapid abort tras un rechazo)             │
-        └─ finish ──► rapid finish ──► veredicto (PASS / PASS_WITH_WAIVERS / FAIL / UNVERIFIED)
+        ├─ await_human_approval ──► STOPS: a person runs rapid approve <gate> ──┐
+        ├─ blocked ──► explain the reason (e.g. rapid abort after a rejection)  │
+        └─ finish ──► rapid finish ──► verdict (PASS / PASS_WITH_WAIVERS / FAIL / UNVERIFIED)
                                                                      ▲                      │
                                                                      └──────────────────────┘
 ```
 
-`rapid next` nunca muta el estado: calcula la siguiente acción y se puede repetir. `rapid check` ejecuta un comando y registra evidencia; `rapid finish` registra los cambios, reconoce los gates de máquina que ya cumplen las reglas y evalúa el run.
+`rapid next` never mutates state: it computes the next action and can be repeated. `rapid check` runs a command and records evidence; `rapid finish` records the changes, acknowledges the machine gates that already satisfy the rules, and evaluates the run.
 
 ---
 
-## 3. El Conductor: una función pura con el evaluador como oráculo
+## 3. The Conductor: a pure function with the evaluator as oracle
 
-`next_action(contract, state, evidence, playbook, *, evaluator, test_command)` (en `rapid_os/orchestration/conductor.py`) **no hace E/S**: recibe el contrato, el `RunState`, la evidencia y el playbook del modo, y devuelve un `NextAction`. La E/S (leer el ledger, escribir evidencia, ejecutar `rapid check`) vive en `lifecycle.py`.
+`next_action(contract, state, evidence, playbook, *, evaluator, test_command)` (in `rapid_os/orchestration/conductor.py`) **performs no I/O**: it receives the contract, the `RunState`, the evidence, and the mode playbook, and returns a `NextAction`. I/O (reading the ledger, writing evidence, running `rapid check`) lives in `lifecycle.py`.
 
-El Conductor no reimplementa las reglas de gobernanza: **pregunta al `BehavioralEvaluator`**. Evalúa el run en memoria (`evaluator.evaluate(...)`) y lee las aserciones (`UNVERIFIED`, `FAIL`, `PASS`) para decidir qué falta.
+The Conductor does not reimplement the governance rules: **it asks the `BehavioralEvaluator`**. It evaluates the run in memory (`evaluator.evaluate(...)`) and reads the assertions (`UNVERIFIED`, `FAIL`, `PASS`) to decide what is missing.
 
-`gate_satisfied(contract, state, evidence, gate_id, *, evaluator)` formaliza esa idea: reconoce *hipotéticamente* el gate (en una copia del estado) y vuelve a evaluar. Si la aserción del gate pasa a `PASS`, la evidencia ya lo respalda y reconocerlo es seguro; si no, falta evidencia. Así `rapid start` y `rapid finish` solo reconocen gates de máquina cuando la evidencia los justifica, y nunca un gate humano.
+`gate_satisfied(contract, state, evidence, gate_id, *, evaluator)` formalizes that idea: it *hypothetically* acknowledges the gate (on a copy of the state) and evaluates again. If the gate's assertion becomes `PASS`, the evidence already backs it and acknowledging it is safe; if not, evidence is missing. This way `rapid start` and `rapid finish` only acknowledge machine gates when the evidence justifies it, and never a human gate.
 
-Orden de las reglas (la primera que aplica gana):
+Rule order (the first one that applies wins):
 
-| # | Condición | Acción |
+| # | Condition | Action |
 | :--- | :--- | :--- |
-| 1 | El run es terminal | `done` (con el resultado) |
-| 2 | El run está `blocked` | `blocked` |
-| 3 | Una revisión humana fue rechazada (`changes_requested`) | `blocked` con el comando `rapid abort`: el gate queda en `FAIL` en ese run |
-| 4 | `prepared` con `gate.baseline` pendiente | `run_baseline` (o `activate` si ya se cumple) |
-| 5 | `active` con tareas sin terminar | `implement_task` (reglas del modo: `bugfix` pide `rapid check --expect fail` sobre `T001`; `research` cierra tareas con `--no-check`) |
-| 6 | Todas las tareas terminales | `refactor`: `blocked` si bajan los tests pasados respecto a la baseline; una aserción en `FAIL` → `blocked` |
-| 7 | Tarea o gate de máquina sin verificar, o la capability `tests.execute` sin observar | `verify` |
-| 8 | Gates humanos pendientes | `await_human_approval` |
-| 9 | Todo resuelto | `finish` |
+| 1 | The run is terminal | `done` (with the outcome) |
+| 2 | The run is `blocked` | `blocked` |
+| 3 | A human review was rejected (`changes_requested`) | `blocked` with the `rapid abort` command: the gate stays `FAIL` in that run |
+| 4 | `prepared` with a pending `gate.baseline` | `run_baseline` (or `activate` if it is already satisfied) |
+| 5 | `active` with unfinished tasks | `implement_task` (mode rules: `bugfix` asks for `rapid check --expect fail` on `T001`; `research` closes tasks with `--no-check`) |
+| 6 | All tasks terminal | `refactor`: `blocked` if passed tests drop relative to the baseline; an assertion in `FAIL` → `blocked` |
+| 7 | Unverified task or machine gate, or the `tests.execute` capability unobserved | `verify` |
+| 8 | Human gates pending | `await_human_approval` |
+| 9 | Everything resolved | `finish` |
 
-Los playbooks (`templates/modes/<modo>.json`) aportan la plantilla de spec y los textos de cada acción; las reglas específicas de cada modo están en las [guías de modo](../guides/modes/index.md).
+The playbooks (`templates/modes/<mode>.json`) provide the spec template and the text of each action; the rules specific to each mode are in the [mode guides](../guides/modes/index.md).
 
 ---
 
-## 4. El esquema de `NextAction`
+## 4. The `NextAction` schema
 
-`rapid next --json` (y `rapid start --json`, `rapid finish --json`) devuelven:
+`rapid next --json` (and `rapid start --json`, `rapid finish --json`) return:
 
 ```json
 {
@@ -107,85 +107,85 @@ Los playbooks (`templates/modes/<modo>.json`) aportan la plantilla de spec y los
 }
 ```
 
-| Campo | Significado |
+| Field | Meaning |
 | :--- | :--- |
-| `action.kind` | `author_spec`, `run_baseline`, `activate`, `implement_task`, `verify`, `await_human_approval`, `finish`, `done` o `blocked` |
-| `action.command` | Comando exacto a ejecutar (como lista argv) o `null` |
-| `action.after` | Comando a ejecutar cuando el agente termina el trabajo de la acción (p. ej. `rapid task done`) o `null` |
-| `action.task_id`, `action.gate_ids` | Tarea o gates a los que se refiere la acción (opcionales) |
-| `action.spec_template` | Plantilla de spec del modo, en `author_spec` (opcional) |
-| `action.workspace_path` | Worktree aislado del run, si lo tiene (opcional) |
-| `awaiting_human` | Gates humanos pendientes |
-| `missing` | Aserciones del evaluador aún sin cumplir |
-| `outcome` | Veredicto o resultado, solo cuando `kind` es `done` |
+| `action.kind` | `author_spec`, `run_baseline`, `activate`, `implement_task`, `verify`, `await_human_approval`, `finish`, `done`, or `blocked` |
+| `action.command` | Exact command to run (as an argv list) or `null` |
+| `action.after` | Command to run when the agent finishes the action's work (e.g. `rapid task done`) or `null` |
+| `action.task_id`, `action.gate_ids` | Task or gates the action refers to (optional) |
+| `action.spec_template` | The mode's spec template, in `author_spec` (optional) |
+| `action.workspace_path` | The run's isolated worktree, if it has one (optional) |
+| `awaiting_human` | Pending human gates |
+| `missing` | Evaluator assertions not yet satisfied |
+| `outcome` | Verdict or result, only when `kind` is `done` |
 
-Los campos opcionales se omiten cuando no se usan, así que la salida de un modo sin worktree no cambia.
+Optional fields are omitted when unused, so the output of a mode without a worktree does not change.
 
 ---
 
 ## 5. `.rapid-os/session.json`
 
-El porcelain recuerda el run activo en `.rapid-os/session.json` (`rapid init` lo añade a `.gitignore` si existe). No forma parte del ledger y no tiene digest:
+The porcelain remembers the active run in `.rapid-os/session.json` (`rapid init` adds it to `.gitignore` if one exists). It is not part of the ledger and has no digest:
 
-| Campo | Significado |
+| Field | Meaning |
 | :--- | :--- |
-| `schema_version`, `active_run_id`, `mode`, `harness` | Run activo, modo y harness elegidos |
-| `start_head` | `HEAD` de git al iniciar; `rapid finish` registra los cambios contra él |
-| `start_untracked` (opcional) | Archivos sin seguimiento que ya existían al iniciar; `rapid finish` no se los atribuye al run |
-| `workspace_path` (opcional) | Worktree aislado creado con `rapid start --worktree` |
+| `schema_version`, `active_run_id`, `mode`, `harness` | Active run, chosen mode and harness |
+| `start_head` | git `HEAD` at start; `rapid finish` records changes against it |
+| `start_untracked` (optional) | Untracked files that already existed at start; `rapid finish` does not attribute them to the run |
+| `workspace_path` (optional) | Isolated worktree created with `rapid start --worktree` |
 
-`rapid abort` borra el archivo; `rapid validate` lo comprueba contra el `RunRegistry` (`RAPID1304`, `RAPID1305`). Junto a él, `.rapid-os/scratch/` guarda los logs de `rapid check` y el estado de los hooks; ambos son desechables.
+`rapid abort` deletes the file; `rapid validate` checks it against the `RunRegistry` (`RAPID1304`, `RAPID1305`). Alongside it, `.rapid-os/scratch/` holds the `rapid check` logs and the hook state; both are disposable.
 
 ---
 
-## 6. Productores de evidencia del porcelain
+## 6. Porcelain evidence producers
 
-Cada verbo que registra evidencia lo hace con un productor identificable:
+Every verb that records evidence does so with an identifiable producer:
 
-| Productor | Quién lo escribe | Evidencia |
+| Producer | Who writes it | Evidence |
 | :--- | :--- | :--- |
-| `rapid:check` | `rapid check`, `rapid task done`, baseline de `rapid start` | `test_result` o `command_result`, con el log como artefacto |
-| `rapid:start` | `rapid start` | `workspace` (`current` o `isolated`) |
-| `rapid:finish` | `rapid finish` | `file_change` con los archivos modificados por el run, sin `.rapid-os/` ni artefactos de herramientas (`__pycache__`, `*.pyc`, `.pytest_cache`...); sin cambios reales no se registra |
-| `rapid:attach` | `rapid attach` | `artifact` con el archivo adjunto, ligado a una tarea |
-| `user` | `rapid approve` | `review` con el resultado y el revisor |
-| `harness:<id>` | un harness externo, vía `rapid evidence add` | cualquiera; ver el ruleset v2 |
+| `rapid:check` | `rapid check`, `rapid task done`, the `rapid start` baseline | `test_result` or `command_result`, with the log as an artifact |
+| `rapid:start` | `rapid start` | `workspace` (`current` or `isolated`) |
+| `rapid:finish` | `rapid finish` | `file_change` with the files modified by the run, excluding `.rapid-os/` and tool artifacts (`__pycache__`, `*.pyc`, `.pytest_cache`...); with no real changes nothing is recorded |
+| `rapid:attach` | `rapid attach` | `artifact` with the attached file, linked to a task |
+| `user` | `rapid approve` | `review` with the result and the reviewer |
+| `harness:<id>` | an external harness, via `rapid evidence add` | any; see ruleset v2 |
 
 ---
 
 ## 7. Ruleset v2
 
-El evaluador aplica por defecto el ruleset v2 (`rapid eval run --ruleset {1,2}`):
+The evaluator applies ruleset v2 by default (`rapid eval run --ruleset {1,2}`):
 
-- **`gate.architecture`:** en `feature`, `bugfix` y `refactor`, si existe `architecture.json`, el contrato añade este gate de máquina (`architecture_check`, posterior a la ejecución, obligatorio, no dispensable). `rapid next` propone `rapid check --gate gate.architecture -- rapid arch check` y las violaciones son `RAPID1420`. Ver [Arquitectura por stack](../concepts/architecture.md#el-gate-gatearchitecture).
-- **`expectation: "fail"`:** `rapid check --expect fail --task <id>` registra un fallo esperado. Genera la aserción `reproduction.<tarea>` en `PASS` si el comando falló de verdad (y en `FAIL` si no), y esa evidencia **no** cuenta como fallo de la tarea ni sirve de evidencia de `gate.baseline` o `gate.tests`. Solo se admite ligada a una tarea (`RAPID1320`).
-- **`harness:*` no cierra gates humanos:** la evidencia de revisión producida por un `harness:<id>` queda `UNVERIFIED` para los gates de revisión humana. Solo una revisión de `rapid approve` (productor `user`) puede respaldarlos.
-
----
-
-## 8. `rapid approve`: capas de defensa y su límite
-
-Aprobar un gate humano exige estas comprobaciones, de la más barata a la más fuerte:
-
-1. **TTY:** sin terminal interactiva falla con `RAPID1310` (un EOF durante la confirmación se trata igual).
-2. **Marcador de sesión:** `CLAUDE_CODE_CHILD_SESSION=1` rechaza la ejecución.
-3. **Ascendencia:** si algún proceso ancestro es el binario de Claude Code (`claude`/`claude.exe`), falla con `RAPID1310` aunque haya TTY y no queden variables.
-4. **Confirmación textual:** hay que teclear `aprobar <gate-id>` (`dispensar <gate-id>` para `--waive`).
-5. **Hooks de Claude Code (opcionales):** `PreToolUse` deniega al agente `rapid approve`, `rapid abort`, `rapid run gate`, `rapid evidence add` y la edición de `.rapid-os/`, y deniega quitar las variables de sesión.
-6. **Evidencia:** la aprobación queda como `review` con productor `user`; el evaluador no acepta la de un `harness:*` (ruleset v2).
-
-**Límite conocido.** Son defensas de mejor esfuerzo, no una garantía criptográfica. La detección por ascendencia no ve a un proceso que se desacopla de su padre (doble fork, `setsid`, `nohup … &`), a un `claude.exe` renombrado ni a un pid reutilizado; un TTY se puede emular; el análisis de comandos de los hooks no detecta uno construido en tiempo de ejecución; y la identidad del revisor es la que se declara. La regla de fondo no cambia: **una persona aprueba, en su propia terminal.**
+- **`gate.architecture`:** in `feature`, `bugfix`, and `refactor`, if `architecture.json` exists, the contract adds this machine gate (`architecture_check`, post-execution, mandatory, non-waivable). `rapid next` proposes `rapid check --gate gate.architecture -- rapid arch check` and violations are `RAPID1420`. See [Architecture by stack](../concepts/architecture.md#the-gatearchitecture-gate).
+- **`expectation: "fail"`:** `rapid check --expect fail --task <id>` records an expected failure. It produces the `reproduction.<task>` assertion as `PASS` if the command really failed (and `FAIL` if not), and that evidence does **not** count as a task failure nor serve as `gate.baseline` or `gate.tests` evidence. It is only accepted linked to a task (`RAPID1320`).
+- **`harness:*` does not close human gates:** review evidence produced by a `harness:<id>` stays `UNVERIFIED` for human review gates. Only a `rapid approve` review (producer `user`) can back them.
 
 ---
 
-## 9. Dónde está cada pieza
+## 8. `rapid approve`: layers of defense and their limit
 
-| Pieza | Módulo |
+Approving a human gate requires these checks, from cheapest to strongest:
+
+1. **TTY:** without an interactive terminal it fails with `RAPID1310` (an EOF during confirmation is treated the same way).
+2. **Session marker:** `CLAUDE_CODE_CHILD_SESSION=1` rejects the execution.
+3. **Ancestry:** if any ancestor process is the Claude Code binary (`claude`/`claude.exe`), it fails with `RAPID1310` even when there is a TTY and no variables remain.
+4. **Textual confirmation:** you must type `aprobar <gate-id>` (`dispensar <gate-id>` for `--waive`).
+5. **Claude Code hooks (optional):** `PreToolUse` denies the agent `rapid approve`, `rapid abort`, `rapid run gate`, `rapid evidence add`, and editing `.rapid-os/`, and denies removing the session variables.
+6. **Evidence:** the approval is stored as a `review` with producer `user`; the evaluator does not accept one from a `harness:*` (ruleset v2).
+
+**Known limit.** These are best-effort defenses, not a cryptographic guarantee. Ancestry detection does not see a process that detaches from its parent (double fork, `setsid`, `nohup … &`), a renamed `claude.exe`, or a reused pid; a TTY can be emulated; the hooks' command analysis does not detect a command built at runtime; and the reviewer identity is whatever is declared. The underlying rule does not change: **a person approves, in their own terminal.**
+
+---
+
+## 9. Where each piece lives
+
+| Piece | Module |
 | :--- | :--- |
 | Conductor, `NextAction` | `rapid_os/orchestration/conductor.py`, `actions.py` |
-| Verbos del porcelain (E/S) | `rapid_os/orchestration/lifecycle.py`, `check.py`, `session.py`, `workspace.py` |
+| Porcelain verbs (I/O) | `rapid_os/orchestration/lifecycle.py`, `check.py`, `session.py`, `workspace.py` |
 | Playbooks | `templates/modes/*.json`, `rapid_os/orchestration/playbooks.py` |
-| Hooks | `rapid_os/orchestration/hooks.py` (decisión pura), `hook_runtime.py`, `rapid_os/adapters/claude_hooks.py` |
+| Hooks | `rapid_os/orchestration/hooks.py` (pure decision), `hook_runtime.py`, `rapid_os/adapters/claude_hooks.py` |
 | Shortcuts | `templates/shortcuts/*.md`, `rapid_os/adapters/shortcut_installer.py`, `rapid_os/adapters/agents/` |
-| Ascendencia de procesos | `rapid_os/core/ancestry.py` |
-| Motor de gobernanza | [Arquitectura v3](./rapid-os-v3.md) |
+| Process ancestry | `rapid_os/core/ancestry.py` |
+| Governance engine | [Architecture v3](./rapid-os-v3.md) |

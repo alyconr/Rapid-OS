@@ -1,74 +1,74 @@
 ---
-title: Modo Feature
-description: Ciclo de trabajo completo para desarrollar nuevas funcionalidades con RAPID OS.
+title: Feature Mode
+description: Complete workflow for developing new features with RAPID OS.
 ---
 
-# Modo Feature
+# Feature Mode
 
-El modo **Feature** está diseñado para implementar nuevas capacidades funcionales dentro de un sistema asegurando que no se rompan contratos existentes ni se desvíe el diseño arquitectónico.
+**Feature** mode is designed to implement new functional capabilities within a system while ensuring that existing contracts are not broken and the architectural design does not drift.
 
 ---
 
-## Con el shortcut `/rapid-feature`
+## With the `/rapid-feature` shortcut
 
 ```text
-/rapid-feature añadir exportación CSV al informe mensual
+/rapid-feature add CSV export to the monthly report
 ```
 
-(En Codex: `$rapid-feature …`.) El shortcut conduce el run completo; la instalación y la invocación por harness están en la [guía de shortcuts](../shortcuts.md).
+(In Codex: `$rapid-feature …`.) The shortcut drives the whole run; installation and per-harness invocation are covered in the [shortcuts guide](../shortcuts.md).
 
-Qué hace su playbook (`templates/modes/feature.json` y las reglas del Conductor):
+What its playbook does (`templates/modes/feature.json` and the Conductor rules):
 
-- `rapid next` entrega la plantilla de spec (`action.spec_template`: título, objetivo de negocio, alcance, criterios de aceptación y tareas atómicas `T001…`) y el agente la rellena desde tu objetivo.
-- Riesgo medio por defecto: la baseline se verifica y registra al iniciar (`gate.baseline`), las tareas se verifican con `rapid check`, y quedan `gate.tests` y `gate.final-verification` (humano).
-- **Arquitectura:** si el proyecto tiene `.rapid-os/standards/architecture.json` (lo escribe el onboarding con el stack elegido), el contrato incluye el gate de máquina `gate.architecture` (obligatorio, no dispensable) y `rapid next` propone `rapid check --gate gate.architecture -- rapid arch check`. Una violación de capas o de contrato público es `RAPID1420` y `rapid finish` no da `PASS` hasta que se corrija el código. Detalle en [Arquitectura por stack](../../concepts/architecture.md#el-gate-gatearchitecture).
-- El bucle es implementar cada tarea → `rapid check -- <test_command>` → `rapid finish`; la aprobación final la das tú en tu terminal.
+- `rapid next` delivers the spec template (`action.spec_template`: title, business objective, scope, acceptance criteria, and atomic tasks `T001…`) and the agent fills it in from your goal.
+- Medium risk by default: the baseline is verified and recorded at start (`gate.baseline`), tasks are verified with `rapid check`, and `gate.tests` and `gate.final-verification` (human) remain.
+- **Architecture:** if the project has `.rapid-os/standards/architecture.json` (written by onboarding with the chosen stack), the contract includes the machine gate `gate.architecture` (mandatory, cannot be waived) and `rapid next` proposes `rapid check --gate gate.architecture -- rapid arch check`. A layer or public-contract violation is `RAPID1420` and `rapid finish` does not give `PASS` until the code is fixed. Details in [Architecture by stack](../../concepts/architecture.md#the-gatearchitecture-gate).
+- The loop is implement each task → `rapid check -- <test_command>` → `rapid finish`; you give the final approval in your terminal.
 
-### En un proyecto nuevo (sin código ni tests)
+### In a new project (no code or tests)
 
-Rapid OS observa los cambios de un run con git, así que el proyecto tiene que estar en un repositorio: el onboarding lo crea si falta (`rapid start` sin repositorio falla con `RAPID1416`). Si el repositorio no tiene código fuente (fuera de `docs/` y las carpetas ocultas) ni tests, no hay nada de lo que tomar una baseline: el comando de tests saldría en rojo antes de empezar. En ese caso `rapid start feature`:
+Rapid OS observes a run's changes with git, so the project must be in a repository: onboarding creates it if missing (`rapid start` without a repository fails with `RAPID1416`). If the repository has no source code (outside `docs/` and hidden folders) and no tests, there is nothing to take a baseline from: the test command would be red before starting. In that case `rapid start feature`:
 
-- añade como primera tarea `T001: Scaffold mínimo con un test que pase`; tus tareas pasan a `T002…`, en el texto y en el contrato, y `rapid start` lo avisa en `notes` (por ejemplo `T001→T002`), que el agente te explica; usa siempre los ids que da `rapid next`;
-- crea el contrato **sin `gate.baseline`** y con el campo opcional `baseline_waived: "empty_repository"`; el run arranca activo;
-- cierra la tarea del scaffold con un `rapid check` en verde; a partir de ahí los tests son los de tu proyecto.
+- adds `T001: Minimal scaffold with a passing test` as the first task; your tasks become `T002…`, in the text and in the contract, and `rapid start` reports it in `notes` (for example `T001→T002`), which the agent explains to you; always use the ids that `rapid next` gives;
+- creates the contract **without `gate.baseline`** and with the optional field `baseline_waived: "empty_repository"`; the run starts active;
+- closes the scaffold task with a green `rapid check`; from then on the tests are your project's own.
 
-`rapid status` y `rapid finish` muestran `Sin baseline: proyecto nuevo`. Un repositorio con código pero sin tests conserva la baseline: crea un test que pase en una tarea, o usa el modo `research`. Los modos `bugfix`, `refactor` y `hardening` no arrancan en un repositorio vacío (`RAPID1413`: no hay código que arreglar, refactorizar o endurecer; usa `/rapid-feature`).
+`rapid status` and `rapid finish` show `No baseline: new project`. A repository with code but no tests keeps the baseline: create a passing test in a task, or use `research` mode. The `bugfix`, `refactor`, and `hardening` modes do not start in an empty repository (`RAPID1413`: there is no code to fix, refactor, or harden; use `/rapid-feature`).
 
-### La primera funcionalidad sale del brief
+### The first feature comes from the brief
 
-Si hiciste el onboarding con `/rapid-init` (o `rapid setup`), el brief (`docs/PRODUCT_BRIEF.md`) tiene una sección de historias con el formato `- [ ] H001: ...`. Cuando no hay un run activo, `rapid next` añade a la acción `author_spec` el campo opcional `seed` con **todas** las historias sin marcar, en orden, y los documentos de negocio y de modelo de datos si existen (referencia: [`rapid next`](../../cli.md#rapid-next)).
+If you onboarded with `/rapid-init` (or `rapid setup`), the brief (`docs/PRODUCT_BRIEF.md`) has a stories section using the format `- [ ] H001: ...`. When there is no active run, `rapid next` adds the optional `seed` field to the `author_spec` action, containing **all** unchecked stories in order, plus the business and data-model documents if they exist (reference: [`rapid next`](../../cli.md#rapid-next)).
 
 ```text
-/rapid-feature              # sin argumentos: propone la historia que conviene empezar y espera tu confirmación
-/rapid-feature H002         # con un id: usa esa historia
+/rapid-feature              # no arguments: proposes the story worth starting and waits for your confirmation
+/rapid-feature H002         # with an id: uses that story
 ```
 
-- Sin argumentos, el agente propone una historia entre las que quedan y, si no es la primera, te explica en una frase por qué (por ejemplo, por dependencias). Redacta la spec solo después de que lo confirmes.
-- Copia a `business_rules` de la spec las reglas relevantes de `docs/BUSINESS_RULES.md`, citando el documento, y etiqueta la spec con `story:<id>`.
-- Si el brief sigue siendo un borrador sin confirmar (`seed.confirmed` es `false`), el agente te avisa de que parte de supuestos.
-- Si la spec viene de una historia del brief, el agente añade el tag `story:<ID>` (por ejemplo `story:H002`). Cuando `rapid finish` termina en PASS, marca esa historia por ti (`H002 marcada como hecha en docs/PRODUCT_BRIEF.md`): cambia solo la línea `- [ ] H002:` a `- [x] H002:`, deja copia en `.rapid-os/backups/` y no cambia `source` ni `status` del brief. Con otro veredicto dice `H002 se marcará cuando el run pase`; con `rapid finish --no-tick` solo sugiere `Marca H002 como hecha`. Un run cubre una historia.
+- With no arguments, the agent proposes one of the remaining stories and, if it is not the first, explains in one sentence why (for example, because of dependencies). It writes the spec only after you confirm.
+- It copies the relevant rules from `docs/BUSINESS_RULES.md` into the spec's `business_rules`, citing the document, and tags the spec with `story:<id>`.
+- If the brief is still an unconfirmed draft (`seed.confirmed` is `false`), the agent warns you that part of it rests on assumptions.
+- If the spec comes from a brief story, the agent adds the tag `story:<ID>` (for example `story:H002`). When `rapid finish` ends in PASS, it ticks that story for you (`H002 marcada como hecha en docs/PRODUCT_BRIEF.md`): it changes only the line `- [ ] H002:` to `- [x] H002:`, leaves a copy in `.rapid-os/backups/`, and does not change the brief's `source` or `status`. With any other verdict it says `H002 se marcará cuando el run pase`; with `rapid finish --no-tick` it only suggests `Marca H002 como hecha`. One run covers one story.
 
-El resto de esta guía describe el mismo ciclo con comandos v3 (**Modo avanzado**), útil para CI, depuración y auditoría.
+The rest of this guide describes the same cycle with v3 commands (**Advanced mode**), useful for CI, debugging, and auditing.
 
 ---
 
-## Flujo paso a paso
+## Step-by-step workflow
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Dev as Desarrollador / Equipo
+    actor Dev as Developer / Team
     participant CLI as RAPID OS CLI
-    participant Harness as Coding Harness (Agente/IDE)
-    participant CI as CI & Evaluación
+    participant Harness as Coding Harness (Agent/IDE)
+    participant CI as CI & Evaluation
 
     Dev->>CLI: rapid scan --write
     Dev->>CLI: rapid spec create --mode feature ...
     Dev->>CLI: rapid context --mode feature --spec ...
     Dev->>CLI: rapid run create --spec ... --harness ...
-    CLI-->>Harness: Contrato & Contexto compilado
-    Note over Harness: Implementación de la funcionalidad
-    Harness-->>Dev: Código implementado y tests locales
+    CLI-->>Harness: Contract & compiled context
+    Note over Harness: Feature implementation
+    Harness-->>Dev: Implemented code and local tests
     Dev->>CLI: rapid evidence add --run ... (test_result)
     Dev->>CLI: rapid evidence add --run ... (git_result)
     Dev->>CLI: rapid evidence add --run ... (review)
@@ -77,32 +77,32 @@ sequenceDiagram
 
 ---
 
-## 1. Inspeccionar el proyecto y registrar la especificación
+## 1. Inspect the project and record the specification
 
-Antes de que el agente escriba código, captura el estado actual y formaliza la spec:
+Before the agent writes code, capture the current state and formalize the spec:
 
 ```bash
-# 1. Actualizar Project Intelligence
+# 1. Update Project Intelligence
 rapid scan --write
 
-# 2. Registrar la especificación en estado 'ready'
+# 2. Record the specification in 'ready' status
 rapid spec create \
-  --title "Notificaciones por Webhook" \
+  --title "Webhook Notifications" \
   --mode feature \
-  --objective "Emitir eventos de pago completado vía webhooks HTTP" \
-  --scope "Servicio de eventos y cliente HTTP con retries" \
-  --acceptance "Webhook firmado con HMAC-SHA256 y tests de entrega exitosos" \
-  --task "1. Crear modelo de webhook" \
-  --task "2. Implementar dispatcher asíncrono con exponential backoff" \
-  --task "3. Añadir suite de tests unitarios y de integración" \
+  --objective "Emit payment-completed events via HTTP webhooks" \
+  --scope "Event service and HTTP client with retries" \
+  --acceptance "Webhook signed with HMAC-SHA256 and successful delivery tests" \
+  --task "1. Create webhook model" \
+  --task "2. Implement async dispatcher with exponential backoff" \
+  --task "3. Add unit and integration test suite" \
   --status ready
 ```
 
 ---
 
-## 2. Compilar el contexto para el Coding Harness
+## 2. Compile the context for the Coding Harness
 
-Compila el paquete de contexto acotado al presupuesto de tokens, asociando la spec y el perfil de harness:
+Compile the context package bounded by the token budget, associating the spec and the harness profile:
 
 ```bash
 rapid context \
@@ -112,13 +112,13 @@ rapid context \
   --manifest
 ```
 
-Revisa el manifest para confirmar qué archivos de estándares (`architecture.md`, `standards/python.md`) y del proyecto fueron incluidos o excluidos por presupuesto.
+Review the manifest to confirm which standards files (`architecture.md`, `standards/python.md`) and project files were included or excluded by budget.
 
 ---
 
-## 3. Crear el contrato de ejecución (`ExecutionContract`)
+## 3. Create the execution contract (`ExecutionContract`)
 
-Genera el run formal en `.rapid-os/runs/`:
+Generate the formal run in `.rapid-os/runs/`:
 
 ```bash
 rapid run create \
@@ -128,9 +128,9 @@ rapid run create \
   --risk medium
 ```
 
-Esto evaluará la política (`.rapid-os/policy.json`) y definirá las compuertas necesarias (ej. `baseline_check`, `implementation_tests`, `peer_review`).
+This evaluates the policy (`.rapid-os/policy.json`) and defines the required gates (e.g. `baseline_check`, `implementation_tests`, `peer_review`).
 
-Verifica la compatibilidad del harness:
+Verify harness compatibility:
 
 ```bash
 rapid harness resolve --run notificaciones-por-webhook-r1-run-001 --require-compatible
@@ -138,28 +138,28 @@ rapid harness resolve --run notificaciones-por-webhook-r1-run-001 --require-comp
 
 ---
 
-## 4. Ejecución asistida por el Harness
+## 4. Harness-assisted execution
 
-Entrega el contexto compilado y el objetivo a tu coding harness (Cursor, Claude Code, Copilot, Codex o Antigravity).
+Hand the compiled context and the goal to your coding harness (Cursor, Claude Code, Copilot, Codex, or Antigravity).
 
-Durante la ejecución:
-- El harness debe implementar el modelo, el dispatcher y las pruebas.
-- No debe modificar archivos fuera del alcance (`--scope`) definido en la spec.
+During execution:
+- The harness must implement the model, the dispatcher, and the tests.
+- It must not modify files outside the scope (`--scope`) defined in the spec.
 
 ---
 
-## 5. Ingesta de Evidencias
+## 5. Evidence Ingestion
 
-Una vez finalizada la implementación y ejecutadas las pruebas por las herramientas del entorno, registra la evidencia verificable:
+Once the implementation is finished and the tests have been run by the environment's tools, record the verifiable evidence:
 
-### Evidencia de pruebas ejecutadas (`test_result`)
-Crea un archivo de autoría de evidencia (por ejemplo `test-evidence.json`):
+### Test execution evidence (`test_result`)
+Create an evidence authoring file (for example `test-evidence.json`):
 
 ```json
 {
   "kind": "test_result",
   "producer": "pytest",
-  "summary": "12 tests unitarios y de integración aprobados",
+  "summary": "12 unit and integration tests passed",
   "gate_ids": ["implementation_tests"],
   "payload": {
     "suite": "feature-tests",
@@ -171,7 +171,7 @@ Crea un archivo de autoría de evidencia (por ejemplo `test-evidence.json`):
 }
 ```
 
-Regístralo en el run:
+Record it in the run:
 
 ```bash
 rapid evidence add \
@@ -179,14 +179,14 @@ rapid evidence add \
   --input test-evidence.json
 ```
 
-### Evidencia de operaciones en git (`git_result`)
-Registra la evidencia de la inspección o modificación en git:
+### Git operations evidence (`git_result`)
+Record the evidence of the git inspection or modification:
 
 ```json
 {
   "kind": "git_result",
   "producer": "git-cli",
-  "summary": "Modificación y adición de archivos verificada en git",
+  "summary": "File modification and addition verified in git",
   "payload": {
     "operation": "modify"
   }
@@ -201,14 +201,14 @@ rapid evidence add \
 
 ---
 
-## 6. Verificación y Evaluación Final
+## 6. Final Verification and Evaluation
 
-1. Verifica la integridad matemática de la secuencia de evidencias:
+1. Verify the mathematical integrity of the evidence sequence:
    ```bash
    rapid evidence verify --run notificaciones-por-webhook-r1-run-001
    ```
 
-2. Ejecuta la evaluación determinista contra las reglas de comportamiento:
+2. Run the deterministic evaluation against the behavior rules:
    ```bash
    rapid eval run \
      --run notificaciones-por-webhook-r1-run-001 \
@@ -216,4 +216,4 @@ rapid evidence add \
      --require-pass
    ```
 
-Si todas las compuertas y reglas se satisfacen, el veredicto será `PASS` y el reporte se archivará de forma inmutable en `.rapid-os/evals/`.
+If all gates and rules are satisfied, the verdict will be `PASS` and the report will be archived immutably in `.rapid-os/evals/`.

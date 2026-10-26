@@ -1,20 +1,20 @@
 ---
-title: Estructura de archivos
-description: Qué archivos crea Rapid OS, cuáles son inmutables y qué comandos son de solo lectura o escritura.
+title: File structure
+description: Which files Rapid OS creates, which are immutable and which commands are read-only or write.
 ---
 
-# Estructura de archivos
+# File structure
 
-Rapid OS guarda la mayor parte de su estado de gobernanza dentro de `.rapid-os/`, dejando visibles los artefactos que deben poder versionarse, inspeccionarse y auditarse.
+Rapid OS keeps most of its governance state inside `.rapid-os/`, leaving visible the artifacts that must be versionable, inspectable and auditable.
 
-## Estructura principal
+## Main structure
 
 ```text
 project/
 ├── .rapid-os/
 │   ├── config.json
 │   ├── project.json
-│   ├── setup.json                  (estado del onboarding; lo escribe `rapid setup`)
+│   ├── setup.json                  (onboarding state; written by `rapid setup`)
 │   ├── policy.json
 │   ├── capabilities.lock
 │   ├── standards/
@@ -37,44 +37,44 @@ project/
 │   ├── evals/
 │   │   └── <run-id>/
 │   │       └── reports/
-│   ├── session.json                (run activo; estado local)
-│   └── scratch/                    (estado local de la capa porcelain)
+│   ├── session.json                (active run; local state)
+│   └── scratch/                    (local state of the porcelain layer)
 │       ├── checks/<run-id>/<n>.log
 │       ├── hooks.json
 │       └── hooks.log
 ├── .claude/skills/  .agents/skills/  .cursor/skills/  .github/prompts/   (shortcuts)
-├── .claude/settings.json                                                 (hooks de Claude Code)
+├── .claude/settings.json                                                 (Claude Code hooks)
 ├── docs/
-│   ├── PRODUCT_BRIEF.md            (doc del onboarding: brief)
-│   ├── BUSINESS_RULES.md           (doc del onboarding: business)
-│   ├── DATA_MODEL.md               (doc del onboarding: data-model)
-│   └── ARCHITECTURE.md             (doc del onboarding: architecture)
+│   ├── PRODUCT_BRIEF.md            (onboarding doc: brief)
+│   ├── BUSINESS_RULES.md           (onboarding doc: business)
+│   ├── DATA_MODEL.md               (onboarding doc: data-model)
+│   └── ARCHITECTURE.md             (onboarding doc: architecture)
 ├── SPECS.md
 ├── TASKS.md
 ├── ACCEPTANCE.md
 ├── references/
-└── archivos específicos del harness
+└── harness-specific files
 ```
 
-No todos los archivos existen desde el inicio; aparecen cuando se usa el módulo correspondiente.
+Not all files exist from the start; they appear when the corresponding module is used.
 
-## Archivos de la capa porcelain (shortcuts)
+## Porcelain layer files (shortcuts)
 
-| Ruta | Quién la escribe | Qué contiene |
+| Path | Who writes it | What it contains |
 | :--- | :--- | :--- |
-| `.rapid-os/session.json` | `rapid start` lo escribe; `rapid abort` lo borra | El run activo: `active_run_id`, `mode`, `harness`, `start_head` y, si aplica, `start_untracked` y `workspace_path`. `rapid finish` no lo toca: por eso un segundo `rapid finish` encuentra el run ya terminado. Estado local: no se versiona. |
-| `.rapid-os/scratch/checks/<run-id>/<n>.log` | `rapid check` | La salida completa de cada comando ejecutado con `rapid check`. La evidencia (`rapid:check`) la registra en `.rapid-os/evidence/`; el log es solo un apoyo. |
-| `.rapid-os/backups/<archivo>.<timestamp>.bak` | `rapid init`, `rapid setup` (`doc`, `finish`) y los comandos que regeneran `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `INSTRUCTIONS.md` y `.agent/rules/constitution.md` | La copia del archivo de agente anterior. Solo se crea si el contenido cambia, se conservan las 5 más recientes por archivo y no se versionan. |
-| `.rapid-os/scratch/hooks.json` | `rapid hook` | Guarda del hook `Stop` (evita bucles de continuación). |
-| `.rapid-os/scratch/hooks.log` | `rapid hook` | Una línea por decisión de los hooks; rota a `hooks.log.1`. |
-| `.claude/skills/<nombre>/SKILL.md` | `rapid shortcuts install` | Shortcuts de Claude Code. |
-| `.agents/skills/<nombre>/SKILL.md` | `rapid shortcuts install` | Shortcuts de Codex y Antigravity (comparten carpeta). |
-| `.cursor/skills/<nombre>/SKILL.md` | `rapid shortcuts install` | Shortcuts de Cursor. |
-| `.github/prompts/<nombre>.prompt.md` | `rapid shortcuts install` | Shortcuts de VS Code / Copilot (prompt files). |
-| `.claude/settings.json` | `rapid shortcuts install --hooks`, `rapid init --hooks` | Los hooks `Stop` y `PreToolUse` de Claude Code (`rapid hook stop`, `rapid hook pre-tool`). Se fusionan con tu configuración existente. |
-| `../<repo>-<run-id>` | `rapid start --worktree` | Worktree git aislado del run, en la rama `rapid/<run-id>`; su ruta queda en `workspace_path` de la sesión. Es un directorio hermano del repositorio, no una subcarpeta. |
+| `.rapid-os/session.json` | `rapid start` writes it; `rapid abort` deletes it | The active run: `active_run_id`, `mode`, `harness`, `start_head` and, if applicable, `start_untracked` and `workspace_path`. `rapid finish` does not touch it: that is why a second `rapid finish` finds the run already finished. Local state: not versioned. |
+| `.rapid-os/scratch/checks/<run-id>/<n>.log` | `rapid check` | The full output of each command run with `rapid check`. The evidence (`rapid:check`) is recorded in `.rapid-os/evidence/`; the log is only a support. |
+| `.rapid-os/backups/<file>.<timestamp>.bak` | `rapid init`, `rapid setup` (`doc`, `finish`) and the commands that regenerate `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `INSTRUCTIONS.md` and `.agent/rules/constitution.md` | The copy of the previous agent file. It is only created if the content changes, the 5 most recent per file are kept and they are not versioned. |
+| `.rapid-os/scratch/hooks.json` | `rapid hook` | Guard of the `Stop` hook (prevents continuation loops). |
+| `.rapid-os/scratch/hooks.log` | `rapid hook` | One line per hook decision; rotates to `hooks.log.1`. |
+| `.claude/skills/<name>/SKILL.md` | `rapid shortcuts install` | Claude Code shortcuts. |
+| `.agents/skills/<name>/SKILL.md` | `rapid shortcuts install` | Codex and Antigravity shortcuts (they share a folder). |
+| `.cursor/skills/<name>/SKILL.md` | `rapid shortcuts install` | Cursor shortcuts. |
+| `.github/prompts/<name>.prompt.md` | `rapid shortcuts install` | VS Code / Copilot shortcuts (prompt files). |
+| `.claude/settings.json` | `rapid shortcuts install --hooks`, `rapid init --hooks` | The Claude Code `Stop` and `PreToolUse` hooks (`rapid hook stop`, `rapid hook pre-tool`). They are merged with your existing configuration. |
+| `../<repo>-<run-id>` | `rapid start --worktree` | Isolated git worktree of the run, on the branch `rapid/<run-id>`; its path is stored in the session's `workspace_path`. It is a sibling directory of the repository, not a subfolder. |
 
-Se recomienda añadir a `.gitignore`:
+Adding the following to `.gitignore` is recommended:
 
 ```gitignore
 .rapid-os/session.json
@@ -85,13 +85,13 @@ __pycache__/
 .pytest_cache/
 ```
 
-`rapid init` y `rapid setup finish` añaden las líneas que falten a un `.gitignore` **existente** (no lo crean si no hay uno). Las tres últimas evitan que los artefactos de las herramientas se confundan con cambios del proyecto; aun así `rapid finish` los ignora por nombre aunque no estén en el `.gitignore` (ver [`file_change`](../cookbooks/evidence-engine.md)).
+`rapid init` and `rapid setup finish` add the missing lines to an **existing** `.gitignore` (they do not create one if there is none). The last three keep tool artifacts from being mistaken for project changes; even so, `rapid finish` ignores them by name even if they are not in the `.gitignore` (see [`file_change`](../cookbooks/evidence-engine.md)).
 
-Los archivos de shortcuts y `.claude/settings.json` sí conviene versionarlos, para que todo el equipo use el mismo flujo. `rapid shortcuts remove` borra solo los archivos con el marcador `<!-- generated by rapid shortcuts -->`.
+It is a good idea to version the shortcut files and `.claude/settings.json`, so the whole team uses the same workflow. `rapid shortcuts remove` deletes only files with the marker `<!-- generated by rapid shortcuts -->`.
 
-## Archivos heredados de contexto
+## Legacy context files
 
-`rapid init` puede generar archivos como:
+`rapid init` can generate files such as:
 
 - `.cursorrules`
 - `CLAUDE.md`
@@ -99,36 +99,36 @@ Los archivos de shortcuts y `.claude/settings.json` sí conviene versionarlos, p
 - `INSTRUCTIONS.md`
 - `AGENTS.md`
 
-También mantiene estándares dentro de `.rapid-os/standards/`.
+It also maintains standards inside `.rapid-os/standards/`.
 
-## Documentos del onboarding
+## Onboarding documents
 
-Cuatro documentos de `docs/` entran al contexto como fuentes propias (`rapid context` y los archivos de agente), con la procedencia visible. Ver [Documentos del proyecto y su procedencia](../concepts/project-docs.md).
+Four documents in `docs/` enter the context as sources of their own (`rapid context` and the agent files), with their provenance visible. See [Project documents and their provenance](../concepts/project-docs.md).
 
-| Fuente de contexto | Ruta | Prioridad | Tipo | Tags |
+| Context source | Path | Priority | Type | Tags |
 | :--- | :--- | :--- | :--- | :--- |
-| `doc.brief` | `docs/PRODUCT_BRIEF.md` | alta | `product` | `product`, `feature`, `spec` |
-| `doc.business` | `docs/BUSINESS_RULES.md` | alta | `business` | `business`, `domain`, `product` |
-| `doc.data-model` | `docs/DATA_MODEL.md` | media | `data_model` | `data`, `database`, `backend`, `domain` |
-| `doc.architecture` | `docs/ARCHITECTURE.md` | alta | `architecture` | `architecture`, `topology`, `backend`, `frontend` |
+| `doc.brief` | `docs/PRODUCT_BRIEF.md` | high | `product` | `product`, `feature`, `spec` |
+| `doc.business` | `docs/BUSINESS_RULES.md` | high | `business` | `business`, `domain`, `product` |
+| `doc.data-model` | `docs/DATA_MODEL.md` | medium | `data_model` | `data`, `database`, `backend`, `domain` |
+| `doc.architecture` | `docs/ARCHITECTURE.md` | high | `architecture` | `architecture`, `topology`, `backend`, `frontend` |
 
-Un archivo de `docs/` cuenta **solo** si su frontmatter tiene `rapid-doc: <id>` con el id de la tabla (muchos repositorios ya tienen su propio `docs/`, y Rapid OS mismo lo tiene). El frontmatter nunca se inyecta en el contenido. La ruta y la prioridad salen de los bancos de `templates/setup/docs/`.
+A file in `docs/` counts **only** if its frontmatter has `rapid-doc: <id>` with the id from the table (many repositories already have their own `docs/`, and Rapid OS itself has one). The frontmatter is never injected into the content. The path and priority come from the banks in `templates/setup/docs/`.
 
-## Artefactos inmutables
+## Immutable artifacts
 
-Los registries v3 priorizan append-only e integridad por digest.
+The v3 registries prioritize append-only and digest integrity.
 
-Ejemplos:
+Examples:
 
-- revisiones de Specs no se editan en sitio;
-- snapshots históricos de `RunState` no se sobrescriben;
-- records de Evidence usan IDs secuenciales;
-- reportes de evaluación se agregan por revisión;
-- artefactos de Evidence se copian y verifican por SHA-256 y tamaño.
+- Spec revisions are not edited in place;
+- historical `RunState` snapshots are not overwritten;
+- Evidence records use sequential IDs;
+- evaluation reports are added per revision;
+- Evidence artifacts are copied and verified by SHA-256 and size.
 
-## Comandos de solo lectura
+## Read-only commands
 
-Ejemplos:
+Examples:
 
 ```text
 rapid guide
@@ -152,20 +152,20 @@ rapid eval list
 rapid eval show
 ```
 
-### Verbos de la capa porcelain
+### Porcelain layer verbs
 
-| Clase | Verbos |
+| Class | Verbs |
 | :--- | :--- |
-| Solo lectura | `rapid next`, `rapid status`, `rapid shortcuts list` |
-| Escriben estado | `rapid start`, `rapid check`, `rapid task`, `rapid attach`, `rapid finish`, `rapid approve`, `rapid abort`, `rapid shortcuts install`, `rapid shortcuts remove` |
+| Read-only | `rapid next`, `rapid status`, `rapid shortcuts list` |
+| Write state | `rapid start`, `rapid check`, `rapid task`, `rapid attach`, `rapid finish`, `rapid approve`, `rapid abort`, `rapid shortcuts install`, `rapid shortcuts remove` |
 
-`rapid next` y `rapid status` solo leen el ledger y la sesión. `rapid check` ejecuta el comando que le pasas (o el `test_command` de `.rapid-os/config.json`) y registra evidencia; `rapid start --worktree` crea además el worktree. `rapid hook` solo escribe en `.rapid-os/scratch/`.
+`rapid next` and `rapid status` only read the ledger and the session. `rapid check` runs the command you pass it (or the `test_command` from `.rapid-os/config.json`) and records evidence; `rapid start --worktree` also creates the worktree. `rapid hook` only writes to `.rapid-os/scratch/`.
 
-Algunos comandos cambian de comportamiento con flags. Por ejemplo, `rapid scan` es de solo lectura salvo que se use `--write`, y `rapid eval run` solo persiste un reporte con `--write`.
+Some commands change behavior with flags. For example, `rapid scan` is read-only unless `--write` is used, and `rapid eval run` only persists a report with `--write`.
 
-## Comandos que escriben estado
+## Commands that write state
 
-Ejemplos:
+Examples:
 
 ```text
 rapid init
@@ -189,25 +189,25 @@ rapid vision
 rapid deploy
 ```
 
-Consulta [la referencia CLI](../cli) para los flags y contratos exactos de cada comando.
+See [the CLI reference](../cli) for the exact flags and contracts of each command.
 
-## Protección de rutas y backups
+## Path protection and backups
 
-Rapid OS valida contención de rutas para evitar path traversal y escapes mediante symlinks en los registries gobernados. Las operaciones heredadas que sobrescriben ciertos archivos utilizan backups `.bak` cuando corresponde. Los archivos de agente que Rapid OS regenera (`CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `INSTRUCTIONS.md`, `.agent/rules/constitution.md`) no dejan `.bak` en la raíz del proyecto: su copia anterior va a `.rapid-os/backups/`, solo si el contenido cambió, y se conservan las 5 más recientes por archivo.
+Rapid OS validates path containment to prevent path traversal and symlink escapes in the governed registries. Legacy operations that overwrite certain files use `.bak` backups where appropriate. The agent files that Rapid OS regenerates (`CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `INSTRUCTIONS.md`, `.agent/rules/constitution.md`) leave no `.bak` in the project root: their previous copy goes to `.rapid-os/backups/`, only if the content changed, and the 5 most recent per file are kept.
 
-## Stacks del catálogo
+## Catalog stacks
 
-Cada componente de la topología tiene su stack (ver [Stacks y componentes](../concepts/stacks.md)). `rapid init --stack <id>` y `rapid setup set stack <id> [--component <c>]` escriben en `.rapid-os/standards/tech-stack.md` la plantilla `templates/stacks/<componente>/<id>.md` de cada stack elegido, y el sidecar `<id>.json` declara sus factores, fuentes, topologías compatibles y servicios soportados.
+Each topology component has its own stack (see [Stacks and components](../concepts/stacks.md)). `rapid init --stack <id>` and `rapid setup set stack <id> [--component <c>]` write the `templates/stacks/<component>/<id>.md` template of each chosen stack to `.rapid-os/standards/tech-stack.md`, and the `<id>.json` sidecar declares its factors, sources, compatible topologies and supported services.
 
-| Componente | Stacks |
+| Component | Stacks |
 | :--- | :--- |
 | `backend` | `python-fastapi`, `python-django`, `node-nestjs`, `node-fastify`, `go`, `rust-axum`, `ruby-rails`, `dotnet-aspnetcore`, `java-spring-boot`, `kotlin-spring-boot`, `php-laravel` |
 | `frontend` | `react-vite`, `nextjs`, `angular`, `vue-vite`, `nuxt`, `svelte-vite`, `sveltekit`, `astro` |
-| `docs` | `docs-modern` (Docusaurus), compatible solo con `doc-site` |
-| todos | `generic` (sin plantilla: se genera con lo que detecta el escáner) y `custom` (el `tech-stack.md` que escribe el agente) |
+| `docs` | `docs-modern` (Docusaurus), compatible only with `doc-site` |
+| all | `generic` (no template: generated from what the scanner detects) and `custom` (the `tech-stack.md` written by the agent) |
 
-Los ids de antes (`python-api`, `python-ai`, `nodejs-ai`, `web-modern`, `frontend-creative`) se siguen aceptando; ver la [guía de migración](./setup-json-migration.md).
+The previous ids (`python-api`, `python-ai`, `nodejs-ai`, `web-modern`, `frontend-creative`) are still accepted; see the [migration guide](./setup-json-migration.md).
 
-`rapid validate` reconoce el stack por la marca `<!-- rapid-stack: backend=go -->` que Rapid OS escribe al final de cada bloque de `tech-stack.md`, y en un archivo anterior por su encabezado (`TECH STACK: PYTHON API`...).
+`rapid validate` recognizes the stack by the mark `<!-- rapid-stack: backend=go -->` that Rapid OS writes at the end of each `tech-stack.md` block, and in an older file by its heading (`TECH STACK: PYTHON API`...).
 
-La seguridad de rutas protege los artefactos de Rapid OS, pero no sustituye los controles de permisos del sistema operativo o del entorno donde se ejecute el coding harness.
+Path safety protects Rapid OS artifacts, but it does not replace the permission controls of the operating system or of the environment where the coding harness runs.

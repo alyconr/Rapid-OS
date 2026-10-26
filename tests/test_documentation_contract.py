@@ -80,60 +80,60 @@ class DocumentationContractTests(unittest.TestCase):
         boundaries = (DOCS / "concepts" / "product-boundaries.md").read_text(encoding="utf-8").lower()
         capability = (DOCS / "guides" / "permissions-capabilities.md").read_text(encoding="utf-8").lower()
 
-        self.assertIn("no invoca automáticamente", concept)
-        self.assertIn("no crea branches o worktrees", concept)
+        self.assertIn("does not automatically invoke", concept)
+        self.assertIn("does not create branches or worktrees on its own", concept)
         # What actually runs: the plumbing nothing; the porcelain only test_command / the rapid check argv.
-        self.assertIn("el plumbing", concept)
-        self.assertIn("no ejecuta nada del repositorio", concept)
-        self.assertIn("el porcelain ejecuta solo el `test_command`", concept)
-        self.assertIn("rapid check -- <comando>", concept)
-        self.assertIn("nunca aprueba gates humanos", concept)
-        self.assertIn("el plumbing no ejecuta nada del repositorio; el porcelain ejecuta solo lo que se le pide", boundaries)
-        self.assertIn("solo el `test_command` de `.rapid-os/config.json`", boundaries)
-        self.assertIn("nunca aprueba gates humanos", boundaries)
+        self.assertIn("the plumbing (", concept)
+        self.assertIn("does not execute anything from the repository", concept)
+        self.assertIn("the porcelain runs only the `test_command`", concept)
+        self.assertIn("rapid check -- <command>", concept)
+        self.assertIn("never approves human gates", concept)
+        self.assertIn("plumbing executes nothing from the repository; porcelain executes only what it is asked to", boundaries)
+        self.assertIn("only the `test_command` from `.rapid-os/config.json`", boundaries)
+        self.assertIn("never approves human gates", boundaries)
         self.assertIn("rapid start --worktree", capability)
-        self.assertIn("nunca crea contenedores ni sandboxes", capability)
+        self.assertIn("it never creates containers or sandboxes", capability)
         self.assertIn("rapid shortcuts install", concept)
         self.assertIn("rapid hook stop|pre-tool", concept)
-        self.assertIn("algún ancestro es un harness de agente", boundaries)
-        self.assertIn("los hooks deniegan herramientas al agente, pero rapid os no invoca agentes", boundaries)
-        self.assertIn("de mejor esfuerzo", boundaries)
+        self.assertIn("any ancestor is an agent harness", boundaries)
+        self.assertIn("hooks deny tools to the agent, but rapid os does not invoke agents", boundaries)
+        self.assertIn("best-effort", boundaries)
         self.assertIn("rapid start --worktree", concept)
         self.assertIn("rapid start --worktree", boundaries)
-        self.assertIn("rapid abort` nunca lo elimina", boundaries)
-        self.assertIn("no instala shortcuts de harness por su cuenta", boundaries)
+        self.assertIn("rapid abort` never removes it", boundaries)
+        self.assertIn("does not install harness shortcuts on its own", boundaries)
         # Onboarding: what rapid setup / rapid init write, and that nothing is confirmed for the person.
-        self.assertIn("nunca marca como confirmado lo que la persona no confirmó", concept)
+        self.assertIn("never marks as confirmed what the person did not confirm", concept)
         self.assertIn("rapid setup doc <id> --confirm", concept)
         self.assertIn("rapid setup finish", concept)
-        self.assertIn("no confirma por la persona ni crea documentación por su cuenta", boundaries)
-        self.assertIn("`source: drafted` y `status: draft`", boundaries)
-        self.assertIn("andamiaje `todo` de `docs/`", boundaries)
+        self.assertIn("does not confirm on the person's behalf or create documentation on its own", boundaries)
+        self.assertIn("`source: drafted` and `status: draft`", boundaries)
+        self.assertIn("`todo` scaffolding in `docs/`", boundaries)
         # Shortcuts: --global is the only way Rapid OS writes outside the project.
         self.assertIn("rapid shortcuts install --global", concept)
         self.assertIn("rapid shortcuts install --global", boundaries)
-        self.assertIn("nunca por defecto", concept)
-        self.assertIn("nunca por defecto", boundaries)
+        self.assertIn("never by default", concept)
+        self.assertIn("never by default", boundaries)
         # Brief stories and agent-file backups.
-        self.assertIn("solo marca como hecha la historia del brief que el run cerró", concept)
+        self.assertIn("only marks as done the brief story that the run closed", concept)
         self.assertIn(".rapid-os/backups/", concept)
-        self.assertIn("solo crea un repositorio git", concept)
-        self.assertIn("nunca hace commits", concept)
-        self.assertIn("solo marca la historia que el run cerró", boundaries)
+        self.assertIn("only creates a git repository", concept)
+        self.assertIn("never makes commits", concept)
+        self.assertIn("only ticks the story the run closed", boundaries)
         self.assertIn(".rapid-os/backups/", boundaries)
-        self.assertIn("solo crea un repositorio git", boundaries)
-        self.assertIn("todos sus comandos git pasan por una sola puerta", boundaries)
-        self.assertIn("la arquitectura se verifica leyendo imports, no ejecutando código", boundaries)
-        self.assertIn("escribe la base de seguridad y su ci, pero no ejecuta los escaneos", boundaries)
-        self.assertIn("escribe la base de seguridad", concept)
-        self.assertIn("escribe la regla de arquitectura", concept)
-        self.assertIn("nunca modifica la configuración de git de la persona", boundaries)
-        self.assertIn("nunca hace commits", boundaries)
-        self.assertIn("nunca aprueban gates humanos", boundaries)
-        self.assertIn("no invoca automáticamente", boundaries)
-        self.assertIn("no utiliza llm-as-a-judge", boundaries)
+        self.assertIn("only creates a git repository", boundaries)
+        self.assertIn("all its git commands go through a single gate", boundaries)
+        self.assertIn("architecture is verified by reading imports, not by running code", boundaries)
+        self.assertIn("it writes the security baseline and its ci, but does not run the scans", boundaries)
+        self.assertIn("writes the security baseline", concept)
+        self.assertIn("writes the architecture rule", concept)
+        self.assertIn("never modifies the person's git configuration", boundaries)
+        self.assertIn("never makes commits", boundaries)
+        self.assertIn("shortcuts never approve human gates", boundaries)
+        self.assertIn("does not automatically invoke", boundaries)
+        self.assertIn("does not use llm-as-a-judge", boundaries)
         self.assertIn("capability", capability)
-        self.assertIn("evidencia", capability)
+        self.assertIn("evidence", capability)
         self.assertIn("unknown", capability)
 
     def test_python_requirements_align_with_pyproject(self):
@@ -150,8 +150,8 @@ class DocumentationContractTests(unittest.TestCase):
         install_index = (DOCS / "installation" / "index.md").read_text(encoding="utf-8")
         self.assertIn("v3.1.1", install_index)
         self.assertIn("main", install_index)
-        self.assertIn("Estable", install_index)
-        self.assertIn("Desarrollo", install_index)
+        self.assertIn("Stable", install_index)
+        self.assertIn("Development", install_index)
 
     def test_reference_contains_all_governance_commands(self):
         """All governance commands are documented in cli.md and match CLI parser."""
@@ -415,17 +415,17 @@ class DocumentationContractTests(unittest.TestCase):
                 self.assertIn("rapid shortcuts install", text)
                 self.assertIn(f"--harness {harness}", text)
                 self.assertIn(invocation, text)
-                self.assertIn("## Flujo principal: shortcuts", text)
-                self.assertIn("## Modo avanzado (comandos v3)", text)
+                self.assertIn("## Main workflow: shortcuts", text)
+                self.assertIn("## Advanced mode (v3 commands)", text)
                 self.assertIn("guides/shortcuts.md", text)
                 # The main flow comes right after the configuration sections and before the advanced one.
-                self.assertLess(text.index("## Flujo principal: shortcuts"), text.index("## Modo avanzado (comandos v3)"))
+                self.assertLess(text.index("## Main workflow: shortcuts"), text.index("## Advanced mode (v3 commands)"))
                 self.assertIn("rapid eval run", text)  # the v3 flow is kept, not deleted
 
     def test_integrations_index_mentions_shortcuts_and_the_advanced_mode(self):
         text = (DOCS / "integrations" / "index.md").read_text(encoding="utf-8")
         self.assertIn("shortcuts", text)
-        self.assertIn("Modo avanzado", text)
+        self.assertIn("Advanced mode", text)
         self.assertIn("guides/shortcuts.md", text)
 
     def test_mode_guides_open_with_their_shortcut(self):
@@ -434,8 +434,8 @@ class DocumentationContractTests(unittest.TestCase):
             text = (DOCS / "guides" / "modes" / f"{mode}.md").read_text(encoding="utf-8")
             with self.subTest(mode=mode):
                 self.assertIn(f"/rapid-{mode}", text)
-                self.assertIn(f"## Con el shortcut `/rapid-{mode}`", text)
-                self.assertIn("Modo avanzado", text)
+                self.assertIn(f"## With the `/rapid-{mode}` shortcut", text)
+                self.assertIn("Advanced mode", text)
                 self.assertIn("../shortcuts.md", text)
                 if "rapid spec create" in text:
                     self.assertLess(text.index(f"/rapid-{mode}"), text.index("rapid spec create"))
@@ -446,10 +446,10 @@ class DocumentationContractTests(unittest.TestCase):
     def test_mode_guides_state_their_playbook_rules(self):
         """The playbook rules come from templates/modes/*.json and the Conductor, not from memory."""
         rules = {
-            "bugfix": ("rapid check --expect fail --task T001", "antes"),
-            "refactor": ("tests pasados", "baseline"),
+            "bugfix": ("rapid check --expect fail --task T001", "before"),
+            "refactor": ("passing tests", "baseline"),
             "hardening": ("rapid start hardening --spec-file - --worktree", "rapid/<run-id>"),
-            "research": ("rapid attach", "tests obligatorios"),
+            "research": ("rapid attach", "mandatory tests"),
         }
         for mode, needles in rules.items():
             text = (DOCS / "guides" / "modes" / f"{mode}.md").read_text(encoding="utf-8")
@@ -463,14 +463,14 @@ class DocumentationContractTests(unittest.TestCase):
         sidebars = (WEBSITE / "sidebars.ts").read_text(encoding="utf-8")
         self.assertTrue((DOCS / "guides" / "shortcuts.md").is_file())
         self.assertIn("'guides/shortcuts'", sidebars)
-        # It lives in its own category, right after "Primeros pasos" and before "Modos de ingeniería".
-        category = sidebars.index("label: 'Shortcuts y orquestación'")
-        self.assertLess(sidebars.index("label: 'Primeros pasos'"), category)
-        self.assertLess(category, sidebars.index("label: 'Modos de ingeniería'"))
+        # It lives in its own category, right after "Getting Started" and before "Engineering Modes".
+        category = sidebars.index("label: 'Shortcuts and Orchestration'")
+        self.assertLess(sidebars.index("label: 'Getting Started'"), category)
+        self.assertLess(category, sidebars.index("label: 'Engineering Modes'"))
         self.assertLess(category, sidebars.index("'guides/shortcuts'"))
-        self.assertLess(sidebars.index("'guides/shortcuts'"), sidebars.index("label: 'Modos de ingeniería'"))
-        # ...and no longer in "Primeros pasos".
-        first_steps = sidebars[sidebars.index("label: 'Primeros pasos'"):category]
+        self.assertLess(sidebars.index("'guides/shortcuts'"), sidebars.index("label: 'Engineering Modes'"))
+        # ...and no longer in "Getting Started".
+        first_steps = sidebars[sidebars.index("label: 'Getting Started'"):category]
         self.assertNotIn("guides/shortcuts", first_steps)
 
     def test_shortcuts_guide_table_matches_the_adapters(self):
@@ -503,13 +503,13 @@ class DocumentationContractTests(unittest.TestCase):
 
     def test_readme_leads_with_the_shortcuts_quick_start(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertIn("Quick start con shortcuts", readme)
-        self.assertLess(readme.index("Quick start con shortcuts"), readme.index('## Usage <a name="usage">'))
+        self.assertIn("Quick start with shortcuts", readme)
+        self.assertLess(readme.index("Quick start with shortcuts"), readme.index('## Usage <a name="usage">'))
         for needle in ("rapid init --shortcuts", "/rapid-feature", "$rapid-feature", "guides/shortcuts"):
             self.assertIn(needle, readme)
         reference = readme[readme.index('<a name="cli-reference">'):]
-        porcelain = reference.index("Flujo principal: verbos porcelain")
-        advanced = reference.index("Comandos v3 y utilidades (Modo avanzado)")
+        porcelain = reference.index("Main flow: porcelain verbs")
+        advanced = reference.index("v3 commands and utilities (Advanced mode)")
         self.assertLess(porcelain, advanced)
         block = reference[porcelain:advanced]
         for verb in ("rapid start", "rapid next", "rapid check", "rapid task", "rapid attach", "rapid finish",
@@ -558,19 +558,19 @@ class DocumentationContractTests(unittest.TestCase):
         navbar = config[config.index("navbar: {"):config.index("footer: {")]
         footer = config[config.index("footer: {"):]
         self.assertIn("{to: '/guides/shortcuts', label: 'Shortcuts', position: 'left'}", navbar)
-        self.assertLess(navbar.index("label: 'Primeros pasos'"), navbar.index("label: 'Shortcuts'"))
-        self.assertLess(navbar.index("label: 'Shortcuts'"), navbar.index("label: 'Modos'"))
+        self.assertLess(navbar.index("label: 'Getting Started'"), navbar.index("label: 'Shortcuts'"))
+        self.assertLess(navbar.index("label: 'Shortcuts'"), navbar.index("label: 'Modes'"))
         self.assertIn("{label: 'Shortcuts', to: '/guides/shortcuts'}", footer)
-        self.assertIn("{label: 'Arquitectura de orquestación', to: '/architecture/orchestration'}", footer)
+        self.assertIn("{label: 'Orchestration Architecture', to: '/architecture/orchestration'}", footer)
         self.assertIn("{label: 'Release v3.1.1', to: '/release-v3.1.1'}", footer)
 
     def test_orchestration_architecture_covers_the_porcelain_design(self):
         text = (DOCS / "architecture" / "orchestration.md").read_text(encoding="utf-8")
         for needle in (
-            "Porcelain sobre plumbing", "next_action", "BehavioralEvaluator", "gate_satisfied",
+            "Porcelain on top of plumbing", "next_action", "BehavioralEvaluator", "gate_satisfied",
             "NextAction", "action.kind", "awaiting_human", "workspace_path", ".rapid-os/session.json",
             "start_head", "start_untracked", "rapid:check", "rapid:start", "rapid:finish", "rapid:attach",
-            "expectation", "harness:*", "RAPID1310", "ascendencia", "mejor esfuerzo", "una persona aprueba",
+            "expectation", "harness:*", "RAPID1310", "ancestry", "best-effort", "a person approves",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, text)
@@ -661,7 +661,7 @@ class DocumentationContractTests(unittest.TestCase):
     def test_readme_boundaries_no_longer_make_false_claims(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         for stale in ("run tests automatically", "create git worktrees automatically", "execute shell commands for runs",
-                      "ni ejecuta tests automáticamente"):
+                      "neither runs tests automatically"):
             with self.subTest(stale=stale):
                 self.assertNotIn(stale, readme)
         block = readme[readme.index("Rapid OS DOES NOT:"):]
@@ -669,11 +669,11 @@ class DocumentationContractTests(unittest.TestCase):
                        "`rapid check`", "test_command"):
             with self.subTest(needle=needle):
                 self.assertIn(needle, block)
-        self.assertIn("nunca aprueba gates humanos", readme)
+        self.assertIn("never approves human gates", readme)
 
     def test_readme_canonical_suite_links_shortcuts_and_orchestration(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        start = readme.index("### 📚 Suite Canónica de Documentación")
+        start = readme.index("### 📚 Canonical Documentation Suite")
         suite = readme[start:readme.index('<p align="right">', start)]
         self.assertIn("/guides/shortcuts", suite)
         self.assertIn("/architecture/orchestration", suite)
@@ -702,9 +702,9 @@ class DocumentationContractTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, notes)
         upgrade = (DOCS / "installation" / "upgrade.md").read_text(encoding="utf-8")
-        self.assertIn("## 5. De 3.0 a 3.1", upgrade)
+        self.assertIn("## 5. From 3.0 to 3.1", upgrade)
         for needle in ("rapid init --shortcuts", "rapid shortcuts install", "--hooks", ".rapid-os/session.json",
-                       ".rapid-os/scratch/", "test_command", "nada que migrar"):
+                       ".rapid-os/scratch/", "test_command", "nothing needs to be migrated"):
             with self.subTest(needle=needle):
                 self.assertIn(needle, upgrade)
 
@@ -719,29 +719,29 @@ class DocumentationContractTests(unittest.TestCase):
             text = page.read_text(encoding="utf-8")
             with self.subTest(page=page.relative_to(DOCS).as_posix()):
                 self.assertTrue(
-                    "rapid shortcuts" in text or "/rapid-" in text or "Modo avanzado" in text,
-                    "must mention `rapid shortcuts` or `/rapid-`, or declare 'Modo avanzado'",
+                    "rapid shortcuts" in text or "/rapid-" in text or "Advanced mode" in text,
+                    "must mention `rapid shortcuts` or `/rapid-`, or declare 'Advanced mode'",
                 )
 
     def test_getting_started_is_the_shortcuts_route_with_a_map_and_advanced_mode(self):
         text = (DOCS / "getting-started.md").read_text(encoding="utf-8")
         for needle in ("rapid init --shortcuts", "rapid shortcuts install --global", "/rapid-init", "/rapid-feature",
-                       "rapid approve", "## 2. Mapa de esta sección", "## Modo avanzado",
+                       "rapid approve", "## 2. Section map", "## Advanced mode",
                        "governance-loop.md", "tutorials/first-governed-project.md"):
             with self.subTest(needle=needle):
                 self.assertIn(needle, text)
         for sub in ("first-project", "existing-project", "first-spec", "first-context", "next-steps"):
             self.assertIn(f"getting-started/{sub}.md", text)
-        self.assertNotIn("Getting Started with", text)
+        self.assertIn("# Getting Started with Rapid OS", text)
 
     def test_onboarding_pages_have_a_with_shortcuts_section(self):
         for relative in ("existing-project.md", "first-spec.md", "first-context.md"):
             text = (DOCS / "getting-started" / relative).read_text(encoding="utf-8")
             with self.subTest(page=relative):
-                self.assertIn("## Con shortcuts", text)
-                self.assertIn("## Modo avanzado", text)
+                self.assertIn("## With shortcuts", text)
+                self.assertIn("## Advanced mode", text)
         spec = (DOCS / "getting-started" / "first-spec.md").read_text(encoding="utf-8")
-        for needle in ("author_spec", "spec_template", "rapid start <modo> --spec-file -"):
+        for needle in ("author_spec", "spec_template", "rapid start <mode> --spec-file -"):
             self.assertIn(needle, spec)
 
     def test_tutorials_index_maps_labs_to_shortcuts_and_first_lab_is_flagged_advanced(self):
@@ -749,7 +749,7 @@ class DocumentationContractTests(unittest.TestCase):
         for shortcut in ("/rapid-feature", "/rapid-bugfix", "/rapid-refactor", "/rapid-hardening", "/rapid-research"):
             self.assertIn(shortcut, index)
         first = (DOCS / "tutorials" / "first-governed-project.md").read_text(encoding="utf-8")
-        self.assertIn("**Modo avanzado.**", first)
+        self.assertIn("**Advanced mode.**", first)
         self.assertIn("feature-lab.md", first)
 
     def test_project_layout_covers_the_porcelain_files_and_verb_classes(self):
@@ -763,7 +763,7 @@ class DocumentationContractTests(unittest.TestCase):
 
     def test_core_concepts_cover_the_porcelain_vocabulary(self):
         text = (DOCS / "concepts" / "core-concepts.md").read_text(encoding="utf-8")
-        for needle in ("Sesión", "NextAction", "Playbook", "Shortcut", "Productor porcelain", "Gate humano",
+        for needle in ("Session", "NextAction", "Playbook", "Shortcut", "Porcelain producer", "Human gate",
                        "architecture/orchestration.md"):
             with self.subTest(needle=needle):
                 self.assertIn(needle, text)
@@ -788,9 +788,9 @@ class DocumentationContractTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", workflow)
         self.assertNotIn("push:", workflow)
         deployment = (DOCS / "operations" / "documentation-deployment.md").read_text(encoding="utf-8")
-        self.assertIn("Solo `workflow_dispatch` (manual)", deployment)
-        self.assertNotIn("workflow_dispatch` o push a `main`", deployment)
-        self.assertIn("paso obligatorio", deployment)
+        self.assertIn("`workflow_dispatch` only (manual)", deployment)
+        self.assertNotIn("workflow_dispatch` or push to `main`", deployment)
+        self.assertIn("mandatory step", deployment)
         checklist = (DOCS / "release-checklist.md").read_text(encoding="utf-8")
         self.assertIn("docs-deploy.yml", checklist)
         self.assertIn("mandatory after the tag", checklist)
@@ -800,13 +800,13 @@ class DocumentationContractTests(unittest.TestCase):
             text = (DOCS / relative).read_text(encoding="utf-8")
             with self.subTest(page=relative):
                 for needle in ("/rapid-init", "rapid shortcuts install --global", "rapid init --shortcuts",
-                               "/rapid-feature", "rapid approve", "Modo avanzado"):
+                               "/rapid-feature", "rapid approve", "Advanced mode"):
                     self.assertIn(needle, text)
-                self.assertLess(text.index("/rapid-init"), text.index("Modo avanzado"))
-                self.assertLess(text.index("/rapid-feature"), text.index("Modo avanzado"))
+                self.assertLess(text.index("/rapid-init"), text.index("Advanced mode"))
+                self.assertLess(text.index("/rapid-feature"), text.index("Advanced mode"))
         first_project = (DOCS / "getting-started" / "first-project.md").read_text(encoding="utf-8")
         # The plumbing route lives in the manual walkthrough, linked from the advanced section.
-        advanced = first_project[first_project.index("## Modo avanzado"):]
+        advanced = first_project[first_project.index("## Advanced mode"):]
         self.assertIn("tutorials/first-governed-project.md", advanced)
 
     def test_shortcuts_quickstart_functional_end_to_end(self):
@@ -880,36 +880,36 @@ class DocumentationContractTests(unittest.TestCase):
         for lab in ("feature", "bugfix", "refactor", "hardening", "research"):
             text = (DOCS / "tutorials" / f"{lab}-lab.md").read_text(encoding="utf-8")
             with self.subTest(lab=lab):
-                self.assertIn("## Con shortcuts", text)
-                route = text[text.index("## Con shortcuts"):text.index("## Modo avanzado")]
+                self.assertIn("## With shortcuts", text)
+                route = text[text.index("## With shortcuts"):text.index("## Advanced mode")]
                 for needle in (f"examples/{lab}-lab/starter", "/rapid-init", f"/rapid-{lab}", "rapid approve",
                                "/rapid-next", "rapid shortcuts install --global", "rapid init --shortcuts"):
                     self.assertIn(needle, route)
-                self.assertIn("first-governed-project.md", text[text.index("## Modo avanzado"):])
+                self.assertIn("first-governed-project.md", text[text.index("## Advanced mode"):])
                 self.assertNotIn("rapid run create", text)  # the plumbing route lives in the manual walkthrough
         hardening = (DOCS / "tutorials" / "hardening-lab.md").read_text(encoding="utf-8")
-        route = hardening[:hardening.index("## Modo avanzado")]
+        route = hardening[:hardening.index("## Advanced mode")]
         self.assertIn("`corporate`", route)
         self.assertIn("--worktree", route)
         self.assertIn("gate.review", route)
 
     # Beginner routes: the commands a person types are short. The machinery stays folded in
-    # <details> or under "Modo avanzado"; a command with more than two flags does not belong here.
+    # <details> or under "Advanced mode"; a command with more than two flags does not belong here.
     LIGHT_ROUTES = {
-        "index.md": "## Modo avanzado",
-        "getting-started.md": "## 2. Mapa de esta sección",
-        "getting-started/first-project.md": "## Modo avanzado",
-        "getting-started/existing-project.md": "## Modo avanzado",
-        "tutorials/index.md": "## Modo avanzado",
-        "tutorials/feature-lab.md": "## Modo avanzado",
-        "tutorials/bugfix-lab.md": "## Modo avanzado",
-        "tutorials/refactor-lab.md": "## Modo avanzado",
-        "tutorials/hardening-lab.md": "## Modo avanzado",
-        "tutorials/research-lab.md": "## Modo avanzado",
+        "index.md": "## Advanced mode",
+        "getting-started.md": "## 2. Section map",
+        "getting-started/first-project.md": "## Advanced mode",
+        "getting-started/existing-project.md": "## Advanced mode",
+        "tutorials/index.md": "## Advanced mode",
+        "tutorials/feature-lab.md": "## Advanced mode",
+        "tutorials/bugfix-lab.md": "## Advanced mode",
+        "tutorials/refactor-lab.md": "## Advanced mode",
+        "tutorials/hardening-lab.md": "## Advanced mode",
+        "tutorials/research-lab.md": "## Advanced mode",
         "getting-started/when-the-agent-stops.md": None,
-        "getting-started/first-spec.md": "## Modo avanzado",
-        "getting-started/first-context.md": "## Modo avanzado",
-        "getting-started/next-steps.md": "## Modo avanzado",
+        "getting-started/first-spec.md": "## Advanced mode",
+        "getting-started/first-context.md": "## Advanced mode",
+        "getting-started/next-steps.md": "## Advanced mode",
     }
 
     def test_beginner_routes_only_show_light_commands(self):
@@ -925,7 +925,7 @@ class DocumentationContractTests(unittest.TestCase):
                     command = command.split("#", 1)[0]
                     self.assertLessEqual(command.count(" --"), 2, f"too heavy for a beginner route: {command}")
         first = (DOCS / "tutorials" / "first-governed-project.md").read_text(encoding="utf-8")
-        self.assertNotIn("Principiante", first)
+        self.assertNotIn("Beginner", first)
 
     def test_getting_started_section_is_a_learning_path(self):
         sidebars = (WEBSITE / "sidebars.ts").read_text(encoding="utf-8")
@@ -935,7 +935,7 @@ class DocumentationContractTests(unittest.TestCase):
             ["first-project", "existing-project", "when-the-agent-stops", "first-spec", "first-context", "next-steps"],
         )
         overview = (DOCS / "getting-started.md").read_text(encoding="utf-8")
-        section_map = overview[overview.index("## 2. Mapa de esta sección"):overview.index("## Modo avanzado")]
+        section_map = overview[overview.index("## 2. Section map"):overview.index("## Advanced mode")]
         positions = [section_map.index(f"getting-started/{page}.md") for page in pages]
         self.assertEqual(positions, sorted(positions), "the map lists the pages in reading order")
         stops = (DOCS / "getting-started" / "when-the-agent-stops.md").read_text(encoding="utf-8")
@@ -945,16 +945,16 @@ class DocumentationContractTests(unittest.TestCase):
                 self.assertIn(needle, stops)
         # Next steps no longer ends the beginner path on the plumbing loop.
         next_steps = (DOCS / "getting-started" / "next-steps.md").read_text(encoding="utf-8")
-        self.assertLess(next_steps.index("tutorials/feature-lab.md"), next_steps.index("## Modo avanzado"))
+        self.assertLess(next_steps.index("tutorials/feature-lab.md"), next_steps.index("## Advanced mode"))
         self.assertGreater(next_steps.index("rapid evidence add"), next_steps.index("<details>"))
 
     def test_tutorial_labs_start_with_the_shortcut_labs_and_end_under_the_hood(self):
         sidebars = (WEBSITE / "sidebars.ts").read_text(encoding="utf-8")
-        labs_block = sidebars[sidebars.index("label: 'Laboratorios Prácticos'"):]
+        labs_block = sidebars[sidebars.index("label: 'Hands-on Labs'"):]
         labs_block = labs_block[:labs_block.index("],")]
         labs = [lab for lab in re.findall(r"'tutorials/([a-z-]+)'", labs_block) if lab != "index"]
         self.assertEqual(labs, ["feature-lab", "bugfix-lab", "refactor-lab", "hardening-lab", "research-lab"])
-        how_it_works = sidebars[sidebars.index("label: 'Cómo funciona'"):]
+        how_it_works = sidebars[sidebars.index("label: 'How It Works'"):]
         how_it_works = how_it_works[:how_it_works.index("],")]
         self.assertIn("'tutorials/first-governed-project'", how_it_works)
 
@@ -982,7 +982,7 @@ class DocumentationContractTests(unittest.TestCase):
 
     def test_antigravity_advanced_mode_includes_baseline_and_activation(self):
         text = (DOCS / "integrations" / "antigravity.md").read_text(encoding="utf-8")
-        for needle in ("**Verificar Baseline:**", "rapid run gate <run-id> gate.baseline acknowledged",
+        for needle in ("**Verify the Baseline:**", "rapid run gate <run-id> gate.baseline acknowledged",
                        "rapid run status <run-id> active", "rapid run task <run-id> T001 in_progress"):
             with self.subTest(needle=needle):
                 self.assertIn(needle, text)

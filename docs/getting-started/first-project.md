@@ -1,100 +1,90 @@
 ---
-title: Tu primer proyecto
-description: De una carpeta vacía a tu primera funcionalidad aprobada con /rapid-init y /rapid-feature, y el mismo recorrido con los comandos v3 como modo avanzado.
+title: Your First Project
+description: From an empty folder to your first approved feature with /rapid-init and /rapid-feature.
 ---
 
-# Tu primer proyecto
+# Your First Project
 
-De una carpeta vacía a tu primera funcionalidad terminada y aprobada. Escribes tres cosas en tu agente y una en tu terminal.
+Go from an empty folder to a completed and approved feature. You enter three things in your agent and one in your terminal.
 
-- **Necesitas:** Rapid OS instalado (`rapid --version` responde) y un agente de código (Claude Code, Codex, Cursor, Antigravity o VS Code).
-- **Tiempo:** unos 15 minutos.
+- **You need:** Rapid OS installed (`rapid --version` responds) and a coding agent (Claude Code, Codex, Cursor, Antigravity, or VS Code).
+- **Time:** about 15 minutes.
 
----
+## Main workflow: `/rapid-init`
 
-## Camino principal: `/rapid-init`
+### 1. Make shortcuts available
 
-### 1. Ten los shortcuts disponibles
-
-Si al instalar Rapid OS respondiste con tu agente a la pregunta de los shortcuts, ya están. Si no, una sola vez:
+If you selected an agent when installing Rapid OS, shortcuts are ready. Otherwise, install them once:
 
 ```bash
 rapid shortcuts install --global --harness claude
 ```
 
-Cambia `claude` por `codex`, `cursor` o `antigravity`. En VS Code (o si prefieres los shortcuts dentro del repositorio) usa `rapid init --shortcuts` en la carpeta del proyecto.
+Replace `claude` with `codex`, `cursor`, or `antigravity`. In VS Code, or to keep shortcuts in the repository, run `rapid init --shortcuts` from the project directory.
 
-### 2. Crea la carpeta y describe el proyecto
+### 2. Create a folder and describe the project
 
 ```bash
 mkdir hello-rapid && cd hello-rapid
 ```
 
-Abre tu agente en esa carpeta y escribe (en Codex, `$rapid-init`):
+Open your agent in that folder and enter (in Codex, use `$rapid-init`):
 
 ```text
-/rapid-init una API en Python para validar nombres de usuario
+/rapid-init a Python API for validating usernames
 ```
 
-### 3. Responde a sus propuestas
+### 3. Respond to its proposals
 
-El agente te pregunta, una decisión a la vez: stack, topología, arquetipo (MVP o Corporate), comando de tests y los cuatro documentos del proyecto (brief, reglas de negocio, modelo de datos y arquitectura). Para cada decisión te recomienda una opción y una alternativa. Para cada documento eliges:
+The agent asks you to decide on the stack, topology, archetype (MVP or Corporate), test command, and four project documents (brief, business rules, data model, and architecture). For each decision it recommends an option and an alternative. For each document, you can provide your own, have the agent draft it (you review the complete draft before it is saved), or skip it.
 
-- **Pegarlo** si ya lo tienes.
-- **Que lo redacte el agente**: te muestra el borrador completo antes de guardarlo.
-- **Omitirlo**.
-
-Lo que redacta el agente queda como **borrador**. Antes de cerrar te resume cada uno y te pregunta si lo confirmas: confirmado pasa a ser regla del proyecto; sin confirmar queda como supuesto que el agente puede cuestionar. Solo se confirma lo que tú digas explícitamente.
+Agent-written content remains a **draft**. Before finishing, the agent summarizes each document and asks you to confirm it. Only explicit confirmation makes it a project rule; otherwise it remains an assumption the agent can question.
 
 <details>
-<summary>Qué ejecuta el agente por debajo</summary>
-
-Los mismos comandos que puedes usar tú sin agente:
+<summary>Commands run by the agent behind the scenes</summary>
 
 ```bash
 rapid setup next --json
 rapid setup set stack python-fastapi
 rapid setup set archetype mvp
 rapid setup set test-command "python -m unittest discover"
-rapid setup doc business --source drafted --file -   # el cuerpo por stdin; queda como borrador
+rapid setup doc business --source drafted --file -
 rapid setup doc brief --skip
 rapid setup review --done
 rapid setup finish
 ```
 
-Todos están en la [referencia de `rapid setup`](../cli.md#onboarding-rapid-setup).
+See the [`rapid setup` CLI reference](/cli#onboarding-rapid-setup).
 
 </details>
 
-### 4. Pide tu primera funcionalidad
+### 4. Request your first feature
 
 ```text
-/rapid-feature añadir una función validate_username a app.py
+/rapid-feature add a validate_username function to app.py
 ```
 
-Sin argumentos, `/rapid-feature` te propone la primera historia sin marcar del brief (`- [ ] H001: ...`) y espera tu confirmación. El agente redacta la spec, implementa tarea por tarea y corre los tests.
+Without arguments, `/rapid-feature` suggests the first unchecked brief story (`- [ ] H001: ...`) and waits for your confirmation. The agent writes the spec, implements it task by task, and runs the tests.
 
-### 5. Aprueba en tu terminal
+### 5. Approve from your terminal
 
-Cuando termina, el agente se detiene y te da el comando exacto. Ejecútalo en **otra terminal**, fuera del agente:
+When finished, the agent stops and gives you the exact command. Run it in **another terminal**, outside the agent:
 
 ```bash
 rapid approve gate.final-verification
 ```
 
-Vuelve al agente y escribe `/rapid-next`: el run se cierra con su veredicto. Listo: tu primera funcionalidad quedó implementada, probada y aprobada por ti. Si quieres rechazar, ver en qué va o cancelar, mira [Cuando el agente se detiene](./when-the-agent-stops.md).
+Return to the agent and enter `/rapid-next`; the run closes with its verdict. Your first feature is implemented, tested, and approved by you. To reject, check progress, or cancel, see [When the agent stops](/getting-started/when-the-agent-stops).
 
-:::note Sin agente: `rapid init`
-`rapid init` hace el onboarding desde la terminal con preguntas interactivas. Es la alternativa si no usas un agente; lo que no resuelvas queda pendiente para `/rapid-init`.
+:::note Without an agent: `rapid init`
+`rapid init` runs interactive onboarding from the terminal. It is an alternative if you do not use an agent; anything left unresolved can be completed later with `/rapid-init`.
 :::
 
-### Siguientes pasos
+## Next steps
 
-- Un laboratorio por modo, con proyectos de ejemplo: [Laboratorios](../tutorials/index.md).
-- Adoptarlo en un repositorio que ya tiene código: [Un proyecto que ya existe](./existing-project.md).
+- Try one lab for each mode: [Hands-on labs](/tutorials/).
+- Adopt Rapid OS in an existing repository: [An existing project](/getting-started/existing-project).
 
----
+## Advanced mode (v3 commands)
 
-## Modo avanzado (comandos v3)
-
-No lo necesitas para usar Rapid OS. Si quieres ver el mismo trabajo hecho a mano con los comandos v3 (para CI o auditoría), sigue el [recorrido manual (Bajo el capó)](../tutorials/first-governed-project.md) y el [ciclo de gobernanza v3](../governance-loop.md).
+You do not need this for normal use. For the same workflow using v3 commands (for CI or auditing), follow the [manual walkthrough (Under the hood)](../tutorials/first-governed-project.md) and the [v3 governance loop](../governance-loop.md).

@@ -1,89 +1,89 @@
-# Troubleshooting en Laboratorios y Tutoriales
-
-Guía de resolución de problemas e incidencias comunes al ejecutar los laboratorios prácticos de **RAPID OS v3**.
-
+---
+title: Troubleshooting Labs and Tutorials
+description: Resolve common problems when running Rapid OS v3 hands-on labs.
 ---
 
-## Ruta con shortcuts
+# Troubleshooting Labs and Tutorials
 
-Errores típicos al trabajar con `/rapid-*`. La guía completa está en [Shortcuts por harness](../guides/shortcuts.md) y el catálogo en [Diagnósticos](./diagnostics.md).
+## Shortcut workflow
 
-### `RAPID1301`: falta `test_command`
-- **Causa:** `.rapid-os/config.json` no tiene `test_command` (o está vacío), así que `rapid check` no sabe qué comando de tests ejecutar. Es un aviso.
-- **Solución:** `rapid init --test-command "python -m unittest discover"`, o define `"test_command": ["python", "-m", "unittest", "discover"]` (lista argv) en `.rapid-os/config.json`.
+Common errors when working with `/rapid-*`. See the complete [Shortcuts by Harness](../guides/shortcuts.md) guide and the [Diagnostics catalog](./diagnostics.md).
 
-### `RAPID1307`: no hay un run activo
-- **Causa:** `rapid check`, `task`, `finish`… se ejecutaron sin `.rapid-os/session.json` (no se hizo `rapid start`, o el run terminó o se abortó).
-- **Solución:** inicia un run con el shortcut del modo (`/rapid-feature <objetivo>`) o con `rapid start <modo>`.
+### `RAPID1301`: missing `test_command`
 
-### `RAPID1308`: ya hay un run activo
-- **Causa:** ejecutaste `rapid start` (o un shortcut de modo) mientras hay un run no terminal en `.rapid-os/session.json`.
-- **Solución:** continúa con `rapid next`, usa `rapid start <modo> --resume`, o abandona el run con `rapid abort`.
+- **Cause:** `.rapid-os/config.json` has no `test_command` (or it is empty), so `rapid check` does not know which test command to run. This is a warning.
+- **Fix:** Run `rapid init --test-command "python -m unittest discover"`, or set `"test_command": ["python", "-m", "unittest", "discover"]` (an argv list) in `.rapid-os/config.json`.
 
-### `RAPID1310`: `rapid approve` se niega
-- **Causa:** no hay terminal interactiva, la sesión es de un agente (`CLAUDE_CODE_CHILD_SESSION=1`) o un ancestro del proceso es Claude Code (por ejemplo, el modo `!`).
-- **Solución:** ejecuta `rapid approve <gate>` tú, en tu propia terminal (sirve la terminal integrada del editor). Un shortcut nunca aprueba gates humanos.
+### `RAPID1307`: no active run
 
-### `RAPID1321`: aviso de carpetas solapadas
-- **Causa:** seleccionaste Cursor o VS Code junto con Claude, Codex o Antigravity, y el mismo `/rapid-*` queda en dos carpetas que esa herramienta lee.
-- **Solución:** es solo un aviso. Para evitarlo, instala un único harness que cubra ambas herramientas; ver [Si combinas harnesses](../guides/shortcuts.md#si-combinas-harnesses).
+- **Cause:** `rapid check`, `task`, or `finish` ran without `.rapid-os/session.json` (no `rapid start`, or the run finished or was aborted).
+- **Fix:** Start a run with a mode shortcut (`/rapid-feature <goal>`) or `rapid start <mode>`.
 
----
+### `RAPID1308`: a run is already active
 
-## 1. Problemas de Inicialización y Scanner
+- **Cause:** You ran `rapid start` or a mode shortcut while `.rapid-os/session.json` contains a non-terminal run.
+- **Fix:** Continue with `rapid next`, run `rapid start <mode> --resume`, or abort with `rapid abort`.
 
-### Error: `RAPID1001` (Project Model Error) o facts incompletos
-- **Causa:** El scanner se ejecutó antes de que existieran archivos con extensiones reconocidas o directorios de prueba.
-- **Solución:** Crea al menos un archivo `.py` y el directorio `tests/`, y vuelve a ejecutar:
-  ```bash
-  rapid scan --write
-  ```
+### `RAPID1310`: `rapid approve` is refused
 
----
+- **Cause:** There is no interactive terminal, the session belongs to an agent (`CLAUDE_CODE_CHILD_SESSION=1`), or a parent process is Claude Code (for example, `!` mode).
+- **Fix:** Run `rapid approve <gate>` yourself in your terminal (an editor's integrated terminal is fine). A shortcut never approves human gates.
 
-## 2. Problemas con Specs y Context Bundles
+### `RAPID1321`: overlapping harness directories
 
-### Error: `RAPID1010` (Spec Not Ready) al intentar crear un Run
-- **Causa:** Se intentó crear un `ExecutionContract` vinculando una especificación que está en estado `draft` o `in_progress`.
-- **Solución:** Un Run solo puede crearse a partir de una Spec en estado `ready`:
+- **Cause:** You selected Cursor or VS Code together with Claude, Codex, or Antigravity, and the same `/rapid-*` shortcut is written to two directories that the tool reads.
+- **Fix:** This is only a warning. To avoid it, install one harness that covers both tools; see [Combining Harnesses](../guides/shortcuts.md#if-you-combine-harnesses).
+
+## 1. Scanner and initialization issues
+
+### `RAPID1001` (Project Model Error) or incomplete facts
+
+- **Cause:** The scanner ran before recognized file extensions or test directories existed.
+- **Fix:** Create at least one `.py` file and a `tests/` directory, then run `rapid scan --write` again.
+
+## 2. Spec and context bundle issues
+
+### `RAPID1010` (Spec Not Ready) when creating a run
+
+- **Cause:** You tried to create an `ExecutionContract` linked to a spec in `draft` or `in_progress` state.
+- **Fix:** A run can be created only from a `ready` spec:
   ```bash
   rapid spec update <spec-id> --status ready
   ```
 
----
+## 3. Run states and task transitions
 
-## 3. Problemas con Estados de Run y Transición de Tareas
+### `InvalidRunStateTransitionError`
 
-### Error: `InvalidRunStateTransitionError`
-- **Causa:** Se intentó modificar una tarea o compuerta en un Run cuyo estado es `prepared` o `finished`.
-- **Solución:** Transiciona el Run al estado `active` antes de modificar tareas:
+- **Cause:** You tried to modify a task or gate while the run was `prepared` or `finished`.
+- **Fix:** Set the run to `active` before modifying tasks:
   ```bash
   rapid run status <run-id> active
   ```
 
----
+## 4. Evidence issues (`rapid evidence add`)
 
-## 4. Problemas con Evidencias (`rapid evidence add`)
+### `RAPID1203` (Evidence Binding Mismatch)
 
-### Error: `RAPID1203` (Evidence Binding Mismatch)
-- **Causa:** El hash de estado (`state_digest`) o la revisión (`state_revision`) no coinciden con la versión activa del Run.
-- **Solución:** Si estás preparando el JSON manualmente, asegúrate de utilizar los valores exactos reportados por `rapid run show <run-id> --json`.
+- **Cause:** `state_digest` or `state_revision` does not match the active run version.
+- **Fix:** If authoring JSON manually, use the exact values from `rapid run show <run-id> --json`.
 
-### Error: `RAPID1206` (Invalid Evidence Payload)
-- **Causa:** El objeto `payload` contiene campos adicionales o faltantes según el schema canónico de ese `EvidenceKind`.
-- **Solución:** Consulta la tabla de esquemas en [Cookbook: Evidence Engine](../cookbooks/evidence-engine.md). Por ejemplo, para `test_result`, los campos obligatorios son exactamente: `suite`, `exit_code`, `passed`, `failed`, `skipped`.
+### `RAPID1206` (Invalid Evidence Payload)
 
----
+- **Cause:** `payload` has extra or missing fields for the canonical schema of that `EvidenceKind`.
+- **Fix:** See the schema table in the [Evidence Engine cookbook](../cookbooks/evidence-engine.md). For `test_result`, required fields are exactly `suite`, `exit_code`, `passed`, `failed`, and `skipped`.
 
-## 5. Problemas con la Evaluación Conductual (`rapid eval run`)
+## 5. Behavioral evaluation issues (`rapid eval run`)
 
-### Veredicto: `unverified`
-- **Causa:** Uno o más gates obligatorios quedaron en estado `pending` en el `RunState`.
-- **Solución:** Registra la evidencia pertinente y reconoce la compuerta:
+### Verdict: `unverified`
+
+- **Cause:** One or more required gates remain `pending` in `RunState`.
+- **Fix:** Register the relevant evidence and acknowledge the gate:
   ```bash
   rapid run gate <run-id> <gate-id> acknowledged
   ```
 
-### Veredicto: `fail`
-- **Causa:** Se detectó evidencia contradictoria (ejemplo: un `test_result` con `exit_code != 0` o un `file_change` que tocó rutas no autorizadas en el contrato).
-- **Solución:** Corrige el defecto en el código, re-ejecuta la suite de pruebas y registra una nueva evidencia con el resultado correcto antes de re-evaluar.
+### Verdict: `fail`
+
+- **Cause:** Contradictory evidence was found (for example, `test_result` with a nonzero exit code or `file_change` touching paths outside the contract).
+- **Fix:** Correct the code, rerun the suite, register new evidence with the correct result, and evaluate again.

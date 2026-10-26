@@ -1,208 +1,208 @@
 ---
-title: Shortcuts por harness
-description: Instala y usa los comandos /rapid-<modo> en Claude Code, Codex, Cursor, Antigravity y VS Code; el bucle que siguen, la aprobación humana y los errores más comunes.
+title: Shortcuts by harness
+description: Install and use the /rapid-<mode> commands in Claude Code, Codex, Cursor, Antigravity and VS Code; the loop they follow, human approval and the most common errors.
 ---
 
-# Shortcuts por harness
+# Shortcuts by harness
 
-Los **shortcuts** son el flujo principal de Rapid OS. El primero es `/rapid-init`: tu agente conduce todo el onboarding del proyecto con `rapid setup` (stack, topología, arquetipo, agentes, comando de test y documentos). Después hay un comando por modo (`/rapid-feature`, `/rapid-bugfix`…) que tu agente ejecuta para llevar el trabajo de principio a fin dentro de un run gobernado. Tú describes el objetivo; el shortcut le enseña al agente el bucle (`rapid next` → `rapid start` → `rapid check` → `rapid finish`) y se detiene cuando hace falta una persona.
+**Shortcuts** are the main Rapid OS workflow. The first one is `/rapid-init`: your agent drives the whole project onboarding with `rapid setup` (stack, topology, archetype, agents, test command and documents). After that there is one command per mode (`/rapid-feature`, `/rapid-bugfix`…) that your agent runs to take the work from start to finish inside a governed run. You describe the goal; the shortcut teaches the agent the loop (`rapid next` → `rapid start` → `rapid check` → `rapid finish`) and stops when a person is needed.
 
-Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) siguen disponibles como **Modo avanzado**: CI, depuración y auditoría. Están descritos en la [referencia de CLI](../cli.md) y en el flujo manual de cada [guía de modo](./modes/index.md).
+The v3 commands (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) remain available as **Advanced mode**: CI, debugging and auditing. They are described in the [CLI reference](../cli.md) and in the manual flow of each [mode guide](./modes/index.md).
 
-Instálalos una sola vez para todos tus proyectos (el instalador de Rapid OS te lo pregunta al terminar; cambia `claude` por tu agente):
+Install them once for all your projects (the Rapid OS installer asks you at the end; replace `claude` with your agent):
 
 ```bash
 rapid shortcuts install --global --harness claude
 ```
 
-En VS Code, o si prefieres versionarlos con el repositorio, instálalos en el proyecto con `rapid init --shortcuts`. Después, en tu agente:
+In VS Code, or if you prefer to version them with the repository, install them in the project with `rapid init --shortcuts`. Then, in your agent:
 
 ```text
-/rapid-init API de facturación para pymes, en Python   # onboarding (en Codex: $rapid-init)
-/rapid-feature añadir exportación CSV al informe mensual
+/rapid-init Billing API for small businesses, in Python   # onboarding (in Codex: $rapid-init)
+/rapid-feature add CSV export to the monthly report
 ```
 
-:::note `rapid` debe estar en el `PATH`
-Los shortcuts y los hooks ejecutan `rapid` desde el shell del agente. Si no se resuelve, `rapid init` y `rapid doctor` avisan con `RAPID1414` (no es un error: exit 0). Instálalo con el instalador o con `pipx install git+https://github.com/alyconr/Rapid-OS.git`.
+:::note `rapid` must be on the `PATH`
+Shortcuts and hooks run `rapid` from the agent's shell. If it does not resolve, `rapid init` and `rapid doctor` warn with `RAPID1414` (not an error: exit 0). Install it with the installer or with `pipx install git+https://github.com/alyconr/Rapid-OS.git`.
 :::
 
 ---
 
-## 1. Instalación
+## 1. Installation
 
-Los archivos se generan desde una sola fuente (`templates/shortcuts/`), uno por harness y shortcut.
+The files are generated from a single source (`templates/shortcuts/`), one per harness and shortcut.
 
 ```bash
-rapid init --shortcuts                                  # al inicializar, para los agentes elegidos
-rapid shortcuts install                                 # para los harness de "tools" en .rapid-os/config.json
+rapid init --shortcuts                                  # on init, for the chosen agents
+rapid shortcuts install                                 # for the "tools" harnesses in .rapid-os/config.json
 rapid shortcuts install --harness claude --harness codex
-rapid shortcuts install --harness claude --hooks        # además, los hooks de Claude Code
-rapid shortcuts install --harness claude --dry-run   # qué escribiría, sin escribir
-rapid shortcuts install --harness claude --only rapid-init   # solo un shortcut
-rapid shortcuts install --global --harness claude   # los 9, en tu carpeta de usuario (ver abajo)
-rapid shortcuts list                                    # estado de cada archivo: installed, outdated, missing, unmanaged
-rapid shortcuts remove --harness codex                  # quita solo lo generado
+rapid shortcuts install --harness claude --hooks        # also the Claude Code hooks
+rapid shortcuts install --harness claude --dry-run   # what it would write, without writing
+rapid shortcuts install --harness claude --only rapid-init   # only one shortcut
+rapid shortcuts install --global --harness claude   # all 9, in your user folder (see below)
+rapid shortcuts list                                    # status of each file: installed, outdated, missing, unmanaged
+rapid shortcuts remove --harness codex                  # removes only what was generated
 ```
 
-- Sin `--harness`, se usan los harness soportados que figuren en `tools` de `.rapid-os/config.json`. En un proyecto sin ese archivo hay que pasar `--harness` (`RAPID1312`).
-- Cada archivo lleva el marcador `<!-- generated by rapid shortcuts -->`. `remove` borra **solo** archivos con ese marcador y deja los tuyos intactos.
-- La instalación es **idempotente**: si el contenido es igual no escribe; si es distinto, guarda una copia `.bak` antes de reemplazar.
-- `rapid init --shortcuts` **no** instala hooks; se piden con `--hooks` (en `rapid init` o en `rapid shortcuts install`).
-- Se omiten los shortcuts de los modos que no tengan playbook en `templates/modes/` (`RAPID1315`); hoy existen los cinco.
+- Without `--harness`, the supported harnesses listed in `tools` of `.rapid-os/config.json` are used. In a project without that file you must pass `--harness` (`RAPID1312`).
+- Each file carries the marker `<!-- generated by rapid shortcuts -->`. `remove` deletes **only** files with that marker and leaves yours untouched.
+- Installation is **idempotent**: if the content is the same it writes nothing; if it differs, it saves a `.bak` copy before replacing.
+- `rapid init --shortcuts` does **not** install hooks; they are requested with `--hooks` (in `rapid init` or in `rapid shortcuts install`).
+- Shortcuts for modes that have no playbook in `templates/modes/` are skipped (`RAPID1315`); today all five exist.
 
-### Instalación a nivel usuario (`--global`)
+### User-level installation (`--global`)
 
-`rapid shortcuts install --global --harness <id> [--only rapid-init]` escribe los shortcuts en la carpeta de skills de **tu usuario** (bajo tu carpeta personal), así `/rapid-init` funciona en cualquier proyecto sin instalarlo en cada uno. Necesita `--harness` (no lee la config de ningún proyecto), no admite `--hooks`, y `list` y `remove` aceptan el mismo `--global`. Solo está disponible donde la documentación oficial del harness da la carpeta:
+`rapid shortcuts install --global --harness <id> [--only rapid-init]` writes the shortcuts to the skills folder of **your user** (under your home folder), so `/rapid-init` works in any project without installing it in each one. It needs `--harness` (it does not read any project's config), does not accept `--hooks`, and `list` and `remove` accept the same `--global`. It is only available where the harness's official documentation gives the folder:
 
-| Harness | Carpeta de usuario | Fuente |
+| Harness | User folder | Source |
 | :--- | :--- | :--- |
-| `claude` | `~/.claude/skills/<nombre>/SKILL.md` | [Skills de Claude Code](https://code.claude.com/docs/en/skills) |
-| `codex` | `~/.agents/skills/<nombre>/SKILL.md` | [Skills de Codex](https://learn.chatgpt.com/docs/build-skills) |
-| `cursor` | `~/.cursor/skills/<nombre>/SKILL.md` | [Skills de Cursor](https://cursor.com/docs/context/skills) |
-| `antigravity` | `~/.gemini/config/skills/<nombre>/SKILL.md` (Antigravity App e IDE; el CLI de Antigravity lee `~/.gemini/antigravity-cli/skills/`, que `--global` no escribe) | [Skills de Antigravity](https://antigravity.google/docs/skills) |
-| `vscode` | **No soportado**: la documentación de los prompt files solo dice «Your user data (specific to your VS Code profile)», sin una ruta. | [Prompt files de VS Code](https://code.visualstudio.com/docs/copilot/customization/prompt-files) |
+| `claude` | `~/.claude/skills/<name>/SKILL.md` | [Claude Code skills](https://code.claude.com/docs/en/skills) |
+| `codex` | `~/.agents/skills/<name>/SKILL.md` | [Codex skills](https://learn.chatgpt.com/docs/build-skills) |
+| `cursor` | `~/.cursor/skills/<name>/SKILL.md` | [Cursor skills](https://cursor.com/docs/context/skills) |
+| `antigravity` | `~/.gemini/config/skills/<name>/SKILL.md` (Antigravity App and IDE; the Antigravity CLI reads `~/.gemini/antigravity-cli/skills/`, which `--global` does not write) | [Antigravity skills](https://antigravity.google/docs/skills) |
+| `vscode` | **Not supported**: the prompt files documentation only says "Your user data (specific to your VS Code profile)", with no path. | [VS Code prompt files](https://code.visualstudio.com/docs/copilot/customization/prompt-files) |
 
-Pedir `--global` para `vscode` (solo o junto a otros) da `RAPID1413` y no escribe nada. `install.sh` e `install.ps1` ofrecen este paso al terminar (solo si hay una terminal interactiva, y nunca por defecto).
+Requesting `--global` for `vscode` (alone or together with others) gives `RAPID1413` and writes nothing. `install.sh` and `install.ps1` offer this step at the end (only if there is an interactive terminal, and never by default).
 
-### Reinstalar tras actualizar Rapid OS
+### Reinstall after updating Rapid OS
 
-Los shortcuts son archivos del proyecto: una versión nueva de Rapid OS puede cambiar sus plantillas. Después de actualizar:
+Shortcuts are project files: a new version of Rapid OS may change their templates. After updating:
 
 ```bash
-rapid shortcuts list        # los que cambiaron aparecen como "outdated"
-rapid shortcuts install     # los actualiza (con .bak) y no toca los que ya están al día
+rapid shortcuts list        # the ones that changed show up as "outdated"
+rapid shortcuts install     # updates them (with .bak) and leaves the up-to-date ones alone
 ```
 
-Conviene versionar los archivos generados junto al código, para que todo el equipo use el mismo flujo.
+It is a good idea to version the generated files alongside the code, so the whole team uses the same workflow.
 
 ---
 
-## 2. Harnesses: qué carpeta se genera y cómo se invoca
+## 2. Harnesses: which folder is generated and how it is invoked
 
-Todo sale de los adaptadores de `rapid_os/adapters/agents/`; cada fila cita la documentación oficial del harness.
+Everything comes from the adapters in `rapid_os/adapters/agents/`; each row cites the harness's official documentation.
 
-| Harness (`--harness`) | Carpeta que se genera | Cómo se invoca | Documentación oficial |
+| Harness (`--harness`) | Generated folder | How it is invoked | Official documentation |
 | :--- | :--- | :--- | :--- |
-| `claude` (Claude Code) | `.claude/skills/<nombre>/SKILL.md` | `/rapid-init`, `/rapid-feature <objetivo>`; al escribir `/rapid-` aparecen los 9 | [Skills de Claude Code](https://code.claude.com/docs/en/skills) |
-| `codex` (Codex CLI y extensión de IDE) | `.agents/skills/<nombre>/SKILL.md` | `$rapid-init`, `$rapid-feature <objetivo>`, o elegirlo desde `/skills`. En **Codex CLI**, `/` no lista los skills: usa `$` ([detalle](../integrations/codex.md#invocación-codex-cli-y-extensión-de-ide)) | [Skills de Codex](https://learn.chatgpt.com/docs/build-skills) |
-| `antigravity` (Google Antigravity) | `.agents/skills/<nombre>/SKILL.md` (la misma carpeta que Codex) | `/rapid-feature <objetivo>` | [Skills de Antigravity](https://antigravity.google/docs/skills) |
-| `cursor` (Cursor) | `.cursor/skills/<nombre>/SKILL.md` | `/rapid-feature <objetivo>` en el chat del Agent | [Skills de Cursor](https://cursor.com/docs/context/skills) |
-| `vscode` (VS Code / Copilot) | `.github/prompts/<nombre>.prompt.md` (prompt files) | `/rapid-feature <objetivo>` en el chat | [Prompt files de VS Code](https://code.visualstudio.com/docs/copilot/customization/prompt-files) |
+| `claude` (Claude Code) | `.claude/skills/<name>/SKILL.md` | `/rapid-init`, `/rapid-feature <goal>`; typing `/rapid-` shows all 9 | [Claude Code skills](https://code.claude.com/docs/en/skills) |
+| `codex` (Codex CLI and IDE extension) | `.agents/skills/<name>/SKILL.md` | `$rapid-init`, `$rapid-feature <goal>`, or pick it from `/skills`. In **Codex CLI**, `/` does not list skills: use `$` ([details](../integrations/codex.md#invoke-codex-cli-and-ide-extension)) | [Codex skills](https://learn.chatgpt.com/docs/build-skills) |
+| `antigravity` (Google Antigravity) | `.agents/skills/<name>/SKILL.md` (the same folder as Codex) | `/rapid-feature <goal>` | [Antigravity skills](https://antigravity.google/docs/skills) |
+| `cursor` (Cursor) | `.cursor/skills/<name>/SKILL.md` | `/rapid-feature <goal>` in the Agent chat | [Cursor skills](https://cursor.com/docs/context/skills) |
+| `vscode` (VS Code / Copilot) | `.github/prompts/<name>.prompt.md` (prompt files) | `/rapid-feature <goal>` in the chat | [VS Code prompt files](https://code.visualstudio.com/docs/copilot/customization/prompt-files) |
 
-Qué hace cada harness con el shortcut:
+What each harness does with the shortcut:
 
-| Harness | Ejecuta solo el `context-command` | Hooks |
+| Harness | Runs the `context-command` on its own | Hooks |
 | :--- | :--- | :--- |
-| `claude` | **Sí**: `` !`rapid setup next --json` `` (o `rapid next --json`) corre antes del prompt; si falla, el skill se aborta. | **Solo aquí** (`--hooks`). |
-| `codex`, `antigravity`, `cursor`, `vscode` | No: el texto le pide al agente que ejecute el comando él mismo. | No hay hooks de Rapid OS. |
+| `claude` | **Yes**: `` !`rapid setup next --json` `` (or `rapid next --json`) runs before the prompt; if it fails, the skill aborts. | **Only here** (`--hooks`). |
+| `codex`, `antigravity`, `cursor`, `vscode` | No: the text asks the agent to run the command itself. | There are no Rapid OS hooks. |
 
-Detalles que conviene conocer:
+Details worth knowing:
 
-- **Codex y Antigravity comparten `.agents/skills`.** Si seleccionas ambos, cada archivo se escribe una sola vez.
-- **Solo Claude Code** ejecuta la línea `` !`rapid next --json` `` antes de enviar el prompt (y si ese comando falla, el skill se aborta, así que `rapid` debe estar en el `PATH`). En el resto de harnesses el texto le pide al agente que ejecute `rapid next --json` primero.
-- `rapid-approve` lleva `disable-model-invocation` en Claude Code y Cursor, que lo documentan: solo lo lanza la persona, el agente no lo invoca por su cuenta.
+- **Codex and Antigravity share `.agents/skills`.** If you select both, each file is written only once.
+- **Only Claude Code** runs the `` !`rapid next --json` `` line before sending the prompt (and if that command fails, the skill aborts, so `rapid` must be on the `PATH`). In the other harnesses the text asks the agent to run `rapid next --json` first.
+- `rapid-approve` carries `disable-model-invocation` in Claude Code and Cursor, which document it: only the person launches it, the agent does not invoke it on its own.
 
-### Si combinas harnesses
+### If you combine harnesses
 
-Algunas herramientas leen más carpetas que la suya, según su documentación oficial:
+Some tools read more folders than their own, according to their official documentation:
 
-| Herramienta | Carpetas de skills que lee (project) | Fuente |
+| Tool | Skills folders it reads (project) | Source |
 | :--- | :--- | :--- |
-| Cursor | `.cursor/skills/`, `.agents/skills/` y, por compatibilidad, `.claude/skills/` y `.codex/skills/` | [Cursor: skills](https://cursor.com/docs/context/skills) |
-| VS Code / Copilot | `.github/skills/`, `.claude/skills/`, `.agents/skills/` (además de los prompt files de `.github/prompts/`) | [VS Code: agent skills](https://code.visualstudio.com/docs/copilot/customization/agent-skills) |
+| Cursor | `.cursor/skills/`, `.agents/skills/` and, for compatibility, `.claude/skills/` and `.codex/skills/` | [Cursor: skills](https://cursor.com/docs/context/skills) |
+| VS Code / Copilot | `.github/skills/`, `.claude/skills/`, `.agents/skills/` (in addition to the `.github/prompts/` prompt files) | [VS Code: agent skills](https://code.visualstudio.com/docs/copilot/customization/agent-skills) |
 
-Por eso, seleccionar `cursor` o `vscode` **junto con** `claude`, `codex` o `antigravity` deja el mismo `/rapid-*` en dos carpetas que esa herramienta lee. La documentación oficial de Cursor y de VS Code **no especifica** cómo muestran dos skills del mismo nombre en carpetas distintas (la de VS Code solo indica que, para skills de marketplace con el mismo nombre en otra ubicación, ambos aparecen en su página de Skills), así que aquí no se afirma que el menú los duplique. `rapid shortcuts install`, `rapid shortcuts list` y `rapid init --shortcuts` avisan con `WARNING RAPID1321` (en stderr, y como `warnings` con `--json`) cuando tu selección entra en este caso; es solo un aviso, no cambia el exit code ni lo que se escribe. Para no depender de ello:
+That is why selecting `cursor` or `vscode` **together with** `claude`, `codex` or `antigravity` leaves the same `/rapid-*` in two folders that tool reads. The official Cursor and VS Code documentation **does not specify** how they display two skills with the same name in different folders (the VS Code one only says that, for marketplace skills with the same name in another location, both appear on its Skills page), so it is not claimed here that the menu duplicates them. `rapid shortcuts install`, `rapid shortcuts list` and `rapid init --shortcuts` warn with `WARNING RAPID1321` (on stderr, and as `warnings` with `--json`) when your selection falls into this case; it is only a warning, it changes neither the exit code nor what is written. To avoid depending on it:
 
-| Usas | Instala | Nota |
+| You use | Install | Note |
 | :--- | :--- | :--- |
-| Una sola herramienta | `--harness <su-id>` | Sin solapes. |
-| Codex y/o Antigravity, y quizá Cursor o VS Code | `--harness codex` (o `antigravity`) | `.agents/skills` lo leen las cuatro herramientas; no hace falta añadir `cursor` ni `vscode`. |
-| Claude Code y Codex/Antigravity | `--harness claude --harness codex` | Sin solapes documentados: Claude Code documenta `.claude/skills` y Codex `.agents/skills`. |
-| Claude Code y Cursor o VS Code | `--harness claude` | Cursor y VS Code leen `.claude/skills`. En ellos la línea `` !`rapid next --json` `` no está documentada como ejecutable: el agente debe correr `rapid next --json` por sí mismo. Si prefieres la variante propia de cada herramienta, añade `cursor` o `vscode` sabiendo que el mismo shortcut vivirá en dos carpetas. |
+| A single tool | `--harness <its-id>` | No overlap. |
+| Codex and/or Antigravity, and maybe Cursor or VS Code | `--harness codex` (or `antigravity`) | `.agents/skills` is read by all four tools; there is no need to add `cursor` or `vscode`. |
+| Claude Code and Codex/Antigravity | `--harness claude --harness codex` | No documented overlap: Claude Code documents `.claude/skills` and Codex `.agents/skills`. |
+| Claude Code and Cursor or VS Code | `--harness claude` | Cursor and VS Code read `.claude/skills`. In them the `` !`rapid next --json` `` line is not documented as executable: the agent must run `rapid next --json` itself. If you prefer each tool's own variant, add `cursor` or `vscode`, knowing the same shortcut will live in two folders. |
 
 ---
 
-## 3. Los 9 shortcuts
+## 3. The 9 shortcuts
 
-| Shortcut | Qué hace | Argumento |
+| Shortcut | What it does | Argument |
 | :--- | :--- | :--- |
-| `rapid-init` | Conduce el onboarding del proyecto con `rapid setup`: decisiones, documentos (borrador, pegado u omitido) y cierre. Nunca confirma un borrador por ti. | Descripción del proyecto (opcional). |
-| `rapid-feature` | Implementa una funcionalidad con un run gobernado (modo `feature`). | Objetivo de la funcionalidad. |
-| `rapid-bugfix` | Corrige un bug: reproduce primero con un test en rojo (modo `bugfix`). | Descripción del bug. |
-| `rapid-refactor` | Refactoriza sin que bajen los tests que pasan (modo `refactor`). | Alcance del refactor. |
-| `rapid-hardening` | Endurece seguridad o robustez en un worktree aislado (modo `hardening`). | Área a endurecer. |
-| `rapid-research` | Spike de investigación, sin tests obligatorios (modo `research`). | Pregunta o tema. |
-| `rapid-next` | Continúa el run activo con la siguiente acción determinista. | Ninguno. |
-| `rapid-status` | Resume el run activo: tareas, gates y último veredicto (solo lectura). | Ninguno. |
-| `rapid-approve` | **No aprueba**: muestra los gates humanos pendientes, la evidencia y el comando para tu terminal. | Opcional: el gate (`gate.final-verification`). |
+| `rapid-init` | Drives the project onboarding with `rapid setup`: decisions, documents (drafted, pasted or skipped) and closing. It never confirms a draft for you. | Project description (optional). |
+| `rapid-feature` | Implements a feature with a governed run (`feature` mode). | Feature goal. |
+| `rapid-bugfix` | Fixes a bug: reproduces it first with a failing test (`bugfix` mode). | Bug description. |
+| `rapid-refactor` | Refactors without breaking tests that pass (`refactor` mode). | Refactor scope. |
+| `rapid-hardening` | Hardens security or robustness in an isolated worktree (`hardening` mode). | Area to harden. |
+| `rapid-research` | Research spike, no required tests (`research` mode). | Question or topic. |
+| `rapid-next` | Continues the active run with the next deterministic action. | None. |
+| `rapid-status` | Summarizes the active run: tasks, gates and last verdict (read-only). | None. |
+| `rapid-approve` | **Does not approve**: shows the pending human gates, the evidence and the command for your terminal. | Optional: the gate (`gate.final-verification`). |
 
-Qué hace el playbook de cada modo está en la [guía de modos](./modes/index.md).
-
----
-
-## 4. El bucle que siguen
-
-Los shortcuts de modo enseñan solo estos pasos; no listan comandos de bajo nivel:
-
-1. **`rapid next --json`**: devuelve la siguiente acción (`action.kind`: `author_spec`, `run_baseline`, `activate`, `implement_task`, `verify`, `await_human_approval`, `finish`, `done` o `blocked`).
-2. **`author_spec`**: el agente redacta la spec desde tu objetivo, siguiendo la plantilla del modo (`action.spec_template`), y la pasa por stdin a `rapid start <modo> --spec-file -`. Sin run activo, `rapid next` solo conoce la plantilla de `feature`; los demás shortcuts piden la suya con `rapid start <modo> --json`.
-3. **`action.command`**: si existe, se ejecuta. En `implement_task` el agente implementa solo esa tarea y ejecuta `action.after` (`rapid task done …`). Los tests siempre se corren con `rapid check -- <comando>` para que quede evidencia.
-4. Se repite hasta `done` o `await_human_approval`; entonces el agente resume la evidencia y te pide ejecutar `rapid approve <gate>` en **tu** terminal. `rapid finish` cierra el run cuando ya no queda nada pendiente.
-5. **Nunca** ejecuta `rapid approve`, `rapid abort`, `rapid run gate` ni `rapid evidence add`, y nunca edita `.rapid-os/`.
-
-El motivo de la última regla: aprobar un gate humano, abortar un run o registrar evidencia a mano son decisiones de una persona. Si el agente pudiera hacerlo, la evidencia y las aprobaciones dejarían de significar algo. Cuando `rapid next` devuelve `blocked` con el comando `rapid abort` (porque una revisión fue rechazada), el agente explica la razón y espera tu decisión.
+What each mode's playbook does is in the [modes guide](./modes/index.md).
 
 ---
 
-## 5. Aprobación humana
+## 4. The loop they follow
 
-Los shortcuts piden aprobación **solo cuando `action.kind` es `await_human_approval`**. `awaiting_human` lista los gates humanos del contrato desde el inicio del run, así que con tareas abiertas ya trae `gate.final-verification`: pedirla entonces da `RAPID1014` (y `rapid approve` añade una línea con la tarea que sigue en curso). Cuando llega el momento, el agente te da el comando exacto con el id del gate y tú lo ejecutas en otra terminal, fuera del agente.
+The mode shortcuts teach only these steps; they do not list low-level commands:
 
-`/rapid-approve` **no aprueba nada**. Lee `rapid status --json`, te muestra los gates humanos pendientes con la evidencia que los respalda y te da el comando exacto para tu terminal:
+1. **`rapid next --json`**: returns the next action (`action.kind`: `author_spec`, `run_baseline`, `activate`, `implement_task`, `verify`, `await_human_approval`, `finish`, `done` or `blocked`).
+2. **`author_spec`**: the agent writes the spec from your goal, following the mode's template (`action.spec_template`), and passes it via stdin to `rapid start <mode> --spec-file -`. With no active run, `rapid next` only knows the `feature` template; the other shortcuts request theirs with `rapid start <mode> --json`.
+3. **`action.command`**: if present, it is run. In `implement_task` the agent implements only that task and runs `action.after` (`rapid task done …`). Tests are always run with `rapid check -- <command>` so that evidence is recorded.
+4. It repeats until `done` or `await_human_approval`; then the agent summarizes the evidence and asks you to run `rapid approve <gate>` in **your** terminal. `rapid finish` closes the run when nothing is left pending.
+5. It **never** runs `rapid approve`, `rapid abort`, `rapid run gate` or `rapid evidence add`, and never edits `.rapid-os/`.
+
+The reason for the last rule: approving a human gate, aborting a run or registering evidence by hand are decisions for a person. If the agent could do them, evidence and approvals would stop meaning anything. When `rapid next` returns `blocked` with the `rapid abort` command (because a review was rejected), the agent explains the reason and waits for your decision.
+
+---
+
+## 5. Human approval
+
+Shortcuts ask for approval **only when `action.kind` is `await_human_approval`**. `awaiting_human` lists the contract's human gates from the start of the run, so with open tasks it already carries `gate.final-verification`: requesting it then gives `RAPID1014` (and `rapid approve` adds a line with the task still in progress). When the time comes, the agent gives you the exact command with the gate id and you run it in another terminal, outside the agent.
+
+`/rapid-approve` **approves nothing**. It reads `rapid status --json`, shows you the pending human gates with the evidence that backs them and gives you the exact command for your terminal:
 
 ```bash
-rapid approve gate.final-verification                                  # aprobar
-rapid approve gate.review --waive --reason "cubierto por la auditoría"   # dispensar (solo gates waivable)
-rapid approve gate.review --reject --reason "faltan casos límite"        # rechazar: el gate queda en FAIL en ese run
+rapid approve gate.final-verification                                  # approve
+rapid approve gate.review --waive --reason "covered by the audit"        # waive (waivable gates only)
+rapid approve gate.review --reject --reason "edge cases missing"         # reject: the gate stays FAIL in that run
 ```
 
-Sin argumentos, `rapid approve` lista los gates pendientes. Cambiar un gate falla con `RAPID1310` en estos casos:
+Without arguments, `rapid approve` lists the pending gates. Changing a gate fails with `RAPID1310` in these cases:
 
-- **Sin TTY**: la entrada no es una terminal interactiva (por ejemplo, un comando lanzado por un agente o por un pipe).
-- **Desde el modo `!` de Claude Code**: ahí `claude` es un proceso ancestro y `rapid approve` se niega.
-- **Bajo un agente**: `CLAUDE_CODE_CHILD_SESSION=1`, o `claude` como ancestro del proceso.
+- **No TTY**: the input is not an interactive terminal (for example, a command launched by an agent or through a pipe).
+- **From Claude Code's `!` mode**: there `claude` is an ancestor process and `rapid approve` refuses.
+- **Under an agent**: `CLAUDE_CODE_CHILD_SESSION=1`, or `claude` as an ancestor of the process.
 
-La solución es siempre la misma: ejecútalo tú en tu propia terminal (la terminal integrada de un editor sirve). La comprobación de ancestros es de mejor esfuerzo; la regla es que una persona apruebe en su terminal. Los detalles están en [límites del producto](../concepts/product-boundaries.md).
-
----
-
-## 6. Hooks de Claude Code
-
-Los hooks `Stop` y `PreToolUse` (opcionales, solo para Claude Code) evitan que el agente se detenga a mitad de un run y le deniegan los comandos reservados a la persona y la edición de `.rapid-os/`: `rapid shortcuts install --harness claude --hooks`. Todo el detalle está en la [sección 6 de la integración con Claude Code](../integrations/claude-code.md#6-hooks-de-claude-code-refuerzo-opcional-del-bucle).
+The solution is always the same: run it yourself in your own terminal (an editor's integrated terminal works). The ancestor check is best-effort; the rule is that a person approves in their terminal. The details are in [product boundaries](../concepts/product-boundaries.md).
 
 ---
 
-## 7. Problemas frecuentes
+## 6. Claude Code hooks
 
-El catálogo completo de códigos está en [diagnósticos](../troubleshooting/diagnostics.md); estos son los que más verá quien usa shortcuts.
+The `Stop` and `PreToolUse` hooks (optional, Claude Code only) keep the agent from stopping midway through a run and deny it the commands reserved for the person and the editing of `.rapid-os/`: `rapid shortcuts install --harness claude --hooks`. All the detail is in [section 6 of the Claude Code integration](../integrations/claude-code.md#6-claude-code-hooks-optional-loop-enforcement).
 
-| Código | Qué significa | Solución |
+---
+
+## 7. Common problems
+
+The full catalog of codes is in [diagnostics](../troubleshooting/diagnostics.md); these are the ones shortcut users will see most.
+
+| Code | What it means | Fix |
 | :--- | :--- | :--- |
-| `RAPID1301` | No hay `test_command` en `.rapid-os/config.json`. | `rapid init --test-command "<cmd>"` o añadirlo a la config como lista argv. |
-| `RAPID1307` | No hay un run activo (`.rapid-os/session.json`). | Empieza uno con `/rapid-<modo> <objetivo>` o `rapid start <modo>`. |
-| `RAPID1308` | Ya hay un run activo sin terminar. | Continúa con `/rapid-next`, o cancélalo tú con `rapid abort` en tu terminal. |
-| `RAPID1310` | `rapid approve` sin TTY, desde el modo `!` de Claude Code o con `claude` como ancestro. | Ejecútalo en tu propia terminal (sección 5). |
-| `RAPID1312` | No hay harness seleccionado para instalar. | `--harness <id>` o `rapid init --agents <lista>`. |
-| `RAPID1413` | `--global` para un harness sin carpeta de usuario documentada (`vscode`), sin `--harness` o con `--hooks`; o un `--only` con un shortcut inexistente. No se escribe nada. | Instalar en el proyecto (sin `--global`), o pasar `--harness` y un nombre de la tabla de la sección 3. |
-| `RAPID1414` | Aviso: `rapid` no está en el `PATH` y hay shortcuts o hooks instalados. | Instalar Rapid OS con el instalador o con `pipx install git+https://github.com/alyconr/Rapid-OS.git`. |
-| `RAPID1315` | Un shortcut de modo se omitió porque ese modo no tiene playbook. | Informativo; vuelve a ejecutar `rapid shortcuts install` cuando exista. |
-| `RAPID1320` | `rapid check --expect fail` sin tarea (o ligado a un gate). | Indica `--task T001` o deja exactamente una tarea en curso. |
-| `RAPID1321` | Aviso: la selección deja el mismo `/rapid-*` en dos carpetas que Cursor o VS Code leen. | Instala solo la combinación recomendada en el aviso (ver «Si combinas harnesses»); no bloquea nada. |
-| `RAPID1337` | `--hooks` sin el harness `claude`. | Selecciona `--harness claude` o quita `--hooks`. |
-| `RAPID1339` | `rapid doctor`: hay hooks instalados pero `rapid` no está en el `PATH`. | Instala Rapid OS donde lo vea Claude Code o añade su directorio de scripts al `PATH`. |
+| `RAPID1301` | There is no `test_command` in `.rapid-os/config.json`. | `rapid init --test-command "<cmd>"` or add it to the config as an argv list. |
+| `RAPID1307` | There is no active run (`.rapid-os/session.json`). | Start one with `/rapid-<mode> <goal>` or `rapid start <mode>`. |
+| `RAPID1308` | There is already an unfinished active run. | Continue with `/rapid-next`, or cancel it yourself with `rapid abort` in your terminal. |
+| `RAPID1310` | `rapid approve` without a TTY, from Claude Code's `!` mode or with `claude` as an ancestor. | Run it in your own terminal (section 5). |
+| `RAPID1312` | No harness selected to install. | `--harness <id>` or `rapid init --agents <list>`. |
+| `RAPID1413` | `--global` for a harness with no documented user folder (`vscode`), without `--harness` or with `--hooks`; or an `--only` with a nonexistent shortcut. Nothing is written. | Install in the project (without `--global`), or pass `--harness` and a name from the table in section 3. |
+| `RAPID1414` | Warning: `rapid` is not on the `PATH` and shortcuts or hooks are installed. | Install Rapid OS with the installer or with `pipx install git+https://github.com/alyconr/Rapid-OS.git`. |
+| `RAPID1315` | A mode shortcut was skipped because that mode has no playbook. | Informational; run `rapid shortcuts install` again once it exists. |
+| `RAPID1320` | `rapid check --expect fail` without a task (or tied to a gate). | Pass `--task T001` or leave exactly one task in progress. |
+| `RAPID1321` | Warning: the selection leaves the same `/rapid-*` in two folders that Cursor or VS Code read. | Install only the combination recommended in the warning (see "If you combine harnesses"); it blocks nothing. |
+| `RAPID1337` | `--hooks` without the `claude` harness. | Select `--harness claude` or remove `--hooks`. |
+| `RAPID1339` | `rapid doctor`: hooks are installed but `rapid` is not on the `PATH`. | Install Rapid OS where Claude Code can see it or add its scripts directory to the `PATH`. |
 
-Sin código de error:
+Without an error code:
 
-| Síntoma | Causa | Solución |
+| Symptom | Cause | Fix |
 | :--- | :--- | :--- |
-| En **Codex CLI**, `/rapid-feature` no aparece al escribir `/`. | En Codex CLI, `/` solo lista los comandos de Codex; los skills se invocan con `$` o desde `/skills`. | Escribe `$rapid-feature <objetivo>` ([detalle](../integrations/codex.md#invocación-codex-cli-y-extensión-de-ide)). |
+| In **Codex CLI**, `/rapid-feature` does not appear when typing `/`. | In Codex CLI, `/` only lists Codex commands; skills are invoked with `$` or from `/skills`. | Type `$rapid-feature <goal>` ([details](../integrations/codex.md#invoke-codex-cli-and-ide-extension)). |

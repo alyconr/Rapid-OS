@@ -1,76 +1,66 @@
 ---
-title: Verificación de la instalación
-description: Comandos oficiales para comprobar la correcta instalación y funcionamiento de Rapid OS.
+title: Verify the Installation
+description: Official commands for checking that Rapid OS is installed and working correctly.
 ---
 
-# Verificación de la instalación
+# Verify the Installation
 
-Una vez instalado Rapid OS en tu sistema, ejecuta los siguientes comandos para validar que el CLI responde correctamente y que tu entorno está listo para gobernar proyectos.
+After installing Rapid OS, run these commands to confirm that the CLI responds and your environment is ready to govern projects.
 
----
+## 1. Product version (`rapid --version`)
 
-## 1. Versión del producto (`rapid --version`)
-
-Verifica la versión instalada:
+Check the installed version:
 
 ```bash
 rapid --version
 ```
 
-**Resultado esperado:**
+**Expected output:**
 ```text
 Rapid OS 3.1.1
 ```
 
-Si este comando no responde o indica que la orden no fue encontrada, consulta la guía de [Solución de problemas](../troubleshooting/installation.md).
+If the command does not respond or says the command was not found, see the [troubleshooting guide](../troubleshooting/installation.md).
 
----
+## 2. General help (`rapid --help`)
 
-## 2. Ayuda general (`rapid --help`)
-
-Comprueba que el parser de argumentos y los subcomandos principales estén disponibles:
+Confirm that the argument parser and main subcommands are available:
 
 ```bash
 rapid --help
 ```
 
-**Resultado esperado:**
-Un listado con la descripción de Rapid OS y los comandos disponibles (`init`, `scan`, `context`, `spec`, `policy`, `run`, `harness`, `evidence`, `eval`, `validate`, `doctor`, `guide`, etc.).
+**Expected output:** A list describing Rapid OS and the available commands (`init`, `scan`, `context`, `spec`, `policy`, `run`, `harness`, `evidence`, `eval`, `validate`, `doctor`, `guide`, and others).
 
----
+## 3. Workflow overview (`rapid guide`)
 
-## 3. Guía rápida de flujo (`rapid guide`)
-
-Rapid OS incluye una guía interactiva y de solo lectura que describe el flujo de 8 pasos del ciclo de gobernanza:
+Rapid OS includes a read-only interactive guide to the governance loop's eight steps:
 
 ```bash
 rapid guide
 ```
 
-**Resultado esperado:**
-Un resumen visual en terminal que muestra el ciclo de gobernanza v3 y clasifica qué comandos son de **solo lectura** (*Read-only*) y cuáles **escriben estado** (*Writes*).
+**Expected output:** A visual terminal summary of the v3 governance loop that identifies which commands are **read-only** and which **write state**.
 
----
+## 4. Environment diagnostics (`rapid doctor`)
 
-## 4. Diagnóstico del entorno (`rapid doctor`)
-
-Inspecciona la configuración del entorno, la ubicación de templates y las herramientas disponibles:
+Inspect the environment configuration, template locations, and available tools:
 
 ```bash
 rapid doctor
 ```
 
-**Resultado esperado:**
+**Expected output:**
 ```text
 ==> Rapid OS Doctor
 
 Configuration:
   Project config: .rapid-os/config.json (Not found - run 'rapid init')
-  Rapid home:     /home/<usuario>/.rapid-os
+  Rapid home:     /home/<user>/.rapid-os
 
 Environment:
-  Node.js:        Available (v20.x.x)  # O Not installed (opcional)
-  npx:            Available            # O Not installed (opcional)
+  Node.js:        Available (v20.x.x)  # or Not installed (optional)
+  npx:            Available            # or Not installed (optional)
   Python:         3.12.x
 
 Templates:
@@ -79,34 +69,28 @@ Templates:
 Status: OK (Warnings: 0, Errors: 0)
 ```
 
-:::note Project config no encontrado es normal aquí
-Si ejecutas `rapid doctor` fuera de un proyecto inicializado con Rapid OS, es completamente normal que indique `Project config: .rapid-os/config.json (Not found - run 'rapid init')`. Esto simplemente confirma que el directorio actual no tiene aún gobernanza activa.
+:::note A missing project config is normal here
+If you run `rapid doctor` outside a project initialized with Rapid OS, it is normal to see `Project config: .rapid-os/config.json (Not found - run 'rapid init')`. This only means the current directory does not have active governance yet.
 :::
 
----
+## 5. Installed shortcuts (`rapid shortcuts list`)
 
-## 5. Shortcuts instalados (`rapid shortcuts list`)
-
-Dentro de un proyecto donde ejecutaste `rapid init --shortcuts` (o `rapid shortcuts install`), comprueba el estado de cada archivo generado:
+Inside a project where you ran `rapid init --shortcuts` (or `rapid shortcuts install`), check the status of each generated file:
 
 ```bash
 rapid shortcuts list
 ```
 
-**Resultado esperado:** los shortcuts de tus harness en estado `installed`. Si alguno aparece como `outdated` (tras actualizar Rapid OS), ejecuta `rapid shortcuts install`; si aparece `missing`, instálalo. Con `--json` obtienes el mismo estado para scripts. Si seleccionaste Cursor o VS Code junto con Claude, Codex o Antigravity verás `WARNING RAPID1321`: es solo un aviso de carpetas solapadas (ver [Si combinas harnesses](../guides/shortcuts.md#si-combinas-harnesses)).
+**Expected output:** Your harness shortcuts should have the `installed` status. If one is `outdated` after a Rapid OS update, run `rapid shortcuts install`; if it is `missing`, install it. Use `--json` to get the same status for scripts. If you selected Cursor or VS Code alongside Claude, Codex, or Antigravity, you may see `WARNING RAPID1321`: this is only a warning about overlapping directories (see [Combining harnesses](../guides/shortcuts.md#if-you-combine-harnesses)).
 
----
+## 6. Diagnostics inside a project (`rapid doctor`)
 
-## 6. Diagnóstico dentro del proyecto (`rapid doctor`)
+After initializing a project, `rapid doctor` also checks the porcelain layer. These warnings can be expected and do not indicate an installation failure:
 
-Con el proyecto inicializado, `rapid doctor` revisa también la capa porcelain. Dos avisos son esperables y no indican un fallo de instalación:
+- **`RAPID1319`**: The process tree could not be read, so `rapid approve` cannot check whether an agent launched it. Approval still requires an interactive terminal.
+- **`RAPID1414`**: Shortcuts or hooks are installed, but `rapid` is not on the PATH used by the agent's shell. This is a warning (exit 0), not an error. Install Rapid OS with the installer or `pipx install git+https://github.com/alyconr/Rapid-OS.git`, then launch the agent from a terminal where `rapid --version` works. Global `/rapid-init` is checked the same way: the skill runs `rapid` from that shell.
+- **`RAPID1339`**: Claude Code hooks are installed, but Claude Code cannot resolve `rapid` on its PATH. Install Rapid OS where Claude Code can find it (for example, with `pipx install git+https://github.com/alyconr/Rapid-OS.git`) or add its scripts directory to PATH. This warning does not appear if you do not use hooks.
 
-- **`RAPID1319`**: no se pudo leer el árbol de procesos, así que `rapid approve` no puede comprobar si lo lanza un agente. Aprobar sigue exigiendo una terminal interactiva.
-- **`RAPID1414`**: hay shortcuts o hooks instalados pero `rapid` no está en el `PATH` del shell que usa el agente. Es un aviso (exit 0), no un error: instala Rapid OS con el instalador o con `pipx install git+https://github.com/alyconr/Rapid-OS.git` y lanza el agente desde una terminal donde `rapid --version` funcione. Si ofreciste `/rapid-init` global, se comprueba igual: el skill ejecuta `rapid` desde ese shell.
-- **`RAPID1339`**: hay hooks de Claude Code instalados pero `rapid` no se resuelve en el `PATH` que ve Claude Code. Instala Rapid OS donde lo vea (por ejemplo `pipx install git+https://github.com/alyconr/Rapid-OS.git`) o añade su directorio de scripts al `PATH`; si no usas hooks, no aparece.
+## All set
 
----
-
-## Todo listo
-
-Si los comandos respondieron con éxito, tu instalación es correcta y reproducible. Ahora puedes avanzar a [Primeros pasos](../getting-started.md) o al tutorial: **[Tu primer proyecto gobernado](../getting-started/first-project.md)**.
+If the commands succeeded, your installation is working and reproducible. Continue to [Getting Started](../getting-started.md) or the tutorial [Your First Governed Project](../getting-started/first-project.md).

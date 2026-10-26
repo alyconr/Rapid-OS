@@ -1,60 +1,54 @@
 ---
-title: Actualización de Rapid OS
-description: Cómo actualizar tu instalación de Rapid OS a nuevas versiones estables.
+title: Upgrade Rapid OS
+description: How to upgrade your Rapid OS installation to newer stable versions.
 ---
 
-# Actualización de Rapid OS
+# Upgrade Rapid OS
 
-Mantener actualizada tu instalación de Rapid OS te permite acceder a nuevas reglas de escaneo, mejoras de rendimiento y diagnósticos actualizados.
+Keeping Rapid OS up to date gives you new scan rules, performance improvements, and current diagnostics.
 
----
+## 1. Upgrade with the official installer
 
-## 1. Actualización con el instalador oficial
+If you installed Rapid OS with the official script in `$HOME/.rapid-os`:
 
-Si instalaste Rapid OS mediante el script oficial en `$HOME/.rapid-os`:
-
-### En Windows (PowerShell)
-Vuelve a ejecutar el instalador oficial. El script detectará la carpeta existente y actualizará las etiquetas de Git:
+### Windows (PowerShell)
+Run the official installer again. It detects the existing directory and updates the Git tags:
 ```powershell
 irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.ps1 | iex
 ```
 
-O de forma manual desde el directorio de instalación:
+Or update manually from the installation directory:
 ```powershell
 git -C "$HOME\.rapid-os" fetch --tags --force origin
 git -C "$HOME\.rapid-os" checkout --detach v3.1.1
 ```
 
-### En Linux y macOS (Bash/Zsh)
+### Linux and macOS (Bash/Zsh)
 ```bash
 curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.sh | bash
 ```
 
-O de forma manual:
+Or update manually:
 ```bash
 git -C "$HOME/.rapid-os" fetch --tags --force origin
 git -C "$HOME/.rapid-os" checkout --detach v3.1.1
 ```
 
----
+## 2. Upgrade with `pip`
 
-## 2. Actualización mediante `pip`
-
-Si instalaste Rapid OS dentro de un entorno virtual:
+If Rapid OS is installed in a virtual environment:
 
 ```bash
-# Activar entorno virtual
-source .venv/bin/activate  # O en Windows: .venv\Scripts\Activate.ps1
+# Activate the virtual environment
+source .venv/bin/activate  # or .venv\Scripts\Activate.ps1 on Windows
 
-# Actualizar el paquete desde el tag deseado
+# Upgrade from the desired tag
 python -m pip install --upgrade git+https://github.com/alyconr/Rapid-OS.git@v3.1.1
 ```
 
----
+## 3. Upgrade a development installation
 
-## 3. Actualización de instalación de desarrollo
-
-Si utilizas un clon local en modo editable (`pip install -e .`):
+If you use a local clone in editable mode (`pip install -e .`):
 
 ```bash
 cd Rapid-OS
@@ -62,40 +56,36 @@ git pull origin main
 rapid doctor
 ```
 
----
+## 4. Verify after upgrading
 
-## 4. Verificación post-actualización
-
-Tras actualizar, comprueba que la versión sea la esperada y que el diagnóstico no reporte anomalías:
+Check that the version is expected and diagnostics report no unexpected issues:
 
 ```bash
 rapid --version
 rapid doctor
 ```
 
----
+## 5. From 3.0 to 3.1
 
-## 5. De 3.0 a 3.1
+Rapid OS 3.1 adds the intent layer (`rapid start|next|check|...`), `/rapid-<mode>` shortcuts, and Claude Code hooks. The v3.0 commands and flags are unchanged, and **nothing needs to be migrated** in specs, runs, evidence, or evaluations. Existing evaluation reports (ruleset 1) remain valid; ruleset 2 is the default for new evaluations, and `--ruleset 1` remains available.
 
-Rapid OS 3.1 añade la capa de intención (`rapid start|next|check|…`), los shortcuts `/rapid-<modo>` y los hooks de Claude Code. Los comandos y flags de v3.0 no cambian y **no hay nada que migrar** en specs, runs, evidencia ni evaluaciones: los reportes de evaluación existentes (ruleset 1) siguen siendo válidos; el ruleset 2 es el predeterminado para evaluaciones nuevas y `--ruleset 1` sigue disponible.
-
-1. Actualiza el paquete y comprueba la versión:
+1. Upgrade the package and check its version:
    ```bash
    python -m pip install --upgrade git+https://github.com/alyconr/Rapid-OS.git@v3.1.1
    rapid --version   # Rapid OS 3.1.1
    ```
-2. Reinstala los shortcuts en cada proyecto (idempotente; los archivos modificados a mano se respaldan como `.bak`):
+2. Reinstall shortcuts in each project (this is idempotent; manually changed files are backed up as `.bak`):
    ```bash
-   rapid init --shortcuts          # proyecto nuevo o sin inicializar
-   rapid shortcuts install         # proyecto ya inicializado
+   rapid init --shortcuts          # new or uninitialized project
+   rapid shortcuts install         # initialized project
    ```
-3. Opcional, solo Claude Code: añade los hooks con `--hooks` (`rapid shortcuts install --hooks` o `rapid init --hooks`).
-4. Añade a `.gitignore` el estado local de la sesión:
+3. Optional, Claude Code only: add hooks with `--hooks` (`rapid shortcuts install --hooks` or `rapid init --hooks`).
+4. Add local session state to `.gitignore`:
    ```gitignore
    .rapid-os/session.json
    .rapid-os/scratch/
    ```
-5. Define `test_command` en `.rapid-os/config.json` (por ejemplo `"python -m unittest discover"`); `rapid check` lo usa cuando no se le pasa un comando.
-6. Verifica con `rapid doctor`.
+5. Set `test_command` in `.rapid-os/config.json` (for example, `"python -m unittest discover"`); `rapid check` uses it when no command is supplied.
+6. Verify with `rapid doctor`.
 
-Detalles y límites conocidos en las [notas de la release v3.1.1](../release-v3.1.1.md).
+See the [Rapid OS v3.1.1 release notes](../release-v3.1.1.md) for details and known limitations.

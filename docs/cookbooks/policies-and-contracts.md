@@ -1,36 +1,36 @@
 ---
-title: Políticas y Contratos de Ejecución
-description: Cookbook de configuración avanzada de .rapid-os/policy.json y gestión de contratos de ejecución en RAPID OS.
+title: Execution Policies and Contracts
+description: Advanced configuration cookbook for .rapid-os/policy.json and execution contract management in RAPID OS.
 ---
 
-# Políticas y Contratos de Ejecución
+# Execution Policies and Contracts
 
-En RAPID OS, el código no se modifica al azar ni por iniciativa no gobernada del agente. Cada ciclo de trabajo está mediado por un **Contrato de Ejecución** (`ExecutionContract`), el cual es evaluado deterministamente por el motor de **Políticas** (`ExecutionPolicyEvaluator`) contra `.rapid-os/policy.json`.
+In RAPID OS, code is not modified at random or on the agent's ungoverned initiative. Every work cycle is mediated by an **Execution Contract** (`ExecutionContract`), which is evaluated deterministically by the **Policy** engine (`ExecutionPolicyEvaluator`) against `.rapid-os/policy.json`.
 
 ---
 
-## 1. Inicialización y visualización de la política
+## 1. Initializing and viewing the policy
 
-RAPID OS cuenta con una política predeterminada integrada en el sistema. Puedes inspeccionarla o inicializar un archivo local para personalizarla a nivel de proyecto:
+RAPID OS ships with a default policy built into the system. You can inspect it or initialize a local file to customize it at the project level:
 
 ```bash
-# Inspeccionar la política activa (default o proyecto)
+# Inspect the active policy (default or project)
 rapid policy show
 
-# Emitir en formato JSON puro
+# Emit pure JSON
 rapid policy show --json
 
-# Inicializar .rapid-os/policy.json en el proyecto actual
+# Initialize .rapid-os/policy.json in the current project
 rapid policy init
 ```
 
-> **Nota**: Si `.rapid-os/policy.json` ya existe, `rapid policy init` abortará con el diagnóstico `RAPID1005` para evitar sobreescrituras accidentales.
+> **Note**: If `.rapid-os/policy.json` already exists, `rapid policy init` aborts with diagnostic `RAPID1005` to prevent accidental overwrites.
 
 ---
 
-## 2. Anatomía de `.rapid-os/policy.json`
+## 2. Anatomy of `.rapid-os/policy.json`
 
-Un archivo `.rapid-os/policy.json` sigue el esquema canónico versión 1:
+A `.rapid-os/policy.json` file follows the canonical schema version 1:
 
 ```json
 {
@@ -103,47 +103,47 @@ Un archivo `.rapid-os/policy.json` sigue el esquema canónico versión 1:
 }
 ```
 
-### Componentes clave
+### Key components
 
-| Campo | Propósito | Valores permitidos |
+| Field | Purpose | Allowed values |
 | :--- | :--- | :--- |
-| `schema_version` | Versión del schema de políticas | Entero positivo (`1`) |
-| `minimum_classification` | Clasificación mínima impuesta para cualquier run | `"spike"`, `"bounded"`, `"architectural"` |
-| `minimum_risk` | Nivel mínimo de riesgo asignado a cualquier run | `"low"`, `"medium"`, `"high"`, `"critical"` |
-| `workspace_by_risk` | Requisito de aislamiento de entorno de trabajo por nivel de riesgo | Objeto con claves `low`, `medium`, `high`, `critical` y valores `"current_allowed"` o `"isolated_required"` |
-| `waivable_gate_ids` | Subconjunto de compuertas que un humano puede eximir explícitamente con motivo justificado | Subconjunto de `["gate.review", "gate.tests"]` |
-| `extra_required_gate_ids` | Compuertas adicionales requeridas incondicionalmente | Subconjunto de IDs del catálogo canónico de gates |
-| `architectural_path_prefixes` | Prefijos de ruta que automáticamente elevan la clasificación a `architectural` si se modifican | Rutas relativas POSIX |
-| `high_risk_tags` / `critical_risk_tags` | Etiquetas en specs que elevan el nivel de riesgo a `high` o `critical` | Lista de strings identificadores |
+| `schema_version` | Policy schema version | Positive integer (`1`) |
+| `minimum_classification` | Minimum classification enforced for any run | `"spike"`, `"bounded"`, `"architectural"` |
+| `minimum_risk` | Minimum risk level assigned to any run | `"low"`, `"medium"`, `"high"`, `"critical"` |
+| `workspace_by_risk` | Workspace isolation requirement per risk level | Object with keys `low`, `medium`, `high`, `critical` and values `"current_allowed"` or `"isolated_required"` |
+| `waivable_gate_ids` | Subset of gates that a human can explicitly waive with a justified reason | Subset of `["gate.review", "gate.tests"]` |
+| `extra_required_gate_ids` | Additional gates required unconditionally | Subset of IDs from the canonical gate catalog |
+| `architectural_path_prefixes` | Path prefixes that automatically raise the classification to `architectural` if modified | Relative POSIX paths |
+| `high_risk_tags` / `critical_risk_tags` | Spec tags that raise the risk level to `high` or `critical` | List of identifier strings |
 
 ---
 
-## 3. Catálogo Canónico de Compuertas (`CANONICAL_GATE_CATALOG`) {#compuertas-disponibles}
+## 3. Canonical Gate Catalog (`CANONICAL_GATE_CATALOG`) {#available-gates}
 
-En los contratos de ejecución generados por RAPID OS, las compuertas se identifican mediante identificadores canónicos prefijados por `gate.`:
+In the execution contracts generated by RAPID OS, gates are identified by canonical identifiers prefixed with `gate.`:
 
-| Identificador canónico | `GateKind` subyacente | Fase | Significado y Evidencia esperada |
+| Canonical identifier | Underlying `GateKind` | Phase | Meaning and expected evidence |
 | :--- | :--- | :--- | :--- |
-| `gate.workspace-isolation` | `workspace_isolation` | `pre_execution` | Verificación de ejecución en espacio aislado. Requiere evidencia `workspace`. |
-| `gate.baseline` | `baseline_check` | `pre_execution` | Comprobación de salud antes de cambios. Requiere evidencia `test_result` o `command_result`. |
-| `gate.manual-approval` | `manual_approval` | `pre_execution` | Aprobación pre-ejecución en riesgo crítico. Requiere evidencia `review` o `delegation`. |
-| `gate.tests` | `implementation_tests` | `post_execution` | Pruebas de unidad o integración. Requiere evidencia `test_result` exitoso. |
-| `gate.architecture` | `architecture_check` | `post_execution` | Solo si el proyecto tiene `.rapid-os/standards/architecture.json` y el modo es `feature`, `bugfix` o `refactor`. Requiere evidencia `command_result` de `rapid arch check` con `exit_code: 0`. No es dispensable. |
-| `gate.review` | `peer_review` | `post_execution` | Revisión arquitectónica o por pares. Requiere evidencia `review` aprobada. |
-| `gate.security-review` | `security_review` | `post_execution` | Análisis o revisión de seguridad. Requiere evidencia `review` o `command_result`. |
-| `gate.migration-review` | `migration_review` | `post_execution` | Revisión de scripts de migración. Requiere evidencia `review` especializada. |
-| `gate.final-verification` | `final_verification` | `post_execution` | Verificación contractual de cierre de ciclo. Requiere evaluación completa del run. |
+| `gate.workspace-isolation` | `workspace_isolation` | `pre_execution` | Verification of execution in an isolated workspace. Requires `workspace` evidence. |
+| `gate.baseline` | `baseline_check` | `pre_execution` | Health check before changes. Requires `test_result` or `command_result` evidence. |
+| `gate.manual-approval` | `manual_approval` | `pre_execution` | Pre-execution approval at critical risk. Requires `review` or `delegation` evidence. |
+| `gate.tests` | `implementation_tests` | `post_execution` | Unit or integration tests. Requires successful `test_result` evidence. |
+| `gate.architecture` | `architecture_check` | `post_execution` | Only if the project has `.rapid-os/standards/architecture.json` and the mode is `feature`, `bugfix`, or `refactor`. Requires `command_result` evidence from `rapid arch check` with `exit_code: 0`. Not waivable. |
+| `gate.review` | `peer_review` | `post_execution` | Architectural or peer review. Requires approved `review` evidence. |
+| `gate.security-review` | `security_review` | `post_execution` | Security analysis or review. Requires `review` or `command_result` evidence. |
+| `gate.migration-review` | `migration_review` | `post_execution` | Review of migration scripts. Requires specialized `review` evidence. |
+| `gate.final-verification` | `final_verification` | `post_execution` | Contractual verification closing the cycle. Requires a full evaluation of the run. |
 
 ---
 
-## 4. Ciclo de vida de un Contrato y su Estado (`RunState`)
+## 4. Lifecycle of a Contract and its State (`RunState`)
 
-Al ejecutar `rapid run create --spec <spec-id> --harness <harness-id>`, RAPID OS:
-1. Resuelve la spec inmutable y su digest SHA-256.
-2. Evalúa las rutas y tags contra `.rapid-os/policy.json`.
-3. Emite un `PolicyDecision` con el riesgo y los gates requeridos.
-4. Genera el contrato inmutable (`contract.json`).
-5. Inicializa el estado en revisión 1 (`state_0001.json`) con estado `prepared`.
+When you run `rapid run create --spec <spec-id> --harness <harness-id>`, RAPID OS:
+1. Resolves the immutable spec and its SHA-256 digest.
+2. Evaluates the paths and tags against `.rapid-os/policy.json`.
+3. Emits a `PolicyDecision` with the risk and the required gates.
+4. Generates the immutable contract (`contract.json`).
+5. Initializes the state at revision 1 (`state_0001.json`) with status `prepared`.
 
 ```mermaid
 stateDiagram-v2
@@ -158,27 +158,27 @@ stateDiagram-v2
     finished --> [*]
 ```
 
-### Transiciones de Estado
+### State Transitions
 
 ```bash
-# 1. Iniciar ejecución
+# 1. Start execution
 rapid run status mi-run-001 active --reason "Inicio de implementación"
 
-# 2. Actualizar tarea del contrato
+# 2. Update a contract task
 rapid run task mi-run-001 T1 done --reason "Endpoints implementados con tests"
 
-# 3. Reconocer compuerta con evidencia
+# 3. Acknowledge a gate with evidence
 rapid run gate mi-run-001 gate.baseline acknowledged --reason "Baseline verde confirmado"
 
-# 4. Finalizar ejecución del run
+# 4. Finish the run's execution
 rapid run status mi-run-001 finished --reason "Tareas concluidas y pruebas pasando"
 ```
 
 ---
 
-## 5. Exenciones Justificadas (Waivers)
+## 5. Justified Waivers
 
-Si una compuerta está declarada en `waivable_gate_ids` dentro de la política (`gate.review`, `gate.tests`), se puede otorgar una exención cuando las circunstancias lo justifiquen:
+If a gate is declared in `waivable_gate_ids` within the policy (`gate.review`, `gate.tests`), a waiver can be granted when the circumstances justify it:
 
 ```bash
 rapid run gate \
@@ -188,4 +188,4 @@ rapid run gate \
   --reason "Exención autorizada por hotfix de emergencia en producción (incidente #992)"
 ```
 
-> **Regla de integridad**: Si intentas eximir una compuerta que **no** está en `waivable_gate_ids`, RAPID OS rechazará la operación con el diagnóstico `RAPID1013`. Además, al evaluar el run (`rapid eval run`), el reporte marcará la compuerta como exenta y el veredicto pasará como `pass_with_waivers`.
+> **Integrity rule**: If you try to waive a gate that is **not** in `waivable_gate_ids`, RAPID OS rejects the operation with diagnostic `RAPID1013`. In addition, when the run is evaluated (`rapid eval run`), the report marks the gate as waived and the verdict is `pass_with_waivers`.

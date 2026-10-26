@@ -1,8 +1,13 @@
-# Migración de `setup.json` a stacks por componente
+---
+title: Migrating from `setup.json` to Component Stacks
+description: How Rapid OS migrates projects from a single stack to per-component stacks.
+---
 
-`setup.json` guardaba un solo `stack`. Ahora guarda `stacks`, uno por componente de la topología. Ningún proyecto existente se rompe: el archivo anterior se lee como el nuevo, sin escribir nada, y se reescribe en el formato nuevo la próxima vez que Rapid OS guarda una decisión.
+# Migrating from `setup.json` to Component Stacks
 
-## Antes y después
+`setup.json` used to store one `stack`. It now stores `stacks`, one per topology component. Existing projects do not break: the old file is read as the new format without being changed, then rewritten in the new format the next time Rapid OS saves a decision.
+
+## Before and after
 
 ```json
 { "stack": { "id": "python-api", "source": "catalog" } }
@@ -14,29 +19,29 @@
 }
 ```
 
-`source` sigue siendo `catalog`, `generic` o `custom`; `profile` (opcional) nombra una variante del `tech-stack.md`. Un stack que cubre varios componentes se guarda bajo cada uno de ellos.
+`source` remains `catalog`, `generic`, or `custom`; optional `profile` names a variant from `tech-stack.md`. A stack that covers multiple components is stored under each component.
 
-## Cómo se leen los ids de antes
+## How previous IDs map
 
-| Id anterior | Ahora |
+| Previous ID | New mapping |
 |---|---|
 | `python-api` | `backend` → `python-fastapi` |
-| `python-ai` | `backend` → `python-fastapi` y `ai: true` (si el archivo no decía otra cosa) |
-| `nodejs-ai` | `backend` → `node-fastify` y `ai: true` (si el archivo no decía otra cosa) |
-| `web-modern` | `frontend` y `backend` → `nextjs` |
-| `frontend-creative` | `frontend` → `react-vite` con el perfil `creative` |
+| `python-ai` | `backend` → `python-fastapi` and `ai: true` (unless the file says otherwise) |
+| `nodejs-ai` | `backend` → `node-fastify` and `ai: true` (unless the file says otherwise) |
+| `web-modern` | `frontend` and `backend` → `nextjs` |
+| `frontend-creative` | `frontend` → `react-vite` with the `creative` profile |
 | `docs-modern` | `docs` → `docs-modern` |
-| `generic` | todos los componentes → `generic` |
-| `custom` (o un id que no está en el catálogo) | todos los componentes → ese stack |
+| `generic` | All components → `generic` |
+| `custom` (or an ID absent from the catalog) | All components → that stack |
 
-El resto del archivo (`topology`, `archetype`, `agents`, `test_command`, `docs`, `services`, `ai`, `finished`) no cambia. Un proyecto terminado sigue terminado: aunque ahora la topología pida un componente más (por ejemplo, el frontend de un `fullstack-separated` que antes solo tenía `python-api`), el onboarding no se reabre; `rapid setup next` lo propone solo si lo cambias.
+The rest of the file (`topology`, `archetype`, `agents`, `test_command`, `docs`, `services`, `ai`, `finished`) is unchanged. A completed project stays completed: even if the topology now requires another component (for example, the frontend of a `fullstack-separated` project that previously had only `python-api`), onboarding does not reopen. `rapid setup next` proposes it only if you change the topology.
 
-## Qué pasa con los archivos
+## What happens to other files
 
-- `tech-stack.md` y `architecture.json` no se tocan mientras la decisión no cambie. Un `tech-stack.md` anterior se interpreta por su título (`PYTHON API`, `MODERN WEB`...) y, en los archivos nuevos, por la marca `<!-- rapid-stack: backend=go -->` que Rapid OS escribe al final de cada bloque.
-- El `architecture.json` anterior (`modules_root`, `shared_root`, `public_entry`, `layers`, `domain_forbidden_imports`) sigue leyéndose igual. Los campos nuevos son opcionales: `roles`, `module_pattern`, `public_contract`, `public_policy`, `public_dirs`, `namespace_root`, `aliases`, `pure_layer`, `delegate`, `component`, `root` y `rules` (varias reglas, una por componente).
-- La validación de un proyecto existente (`RAPID404`) sigue usando para los ids anteriores las topologías que aceptaban.
+- `tech-stack.md` and `architecture.json` are untouched unless the decision changes. Older `tech-stack.md` files are interpreted by title (`PYTHON API`, `MODERN WEB`, and so on), and newer files use the `<!-- rapid-stack: backend=go -->` marker Rapid OS writes at the end of each block.
+- The previous `architecture.json` fields (`modules_root`, `shared_root`, `public_entry`, `layers`, `domain_forbidden_imports`) continue to be read. New fields are optional: `roles`, `module_pattern`, `public_contract`, `public_policy`, `public_dirs`, `namespace_root`, `aliases`, `pure_layer`, `delegate`, `component`, `root`, and `rules` (multiple rules, one per component).
+- Validation of existing projects (`RAPID404`) continues to accept the topologies associated with previous IDs.
 
-## Qué cambia si vuelves a decidir
+## What changes when you make a new decision
 
-`rapid setup set stack python-api` sigue funcionando y llena `backend` con `python-fastapi` (y `ai` si el id era de IA), pero ahora el frontend de un `fullstack-separated` hay que elegirlo aparte (`rapid setup set stack react-vite --component frontend`). Un stack del catálogo nuevo se elige por su id (`go`, `vue-vite`...); ver [Stacks y componentes](../concepts/stacks.md).
+`rapid setup set stack python-api` still works and sets `backend` to `python-fastapi` (and `ai` if the ID is for AI). For `fullstack-separated`, choose the frontend separately with `rapid setup set stack react-vite --component frontend`. Select a new catalog stack by its ID (`go`, `vue-vite`, and others); see [Stacks and Components](../concepts/stacks.md).

@@ -1,13 +1,13 @@
 # Refactor Lab — Commission Calculation Decoupling
 
-Acompaña al tutorial canónico [Refactor Engineering Lab](../../docs/tutorials/refactor-lab.md).
+Accompanies the canonical tutorial [Refactor Engineering Lab](../../docs/tutorials/refactor-lab.md).
 
-## Requisitos
+## Requirements
 
-- `starter/`: Cálculo de comisiones y formato de cadena fuertemente acoplados.
-- `solution/`: Extracción de `CommissionCalculator` desacoplado, manteniendo la firma original de `CommissionReporter.calculate_and_format`.
+- `starter/`: Commission calculation and string formatting tightly coupled.
+- `solution/`: Extraction of a decoupled `CommissionCalculator`, keeping the original signature of `CommissionReporter.calculate_and_format`.
 
-## Ejecución de pruebas
+## Running the tests
 
 ```bash
 python -m unittest discover examples/refactor-lab/starter/tests

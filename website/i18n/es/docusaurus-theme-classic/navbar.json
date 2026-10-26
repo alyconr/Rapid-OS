@@ -1,0 +1,42 @@
+{
+  "title": {
+    "message": "Rapid OS",
+    "description": "The title in the navbar"
+  },
+  "item.label.Home": {
+    "message": "Inicio",
+    "description": "Navbar item with label Inicio"
+  },
+  "item.label.Installation": {
+    "message": "Instalación",
+    "description": "Navbar item with label Instalación"
+  },
+  "item.label.Getting Started": {
+    "message": "Primeros pasos",
+    "description": "Navbar item with label Primeros pasos"
+  },
+  "item.label.Shortcuts": {
+    "message": "Shortcuts",
+    "description": "Navbar item with label Shortcuts"
+  },
+  "item.label.Modes": {
+    "message": "Modos",
+    "description": "Navbar item with label Modos"
+  },
+  "item.label.Cookbooks": {
+    "message": "Cookbooks",
+    "description": "Navbar item with label Cookbooks"
+  },
+  "item.label.Governance v3": {
+    "message": "Gobernanza v3",
+    "description": "Navbar item with label Gobernanza v3"
+  },
+  "item.label.CLI": {
+    "message": "CLI",
+    "description": "Navbar item with label CLI"
+  },
+  "item.label.GitHub": {
+    "message": "GitHub",
+    "description": "Navbar item with label GitHub"
+  }
+}

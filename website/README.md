@@ -38,3 +38,7 @@ website/docusaurus.config.ts
 ```
 
 Add product documentation to `docs/`, then place the document in `website/sidebars.ts` when it should appear in the curated navigation.
+
+## Languages
+
+English is the default locale and the source in `docs/`. Spanish lives under `website/i18n/es/` and is selected from the language dropdown in the navbar. Pages missing from the Spanish locale fall back to English.

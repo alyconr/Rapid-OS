@@ -1,86 +1,86 @@
 ---
-title: Auditoría de cobertura documental
-description: Cobertura inicial de la documentación frente a las capacidades implementadas en Rapid OS v3.
+title: Documentation Coverage Audit
+description: Initial coverage of the documentation against the capabilities implemented in Rapid OS v3.
 ---
 
-# Auditoría de cobertura documental
+# Documentation Coverage Audit
 
-Esta página resume la primera auditoría de documentación realizada sobre Rapid OS v3. Su propósito es mantener una relación explícita entre **producto implementado** y **producto documentado**.
+This page summarizes the first documentation audit carried out on Rapid OS v3. Its purpose is to maintain an explicit relationship between the **implemented product** and the **documented product**.
 
-## Baseline auditado
+## Audited baseline
 
-La primera versión del portal se construyó contra el estado de release de Rapid OS v3.0.0 que incluye:
+The first version of the portal was built against the release state of Rapid OS v3.0.0, which includes:
 
-- packaging PEP 517/518;
-- CLI global `rapid`;
-- compatibilidad v2;
+- PEP 517/518 packaging;
+- global `rapid` CLI;
+- v2 compatibility;
 - Project Intelligence;
 - Context Compiler;
 - Spec Registry;
-- Execution Policy y Run Registry;
+- Execution Policy and Run Registry;
 - Harness Capability Registry;
 - Evidence Engine;
 - Behavioral Evals;
-- validación y diagnósticos;
-- instaladores estables;
-- matriz de CI Python 3.10–3.13.
+- validation and diagnostics;
+- stable installers;
+- Python 3.10–3.13 CI matrix.
 
-## Cobertura por área
+## Coverage by area
 
-| Área implementada | Documento principal | Estado |
+| Implemented area | Main document | Status |
 | --- | --- | --- |
-| Propósito y límites del producto | [Qué es Rapid OS](../concepts/what-is-rapid-os) | Cubierto |
-| Instalación y requisitos | [Getting Started](../getting-started) | Cubierto |
-| Casos de uso | [Casos de uso](../guides/use-cases) | Cubierto |
-| Flujo end-to-end | [Governance Loop](../governance-loop) | Cubierto |
-| Project Intelligence | [Arquitectura v3](../architecture/rapid-os-v3) | Cubierto técnicamente |
-| Context Compiler | [Arquitectura v3](../architecture/rapid-os-v3) | Cubierto técnicamente |
-| Spec Registry | [CLI](../cli) + [Arquitectura v3](../architecture/rapid-os-v3) | Cubierto |
-| Execution Policy / Runs | [CLI](../cli) + [Governance Loop](../governance-loop) | Cubierto |
-| Harness profiles y capabilities | [Capabilities y permisos](../guides/permissions-capabilities) | Cubierto |
-| Evidence Engine | [Governance Loop](../governance-loop) + [CLI](../cli) | Cubierto |
-| Behavioral Evals | [Governance Loop](../governance-loop) + [CLI](../cli) | Cubierto |
-| Estructura de archivos | [Estructura de archivos](../guides/project-layout) | Cubierto |
-| Diagnósticos RAPIDxxx | [CLI](../cli) | Cubierto |
-| Release v3.0.0 | [Release v3.0.0](../release-v3.0.0) | Cubierto |
-| Release checklist | [Release checklist](../release-checklist) | Cubierto |
-| Mantenimiento del portal | [Mantener la documentación](../contributing/documentation) | Cubierto |
+| Product purpose and boundaries | [What is Rapid OS](../concepts/what-is-rapid-os) | Covered |
+| Installation and requirements | [Getting Started](../getting-started) | Covered |
+| Use cases | [Use cases](../guides/use-cases) | Covered |
+| End-to-end flow | [Governance Loop](../governance-loop) | Covered |
+| Project Intelligence | [Architecture v3](../architecture/rapid-os-v3) | Covered technically |
+| Context Compiler | [Architecture v3](../architecture/rapid-os-v3) | Covered technically |
+| Spec Registry | [CLI](../cli) + [Architecture v3](../architecture/rapid-os-v3) | Covered |
+| Execution Policy / Runs | [CLI](../cli) + [Governance Loop](../governance-loop) | Covered |
+| Harness profiles and capabilities | [Capabilities and permissions](../guides/permissions-capabilities) | Covered |
+| Evidence Engine | [Governance Loop](../governance-loop) + [CLI](../cli) | Covered |
+| Behavioral Evals | [Governance Loop](../governance-loop) + [CLI](../cli) | Covered |
+| File structure | [File structure](../guides/project-layout) | Covered |
+| RAPIDxxx diagnostics | [CLI](../cli) | Covered |
+| Release v3.0.0 | [Release v3.0.0](../release-v3.0.0) | Covered |
+| Release checklist | [Release checklist](../release-checklist) | Covered |
+| Portal maintenance | [Maintaining the documentation](../contributing/documentation) | Covered |
 
-## Hallazgos principales
+## Main findings
 
-### 1. La documentación existente era técnicamente rica, pero estaba orientada al repositorio
+### 1. The existing documentation was technically rich, but repository-oriented
 
-Los documentos de arquitectura y CLI describen bien contratos internos, diagnósticos y entidades, pero un usuario nuevo necesitaba una capa anterior que respondiera:
+The architecture and CLI documents describe internal contracts, diagnostics, and entities well, but a new user needed an earlier layer that answered:
 
-- qué es Rapid OS;
-- para qué sirve;
-- cuándo usarlo;
-- qué no hace;
-- cómo empezar;
-- qué archivos modifica;
-- cómo interpretar “permisos” y capabilities.
+- what Rapid OS is;
+- what it is for;
+- when to use it;
+- what it does not do;
+- how to get started;
+- which files it modifies;
+- how to interpret "permissions" and capabilities.
 
-La nueva arquitectura de información cubre esa capa.
+The new information architecture covers that layer.
 
-### 2. “Permisos” requería una definición de producto
+### 2. "Permissions" required a product definition
 
-Rapid OS no implementa un sistema de autorización del sistema operativo. El concepto equivalente dentro del producto es el **Harness Capability Registry**. La documentación separa ahora:
+Rapid OS does not implement an operating-system authorization system. The equivalent concept within the product is the **Harness Capability Registry**. The documentation now separates:
 
-- capability declarada;
-- compatibilidad del harness;
-- requirement del contrato;
-- evidencia observable;
-- veredicto de evaluación.
+- declared capability;
+- harness compatibility;
+- contract requirement;
+- observable evidence;
+- evaluation verdict.
 
-### 3. La fuente documental debía ser única
+### 3. The documentation source had to be single
 
-El portal Docusaurus usa directamente `docs/` como fuente. No existe una segunda carpeta de contenido dentro de `website/`.
+The Docusaurus portal uses `docs/` directly as its source. There is no second content folder inside `website/`.
 
-Esto reduce drift entre documentación visible en GitHub y documentación publicada.
+This reduces drift between the documentation visible on GitHub and the published documentation.
 
-### 4. El portal debe fallar cuando la documentación se rompe
+### 4. The portal must fail when the documentation breaks
 
-La configuración usa broken links como error y el workflow de CI ejecuta:
+The configuration treats broken links as an error, and the CI workflow runs:
 
 ```bash
 npm ci
@@ -88,17 +88,17 @@ npm run typecheck
 npm run build
 ```
 
-Un PR que rompa navegación o compilación documental debe fallar antes de merge.
+A PR that breaks navigation or documentation compilation must fail before merge.
 
-## Próxima cobertura recomendada
+## Recommended next coverage
 
-La siguiente iteración debería profundizar en tutoriales operativos, no solo referencia:
+The next iteration should go deeper into operational tutorials, not just reference:
 
-1. tutorial completo “primer proyecto gobernado”;
-2. recetas por modo: feature, bugfix, refactor, hardening y research;
-3. ejemplos completos de `evidence.json` por cada `EvidenceKind`;
-4. cookbook de políticas `.rapid-os/policy.json`;
-5. cookbook de `HarnessProfile`;
-6. troubleshooting por diagnóstico `RAPIDxxx`;
-7. integración CI/CD;
-8. despliegue oficial del portal documental.
+1. a complete "first governed project" tutorial;
+2. recipes per mode: feature, bugfix, refactor, hardening, and research;
+3. complete `evidence.json` examples for each `EvidenceKind`;
+4. a cookbook for `.rapid-os/policy.json` policies;
+5. a `HarnessProfile` cookbook;
+6. troubleshooting per `RAPIDxxx` diagnostic;
+7. CI/CD integration;
+8. official deployment of the documentation portal.

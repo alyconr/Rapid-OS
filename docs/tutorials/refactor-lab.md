@@ -1,49 +1,52 @@
-# Laboratorio 3: Refactor Engineering Lab
+---
+title: Lab 3 - Refactor Engineering
+description: Refactor commission calculation without changing the public API using the Rapid OS workflow.
+---
 
-Refactoriza sin romper nada: separa el cálculo de comisiones del formato del informe sin cambiar la API pública. En tu agente escribes tres cosas; en la terminal solo preparas el ejemplo y apruebas.
+# Lab 3: Refactor Engineering
 
-## Con shortcuts
+Refactor without breaking anything: separate commission calculation from report formatting without changing the public API. You will enter three things in your agent; in the terminal, you only prepare the example and approve the result.
 
-### 1. Prepara el proyecto de ejemplo
+## With shortcuts
+
+### 1. Prepare the example project
 
 ```bash
 cp -r ~/.rapid-os/examples/refactor-lab/starter commission-app && cd commission-app
 git init -b main && git add . && git commit -m "starter"
 ```
 
-En Windows PowerShell, la copia es `Copy-Item -Recurse $HOME\.rapid-os\examples\refactor-lab\starter commission-app`. Si instalaste Rapid OS con `pip`, el ejemplo está en [`examples/refactor-lab/starter`](https://github.com/alyconr/Rapid-OS/tree/main/examples/refactor-lab/starter).
+In Windows PowerShell, use `Copy-Item -Recurse $HOME\.rapid-os\examples\refactor-lab\starter commission-app`. If you installed Rapid OS with `pip`, the example is in [`examples/refactor-lab/starter`](https://github.com/alyconr/Rapid-OS/tree/main/examples/refactor-lab/starter).
 
-### 2. Configura el proyecto
+### 2. Set up the project
 
-Abre tu agente en la carpeta y escribe `/rapid-init` (en Codex, `$rapid-init`). Detecta Python y propone `python -m unittest discover` como comando de tests: acéptalo. Los documentos del proyecto puedes omitirlos en este laboratorio.
+Open your agent in the folder and enter `/rapid-init` (`$rapid-init` in Codex). It detects Python and suggests `python -m unittest discover` as the test command; accept it. You can skip the project documents for this lab.
 
-### 3. Pide el trabajo
+### 3. Request the work
 
 ```text
-/rapid-refactor extraer un CommissionCalculator puro sin cambiar la firma pública de CommissionReporter
+/rapid-refactor extract a pure CommissionCalculator without changing CommissionReporter's public signature
 ```
 
-Rapid OS guarda cuántos tests pasan antes del cambio (baseline). Si después del refactor pasan menos, el run se bloquea y el agente te muestra la diferencia.
+Rapid OS records how many tests pass before the change (the baseline). If fewer pass after the refactor, the run is blocked and the agent shows you the difference.
 
-### 4. Aprueba en tu terminal
+### 4. Approve in your terminal
 
-Cuando el agente termina, se detiene y te da el comando exacto. Ejecútalo en **otra terminal**, fuera del agente, por ejemplo:
+When the agent finishes, it stops and gives you the exact command. Run it in **another terminal**, outside the agent, for example:
 
 ```bash
 rapid approve gate.final-verification
 ```
 
-Vuelve al agente y escribe `/rapid-next` para cerrar el run.
+Return to the agent and enter `/rapid-next` to close the run.
 
-**Resultado:** `CommissionCalculator` existe, `CommissionReporter` conserva su firma, pasan los mismos tests que antes y el run termina con veredicto `pass`.
+**Result:** `CommissionCalculator` exists, `CommissionReporter` retains its signature, the same tests still pass, and the run ends with a `pass` verdict.
 
-¿No tienes los shortcuts? Una sola vez: `rapid shortcuts install --global --harness claude`, o dentro de la carpeta `rapid init --shortcuts`. Detalle en la [guía de shortcuts](../guides/shortcuts.md).
+No shortcuts yet? Install them once with `rapid shortcuts install --global --harness claude`, or run `rapid init --shortcuts` inside the folder. Replace `claude` with your agent. See the [shortcuts guide](../guides/shortcuts.md).
 
----
+## Lab details
 
-## Detalles del laboratorio
-
-### Estado inicial
+### Starting state
 
 ```text
 commission-app/
@@ -53,25 +56,23 @@ commission-app/
     └── test_commission.py
 ```
 
-En la versión inicial (`starter`):
+The starter version couples calculation and string formatting in one method:
 ```python
 class CommissionReporter:
     @staticmethod
     def calculate_and_format(sales_amount: float, rate_percent: float) -> str:
-        # Cálculo y string formatting acoplados monolíticamente
+        # Calculation and string formatting are tightly coupled
         commission = sales_amount * (rate_percent / 100.0)
         return f"[COMMISSION-REPORT] Sales: ${sales_amount:.2f} | Rate: {rate_percent:.1f}% | Due: ${commission:.2f}"
 ```
 
-### Requisitos
+### Requirements
 
-1. **Separación de responsabilidades:** Crear la clase `CommissionCalculator` con método estático `calculate(sales_amount, rate_percent) -> float`.
-2. **Preservación de API pública:** Mantener `CommissionReporter.calculate_and_format` delegando en el nuevo calculador.
-3. **Validaciones idénticas:** Rechazar valores negativos con `ValueError`.
-4. **Verificación doble:** Demostrar que las pruebas previas pasan sin modificación alguna sobre la interfaz pública.
+1. **Separate responsibilities:** Create a `CommissionCalculator` class with a static `calculate(sales_amount, rate_percent) -> float` method.
+2. **Preserve the public API:** Keep `CommissionReporter.calculate_and_format` and delegate to the new calculator.
+3. **Keep validation consistent:** Reject negative values with `ValueError`.
+4. **Verify twice:** Show that the existing tests pass without any change to the public interface.
 
----
+## Advanced mode
 
-## Modo avanzado
-
-No lo necesitas para hacer el laboratorio. El mismo tipo de trabajo hecho a mano con los comandos v3 (spec, run, evidencia y evaluación), para CI o auditoría, está en el [recorrido manual (Bajo el capó)](first-governed-project.md) y en el [ciclo de gobernanza v3](../governance-loop.md).
+You do not need this for the lab. The same kind of work done manually with v3 commands (spec, run, evidence, and evaluation), for CI or auditing, is covered in the [manual walkthrough](first-governed-project.md) and the [v3 governance loop](../governance-loop.md).

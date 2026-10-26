@@ -1,77 +1,59 @@
 ---
-title: Casos de uso
-description: Escenarios prácticos en los que Rapid OS aporta contexto, gobernanza y evidencia.
+title: Use Cases
+description: Practical scenarios where Rapid OS provides context, governance, and evidence.
 ---
 
-# Casos de uso
+# Use Cases
 
-Rapid OS es útil cuando el valor no está solo en “generar código”, sino en poder demostrar **qué se pidió, bajo qué restricciones se ejecutó y qué evidencia existe del resultado**.
+Rapid OS is useful when the goal is not only to "generate code," but to show **what was requested, under which constraints the work ran, and what evidence exists for the result**.
 
-## 1. Implementar una feature con contexto controlado
+## 1. Implement a feature with controlled context
 
-Un equipo necesita agregar una funcionalidad sin permitir que el agente improvise arquitectura o reglas de negocio.
+A team needs to add a feature without letting the agent improvise architecture or business rules.
 
-Con shortcuts: `/rapid-feature <objetivo>`; el agente redacta la spec, crea el run y se detiene en los gates humanos.
+With shortcuts, use `/rapid-feature <goal>`; the agent drafts the spec, creates the run, and stops at human gates.
 
-Flujo avanzado (comandos v3):
+Advanced workflow (v3 commands):
 
 ```bash
 rapid scan --write
-rapid spec create --title "Nueva feature" --mode feature --status ready
-rapid context --spec nueva-feature --harness codex --manifest
-rapid run create --spec nueva-feature --harness codex
+rapid spec create --title "New feature" --mode feature --status ready
+rapid context --spec new-feature --harness codex --manifest
+rapid run create --spec new-feature --harness codex
 ```
 
-El valor de Rapid OS está en fijar una Spec, compilar contexto con procedencia y crear un contrato de ejecución antes de que el harness cambie código.
+Rapid OS pins a spec, compiles context with provenance, and creates an execution contract before the harness changes code.
 
-## 2. Refactorizar un sistema legacy
+## 2. Refactor a legacy system
 
-Con shortcuts: `/rapid-refactor <alcance>`; el run se bloquea si bajan los tests que pasaban.
+With shortcuts, use `/rapid-refactor <scope>`; the run is blocked if the passing test baseline decreases.
 
-En un sistema heredado, `rapid init` y `rapid scan` ayudan a separar:
+In a legacy system, `rapid init` and `rapid scan` help distinguish:
 
-- señales detectadas del repositorio;
-- reglas confirmadas por el equipo;
-- estándares que el agente debe respetar;
-- alcance explícito de la refactorización.
+- signals detected in the repository;
+- rules confirmed by the team;
+- standards the agent must follow;
+- the explicit scope of the refactor.
 
-Esto reduce el riesgo de que el agente imite patrones obsoletos solo porque existen en el código actual.
+This reduces the chance that the agent copies outdated patterns just because they exist in the current code.
 
-## 3. Cambios de alto riesgo
+## 3. High-risk changes
 
-Con shortcuts: `/rapid-hardening <área>`, que trabaja en un worktree aislado (`rapid start --worktree`); para corregir un defecto, `/rapid-bugfix <descripción>`; para investigar sin tests obligatorios, `/rapid-research <pregunta>`.
+Use `/rapid-hardening <area>` for work in an isolated worktree (`rapid start --worktree`), `/rapid-bugfix <description>` to fix a defect, or `/rapid-research <question>` for investigation without mandatory tests.
 
-Una migración de esquema, autenticación, infraestructura o seguridad puede elevar el riesgo a `high` o `critical`.
+A schema migration, authentication, infrastructure, or security change can raise risk to `high` or `critical`. Rapid OS may require an isolated workspace, a baseline, manual review, tests, security review, migration review, and final verification. The run cannot bypass the contract's preconditions.
 
-Rapid OS puede requerir:
+## 4. Teams using multiple coding harnesses
 
-- workspace aislado;
-- baseline;
-- revisión manual;
-- pruebas;
-- security review;
-- migration review;
-- verificación final.
+Run `rapid shortcuts install --harness <id>` to generate the same `/rapid-*` shortcuts in each harness directory; see [Combining harnesses](./shortcuts.md#if-you-combine-harnesses).
 
-El run no puede avanzar ignorando las precondiciones del contrato.
+Rapid OS models profiles for `codex`, `claude`, `cursor`, `vscode`, `antigravity`, and custom harnesses. This lets you answer: **Does this harness declare support for every capability required by this run?** The resolution can be `compatible`, `incompatible`, or `unresolved`.
 
-## 4. Equipos que usan varios coding harnesses
+## 5. Evidence for CI or review processes
 
-Con shortcuts: `rapid shortcuts install --harness <id>` genera el mismo `/rapid-*` en la carpeta de cada harness; ver [Si combinas harnesses](./shortcuts.md#si-combinas-harnesses).
+This is the advanced-mode path: CI uses v3 commands, not shortcuts.
 
-Rapid OS modela profiles para `codex`, `claude`, `cursor`, `vscode`, `antigravity` y harnesses personalizados.
-
-Esto permite responder:
-
-> ¿Este harness declara soporte para todas las capabilities que exige este run?
-
-La resolución puede ser `compatible`, `incompatible` o `unresolved`.
-
-## 5. Evidencia para CI o procesos de revisión
-
-Esta es la ruta del modo avanzado: en CI se usan los comandos v3, no los shortcuts.
-
-Después de que una herramienta externa ejecuta pruebas o revisiones, sus resultados pueden registrarse como evidencia:
+After an external tool runs tests or reviews, its results can be recorded as evidence:
 
 ```bash
 rapid evidence add --run checkout-r1-run-001 --input test-evidence.json
@@ -79,20 +61,12 @@ rapid evidence verify --run checkout-r1-run-001
 rapid eval run --run checkout-r1-run-001 --require-pass
 ```
 
-Rapid OS valida binding, secuencia, digests, tamaños y reglas semánticas antes de emitir un veredicto.
+Rapid OS validates bindings, sequence, digests, sizes, and semantic rules before returning a verdict.
 
-## 6. Context engineering reutilizable
+## 6. Reusable context engineering
 
-Los flujos heredados continúan siendo útiles para:
+Legacy workflows remain useful for generating agent rules, maintaining project standards, preparing MCP for editors, installing skills, recording visual references, generating deployment guides, and creating structured prompts.
 
-- generar reglas de agentes;
-- mantener estándares del proyecto;
-- preparar MCP para editores;
-- instalar skills;
-- registrar referencias visuales;
-- generar guías de despliegue;
-- crear prompts estructurados.
+## When Rapid OS is not needed
 
-## Cuándo Rapid OS no es necesario
-
-Puede ser excesivo para tareas exploratorias muy pequeñas donde no se necesita trazabilidad, política ni evidencia. Su mayor valor aparece cuando la organización necesita **consistencia, control, repetibilidad y auditoría**.
+Rapid OS may be excessive for very small exploratory tasks that need no traceability, policy, or evidence. It provides the most value when an organization needs **consistency, control, repeatability, and auditing**.

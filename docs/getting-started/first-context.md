@@ -1,106 +1,106 @@
 ---
-title: Qué sabe el agente de tu proyecto
-description: De dónde saca el agente las reglas de tu proyecto (documentos, estándares, spec), qué pasa con los borradores y cómo cambiarlos; la compilación a mano con rapid context queda como modo avanzado.
+title: What the agent knows about your project
+description: Where the agent gets your project's rules from (documents, standards, spec), what happens to drafts, and how to change them; compiling by hand with rapid context remains an advanced mode.
 ---
 
-# Qué sabe el agente de tu proyecto
+# What the agent knows about your project
 
-Un agente sin contexto improvisa: inventa reglas de negocio, mezcla estilos de arquitectura y olvida decisiones previas. Rapid OS le da, en cada trabajo, solo lo que necesita saber.
+An agent without context improvises: it invents business rules, mixes architecture styles, and forgets earlier decisions. Rapid OS gives it, on every job, only what it needs to know.
 
-## Con shortcuts
+## With shortcuts
 
-No tienes que hacer nada: el agente recibe el contexto en cada trabajo. Viene de tres sitios:
+You don't have to do anything: the agent receives the context on every job. It comes from three places:
 
-| Qué | De dónde sale | Dónde vive |
+| What | Where it comes from | Where it lives |
 | :--- | :--- | :--- |
-| **Documentos del proyecto**: brief, reglas de negocio, modelo de datos, arquitectura | Los decidiste en `/rapid-init` (pegados, redactados por el agente u omitidos) | `docs/` |
-| **Estándares**: stack, arquitectura, seguridad, estilo de código | Rapid OS los genera con tus decisiones del onboarding | `.rapid-os/standards/` y el archivo de tu agente (`CLAUDE.md`, `AGENTS.md`…) |
-| **La spec del trabajo actual** | El agente la redacta con tu pedido | `.rapid-os/specs/` |
+| **Project documents**: brief, business rules, data model, architecture | You decided them in `/rapid-init` (pasted, drafted by the agent, or skipped) | `docs/` |
+| **Standards**: stack, architecture, security, code style | Rapid OS generates them from your onboarding decisions | `.rapid-os/standards/` and your agent's file (`CLAUDE.md`, `AGENTS.md`…) |
+| **The current job's spec** | The agent drafts it from your request | `.rapid-os/specs/` |
 
-### Borradores y documentos confirmados
+### Drafts and confirmed documents
 
-Lo que **confirmaste** el agente lo trata como regla del proyecto y la cumple sin discutirla. Lo que quedó como **borrador** (lo redactó el agente y no lo confirmaste) lo trata como supuesto: puede cuestionarlo y preguntarte, y cada trabajo te lo recuerda. Para confirmar un borrador más tarde:
+What you **confirmed** the agent treats as a project rule and follows without arguing. What remained a **draft** (the agent drafted it and you did not confirm it) it treats as an assumption: it can question it and ask you, and every job reminds you of it. To confirm a draft later:
 
 ```bash
 rapid setup doc business --confirm
 ```
 
-Cambia `business` por `brief`, `data-model` o `architecture`.
+Replace `business` with `brief`, `data-model`, or `architecture`.
 
-### Cambiar un documento
+### Changing a document
 
-Los documentos de `docs/` los escribe Rapid OS (`rapid setup doc`), no se editan a mano. Si omitiste uno y ahora lo quieres, ábrelo de nuevo:
+The documents in `docs/` are written by Rapid OS (`rapid setup doc`); they are not edited by hand. If you skipped one and now want it, reopen it:
 
 ```bash
 rapid setup doc business --reopen
 ```
 
-Después escribe `/rapid-init` en el agente: te lo vuelve a ofrecer para pegarlo, redactarlo u omitirlo. Para reemplazar un documento que ya tiene contenido, ver [Documentos del proyecto](../concepts/project-docs.md).
+Then type `/rapid-init` in the agent: it offers it to you again so you can paste it, draft it, or skip it. To replace a document that already has content, see [Project documents](../concepts/project-docs.md).
 
 <details>
-<summary>Qué hace el agente por debajo</summary>
+<summary>What the agent does under the hood</summary>
 
-Al ejecutar `rapid start <modo> --spec-file -`, Rapid OS crea el contrato del run con la spec y los estándares del proyecto, y el shortcut le indica al agente que trabaje solo con la tarea que devuelve `rapid next --json` (`implement_task`). Para ver exactamente qué contexto recibiría un harness (por ejemplo, para depurar una respuesta o para CI), usa `rapid context`, descrito en el modo avanzado.
+When you run `rapid start <mode> --spec-file -`, Rapid OS creates the run's contract with the spec and the project's standards, and the shortcut tells the agent to work only on the task returned by `rapid next --json` (`implement_task`). To see exactly what context a harness would receive (for example, to debug a response or for CI), use `rapid context`, described in the advanced mode.
 
 </details>
 
-## Modo avanzado
+## Advanced mode
 
-No lo necesitas con shortcuts. Explica el compilador de contexto (`rapid context`): presupuesto, relevancia, manifiesto y procedencia, útil para depurar y para CI.
+You don't need it with shortcuts. It explains the context compiler (`rapid context`): budget, relevance, manifest, and provenance, useful for debugging and for CI.
 
 <details>
-<summary>Ver el compilador de contexto</summary>
+<summary>See the context compiler</summary>
 
 ---
 
-## Por qué no volcar todo el repositorio
+## Why not dump the whole repository
 
 ```mermaid
 flowchart LR
-    subgraph Sin Rapid OS
-        A[Todo el Repositorio] -->|Volcado masivo sin filtro| B[Agente de IA]
-        B --> C[Ruido, alucinaciones y límite de tokens excedido]
+    subgraph Without Rapid OS
+        A[Entire Repository] -->|Massive unfiltered dump| B[AI Agent]
+        B --> C[Noise, hallucinations, and token limit exceeded]
     end
 
-    subgraph Con Rapid OS Context Compiler
-        D[Standards + ProjectModel + Spec] -->|rapid context (Modo + Presupuesto)| E[Contexto Sintetizado]
-        E --> F[Agente de IA]
-        F --> G[Implementación precisa y focalizada]
+    subgraph With Rapid OS Context Compiler
+        D[Standards + ProjectModel + Spec] -->|rapid context (Mode + Budget)| E[Synthesized Context]
+        E --> F[AI Agent]
+        F --> G[Precise, focused implementation]
     end
 ```
 
 ---
 
-## Opciones principales de `rapid context`
+## Main `rapid context` options
 
-| Flag | Tipo | Descripción |
+| Flag | Type | Description |
 | :--- | :--- | :--- |
-| `--mode` | string | Modo de tarea: `feature`, `bugfix`, `refactor`, `hardening`, `research` o `general`. |
-| `--spec` | string | Identificador de una especificación en estado `ready` a incluir. |
-| `--harness` | string | Identificador del harness destino (ej. `codex`, `claude`, `cursor`, `vscode`, `antigravity`). |
-| `--objective` | string | Objetivo explícito para refinamiento de relevancia. |
-| `--max-chars` | entero | Presupuesto máximo de caracteres en el Markdown resultante. |
-| `--manifest` | flag | Imprime un resumen legible de procedencia (`ContextManifest`). |
-| `--json` | flag | Emite el objeto estructurado `CompiledContext` en formato JSON. |
+| `--mode` | string | Task mode: `feature`, `bugfix`, `refactor`, `hardening`, `research`, or `general`. |
+| `--spec` | string | Identifier of a specification in `ready` state to include. |
+| `--harness` | string | Identifier of the target harness (e.g. `codex`, `claude`, `cursor`, `vscode`, `antigravity`). |
+| `--objective` | string | Explicit objective for relevance refinement. |
+| `--max-chars` | integer | Maximum character budget for the resulting Markdown. |
+| `--manifest` | flag | Prints a readable provenance summary (`ContextManifest`). |
+| `--json` | flag | Emits the structured `CompiledContext` object in JSON format. |
 
 ---
 
-## Ejemplo: Compilar contexto para una Feature
+## Example: Compile context for a Feature
 
-Supongamos una spec `api-rate-limiting` en estado `ready` (ver [Cómo se escribe la spec](./first-spec.md)):
+Suppose a spec `api-rate-limiting` in `ready` state (see [How the spec is written](./first-spec.md)):
 
 ```bash
 rapid context --spec api-rate-limiting --manifest
 ```
 
-Con `--mode`, `--harness` o `--max-chars` (ver la tabla de arriba) ajustas el modo, el agente destino y el presupuesto.
+With `--mode`, `--harness`, or `--max-chars` (see the table above) you adjust the mode, the target agent, and the budget.
 
-### ¿Qué contiene la salida?
-El comando emite en `stdout` un documento Markdown estructurado listo para ser pegado en el prompt o inyectado por una herramienta de automatización:
-1. **Directivas generales del proyecto:** Estándares clave de arquitectura y codificación extraídos de `.rapid-os/standards/`.
-2. **Hechos relevantes del escaneo:** Lenguaje, frameworks de pruebas y librerías pertinentes al modo.
-3. **Especificación activa:** Los objetivos, alcance, criterios de aceptación y tareas de la revisión congelada de la spec.
-4. **Resumen de manifiesto (`--manifest`):**
+### What does the output contain?
+The command emits to `stdout` a structured Markdown document ready to be pasted into the prompt or injected by an automation tool:
+1. **General project directives:** Key architecture and coding standards extracted from `.rapid-os/standards/`.
+2. **Relevant scan facts:** Language, testing frameworks, and libraries relevant to the mode.
+3. **Active specification:** The objectives, scope, acceptance criteria, and tasks of the spec's frozen revision.
+4. **Manifest summary (`--manifest`):**
    ```text
    Rapid OS Context Manifest
 
@@ -117,10 +117,10 @@ El comando emite en `stdout` un documento Markdown estructurado listo para ser p
 
 ---
 
-## El Manifiesto de Contexto (`ContextManifest`)
+## The Context Manifest (`ContextManifest`)
 
-Cada compilación genera un hash criptográfico de su contenido (`content_digest`). Cuando posteriormente se crea un run con `rapid run create`, este digest queda registrado de forma inmutable en el contrato de ejecución (`ExecutionContract.context_digest`).
+Every compilation generates a cryptographic hash of its content (`content_digest`). When a run is later created with `rapid run create`, this digest is recorded immutably in the execution contract (`ExecutionContract.context_digest`).
 
-Esto garantiza una **auditoría perfecta**: meses después de implementado un cambio, el equipo puede reproducir con certeza matemática exactamente qué información y directivas vio el agente en el momento de la ejecución.
+This guarantees a **perfect audit**: months after a change was implemented, the team can reproduce with mathematical certainty exactly what information and directives the agent saw at the time of execution.
 
 </details>

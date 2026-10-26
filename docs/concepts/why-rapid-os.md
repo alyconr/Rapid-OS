@@ -1,79 +1,79 @@
 ---
-title: Por qué Rapid OS
-description: Los desafíos del desarrollo asistido por IA y el valor de la gobernanza de ingeniería basada en contratos.
+title: Why Rapid OS
+description: The challenges of AI-assisted development and the value of contract-based engineering governance.
 ---
 
-# Por qué Rapid OS
+# Why Rapid OS
 
-El desarrollo de software asistido por agentes de inteligencia artificial (AI coding harnesses) está transformando la velocidad de implementación. Sin embargo, en equipos de ingeniería reales, la velocidad sin control amplifica el riesgo técnico.
+Software development assisted by artificial intelligence agents (AI coding harnesses) is transforming implementation speed. However, in real engineering teams, speed without control amplifies technical risk.
 
-Rapid OS nace para resolver la brecha entre la **inferencia probabilística del modelo** y la **certeza determinista de la ingeniería de software**.
+Rapid OS was born to bridge the gap between the **probabilistic inference of the model** and the **deterministic certainty of software engineering**.
 
 ---
 
-## El problema: los límites del desarrollo con agentes de IA
+## The problem: the limits of development with AI agents
 
-Cuando un desarrollador interactúa con un coding harness (como Codex, Claude, Cursor, Antigravity o VS Code Agent), surgen problemas estructurales recurrentes:
+When a developer interacts with a coding harness (such as Codex, Claude, Cursor, Antigravity, or VS Code Agent), recurring structural problems arise:
 
 ```mermaid
 flowchart TD
-    subgraph Riesgos Sin Gobernanza
-        A[Prompt no versionado] --> B[Pérdida de contexto / Context Drift]
-        B --> C[Modificaciones fuera de alcance]
-        C --> D[Sin pruebas ni criterios verificables]
-        D --> E[Falso sentido de finalización 'Done']
+    subgraph Risks Without Governance
+        A[Unversioned prompt] --> B[Context loss / Context Drift]
+        B --> C[Out-of-scope modifications]
+        C --> D[No tests or verifiable criteria]
+        D --> E[False sense of completion 'Done']
     end
 ```
 
-### 1. Pérdida y deriva de contexto (*Context Loss & Drift*)
-Los modelos de lenguaje poseen una ventana de contexto finita y limitada. Cuando se les entrega el repositorio completo o instrucciones desestructuradas:
-- Olvidan reglas de arquitectura o estándares de codificación previamente establecidos.
-- Generan código incompatible con versiones de bibliotecas del proyecto.
-- Alucinan supuestos cuando falta información explícita.
+### 1. Context Loss & Drift
+Language models have a finite, limited context window. When they are given the entire repository or unstructured instructions:
+- They forget previously established architecture rules or coding standards.
+- They generate code incompatible with the project's library versions.
+- They hallucinate assumptions when explicit information is missing.
 
-### 2. Especificaciones ambiguas vs. Prompts volátiles
-Un prompt conversacional en una ventana de chat no es una especificación de ingeniería. No tiene versión, no queda registrado en el historial de Git, no define formalmente los criterios de aceptación (*acceptance criteria*) ni delimita qué cambios están estrictamente **fuera de alcance** (*out-of-scope*).
+### 2. Ambiguous specifications vs. volatile prompts
+A conversational prompt in a chat window is not an engineering specification. It has no version, it is not recorded in Git history, it does not formally define the acceptance criteria, and it does not delimit which changes are strictly **out-of-scope**.
 
-### 3. Modificaciones fuera de alcance (*Scope Creep*)
-Un agente instruido para "corregir un error en el formulario de login" frecuentemente refactoriza componentes adyacentes, modifica dependencias innecesariamente o altera contratos públicos de la API, introduciendo regresiones difíciles de detectar.
+### 3. Out-of-scope modifications (*Scope Creep*)
+An agent instructed to "fix a bug in the login form" frequently refactors adjacent components, changes dependencies unnecessarily, or alters public API contracts, introducing regressions that are hard to detect.
 
-### 4. Falta de evidencia verificable
-Que un agente declare en su chat *"He completado la tarea y todos los tests pasan"* no constituye prueba técnica. Con frecuencia:
-- Los tests ni siquiera fueron ejecutados.
-- Se omitieron validaciones críticas.
-- No queda registro criptográfico de qué archivos fueron leídos o modificados ni de los resultados reales de los comandos.
+### 4. Lack of verifiable evidence
+An agent stating in its chat *"I have completed the task and all tests pass"* is not technical proof. Frequently:
+- The tests were not even run.
+- Critical validations were skipped.
+- There is no cryptographic record of which files were read or modified, nor of the real results of the commands.
 
 ---
 
-## La propuesta de valor: gobernanza basada en contratos
+## The value proposition: contract-based governance
 
-Rapid OS introduce una **capa de gobernanza y control determinista** alrededor del trabajo del coding harness, sin interferir con su capacidad generativa:
+Rapid OS introduces a **deterministic governance and control layer** around the coding harness's work, without interfering with its generative capability:
 
 ```mermaid
 flowchart TD
-    A[Desarrollador / Equipo] -->|Define intención y límites| B[Rapid OS]
-    B -->|Produce contratos y contexto presupuestado| C[Coding Harness Externo]
-    C -->|Implementa cambios en el software| D[Workspace / Código]
-    D -->|Produce evidencia de ejecución| E[Rapid OS Evidence Engine]
-    E -->|Aplica reglas deterministas| F[Evaluación y Diagnóstico]
+    A[Developer / Team] -->|Defines intent and limits| B[Rapid OS]
+    B -->|Produces contracts and budgeted context| C[External Coding Harness]
+    C -->|Implements changes in the software| D[Workspace / Code]
+    D -->|Produces execution evidence| E[Rapid OS Evidence Engine]
+    E -->|Applies deterministic rules| F[Evaluation and Diagnosis]
 ```
 
-| Capacidad | Sin Rapid OS | Con Rapid OS v3 |
+| Capability | Without Rapid OS | With Rapid OS v3 |
 | :--- | :--- | :--- |
-| **Inteligencia del repositorio** | El agente inspecciona ciegamente archivos aleatorios. | `rapid scan` extrae hechos tipados con procedencia y evidencia (`ProjectModel`). |
-| **Especificación** | Prompts efímeros en chats. | `rapid spec` gestiona especificaciones inmutables versionadas en Git. |
-| **Contexto** | Volcado masivo sin presupuesto de tokens. | `rapid context` compila contexto relevante, priorizado y con límite estricto de caracteres. |
-| **Reglas de ejecución** | El agente opera sin restricciones explícitas. | `rapid policy` y `rapid run` fijan nivel de riesgo, workspace requerido y gates obligatorios. |
-| **Capacidades del harness** | Se asume que el agente puede hacer todo. | `rapid harness` contrasta los permisos requeridos contra las capabilities declaradas. |
-| **Verificación** | Confianza ciega en la respuesta del LLM. | `rapid evidence` y `rapid eval` evalúan evidencia física reproducible mediante reglas deterministas. |
+| **Repository intelligence** | The agent blindly inspects random files. | `rapid scan` extracts typed facts with provenance and evidence (`ProjectModel`). |
+| **Specification** | Ephemeral prompts in chats. | `rapid spec` manages immutable specifications versioned in Git. |
+| **Context** | Massive dump with no token budget. | `rapid context` compiles relevant, prioritized context with a strict character limit. |
+| **Execution rules** | The agent operates without explicit restrictions. | `rapid policy` and `rapid run` set the risk level, required workspace, and mandatory gates. |
+| **Harness capabilities** | It is assumed the agent can do everything. | `rapid harness` checks the required permissions against the declared capabilities. |
+| **Verification** | Blind trust in the LLM's response. | `rapid evidence` and `rapid eval` evaluate reproducible physical evidence using deterministic rules. |
 
 ---
 
-## Para quién es Rapid OS
+## Who Rapid OS is for
 
-Rapid OS está diseñado para resolver necesidades reales en diferentes roles de la organización:
+Rapid OS is designed to address real needs across different roles in the organization:
 
-- **Desarrolladores individuales:** Para estructurar tareas complejas, evitar que el agente rompa partes no relacionadas del proyecto y compilar el contexto exacto para cada prompt.
-- **Líderes técnicos y arquitectos:** Para preservar la integridad arquitectónica, controlar dependencias y definir de forma inmutable qué está permitido en cada iteración.
-- **Equipos de ingeniería y DevOps:** Para asegurar que todo cambio generado por IA cuente con trazabilidad completa entre intención, especificación, diff de código y resultados de pruebas.
-- **Equipos de QA y Compliance:** Para auditar con rigor matemático (SHA-256) qué ocurrió durante la ejecución de una tarea y disponer de evaluaciones deterministas independientes de cualquier LLM.
+- **Individual developers:** To structure complex tasks, keep the agent from breaking unrelated parts of the project, and compile the exact context for each prompt.
+- **Tech leads and architects:** To preserve architectural integrity, control dependencies, and define immutably what is allowed in each iteration.
+- **Engineering and DevOps teams:** To ensure that every AI-generated change has complete traceability between intent, specification, code diff, and test results.
+- **QA and Compliance teams:** To audit with mathematical rigor (SHA-256) what happened during the execution of a task and to have deterministic evaluations independent of any LLM.

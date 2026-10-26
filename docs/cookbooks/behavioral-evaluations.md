@@ -1,55 +1,55 @@
 ---
-title: Evaluaciones de Comportamiento (Behavioral Evals)
-description: Cookbook de evaluación determinista de contratos, compuertas y evidencias en RAPID OS.
+title: Behavioral Evaluations (Behavioral Evals)
+description: Cookbook for the deterministic evaluation of contracts, gates and evidence in RAPID OS.
 ---
 
-# Evaluaciones de Comportamiento (Behavioral Evals)
+# Behavioral Evaluations (Behavioral Evals)
 
-El motor de **Evaluación de Comportamiento** (`BehavioralEvaluator`) de RAPID OS realiza auditorías offline y deterministas sobre la ejecución de un run. Evalúa el contrato (`ExecutionContract`), el estado del ciclo (`RunState`) y el conjunto de evidencias inmutables (`RunEvidence[]`) contra un conjunto de reglas canónicas (`BehavioralRuleset`).
-
----
-
-## Product Truth: La naturaleza de la Evaluación
-
-> **Principio de Verdad del Producto**:
-> 1. RAPID OS **no** invoca modelos LLM para evaluar código ("LLM-as-a-judge"). La evaluación es **100% matemática, lógica y reproducible**.
-> 2. Una declaración de estado (ej. `GateDisposition.ACKNOWLEDGED`) es una aserción del usuario; si no cuenta con evidencia observable respaldándola, el evaluador la marca como `UNVERIFIED`.
-> 3. El veredicto `PASS` certifica que las reglas y compuertas exigidas por la política se satisfacen con las evidencias registradas. **No garantiza matemáticamente que el software esté libre de defectos**.
+The RAPID OS **Behavioral Evaluation** engine (`BehavioralEvaluator`) performs offline, deterministic audits of a run's execution. It evaluates the contract (`ExecutionContract`), the lifecycle state (`RunState`) and the set of immutable evidence (`RunEvidence[]`) against a set of canonical rules (`BehavioralRuleset`).
 
 ---
 
-## 1. Los cuatro veredictos de Evaluación (`EvaluationVerdict`)
+## Product Truth: The nature of the Evaluation
 
-| Veredicto | Significado | Exigencia en CI (`--require-pass`) |
+> **Product Truth Principle**:
+> 1. RAPID OS does **not** invoke LLM models to evaluate code ("LLM-as-a-judge"). The evaluation is **100% mathematical, logical and reproducible**.
+> 2. A state declaration (e.g. `GateDisposition.ACKNOWLEDGED`) is a user assertion; if it has no observable evidence backing it, the evaluator marks it as `UNVERIFIED`.
+> 3. The `PASS` verdict certifies that the rules and gates required by the policy are satisfied by the recorded evidence. It **does not mathematically guarantee that the software is free of defects**.
+
+---
+
+## 1. The four Evaluation verdicts (`EvaluationVerdict`)
+
+| Verdict | Meaning | CI requirement (`--require-pass`) |
 | :--- | :--- | :--- |
-| **`pass`** | Todas las compuertas obligatorias y requerimientos cuentan con evidencias válidas que las satisfacen al 100%. | **Pasa** (Exit code `0`) |
-| **`pass_with_waivers`** | Todas las compuertas se satisfacen, pero una o más compuertas permitidas fueron formalmente exentas con un waiver justificado. | **Pasa** (Exit code `0`) |
-| **`unverified`** | Existen compuertas reconocidas en el estado que carecen del registro de evidencia observable correspondiente. | **Falla** (Exit code `1`, diagnóstico `RAPID1225`) |
-| **`fail`** | Al menos una compuerta obligatoria fue rechazada, omitida, o una prueba falló según la evidencia registrada. | **Falla** (Exit code `1`, diagnóstico `RAPID1226`) |
+| **`pass`** | All mandatory gates and requirements have valid evidence that satisfies them 100%. | **Passes** (Exit code `0`) |
+| **`pass_with_waivers`** | All gates are satisfied, but one or more waivable gates were formally exempted with a justified waiver. | **Passes** (Exit code `0`) |
+| **`unverified`** | There are acknowledged gates in the state that lack the corresponding observable evidence record. | **Fails** (Exit code `1`, diagnostic `RAPID1225`) |
+| **`fail`** | At least one mandatory gate was rejected or skipped, or a test failed according to the recorded evidence. | **Fails** (Exit code `1`, diagnostic `RAPID1226`) |
 
 ---
 
-## 2. Ejecución de la Evaluación (`rapid eval run`)
+## 2. Running the Evaluation (`rapid eval run`)
 
-Por defecto, la evaluación se ejecuta en modo de solo lectura para inspeccionar el resultado en terminal:
+By default, the evaluation runs in read-only mode so you can inspect the result in the terminal:
 
 ```bash
-# Evaluación en memoria (Read-only)
+# In-memory evaluation (Read-only)
 rapid eval run --run my-run-001
 
-# Evaluación con formato JSON
+# Evaluation in JSON format
 rapid eval run --run my-run-001 --json
 ```
 
-### Persistir el reporte de evaluación (`--write`)
-Para registrar el reporte inmutable en `.rapid-os/evals/<run-id>/reports/eval_report_0001.json`:
+### Persist the evaluation report (`--write`)
+To record the immutable report at `.rapid-os/evals/<run-id>/reports/eval_report_0001.json`:
 
 ```bash
 rapid eval run --run my-run-001 --write
 ```
 
-### Modo estricto para integración continua (`--require-pass`)
-En flujos de CI/CD o hooks pre-merge, puedes exigir que el comando falle si el veredicto no es `pass` o `pass_with_waivers`:
+### Strict mode for continuous integration (`--require-pass`)
+In CI/CD flows or pre-merge hooks, you can require the command to fail if the verdict is not `pass` or `pass_with_waivers`:
 
 ```bash
 rapid eval run --run my-run-001 --require-pass
@@ -57,26 +57,26 @@ rapid eval run --run my-run-001 --require-pass
 
 ---
 
-## 3. Inspección y Repetición Semántica (Replay)
+## 3. Inspection and Semantic Replay
 
-RAPID OS permite consultar el histórico de reportes de evaluación generados para un run:
+RAPID OS lets you query the history of evaluation reports generated for a run:
 
 ```bash
-# Listar reportes generados
+# List generated reports
 rapid eval list --run my-run-001
 
-# Inspeccionar el detalle de una revisión de reporte
+# Inspect the detail of a report revision
 rapid eval show --run my-run-001 --revision 1
 ```
 
-### Protección contra manipulación manual
-Cada vez que se carga un reporte (`rapid eval show` o `rapid validate`), RAPID OS ejecuta una **repetición semántica obligatoria** (*semantic replay*): vuelve a computar las aserciones sobre el contrato, el estado y las evidencias reales en disco. Si alguien alteró manualmente el archivo de reporte para cambiar un `FAIL` por `PASS`, el sistema detecta la discrepancia y emite el diagnóstico `RAPID1223`.
+### Protection against manual tampering
+Every time a report is loaded (`rapid eval show` or `rapid validate`), RAPID OS performs a **mandatory semantic replay**: it recomputes the assertions over the contract, the state and the actual evidence on disk. If someone manually altered the report file to change a `FAIL` into a `PASS`, the system detects the discrepancy and emits the diagnostic `RAPID1223`.
 
 ---
 
-## 4. Estructura de un Reporte de Evaluación (`EvaluationReport`)
+## 4. Structure of an Evaluation Report (`EvaluationReport`)
 
-Un reporte generado contiene los siguientes bloques fundamentales:
+A generated report contains the following fundamental blocks:
 
 ```json
 {
@@ -102,14 +102,14 @@ Un reporte generado contiene los siguientes bloques fundamentales:
       "category": "contract",
       "status": "satisfied",
       "target": "ExecutionContract",
-      "reason": "Digest coincide y spec está en estado ready"
+      "reason": "Digest matches and spec is in ready state"
     },
     {
       "id": "A002_gate_implementation_tests",
       "category": "gate",
       "status": "satisfied",
       "target": "implementation_tests",
-      "reason": "Evidencia E001 (test_result) acredita 42 tests exitosos"
+      "reason": "Evidence E001 (test_result) certifies 42 passing tests"
     }
   ]
 }
@@ -117,18 +117,17 @@ Un reporte generado contiene los siguientes bloques fundamentales:
 
 ---
 
-## 5. Versiones de Ruleset: Comparativa v1 vs v2
+## 5. Ruleset Versions: v1 vs v2 comparison
 
-A partir de Rapid OS v3.2, el motor de evaluación soporta múltiples versiones de reglas (`BehavioralRuleset`):
+Starting with Rapid OS v3.2, the evaluation engine supports multiple rule versions (`BehavioralRuleset`):
 
-| Característica | Ruleset v1 | Ruleset v2 (Por defecto) |
+| Feature | Ruleset v1 | Ruleset v2 (Default) |
 | :--- | :--- | :--- |
-| **Versión por defecto** | Compatible con runs históricos | Regla activa por defecto en `rapid eval run` |
-| **Compuertas Humanas (`GateKind`)** | Aceptaba revisiones emitidas por cualquier productor (incluyendo `harness:*`) | **Rechaza** productores `harness:*` para compuertas de revisión humana (`peer_review`, `security_review`, `migration_review`, `manual_approval`, `final_verification`). Quedan `UNVERIFIED` si las firma un harness |
-| **Compuertas Automáticas / Machine** | Acepta `harness:*` y herramientas | Acepta `harness:*` y herramientas |
-| **Fallas Esperadas (`expectation: "fail"`)** | Evaluadas como fallas regulares | Soportadas para verificación de reproducción de defectos (TDD/Bugfix); el evaluador produce aserciones `reproduction.<task-id>` |
+| **Default version** | Compatible with historical runs | Active rule by default in `rapid eval run` |
+| **Human Gates (`GateKind`)** | Accepted reviews issued by any producer (including `harness:*`) | **Rejects** `harness:*` producers for human review gates (`peer_review`, `security_review`, `migration_review`, `manual_approval`, `final_verification`). They stay `UNVERIFIED` if signed by a harness |
+| **Automatic / Machine Gates** | Accepts `harness:*` and tools | Accepts `harness:*` and tools |
+| **Expected Failures (`expectation: "fail"`)** | Evaluated as regular failures | Supported for defect reproduction verification (TDD/Bugfix); the evaluator produces `reproduction.<task-id>` assertions |
 | **CLI `--ruleset`** | `--ruleset 1` | `--ruleset 2` |
 
 > [!IMPORTANT]
-> Los reportes guardados con `--write` registran su `ruleset_version`. Al ejecutar `rapid eval show` o `rapid validate`, el replay semántico utiliza exactamente la versión declarada en el reporte para garantizar reproducibilidad histórica inmutable.
-
+> Reports saved with `--write` record their `ruleset_version`. When running `rapid eval show` or `rapid validate`, the semantic replay uses exactly the version declared in the report to guarantee immutable historical reproducibility.

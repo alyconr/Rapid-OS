@@ -1,50 +1,55 @@
-# Servicios de infraestructura
+---
+title: Infrastructure Services
+description: How Rapid OS records a project's database, cache, queue, and streaming service decisions.
+---
 
-Los servicios de infraestructura de un proyecto (base de datos, caché, cola, streaming) **salen de una decisión registrada, no del stack**. El stack solo sugiere un mínimo (`suggested_services`, por ejemplo `database:postgresql`); la persona decide, con el porqué y el momento de cada servicio.
+# Infrastructure Services
 
-## La decisión
+Project infrastructure services (database, cache, queue, streaming) **come from a recorded decision, not from the stack**. A stack only suggests a minimum (`suggested_services`, such as `database:postgresql`); a person decides which services to use, why, and when.
 
-Después de `brief` y `business`, y antes de `data-model`, `architecture` y `deployment`, el conductor de `rapid setup next` devuelve la acción `choose_services`. El agente propone los servicios a partir del brief y las reglas de negocio (empieza por lo mínimo: una base de datos), y la persona responde:
+## The decision
+
+After `brief` and `business`, and before `data-model`, `architecture`, and `deployment`, the `rapid setup next` orchestrator returns the `choose_services` action. The agent suggests services based on the brief and business rules (starting with the minimum, usually a database), and the person responds:
 
 ```bash
 rapid setup set services database:postgresql@now,queue:rabbitmq@later
 rapid setup set services none
 ```
 
-- Formato: `<rol>:<motor>[@now|@later]`, separados por comas. Sin sufijo es `@now`.
+- Format: `<role>:<engine>[@now|@later]`, separated by commas. Without a suffix, the default is `@now`.
 - Roles: `database`, `cache`, `queue`, `stream`, `search`, `object-storage`.
-- `@now`: se necesita para la primera historia; Rapid OS escribe su contenedor. `@later`: queda decidido pero sin contenedor.
-- `none` es una decisión válida (un sitio estático no necesita servicios).
-- Un rol o motor desconocido, o una pareja incompatible, es `RAPID1413`; un motor que el stack no soporta es `RAPID1402`.
-- Después de `setup finish`, `rapid setup set services ...` se aplica al instante y no reabre el onboarding.
+- `@now`: needed for the first story; Rapid OS writes its container. `@later`: decided, but no container is written yet.
+- `none` is a valid decision (a static site needs no services).
+- An unknown role or engine, or an incompatible pair, returns `RAPID1413`; an engine unsupported by the stack returns `RAPID1402`.
+- After `setup finish`, `rapid setup set services ...` applies immediately and does not reopen onboarding.
 
-## Catálogo
+## Catalog
 
-Cada motor es un archivo `templates/services/<motor>.json` validado por `rapid_os.domain.catalog` (`RAPID1401`) con rol, imagen oficial con versión mayor fijada, puertos, variables, healthcheck, volumen, variable de conexión, drivers por lenguaje y las `sources` oficiales.
+Each engine is a `templates/services/<engine>.json` file validated by `rapid_os.domain.catalog` (`RAPID1401`). It defines the role, official image with pinned major version, ports, variables, health check, volume, connection variable, language drivers, and official `sources`.
 
-| Rol | Motores |
+| Role | Engines |
 |---|---|
 | database | `postgresql`, `mysql`, `mariadb`, `mongodb` |
 | cache | `redis`, `valkey` |
 | queue | `rabbitmq` |
-| stream | `kafka` (KRaft, un nodo) |
+| stream | `kafka` (single-node KRaft) |
 
-## Qué escribe Rapid OS
+## What Rapid OS writes
 
-Al cerrar el onboarding de un repositorio vacío, `rapid setup finish` escribe (no el agente):
+When onboarding finishes for an empty repository, `rapid setup finish` (not the agent) writes:
 
-- `compose.yaml`: un servicio por cada `@now`, imagen fijada, healthcheck, volumen con nombre y puertos solo en `127.0.0.1`.
-- `.env.example` con las variables de conexión, y `.env` añadido a `.gitignore`.
-- `tech-stack.md` con la base de datos y el driver del motor elegido (el stack ya no los impone).
+- `compose.yaml`: one service per `@now`, pinned image, health check, named volume, and ports bound only to `127.0.0.1`.
+- `.env.example` with connection variables, and adds `.env` to `.gitignore`.
+- `tech-stack.md` with the chosen database and engine driver (the stack no longer imposes them).
 
-Si ya hay un `compose.yaml`, al pasar un servicio de `@later` a `@now` solo se añaden los que faltan: lo existente no se modifica, y un YAML que no se puede leer se deja intacto con un aviso. Los archivos se anuncian en la salida de `finish` y en la revisión de borradores.
+If a `compose.yaml` already exists, changing a service from `@later` to `@now` adds only missing services. Existing services are not modified; unreadable YAML is left untouched with a warning. The `finish` output and draft review list the files.
 
-## Probar el modelo de datos sin que el gate dependa de Docker
+## Test the data model without making the gate depend on Docker
 
-El sandbox del harness no ejecuta Docker. Por eso `rapid setup finish` y `rapid status` ofrecen la acción de la persona `local-services` (`docker compose up -d`) mientras exista el `compose.yaml`. La tarea de scaffold pide que la configuración se lea de `.env.example`, que el esquema vaya en migraciones, que las pruebas unitarias no usen servicios externos y que las de integración tengan un marcador propio: `gate.tests` pasa sin Docker.
+The harness sandbox does not run Docker. Therefore, while `compose.yaml` exists, `rapid setup finish` and `rapid status` show a `local-services` action for the person (`docker compose up -d`). The scaffold task asks that configuration be read from `.env.example`, schema changes go into migrations, unit tests use no external services, and integration tests have their own marker. `gate.tests` can pass without Docker.
 
-## Documentos
+## Project documents
 
-- `docs/ARCHITECTURE.md` exige la sección `Servicios de infraestructura`.
-- `docs/DATA_MODEL.md` exige `Base de datos local` cuando hay un servicio `database` (`RAPID1403` si falta).
-- `docs/DEPLOYMENT.md` es opcional y va el último; ver la [guía de despliegue](../guides/deployment.md).
+- `docs/ARCHITECTURE.md` requires an `Infrastructure Services` section.
+- `docs/DATA_MODEL.md` requires `Local Database` when a `database` service is selected (`RAPID1403` if missing).
+- `docs/DEPLOYMENT.md` is optional and comes last; see the [deployment guide](../guides/deployment.md).

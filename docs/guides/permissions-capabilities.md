@@ -1,97 +1,97 @@
 ---
-title: Capabilities y permisos
-description: Cómo Rapid OS modela lo que un coding harness declara poder hacer y cómo se relaciona con riesgo, workspace y evidencia.
+title: Capabilities and Permissions
+description: How Rapid OS models what a coding harness declares it can do, and how that relates to risk, workspace, and evidence.
 ---
 
-# Capabilities y permisos
+# Capabilities and Permissions
 
-En Rapid OS, “permisos” se modelan principalmente como **capabilities declaradas por el harness**. No son permisos del sistema operativo ni una sandbox de seguridad.
+In Rapid OS, "permissions" are modeled primarily as **capabilities declared by the harness**. They are not operating-system permissions or a security sandbox.
 
-Una capability responde:
+A capability answers:
 
-> ¿El harness seleccionado declara que puede realizar esta clase de operación?
+> Does the selected harness declare that it can perform this class of operation?
 
-## Catálogo canónico
+## Canonical catalog
 
-| Capability | Categoría | Significado |
+| Capability | Category | Meaning |
 | --- | --- | --- |
-| `context.consume` | context | Puede consumir el contexto compilado. |
-| `repository.read` | repository | Puede leer el repositorio. |
-| `repository.write` | repository | Puede modificar archivos del repositorio. |
-| `workspace.current` | workspace | Puede trabajar en el workspace actual. |
-| `workspace.isolated` | workspace | Puede trabajar en un workspace aislado. |
-| `shell.execute` | execution | Puede ejecutar comandos de shell. |
-| `tests.execute` | testing | Puede ejecutar pruebas. |
-| `git.inspect` | git | Puede inspeccionar Git. |
-| `git.modify` | git | Puede modificar estado Git. |
-| `mcp.invoke` | integration | Puede invocar herramientas MCP. |
-| `subagents.delegate` | delegation | Puede delegar trabajo a subagentes. |
+| `context.consume` | context | Can consume the compiled context. |
+| `repository.read` | repository | Can read the repository. |
+| `repository.write` | repository | Can modify repository files. |
+| `workspace.current` | workspace | Can work in the current workspace. |
+| `workspace.isolated` | workspace | Can work in an isolated workspace. |
+| `shell.execute` | execution | Can run shell commands. |
+| `tests.execute` | testing | Can run tests. |
+| `git.inspect` | git | Can inspect Git. |
+| `git.modify` | git | Can modify Git state. |
+| `mcp.invoke` | integration | Can invoke MCP tools. |
+| `subagents.delegate` | delegation | Can delegate work to subagents. |
 
-## Estados de soporte
+## Support states
 
-Cada capability puede estar en uno de tres estados:
+Each capability can be in one of three states:
 
-- `supported`: el profile declara soporte;
-- `unsupported`: el profile declara explícitamente que no la soporta;
-- `unknown`: Rapid OS no tiene evidencia declarativa suficiente para asumir soporte.
+- `supported`: the profile declares support;
+- `unsupported`: the profile explicitly declares that it does not support it;
+- `unknown`: Rapid OS has no declarative evidence sufficient to assume support.
 
-`unknown` **no equivale** a `supported`.
+`unknown` is **not equivalent** to `supported`.
 
-## Profiles built-in
+## Built-in profiles
 
-Los profiles built-in son conservadores. Declaran como `supported` únicamente:
+Built-in profiles are conservative. They declare only the following as `supported`:
 
 - `context.consume`
 - `repository.read`
 - `workspace.current`
 
-Las demás capabilities empiezan como `unknown`.
+All other capabilities start as `unknown`.
 
-Puedes materializar un profile para editarlo:
+You can materialize a profile in order to edit it:
 
 ```bash
 rapid harness init codex
 ```
 
-Esto crea:
+This creates:
 
 ```text
 .rapid-os/harnesses/codex.json
 ```
 
-Cuando existe un profile de proyecto, reemplaza completamente al built-in para ese harness; no se hace merge silencioso.
+When a project profile exists, it completely replaces the built-in one for that harness; there is no silent merge.
 
-## Cómo se derivan las capabilities requeridas
+## How required capabilities are derived
 
-Rapid OS deriva requisitos desde el `ExecutionContract`.
+Rapid OS derives requirements from the `ExecutionContract`.
 
-Reglas principales:
+Main rules:
 
-- siempre exige `context.consume` y `repository.read`;
-- si el contrato contiene tareas, exige `repository.write`;
-- si el workspace es actual, exige `workspace.current`;
-- si el riesgo requiere aislamiento, exige `workspace.isolated`;
-- si existe `gate.tests`, exige `tests.execute`;
-- `--require <capability-id>` agrega requisitos adicionales.
+- it always requires `context.consume` and `repository.read`;
+- if the contract contains tasks, it requires `repository.write`;
+- if the workspace is the current one, it requires `workspace.current`;
+- if the risk requires isolation, it requires `workspace.isolated`;
+- if `gate.tests` exists, it requires `tests.execute`;
+- `--require <capability-id>` adds extra requirements.
 
-## Riesgo y aislamiento
+## Risk and isolation
 
-La política de ejecución clasifica el run como `low`, `medium`, `high` o `critical`.
+The execution policy classifies the run as `low`, `medium`, `high`, or `critical`.
 
-Por defecto:
+By default:
 
-- `low` y `medium` permiten el workspace actual;
-- `high` y `critical` requieren workspace aislado.
+- `low` and `medium` allow the current workspace;
+- `high` and `critical` require an isolated workspace.
 
-Rapid OS declara esta necesidad en el contrato y `rapid start` se detiene en `blocked` hasta que exista el workspace aislado. Solo `rapid start --worktree` crea el worktree (`../<repo>-<run-id>`, rama `rapid/<run-id>`); nunca crea contenedores ni sandboxes.
+Rapid OS declares this need in the contract and `rapid start` stops at `blocked` until the isolated workspace exists. Only `rapid start --worktree` creates the worktree (`../<repo>-<run-id>`, branch `rapid/<run-id>`); it never creates containers or sandboxes.
 
-## Qué ejecuta Rapid OS y qué no
+## What Rapid OS runs and what it does not
 
-- El plumbing (`rapid spec`, `rapid run`, `rapid harness`, `rapid evidence`, `rapid eval`…) no ejecuta nada del repositorio: una capability como `tests.execute` solo se *declara* y se *comprueba contra evidencia*.
-- El porcelain ejecuta solo el `test_command` de `.rapid-os/config.json` o el argv que se pasa a `rapid check`, y deja ese resultado como evidencia (`rapid:check`).
-- Nunca invoca agentes ni aprueba gates humanos; `rapid approve` lo ejecuta una persona.
+- The plumbing (`rapid spec`, `rapid run`, `rapid harness`, `rapid evidence`, `rapid eval`…) executes nothing from the repository: a capability such as `tests.execute` is only *declared* and *checked against evidence*.
+- The porcelain runs only the `test_command` from `.rapid-os/config.json` or the argv passed to `rapid check`, and leaves that result as evidence (`rapid:check`).
+- It never invokes agents or approves human gates; `rapid approve` is run by a person.
 
-## Resolver compatibilidad
+## Resolve compatibility
 
 ```bash
 rapid harness show codex
@@ -99,28 +99,28 @@ rapid harness resolve --run checkout-r1-run-001
 rapid harness resolve --run checkout-r1-run-001 --require-compatible
 ```
 
-Resultados:
+Results:
 
-- `compatible`: todos los requisitos están `supported`;
-- `incompatible`: al menos uno está `unsupported`;
-- `unresolved`: no hay `unsupported`, pero al menos uno está `unknown`.
+- `compatible`: all requirements are `supported`;
+- `incompatible`: at least one is `unsupported`;
+- `unresolved`: there is no `unsupported`, but at least one is `unknown`.
 
-Con `--require-compatible`, `incompatible` y `unresolved` producen error `RAPID1110` y exit code `1`.
+With `--require-compatible`, `incompatible` and `unresolved` produce error `RAPID1110` and exit code `1`.
 
-## Capability no es evidencia
+## Capability is not evidence
 
-Una capability declarada no prueba que fue utilizada.
+A declared capability does not prove that it was used.
 
-Ejemplo:
+Example:
 
-- el profile puede declarar `tests.execute = supported`;
-- el run puede requerir `gate.tests`;
-- aun así, la evaluación será `UNVERIFIED` si no existe evidencia válida de una ejecución de tests.
+- the profile may declare `tests.execute = supported`;
+- the run may require `gate.tests`;
+- even so, the evaluation will be `UNVERIFIED` if there is no valid evidence of a test execution.
 
-La separación es deliberada:
+The separation is deliberate:
 
 ```text
-Capability = qué se declara que el harness puede hacer
-Evidence   = qué se observó que ocurrió
-Eval       = qué puede concluir Rapid OS de esa evidencia
+Capability = what the harness is declared able to do
+Evidence   = what was observed to happen
+Eval       = what Rapid OS can conclude from that evidence
 ```

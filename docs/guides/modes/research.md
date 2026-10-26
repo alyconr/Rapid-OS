@@ -1,107 +1,107 @@
 ---
-title: Modo Research
-description: Spikes exploratorios, evaluación de alternativas técnicas y pruebas de concepto con RAPID OS.
+title: Research Mode
+description: Exploratory spikes, evaluation of technical alternatives, and proofs of concept with RAPID OS.
 ---
 
-# Modo Research
+# Research Mode
 
-El modo **Research** está orientado a spikes técnicos, evaluación de bibliotecas, pruebas de concepto (PoC) y benchmarks donde el objetivo no es entregar código productivo inmediato, sino responder una duda de diseño o viabilidad.
+**Research** mode is aimed at technical spikes, library evaluations, proofs of concept (PoC), and benchmarks where the goal is not to deliver production code right away but to answer a design or feasibility question.
 
 ---
 
-## Con el shortcut `/rapid-research`
+## With the `/rapid-research` shortcut
 
 ```text
-/rapid-research comparar JSON y SQLite para guardar las preferencias
+/rapid-research compare JSON and SQLite for storing the preferences
 ```
 
-(En Codex: `$rapid-research …`.) El shortcut conduce el run completo; la instalación y la invocación por harness están en la [guía de shortcuts](../shortcuts.md).
+(In Codex: `$rapid-research …`.) The shortcut drives the whole run; installation and per-harness invocation are in the [shortcuts guide](../shortcuts.md).
 
-Qué hace su playbook (`templates/modes/research.json` y las reglas del Conductor):
+What its playbook does (`templates/modes/research.json` and the Conductor's rules):
 
-- Un spike es de riesgo bajo: solo queda `gate.final-verification`; no hay baseline ni tests obligatorios.
-- Los hallazgos se registran con `rapid attach <ruta> --label "…"` (evidencia `artifact`, productor `rapid:attach`), vinculada a la tarea en curso (o a la que indiques con `--task`).
-- Las tareas se cierran con `rapid task done T00N --no-check`, porque no hay tests que ejecutar.
+- A spike is low risk: only `gate.final-verification` remains; there is no baseline or mandatory tests.
+- Findings are recorded with `rapid attach <path> --label "…"` (an `artifact` evidence, producer `rapid:attach`), linked to the task in progress (or to the one you indicate with `--task`).
+- Tasks are closed with `rapid task done T00N --no-check`, because there are no tests to run.
 
-El resto de esta guía describe el mismo ciclo con comandos v3 (**Modo avanzado**), útil para CI, depuración y auditoría.
-
----
-
-## Filosofía del modo Research
-
-- **Baja fricción**: Clasificado como `ExecutionClass.SPIKE` con riesgo bajo (`RiskLevel.LOW = 10`).
-- **Compuertas flexibles**: Permite waivers justificados en compuertas de pruebas o revisiones exhaustivas.
-- **Entregable centrado en conocimiento**: La evidencia primaria suele ser un documento de benchmark, informe comparativo o prototipo experimental (`artifact`).
+The rest of this guide describes the same cycle with v3 commands (**Advanced mode**), useful for CI, debugging, and auditing.
 
 ---
 
-## Flujo paso a paso
+## Philosophy of Research mode
+
+- **Low friction**: Classified as `ExecutionClass.SPIKE` with low risk (`RiskLevel.LOW = 10`).
+- **Flexible gates**: Allows justified waivers on test gates or exhaustive reviews.
+- **Knowledge-centered deliverable**: The primary evidence is usually a benchmark document, a comparative report, or an experimental prototype (`artifact`).
+
+---
+
+## Step-by-step flow
 
 ```mermaid
 flowchart LR
-    Idea["Pregunta técnica / Alternativas"] --> Spec["rapid spec create --mode research"]
+    Idea["Technical question / Alternatives"] --> Spec["rapid spec create --mode research"]
     Spec --> Context["rapid context --mode research"]
     Context --> Run["rapid run create --classification spike"]
-    Run --> Spike["Exploración & Benchmarks"]
-    Spike --> Evidence["Registrar Evidencia (artifact)"]
+    Run --> Spike["Exploration & Benchmarks"]
+    Spike --> Evidence["Record Evidence (artifact)"]
     Evidence --> Eval["rapid eval run"]
 ```
 
 ---
 
-## 1. Especificación del Spike
+## 1. Spike specification
 
 ```bash
 rapid spec create \
-  --title "Spike comparativo de serializadores JSON para alta concurrencia" \
+  --title "Comparative spike of JSON serializers for high concurrency" \
   --mode research \
-  --objective "Evaluar rendimiento y consumo de memoria entre orjson y msgspec frente a json estándar" \
-  --scope "Benchmarks aislados en scripts/benchmarks/" \
-  --acceptance "Reporte cuantitativo con latencia percentil 99 y recomendaciones de migración" \
-  --task "1. Crear harness de benchmark reproducible" \
-  --task "2. Medir latencia con payloads de 10KB y 1MB" \
-  --task "3. Generar informe de hallazgos técnicos" \
+  --objective "Evaluate performance and memory consumption of orjson and msgspec versus standard json" \
+  --scope "Isolated benchmarks in scripts/benchmarks/" \
+  --acceptance "Quantitative report with 99th percentile latency and migration recommendations" \
+  --task "1. Create a reproducible benchmark harness" \
+  --task "2. Measure latency with 10KB and 1MB payloads" \
+  --task "3. Generate a report of technical findings" \
   --status ready
 ```
 
 ---
 
-## 2. Compilar el Contexto de Investigación
+## 2. Compile the research context
 
 ```bash
 rapid context \
-  --spec spike-comparativo-de-serializadores-json \
+  --spec comparative-spike-of-json-serializers \
   --harness cursor \
   --mode research \
-  --objective "Exploración de librerías alternativas sin modificar código de producción" \
+  --objective "Exploration of alternative libraries without modifying production code" \
   --manifest
 ```
 
 ---
 
-## 3. Crear el Run clasificado como Spike
+## 3. Create the run classified as a spike
 
 ```bash
 rapid run create \
-  --spec spike-comparativo-de-serializadores-json \
+  --spec comparative-spike-of-json-serializers \
   --harness cursor \
   --classification spike \
   --risk low
 ```
 
-Al ser un spike de riesgo bajo, la política por defecto minimiza las compuertas obligatorias y permite la entrega ágil de resultados.
+Since it is a low-risk spike, the default policy minimizes the mandatory gates and allows agile delivery of results.
 
 ---
 
-## 4. Capturar Evidencia del Hallazgo (`artifact`)
+## 4. Capture the finding's evidence (`artifact`)
 
-Genera el archivo del informe (por ejemplo `reports/benchmark.json`) y crea el documento de autoría de la evidencia (`benchmark-evidence.json`):
+Generate the report file (for example `reports/benchmark.json`) and create the evidence authoring document (`benchmark-evidence.json`):
 
 ```json
 {
   "kind": "artifact",
   "producer": "bench-harness",
-  "summary": "Reporte cuantitativo de benchmarking comparativo",
+  "summary": "Quantitative report of comparative benchmarking",
   "artifacts": [
     "reports/benchmark.json"
   ],
@@ -111,25 +111,24 @@ Genera el archivo del informe (por ejemplo `reports/benchmark.json`) y crea el d
 }
 ```
 
-Registra la evidencia en el run:
+Record the evidence in the run:
 
 ```bash
 rapid evidence add \
-  --run spike-comparativo-de-serializadores-json-r1-run-001 \
+  --run comparative-spike-of-json-serializers-r1-run-001 \
   --input benchmark-evidence.json
 ```
 
 ---
 
-## 5. Cierre y Transición al Ciclo Productivo
+## 5. Closing and transition to the production cycle
 
-Ejecuta la evaluación para cerrar formalmente el run:
+Run the evaluation to formally close the run:
 
 ```bash
 rapid eval run \
-  --run spike-comparativo-de-serializadores-json-r1-run-001 \
+  --run comparative-spike-of-json-serializers-r1-run-001 \
   --write
 ```
 
-Una vez concluido el spike de investigación con veredicto satisfactorio, el equipo puede promover las recomendaciones a una especificación de modo [`feature`](./feature.md) o [`refactor`](./refactor.md) para su implementación gobernada en el sistema.
-
+Once the research spike concludes with a satisfactory verdict, the team can promote the recommendations to a specification in [`feature`](./feature.md) or [`refactor`](./refactor.md) mode for governed implementation in the system.

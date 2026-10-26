@@ -1,17 +1,15 @@
 ---
-title: Instalación en Linux
-description: Guía paso a paso para instalar y configurar Rapid OS en distribuciones Linux.
+title: Install on Linux
+description: Step-by-step guide to installing and configuring Rapid OS on Linux distributions.
 ---
 
-# Instalación en Linux
+# Install on Linux
 
-Esta guía describe cómo instalar y configurar Rapid OS v3 en distribuciones basadas en Linux (Ubuntu, Debian, Fedora, Arch Linux y derivados).
+This guide explains how to install and configure Rapid OS v3 on Linux distributions based on Ubuntu, Debian, Fedora, Arch Linux, and their derivatives.
 
----
+## 1. Linux prerequisites
 
-## 1. Prerrequisitos en Linux
-
-Asegúrate de contar con Python 3.10+, el módulo `venv` y Git instalados mediante el gestor de paquetes de tu distribución:
+Install Python 3.10+, the `venv` module, and Git with your distribution's package manager:
 
 ### Ubuntu / Debian
 ```bash
@@ -29,76 +27,69 @@ sudo dnf install -y python3 python3-pip git
 sudo pacman -S python python-pip git
 ```
 
-Verifica en tu terminal:
+Verify in your terminal:
 ```bash
 python3 --version
 git --version
 ```
 
----
+## 2. Method A: Shell installer (recommended)
 
-## 2. Método A: Instalador automático Shell (Recomendado)
-
-El script de instalación clona el repositorio en `~/.rapid-os`, fija la versión estable `v3.1.1` e instala un ejecutable `rapid` en `~/.local/bin`:
+The installer clones the repository into `~/.rapid-os`, pins stable version `v3.1.1`, and installs a `rapid` executable in `~/.local/bin`:
 
 ```bash
 curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.sh | bash
 ```
 
-### ¿Qué realiza el instalador?
-1. Verifica la existencia de `python3` (3.10+) y `git`.
-2. Clona el repositorio en `$HOME/.rapid-os`.
-3. Hace checkout seguro de la versión `v3.1.1`.
-4. Crea un entorno de Python propio en `$HOME/.rapid-os/.venv` e instala Rapid OS en él (en Debian/Ubuntu necesita el paquete `python3-venv`).
-5. Enlaza `~/.local/bin/rapid` a ese entorno y, si `~/.local/bin` no está en tu PATH, lo añade a `~/.bashrc` o `~/.zshrc`.
-6. Si un instalador anterior dejó un `alias rapid=` en ese archivo, lo quita (con copia `.rapid-os.bak`).
-7. Abre una terminal nueva, o ejecuta `source ~/.bashrc` (o `source ~/.zshrc`).
+### What does the installer do?
+1. Checks for `python3` (3.10+) and `git`.
+2. Clones the repository into `$HOME/.rapid-os`.
+3. Checks out stable version `v3.1.1`.
+4. Creates a dedicated Python environment in `$HOME/.rapid-os/.venv` and installs Rapid OS into it (Debian/Ubuntu also requires the `python3-venv` package).
+5. Links `~/.local/bin/rapid` to that environment and adds `~/.local/bin` to `~/.bashrc` or `~/.zshrc` if it is not already on PATH.
+6. Removes an `alias rapid=` left in that file by an older installer, saving a `.rapid-os.bak` copy.
+7. Open a new terminal, or run `source ~/.bashrc` (or `source ~/.zshrc`).
 
-:::note Shortcuts globales (desde 3.2.0)
-Al terminar, el instalador pregunta para qué agentes instalar los shortcuts en tu carpeta de usuario: escribe el tuyo (por ejemplo `claude`) y `/rapid-init`, `/rapid-feature` y el resto quedan disponibles en todos tus proyectos. Equivale a `rapid shortcuts install --global --harness <id>`, que puedes ejecutar después si te lo saltaste. Solo lo pregunta si el `rapid` instalado tiene `--global` y hay una terminal interactiva, y nunca instala nada sin tu respuesta. La versión estable actual (`v3.1.1`) no tiene `--global`, así que no lo pregunta; en ella instala los shortcuts en cada proyecto con `rapid init --shortcuts`.
+:::note Global shortcuts (since 3.2.0)
+At the end, the installer asks which agents should receive shortcuts in your user directory. Enter yours (for example, `claude`) to make `/rapid-init`, `/rapid-feature`, and the other shortcuts available across projects. This is equivalent to `rapid shortcuts install --global --harness <id>`. The prompt appears only when the installed `rapid` supports `--global` and the terminal is interactive; nothing is installed without your response. Stable version `v3.1.1` does not support `--global`, so it does not prompt; install shortcuts in each project with `rapid init --shortcuts` instead.
 :::
 
-:::warning Shortcuts y hooks necesitan `rapid` en el PATH
-Los agentes (Claude Code, Codex, Cursor...) y sus hooks ejecutan comandos en shells no interactivos, donde no existen los alias. Por eso `rapid` tiene que ser un ejecutable en el PATH de la terminal desde la que lanzas el agente. Compruébalo con `bash -c 'command -v rapid'`.
+:::warning Shortcuts and hooks need `rapid` on PATH
+Agents (Claude Code, Codex, Cursor, and others) and their hooks run commands in non-interactive shells, where aliases are unavailable. `rapid` must be an executable on the PATH of the terminal from which you launch the agent. Check with `bash -c 'command -v rapid'`.
 :::
 
-:::warning No uses sudo pip install
-No utilices `sudo pip install` para instalar paquetes en el sistema global. Utiliza el script instalador o un entorno virtual (`venv`).
+:::warning Do not use sudo pip install
+Do not use `sudo pip install` to install packages globally. Use the installer script or a virtual environment (`venv`).
 :::
 
----
+## 3. Method B: Install in a virtual environment (`venv`)
 
-## 3. Método B: Instalación en Entorno Virtual (`venv`)
-
-Si prefieres instalar Rapid OS mediante `pip` de forma aislada:
+To install Rapid OS with `pip` in an isolated environment:
 
 ```bash
-# 1. Crear entorno virtual
+# 1. Create the virtual environment
 python3 -m venv ~/.venvs/rapid-env
 
-# 2. Activar entorno virtual
+# 2. Activate it
 source ~/.venvs/rapid-env/bin/activate
 
-# 3. Instalar Rapid OS desde GitHub
+# 3. Install Rapid OS from GitHub
 pip install git+https://github.com/alyconr/Rapid-OS.git@v3.1.1
 
-# 4. Comprobar instalación
+# 4. Check the installation
 rapid --version
 ```
 
-Para acceder al comando sin activar el entorno cada vez, puedes crear un enlace simbólico en `~/.local/bin/`:
+To use `rapid` without activating the environment each time, create a symbolic link in `~/.local/bin/`:
 ```bash
 mkdir -p ~/.local/bin
 ln -sf ~/.venvs/rapid-env/bin/rapid ~/.local/bin/rapid
 ```
-(Asegúrate de que `~/.local/bin` esté incluido en tu variable `PATH`).
+Make sure `~/.local/bin` is on your `PATH`.
 
----
+## 4. Method C: Development install
 
-## 4. Método C: Instalación de Desarrollo
-
-Para trabajar directamente sobre el código fuente de Rapid OS:
-
+To work directly on the Rapid OS source code:
 ```bash
 git clone https://github.com/alyconr/Rapid-OS.git
 cd Rapid-OS
@@ -106,33 +97,26 @@ python3 -m pip install -e .
 python3 rapid.py guide
 ```
 
----
+## 5. Verify
 
-## 5. Verificación
-
-Ejecuta:
-
+Run:
 ```bash
 rapid --version
 rapid doctor
 ```
 
-Sigue hacia [Verificación de la instalación](./verification.md).
+Continue to [Verify the Installation](./verification.md).
 
----
+## 6. Start using shortcuts
 
-## 6. Empieza a usar los shortcuts
-
-Si respondiste con tu agente a la pregunta final del instalador, ya está: abre tu agente en la carpeta de tu proyecto y escribe:
-
+If you selected your agent in the installer's final prompt, open it in your project folder and enter:
 ```text
 /rapid-init
 ```
 
-Si te la saltaste, una sola vez: `rapid shortcuts install --global --harness claude` (cambia `claude` por tu agente). En VS Code, en la versión `v3.1.1`, o si prefieres versionar los shortcuts con el repositorio, instálalos en la raíz del proyecto:
-
+If you skipped the prompt, run `rapid shortcuts install --global --harness claude` once (replace `claude` with your agent). With VS Code, stable version `v3.1.1`, or if you want to version shortcuts with the repository, install them at the project root:
 ```bash
 rapid init --shortcuts
 ```
 
-Después, en tu agente: `/rapid-feature <objetivo>`. Detalle en la [guía de shortcuts](../guides/shortcuts.md) y en [Primeros pasos](../getting-started.md).
+Then enter `/rapid-feature <goal>` in your agent. See the [shortcuts guide](../guides/shortcuts.md) and [Getting Started](../getting-started.md).

@@ -1,62 +1,62 @@
 ---
-title: Cuando el agente se detiene
-description: Qué hacer cuando el agente para y te pide algo; aprobar, rechazar, ver en qué va el trabajo, cancelarlo y leer el resultado.
+title: When the Agent Stops
+description: "What to do when the agent pauses to ask for something: approve, reject, check progress, cancel, and read the result."
 ---
 
-# Cuando el agente se detiene
+# When the Agent Stops
 
-Mientras trabaja, el agente no te pide nada. Se detiene solo en tres casos: **necesita tu aprobación**, **algo bloquea el trabajo** o **terminó**. En los tres te dice qué pasó y qué hacer. Esta página resume las respuestas posibles.
+While working, the agent does not ask you for anything. It stops only in three cases: **it needs your approval**, **something is blocking the work**, or **it is done**. In each case, it explains what happened and what to do. This page summarizes your options.
 
-## Te pide aprobar
+## It asks you to approve
 
-Es lo más común: el trabajo está hecho y los tests pasaron, pero la última palabra es tuya. El agente te resume lo que hizo y te da un comando. Ejecútalo en **otra terminal**, fuera del agente:
+This is the most common case: the work is done and the tests passed, but the final decision is yours. The agent summarizes its work and gives you a command. Run it in **another terminal**, outside the agent:
 
 ```bash
 rapid approve gate.final-verification
 ```
 
-Después vuelve al agente y escribe `/rapid-next` para cerrar.
+Then return to the agent and enter `/rapid-next` to close the run.
 
-| Si quieres… | En tu terminal |
-| :--- | :--- |
-| Aprobar | `rapid approve <gate>` (el agente te da el nombre exacto) |
-| Ver qué falta aprobar | `rapid approve` (sin nada más) |
-| Rechazar y explicar por qué | `rapid approve <gate> --reject --reason "<motivo>"` |
-| Dispensar una revisión opcional | `rapid approve <gate> --waive --reason "<motivo>"` |
+| You want to... | In your terminal |
+|---|---|
+| Approve | `rapid approve <gate>` (the agent gives you the exact name) |
+| See what still needs approval | `rapid approve` (with no arguments) |
+| Reject and explain why | `rapid approve <gate> --reject --reason "<reason>"` |
+| Waive an optional review | `rapid approve <gate> --waive --reason "<reason>"` |
 
-¿Por qué en tu terminal y no en el agente? Porque la aprobación es la garantía de que una persona revisó el trabajo. Rapid OS rechaza `rapid approve` cuando detecta que lo lanza el agente, y ningún shortcut aprueba por ti. Si no recuerdas qué aprobar, escribe `/rapid-approve` en el agente: te muestra los pendientes y el comando, pero no aprueba.
+**Why use your terminal instead of the agent?** Approval guarantees that a person reviewed the work. Rapid OS rejects `rapid approve` when it detects that an agent launched it, and no shortcut can approve for you. If you are not sure what needs approval, enter `/rapid-approve` in the agent. It shows pending gates and the command, but does not approve.
 
-Si rechazas, el trabajo no se da por bueno. El agente te explica la situación y espera tu decisión; normalmente se cancela y se empieza de nuevo con lo que aprendiste.
+If you reject, the work is not accepted. The agent explains the situation and waits for your decision; usually, you cancel and start again with what you learned.
 
-## Algo bloquea el trabajo
+## Something is blocking the work
 
-El agente te dice la causa. Las más frecuentes:
+The agent tells you why. Common causes include:
 
-- **Tus tests ya fallaban antes de empezar.** Rapid OS comprueba la suite al inicio (la *baseline*) para no culpar al agente de un rojo que ya existía. Arregla esos tests y escribe `/rapid-next`.
-- **En un refactor pasan menos tests que antes.** El agente te muestra cuáles; pídele que lo corrija.
-- **Ya hay un trabajo en curso.** Solo hay uno activo a la vez: termínalo con `/rapid-next` o cancélalo.
+- **Your tests already failed before work began.** Rapid OS checks the suite at the start (the *baseline*) so the agent is not blamed for an existing failure. Fix those tests and enter `/rapid-next`.
+- **Fewer tests pass after a refactor.** The agent shows you which ones; ask it to fix the issue.
+- **Another task is already in progress.** Only one run can be active at a time; finish it with `/rapid-next` or cancel it.
 
-## Ver en qué va o cancelar
+## Check progress or cancel
 
-| Si quieres… | Dónde | Qué escribes |
-| :--- | :--- | :--- |
-| Ver tareas, aprobaciones pendientes y estado | En el agente | `/rapid-status` |
-| Que el agente siga donde se quedó | En el agente | `/rapid-next` |
-| Cancelar el trabajo en curso | En tu terminal | `rapid abort --reason "<motivo>"` |
+| You want to... | Where | What to enter |
+|---|---|---|
+| See tasks, pending approvals, and status | In the agent | `/rapid-status` |
+| Have the agent continue where it stopped | In the agent | `/rapid-next` |
+| Cancel the current task | In your terminal | `rapid abort --reason "<reason>"` |
 
-Cancelar no borra tu código: marca el trabajo como cancelado y libera el sitio para empezar otro.
+Cancellation does not delete your code: it marks the run as cancelled and frees the slot for another task.
 
-## Terminó
+## It is done
 
-Al cerrar, el agente te muestra el veredicto:
+When the run closes, the agent shows you the verdict:
 
-| Veredicto | Qué significa |
-| :--- | :--- |
-| `pass` | Todo lo exigido tiene evidencia: los tests se ejecutaron y pasaron, y aprobaste. |
-| `pass_with_waivers` | Igual que `pass`, pero dispensaste alguna revisión opcional. |
-| `unverified` | Falta evidencia de algo (por ejemplo, un test que nunca se ejecutó). |
-| `fail` | Algo exigido falló, o rechazaste la aprobación. |
+| Verdict | Meaning |
+|---|---|
+| `pass` | Everything required has evidence: tests ran and passed, and you approved. |
+| `pass_with_waivers` | Same as `pass`, but you waived an optional review. |
+| `unverified` | Evidence is missing for something (for example, a test was never run). |
+| `fail` | A requirement failed, or you rejected approval. |
 
-`pass` no significa "sin bugs": significa que lo que se pidió quedó demostrado con evidencia que Rapid OS ejecutó y registró. Si el trabajo venía de una historia del brief (`H001`…), con `pass` queda marcada como hecha.
+`pass` does not mean "bug-free." It means the request was demonstrated with evidence that Rapid OS ran and recorded. If the work came from a brief story (`H001`...), `pass` marks it as complete.
 
-Si algo no cuadra, revisa los [problemas frecuentes](../troubleshooting/tutorials.md) o el [catálogo de diagnósticos](../troubleshooting/diagnostics.md) (los códigos `RAPIDxxxx` que aparecen en los mensajes).
+If something seems wrong, see [Troubleshooting the Labs](../troubleshooting/tutorials.md) or the [diagnostics catalog](../troubleshooting/diagnostics.md) for `RAPIDxxxx` codes in messages.

@@ -1,48 +1,48 @@
 ---
-title: Próximos pasos
-description: Qué hacer después de tu primer trabajo con Rapid OS; practicar con los laboratorios, elegir el modo adecuado, trabajar en equipo y, si quieres, entender qué pasa por debajo.
+title: Next steps
+description: What to do after your first job with Rapid OS; practice with the labs, pick the right mode, work as a team and, if you want, understand what happens underneath.
 ---
 
-# Próximos pasos
+# Next steps
 
-Ya sabes lo esencial: `/rapid-init` una vez por proyecto, `/rapid-<modo>` para cada trabajo y `rapid approve` cuando el agente te lo pide. Desde aquí, elige por dónde seguir.
+You already know the essentials: `/rapid-init` once per project, `/rapid-<mode>` for each job and `rapid approve` when the agent asks you to. From here, choose where to go next.
 
-## Practica con los laboratorios
+## Practice with the labs
 
-Cinco proyectos pequeños, uno por modo, con el mismo recorrido de cuatro pasos. Empieza por [Feature](../tutorials/feature-lab.md) y sigue con [Bugfix](../tutorials/bugfix-lab.md). Todos están en [Laboratorios](../tutorials/index.md).
+Five small projects, one per mode, with the same four-step walkthrough. Start with [Feature](../tutorials/feature-lab.md) and continue with [Bugfix](../tutorials/bugfix-lab.md). They are all in [Labs](../tutorials/index.md).
 
-## Elige el modo adecuado
+## Pick the right mode
 
-| Si vas a… | Usa | Lo que exige Rapid OS |
+| If you are going to… | Use | What Rapid OS requires |
 | :--- | :--- | :--- |
-| Construir algo nuevo | `/rapid-feature` | Tests que pasan y tu aprobación final |
-| Corregir un bug | `/rapid-bugfix` | Un test que reproduce el bug antes de corregirlo |
-| Reorganizar código sin cambiar lo que hace | `/rapid-refactor` | Que no bajen los tests que pasaban |
-| Mejorar la seguridad | `/rapid-hardening` | Trabajo en una copia aislada y una revisión humana |
-| Investigar o comparar opciones | `/rapid-research` | Hallazgos registrados; no exige tests |
+| Build something new | `/rapid-feature` | Passing tests and your final approval |
+| Fix a bug | `/rapid-bugfix` | A test that reproduces the bug before fixing it |
+| Reorganize code without changing what it does | `/rapid-refactor` | That the tests that were passing do not regress |
+| Improve security | `/rapid-hardening` | Work in an isolated copy and a human review |
+| Investigate or compare options | `/rapid-research` | Findings recorded; no tests required |
 
-Cada modo tiene su guía en [Modos de ingeniería](../guides/modes/index.md).
+Each mode has its guide in [Engineering modes](../guides/modes/index.md).
 
-## Trabaja en equipo
+## Work as a team
 
-- **Versiona los shortcuts con el repositorio** para que todos usen el mismo flujo: `rapid init --shortcuts` en la raíz del proyecto los deja en la carpeta de cada agente (`.claude/skills/`, `.agents/skills/`…).
-- **Tras actualizar Rapid OS**, repite el comando con el que instalaste los shortcuts (`rapid shortcuts install --global --harness <agente>`, o `rapid shortcuts install` dentro del proyecto) para refrescar los que cambiaron.
-- **En CI**, los comandos del modo avanzado verifican el trabajo sin agente: ver [Integración con CI/CD](../guides/ci-cd-integration.md).
+- **Version the shortcuts with the repository** so everyone uses the same workflow: `rapid init --shortcuts` at the project root leaves them in each agent's folder (`.claude/skills/`, `.agents/skills/`…).
+- **After updating Rapid OS**, repeat the command you used to install the shortcuts (`rapid shortcuts install --global --harness <agent>`, or `rapid shortcuts install` inside the project) to refresh the ones that changed.
+- **In CI**, the advanced mode commands verify the work without an agent: see [CI/CD integration](../guides/ci-cd-integration.md).
 
-## Si algo falla
+## If something fails
 
-Los mensajes de Rapid OS traen un código `RAPIDxxxx`. Búscalo en el [catálogo de diagnósticos](../troubleshooting/diagnostics.md); los casos más comunes con shortcuts están en [problemas frecuentes](../troubleshooting/tutorials.md).
+Rapid OS messages carry a `RAPIDxxxx` code. Look it up in the [diagnostics catalog](../troubleshooting/diagnostics.md); the most common cases with shortcuts are in [common problems](../troubleshooting/tutorials.md).
 
 ---
 
-## Modo avanzado
+## Advanced mode
 
-No lo necesitas para trabajar con shortcuts. Si quieres entender qué registra Rapid OS en cada paso (contratos, evidencia, evaluación), este es el ciclo completo con los comandos v3.
+You do not need it to work with shortcuts. If you want to understand what Rapid OS records at each step (contracts, evidence, evaluation), this is the full cycle with the v3 commands.
 
 <details>
-<summary>Ver el ciclo de gobernanza por dentro</summary>
+<summary>See the governance cycle under the hood</summary>
 
-## El ciclo completo de 8 fases
+## The full 8-phase cycle
 
 ```mermaid
 flowchart TD
@@ -50,40 +50,40 @@ flowchart TD
     B --> C[3. rapid context]
     C --> D[4. rapid policy / run]
     D --> E[5. rapid harness resolve]
-    E --> F[6. Ejecución del Harness Externo]
+    E --> F[6. External Harness Execution]
     F --> G[7. rapid evidence add]
     G --> H[8. rapid eval run + validate]
 ```
 
 ---
 
-## Las etapas avanzadas de gobernanza
+## The advanced governance stages
 
-### 1. Políticas de ejecución (`rapid policy`)
-Establece las reglas corporativas y de riesgo del equipo en `.rapid-os/policy.json`: qué niveles de riesgo (`low`, `medium`, `high`, `critical`) requieren espacios de trabajo aislados y qué gates de calidad son indispensables.
+### 1. Execution policies (`rapid policy`)
+Sets the team's corporate and risk rules in `.rapid-os/policy.json`: which risk levels (`low`, `medium`, `high`, `critical`) require isolated workspaces and which quality gates are indispensable.
 
-### 2. Contratos y ciclo de vida del Run (`rapid run`)
-Crea un run con `rapid run create --spec <spec-id> --harness <harness-id>`. Esto genera un `ExecutionContract` inmutable y abre el libro contable de estados (`RunState`) para monitorear el progreso de tareas (`T001`...) y la disposición de gates (`gate.tests`...).
+### 2. Contracts and Run lifecycle (`rapid run`)
+Create a run with `rapid run create --spec <spec-id> --harness <harness-id>`. This generates an immutable `ExecutionContract` and opens the state ledger (`RunState`) to monitor task progress (`T001`...) and gate disposition (`gate.tests`...).
 
-### 3. Resolución de capacidades (`rapid harness`)
-Comprueba mediante `rapid harness resolve` si el perfil del agente seleccionado declara soporte para las operaciones requeridas por el contrato. Si el contrato requiere modificar archivos y el harness no declara `repository.write`, el proceso alerta la incompatibilidad antes de iniciar.
+### 3. Capability resolution (`rapid harness`)
+Use `rapid harness resolve` to check whether the selected agent's profile declares support for the operations the contract requires. If the contract requires modifying files and the harness does not declare `repository.write`, the process flags the incompatibility before starting.
 
-### 4. Ingesta de evidencia física (`rapid evidence`)
-Al finalizar el trabajo del agente, recopila los resultados de ejecución (logs de comandos, reportes de pruebas, diffs de Git) con `rapid evidence add`. Los archivos se copian a `.rapid-os/evidence/<run-id>/artifacts/` con su tamaño y hash SHA-256 inmutable.
+### 4. Physical evidence ingestion (`rapid evidence`)
+When the agent's work ends, collect the execution results (command logs, test reports, Git diffs) with `rapid evidence add`. The files are copied to `.rapid-os/evidence/<run-id>/artifacts/` with their size and immutable SHA-256 hash.
 
-### 5. Evaluaciones deterministas de comportamiento (`rapid eval`)
-Ejecuta `rapid eval run --run <run-id>`. El motor de evaluación analiza la evidencia física recopilada y emite un veredicto matemático (`PASS`, `PASS_WITH_WAIVERS`, `UNVERIFIED` o `FAIL`), garantizando que ninguna tarea se dé por completada sin prueba demostrable.
+### 5. Deterministic behavioral evaluations (`rapid eval`)
+Run `rapid eval run --run <run-id>`. The evaluation engine analyzes the collected physical evidence and issues a mathematical verdict (`PASS`, `PASS_WITH_WAIVERS`, `UNVERIFIED` or `FAIL`), guaranteeing that no task is considered complete without demonstrable proof.
 
 ---
 
-## Recursos recomendados
+## Recommended resources
 
-Para profundizar en cada una de estas áreas técnicas, consulta:
+To go deeper into each of these technical areas, see:
 
-- **[Ciclo de gobernanza v3 detallado](../governance-loop.md):** Explicación profunda de las transiciones de estado, hashes cruzados y reglas lógicas.
-- **[Capabilities y permisos del harness](../guides/permissions-capabilities.md):** Catálogo canónico de capacidades y perfiles de herramientas de IA.
-- **[Estructura y límites de archivos](../guides/project-layout.md):** Qué directorios crea Rapid OS y cuáles son inmutables.
-- **[Referencia completa de CLI](../cli.md):** Todos los comandos, argumentos, opciones y códigos de retorno del ejecutable `rapid`.
-- **[Arquitectura de Rapid OS v3](../architecture/rapid-os-v3.md):** Especificación técnica para arquitectos e integradores.
+- **[Detailed v3 governance loop](../governance-loop.md):** In-depth explanation of state transitions, cross hashes and logical rules.
+- **[Harness capabilities and permissions](../guides/permissions-capabilities.md):** Canonical catalog of capabilities and AI tool profiles.
+- **[File structure and boundaries](../guides/project-layout.md):** Which directories Rapid OS creates and which are immutable.
+- **[Full CLI reference](../cli.md):** All the commands, arguments, options and exit codes of the `rapid` executable.
+- **[Rapid OS v3 architecture](../architecture/rapid-os-v3.md):** Technical specification for architects and integrators.
 
 </details>

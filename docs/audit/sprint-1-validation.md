@@ -1,53 +1,53 @@
 ---
-title: Sprint 1 — Validación de la base documental
-description: Registro de auditoría y requisitos para cerrar el primer sprint de Docusaurus.
+title: Sprint 1 — Documentation Foundation Validation
+description: Audit record and requirements to close the first Docusaurus sprint.
 ---
 
-# Sprint 1 — Validación de la base documental
+# Sprint 1 — Documentation Foundation Validation
 
-## Objetivo y alcance
+## Objective and scope
 
-Consolidar el portal Docusaurus sin alterar las capacidades del núcleo Python de Rapid OS. Este documento registra criterios verificables, evidencia y límites de la auditoría inicial.
+Consolidate the Docusaurus portal without altering the capabilities of the Rapid OS Python core. This document records verifiable criteria, evidence, and limits of the initial audit.
 
 ### Baseline
 
-- Producto: Rapid OS v3.0.0, release-readiness PR #33.
-- Documentación: PR #34, rama `docs/docusaurus-v3`.
-- Fuente canónica: `docs/`.
-- Aplicación del sitio: `website/`.
-- Documentación funcional existente: `docs/cli.md`, `docs/governance-loop.md`, `docs/architecture/rapid-os-v3.md` y guías de release.
+- Product: Rapid OS v3.0.0, release-readiness PR #33.
+- Documentation: PR #34, branch `docs/docusaurus-v3`.
+- Canonical source: `docs/`.
+- Site application: `website/`.
+- Existing functional documentation: `docs/cli.md`, `docs/governance-loop.md`, `docs/architecture/rapid-os-v3.md`, and release guides.
 
-## Controles implementados
+## Implemented controls
 
-| Control | Evidencia esperada |
+| Control | Expected evidence |
 | --- | --- |
-| Fuente de contenido única | `docs.path = '../docs'`, sin `website/docs/` |
-| Navegación válida | Todos los IDs del sidebar corresponden a archivos Markdown |
-| Enlaces internos | Docusaurus `onBrokenLinks: 'throw'` y build del sitio |
-| Contrato CLI y fronteras del producto | `tests/test_documentation_contract.py` |
-| Compatibilidad del núcleo | Workflow existente de tests Python |
-| Compilación documental | Workflow Documentation: `npm run typecheck` y `npm run build` |
-| Revisión de release | PR documental separado del PR de release |
+| Single content source | `docs.path = '../docs'`, no `website/docs/` |
+| Valid navigation | All sidebar IDs correspond to Markdown files |
+| Internal links | Docusaurus `onBrokenLinks: 'throw'` and site build |
+| CLI contract and product boundaries | `tests/test_documentation_contract.py` |
+| Core compatibility | Existing Python tests workflow |
+| Documentation build | Documentation workflow: `npm run typecheck` and `npm run build` |
+| Release review | Documentation PR separate from the release PR |
 
-## Brechas antes de publicar una versión estable del portal
+## Gaps before publishing a stable portal version
 
-1. **Lockfile reproducible**: generar y confirmar `website/package-lock.json` con npm, reemplazar `npm install` por `npm ci` y activar caché usando `website/package-lock.json`. No crear manualmente un lockfile sin resolución de dependencias.
-2. **Validación en entorno limpio**: verificar build después de instalar con lockfile y repetir sobre el Node.js mínimo declarado.
-3. **Pruebas de instalación de Rapid OS**: mantener independientes las pruebas de release Python/wheel/sdist y las del portal Docusaurus.
-4. **Versión publicada y dominio**: el valor de `url`/ `baseUrl` representa la ruta prevista para GitHub Pages, no constituye evidencia de despliegue.
-5. **Consistencia editorial**: la interfaz está en español, pero algunas referencias técnicas canónicas siguen en inglés; traducir progresivamente sin mantener copias divergentes.
-6. **Auditoría de contenido detallada**: en sprints posteriores contrastar cada ejemplo avanzado contra parser, schema y pruebas, además del control estático mínimo.
+1. **Reproducible lockfile**: generate and commit `website/package-lock.json` with npm, replace `npm install` with `npm ci`, and enable caching using `website/package-lock.json`. Do not manually create a lockfile without dependency resolution.
+2. **Clean-environment validation**: verify the build after installing with the lockfile and repeat on the minimum declared Node.js.
+3. **Rapid OS installation tests**: keep the Python/wheel/sdist release tests and the Docusaurus portal tests independent.
+4. **Published version and domain**: the `url`/`baseUrl` value represents the intended GitHub Pages path; it is not evidence of deployment.
+5. **Editorial consistency**: the documentation is now maintained in English only, with no divergent copies.
+6. **Detailed content audit**: in later sprints, check every advanced example against the parser, schema, and tests, in addition to the minimal static check.
 
-## Definition of Done del Sprint 1
+## Sprint 1 Definition of Done
 
-- [x] Sitio y contenido separados en `website/` y `docs/`.
-- [x] Portal con navegación por objetivos del usuario.
-- [x] Documentación del propósito, casos de uso, capacidades y límites del producto.
-- [x] Workflow dedicado a typecheck y build.
-- [x] Detección de enlaces internos rotos configurada.
-- [x] Pruebas estáticas de contrato documental añadidas al repositorio.
-- [x] `website/package-lock.json` generado y validado por npm.
-- [x] CI con instalación reproducible `npm ci`.
-- [x] Validación final de la revisión más reciente de PR #34.
+- [x] Site and content separated into `website/` and `docs/`.
+- [x] Portal with navigation organized by user goals.
+- [x] Documentation of the product's purpose, use cases, capabilities, and limits.
+- [x] Workflow dedicated to typecheck and build.
+- [x] Broken internal link detection configured.
+- [x] Static documentation-contract tests added to the repository.
+- [x] `website/package-lock.json` generated and validated by npm.
+- [x] CI with reproducible `npm ci` installation.
+- [x] Final validation of the most recent review of PR #34.
 
-**Criterio de cierre:** no declarar Sprint 1 terminado hasta que todas las casillas estén verificadas en CI y el PR permanezca libre de regresiones.
+**Closure criterion:** do not declare Sprint 1 finished until all boxes are verified in CI and the PR remains free of regressions.

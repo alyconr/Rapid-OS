@@ -1,0 +1,88 @@
+---
+title: Qué es Rapid OS
+description: Objetivo, alcance, usuarios y modelo mental de Rapid OS v3.
+---
+
+# Qué es Rapid OS
+
+Rapid OS es una capa de **gobernanza de ingeniería para desarrollo asistido por IA**. Se instala como CLI y mantiene artefactos versionables dentro del repositorio para que el trabajo de un coding harness tenga contexto, alcance, reglas, trazabilidad y evidencia verificable.
+
+## Objetivo
+
+El objetivo principal es que una tarea ejecutada con IA pueda responder de forma verificable estas preguntas:
+
+1. **¿Qué sabemos del repositorio?**
+2. **¿Qué se debe construir?**
+3. **¿Qué contexto necesita el agente para esa tarea?**
+4. **¿Qué nivel de riesgo y qué controles aplican?**
+5. **¿El harness declara las capabilities necesarias?**
+6. **¿Qué ocurrió durante la ejecución?**
+7. **¿Qué evidencia respalda que la tarea y sus gates fueron satisfechos?**
+8. **¿El estado completo del proyecto continúa siendo íntegro?**
+
+## Para quién sirve
+
+Rapid OS está orientado a:
+
+- desarrolladores que usan Codex, Claude, Cursor, VS Code u otros coding harnesses;
+- equipos que necesitan estandarizar cómo se entrega contexto a agentes de IA;
+- arquitectos que quieren separar decisiones humanas de inferencias automáticas;
+- equipos con controles de calidad, seguridad, revisión o migraciones;
+- organizaciones que necesitan trazabilidad entre especificación, ejecución y evidencia.
+
+## Modelo mental
+
+Rapid OS funciona como una **capa de control**, no como el constructor.
+
+```text
+Usuario / equipo
+    ↓ define intención y restricciones
+Rapid OS
+    ↓ produce contexto, contratos, gates y registros
+Coding harness externo
+    ↓ implementa o modifica el software
+Rapid OS
+    ↓ ingiere evidencia y evalúa reglas deterministas
+Resultado gobernado
+```
+
+## Qué hace
+
+Rapid OS puede:
+
+- detectar lenguajes, frameworks, bases de datos, testing, Docker, monorepos y señales de deploy;
+- mantener especificaciones con revisiones inmutables;
+- compilar contexto específico para una tarea;
+- clasificar riesgo y requerir gates;
+- modelar capabilities de un harness;
+- mantener un ledger append-only de estados del run;
+- copiar y verificar artefactos de evidencia con SHA-256;
+- producir evaluaciones deterministas y reproducibles;
+- validar integridad cruzada entre specs, runs, evidence y evals;
+- conducir un run gobernado con el porcelain (`rapid start`, `rapid next`, `rapid check`, `rapid task`, `rapid attach`, `rapid finish`) y generar los shortcuts `/rapid-<modo>` de cada harness.
+
+## Qué no hace
+
+Rapid OS:
+
+- no invoca automáticamente LLMs o coding agents;
+- el plumbing (`rapid scan`, `rapid context`, `rapid spec`, `rapid policy`, `rapid run`, `rapid harness`, `rapid evidence`, `rapid eval`, `rapid validate`) no ejecuta nada del repositorio: opera sobre archivos y registros;
+- el porcelain ejecuta solo el `test_command` de `.rapid-os/config.json` o el argv que se pasa a `rapid check -- <comando>`, sin shell, más comandos `git` de lectura para registrar los cambios del run; no ejecuta ningún otro comando del proyecto;
+- no crea branches o worktrees por su cuenta: solo `rapid start --worktree` crea, a petición explícita, el worktree aislado (`../<repo>-<run-id>`, rama `rapid/<run-id>`) de un run cuyo contrato exige workspace aislado;
+- escribe la regla de arquitectura (`.rapid-os/standards/architecture.md` y `architecture.json`) para los stacks de backend y de frontend del catálogo (con los nombres idiomáticos de su lenguaje), cuando se ejecuta `rapid setup finish` o `rapid init`; `rapid arch check` solo lee los imports del código bajo `modules_root` y `shared_root` (con `ast` y expresiones regulares, sin ejecutarlo) y nunca modifica el código; `rapid check -- rapid ...` ejecuta el propio Rapid OS en curso;
+- escribe `compose.yaml` y `.env.example` con los servicios de infraestructura que la persona decidió para ahora (`@now`), solo en un repositorio vacío o añadiendo los que faltan sin modificar los existentes; nunca ejecuta Docker ni levanta contenedores (la persona ejecuta `docker compose up -d`) y nunca despliega: `rapid deploy --target <plataforma>` solo imprime una plantilla;
+- escribe la base de seguridad (`.rapid-os/standards/security.md`, con el nivel del arquetipo) al cerrar el onboarding y, solo en un repositorio vacío y sin sobrescribir uno existente, un workflow de CI por lenguaje, `.github/workflows/rapid-security-<lenguaje>.yml`, con los escaneos de seguridad (nunca lo escribe el agente); no ejecuta esos escaneos, los ejecuta tu CI;
+- solo crea un repositorio git cuando `rapid setup finish` o `rapid init` corren en una carpeta que no está dentro de uno (`git init` y `git symbolic-ref HEAD` a `main`, siempre): lo necesita para observar los cambios de los runs, nunca anida un repositorio dentro de otro y nunca hace commits; sin git instalado solo avisa, y `rapid start` falla con `RAPID1416` en una carpeta sin repositorio;
+- no invoca agentes con los hooks de Claude Code: `rapid hook stop|pre-tool` los ejecuta Claude Code y solo responden con una denegación de herramienta o un bloqueo de parada (`rapid shortcuts install --hooks` es la única vía que los escribe en `.claude/settings.json`);
+- no escribe shortcuts `/rapid-<modo>` en las carpetas del harness (`.claude/skills`, `.agents/skills`, `.cursor/skills`, `.github/prompts`) salvo cuando se ejecuta `rapid shortcuts install` o `rapid init --shortcuts`, y solo con `rapid shortcuts install --global` escribe fuera del proyecto, en la carpeta de skills de tu usuario (los instaladores `install.sh` e `install.ps1` solo lo ofrecen, nunca por defecto);
+- no escribe `docs/PRODUCT_BRIEF.md`, `docs/BUSINESS_RULES.md`, `docs/DATA_MODEL.md` ni `docs/ARCHITECTURE.md` salvo cuando se ejecuta `rapid setup doc` o `rapid init`, ni copia los estándares de `.rapid-os/standards/` salvo `rapid setup finish` o `rapid init`; `rapid init` ya no crea el andamiaje `TODO` de `docs/` (`SPECS.md` y similares);
+- solo marca como hecha la historia del brief que el run cerró: con veredicto PASS y el tag `story:<ID>` en la spec, `rapid finish` cambia esa única línea de `docs/PRODUCT_BRIEF.md` (`- [ ] H002:` pasa a `- [x] H002:`, con copia en `.rapid-os/backups/`) y no toca nada más; con otro veredicto, con `--no-tick` o con un brief sin frontmatter `rapid-doc` solo sugiere `Marca H002 como hecha en docs/PRODUCT_BRIEF.md`. Tampoco deja copias `.bak` de los archivos de agente que regenera (`CLAUDE.md`, `AGENTS.md`, `.cursorrules`...) en la raíz del proyecto: van a `.rapid-os/backups/`, solo si el contenido cambió y con las 5 más recientes por archivo;
+- nunca marca como confirmado lo que la persona no confirmó: un documento redactado por el agente queda como `source: drafted` y `status: draft` hasta un `rapid setup doc <id> --confirm` explícito, y llega al contexto marcado como supuesto;
+- nunca invoca agentes y nunca aprueba gates humanos: `rapid approve` lo ejecuta una persona en su terminal (exige TTY y falla con `RAPID1310` bajo un agente);
+- no considera un gate `acknowledged` como evidencia;
+- no considera una capability declarada como prueba de que fue utilizada;
+- no garantiza que un `PASS` significa ausencia total de bugs o seguridad perfecta.
+
+## Compatibilidad
+
+Rapid OS v3 conserva los flujos heredados de v2, incluyendo `rapid init`, `rapid scope`, `rapid skill`, `rapid mcp`, `rapid vision`, `rapid deploy`, `rapid refine`, `rapid inspect-context`, `rapid validate` y `rapid doctor`, mientras agrega el ciclo de gobernanza v3.

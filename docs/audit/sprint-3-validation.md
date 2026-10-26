@@ -1,111 +1,111 @@
 ---
-title: Validación y Cierre de Sprint 3
-description: Auditoría de cobertura, matriz de validación y Definition of Done para el Sprint 3 de RAPID OS Documentation Platform.
+title: Sprint 3 Validation and Closure
+description: Coverage audit, validation matrix, and Definition of Done for Sprint 3 of the RAPID OS Documentation Platform.
 ---
 
-# Validación y Cierre de Sprint 3
+# Sprint 3 Validation and Closure
 
-Este documento registra formalmente la auditoría técnica y la cobertura del **Sprint 3: Governance Guides, Engineering Modes & Diagnostic Cookbooks** de la plataforma documental de RAPID OS v3.0.0.
-
----
-
-## 1. Alcance y Objetivos del Sprint 3
-
-El Sprint 3 tuvo como objetivo profundizar en los aspectos operativos avanzados de RAPID OS:
-- Documentar detalladamente los **5 modos de ingeniería** (`feature`, `bugfix`, `refactor`, `hardening`, `research`).
-- Proveer **cookbooks prácticos** con payloads reales para políticas, contratos, perfiles de harness, los 9 tipos de evidencia y evaluaciones de comportamiento.
-- Compilar un **catálogo exhaustivo de diagnósticos `RAPIDxxx`** con explicaciones y pasos de remediación.
-- Documentar la **integración en pipelines CI/CD** (GitHub Actions, exit codes y validación estricta).
+This document formally records the technical audit and coverage of **Sprint 3: Governance Guides, Engineering Modes & Diagnostic Cookbooks** of the RAPID OS v3.0.0 documentation platform.
 
 ---
 
-## 2. Matriz de Archivos Entregados
+## 1. Sprint 3 Scope and Objectives
 
-| Categoría | Ruta del Documento | Descripción / Propósito |
+Sprint 3 aimed to go deeper into the advanced operational aspects of RAPID OS:
+- Document the **5 engineering modes** (`feature`, `bugfix`, `refactor`, `hardening`, `research`) in detail.
+- Provide **practical cookbooks** with real payloads for policies, contracts, harness profiles, the 9 evidence types, and behavioral evaluations.
+- Compile an **exhaustive catalog of `RAPIDxxx` diagnostics** with explanations and remediation steps.
+- Document **CI/CD pipeline integration** (GitHub Actions, exit codes, and strict validation).
+
+---
+
+## 2. Delivered Files Matrix
+
+| Category | Document Path | Description / Purpose |
 | :--- | :--- | :--- |
-| **Modos de Ingeniería** | `docs/guides/modes/index.md` | Visión general de modos, relación con el Context Compiler y Policy. |
-| **Modos de Ingeniería** | `docs/guides/modes/feature.md` | Ciclo completo para desarrollo de nuevas funcionalidades gobernadas. |
-| **Modos de Ingeniería** | `docs/guides/modes/bugfix.md` | Flujo de reproducción, test de regresión obligatorio y resolución. |
-| **Modos de Ingeniería** | `docs/guides/modes/refactor.md` | Refactorización con baseline obligatorio y paridad de tests al 100%. |
-| **Modos de Ingeniería** | `docs/guides/modes/hardening.md` | Seguridad, CVEs, análisis SAST y compuertas de alto riesgo. |
-| **Modos de Ingeniería** | `docs/guides/modes/research.md` | Spikes exploratorios (`ExecutionClass.SPIKE`), benchmarks y artefactos. |
-| **Cookbooks** | `docs/cookbooks/policies-and-contracts.md` | Configuración de `.rapid-os/policy.json`, compuertas, riesgos y waivers. |
-| **Cookbooks** | `docs/cookbooks/harness-profiles.md` | Perfiles integrados, perfiles de proyecto y `capabilities.lock`. |
-| **Cookbooks** | `docs/cookbooks/evidence-engine.md` | Formatos JSON reales para los 9 tipos de evidencia y verificación. |
-| **Cookbooks** | `docs/cookbooks/behavioral-evaluations.md` | Evaluaciones deterministas, veredictos y protección de replay semántico. |
-| **Troubleshooting** | `docs/troubleshooting/diagnostics.md` | Catálogo de diagnósticos `RAPID100` a `RAPID1229` y remediación. |
-| **CI/CD** | `docs/guides/ci-cd-integration.md` | Integración en GitHub Actions, pre-commit y validación estricta. |
-| **Auditoría** | `docs/audit/sprint-3-validation.md` | Matriz de cumplimiento y Definition of Done del Sprint 3. |
+| **Engineering Modes** | `docs/guides/modes/index.md` | Overview of modes, relationship with the Context Compiler and Policy. |
+| **Engineering Modes** | `docs/guides/modes/feature.md` | Full cycle for governed new-feature development. |
+| **Engineering Modes** | `docs/guides/modes/bugfix.md` | Reproduction flow, mandatory regression test, and resolution. |
+| **Engineering Modes** | `docs/guides/modes/refactor.md` | Refactoring with a mandatory baseline and 100% test parity. |
+| **Engineering Modes** | `docs/guides/modes/hardening.md` | Security, CVEs, SAST analysis, and high-risk gates. |
+| **Engineering Modes** | `docs/guides/modes/research.md` | Exploratory spikes (`ExecutionClass.SPIKE`), benchmarks, and artifacts. |
+| **Cookbooks** | `docs/cookbooks/policies-and-contracts.md` | Configuration of `.rapid-os/policy.json`, gates, risks, and waivers. |
+| **Cookbooks** | `docs/cookbooks/harness-profiles.md` | Built-in profiles, project profiles, and `capabilities.lock`. |
+| **Cookbooks** | `docs/cookbooks/evidence-engine.md` | Real JSON formats for the 9 evidence types and verification. |
+| **Cookbooks** | `docs/cookbooks/behavioral-evaluations.md` | Deterministic evaluations, verdicts, and semantic replay protection. |
+| **Troubleshooting** | `docs/troubleshooting/diagnostics.md` | Catalog of `RAPID100` to `RAPID1229` diagnostics and remediation. |
+| **CI/CD** | `docs/guides/ci-cd-integration.md` | Integration with GitHub Actions, pre-commit, and strict validation. |
+| **Audit** | `docs/audit/sprint-3-validation.md` | Compliance matrix and Definition of Done for Sprint 3. |
 
 ---
 
-## 3. Verificación de Product Truth
+## 3. Product Truth Verification
 
-Durante la elaboración de todo el material del Sprint 3 se verificaron rigurosamente las siguientes fronteras de verdad del producto:
+While producing all the Sprint 3 material, the following product-truth boundaries were rigorously verified:
 
-1. **No ejecución autónoma de LLMs**: Se enfatizó que RAPID OS no invoca agentes ni modelos por su cuenta; gobierna las especificaciones, el contexto y los contratos.
-2. **Evaluación offline y determinista**: Se aclaró explícitamente que `rapid eval run` no utiliza "LLM-as-a-judge", sino reglas lógicas y matemáticas sobre el estado y las evidencias.
-3. **Capabilities como declaraciones**: Se reforzó que una capability del harness es una declaración de compatibilidad de herramientas, no una garantía de ejecución correcta ni sandboxing del sistema operativo.
-4. **Veredicto PASS sin claims absolutos**: Se aclaró que `EvaluationVerdict.PASS` certifica que las compuertas y reglas de evidencia se cumplen, pero no garantiza matemáticamente ausencia total de bugs en el software.
+1. **No autonomous LLM execution**: It was emphasized that RAPID OS does not invoke agents or models on its own; it governs specifications, context, and contracts.
+2. **Offline, deterministic evaluation**: It was explicitly clarified that `rapid eval run` does not use "LLM-as-a-judge", but logical and mathematical rules over state and evidence.
+3. **Capabilities as declarations**: It was reinforced that a harness capability is a declaration of tool compatibility, not a guarantee of correct execution nor operating-system sandboxing.
+4. **PASS verdict without absolute claims**: It was clarified that `EvaluationVerdict.PASS` certifies that the gates and evidence rules are satisfied, but does not mathematically guarantee the total absence of bugs in the software.
 
 ---
 
 ## 4. Definition of Done (DoD) Checklist
 
-- [x] Todas las nuevas páginas de documentación cuentan con frontmatter válido (`title`, `description`).
-- [x] Los diagramas de flujo utilizan sintaxis estándar de Mermaid (`mermaid`).
-- [x] Los bloques de código reflejan la interfaz real del CLI v3.0.0 sin flags ficticios.
-- [x] Navegación integrada en `website/sidebars.ts` con jerarquía intuitiva.
-- [x] `tests/test_documentation_contract.py` actualizado con validaciones para los nuevos slugs y contratos.
-- [x] `npm run typecheck` aprueba con 0 errores TypeScript.
-- [x] `npm run build` aprueba con 0 enlaces rotos (`onBrokenLinks: 'throw'`).
-- [x] Suite completa de pruebas de Python ejecutada y aprobada al 100%.
+- [x] All new documentation pages have valid frontmatter (`title`, `description`).
+- [x] Flow diagrams use standard Mermaid syntax (`mermaid`).
+- [x] Code blocks reflect the real v3.0.0 CLI interface with no fictitious flags.
+- [x] Navigation integrated in `website/sidebars.ts` with an intuitive hierarchy.
+- [x] `tests/test_documentation_contract.py` updated with validations for the new slugs and contracts.
+- [x] `npm run typecheck` passes with 0 TypeScript errors.
+- [x] `npm run build` passes with 0 broken links (`onBrokenLinks: 'throw'`).
+- [x] Full Python test suite executed and passing at 100%.
 
 ---
 
 ## 5. Post-Merge Product Truth Remediation — Issue #40
 
-Tras la integración del Sprint 3 en `main` (PR #38), una auditoría posterior identificó discrepancias técnicas en ejemplos documentales que no fueron capturadas por las pruebas unitarias originales. Se ejecutó una remediación integral (Issue #40) bajo la rama `fix/docs-sprint3-product-truth`.
+After Sprint 3 was merged into `main` (PR #38), a later audit identified technical discrepancies in documentation examples that the original unit tests did not catch. A comprehensive remediation (Issue #40) was carried out on the `fix/docs-sprint3-product-truth` branch.
 
-### 5.1 Hallazgos y Causa Raíz
+### 5.1 Findings and Root Cause
 
 1. **Evidence Engine CLI (`rapid evidence add`)**:
-   - *Discrepancia*: Se documentaron flags ficticios como `--kind`, `--producer`, `--summary`.
-   - *Causa*: CLI únicamente soporta `--run <id>`, `--input <file>`, y `--json`.
-   - *Remediación*: Reescritura completa del cookbook `docs/cookbooks/evidence-engine.md` y guías de modos (`feature.md`, `bugfix.md`, `refactor.md`, `hardening.md`, `research.md`) para estructurar archivos de autoría JSON y pasarlos vía `--input <file>`.
+   - *Discrepancy*: Fictitious flags such as `--kind`, `--producer`, `--summary` were documented.
+   - *Cause*: The CLI only supports `--run <id>`, `--input <file>`, and `--json`.
+   - *Remediation*: Complete rewrite of the `docs/cookbooks/evidence-engine.md` cookbook and the mode guides (`feature.md`, `bugfix.md`, `refactor.md`, `hardening.md`, `research.md`) to structure JSON authoring files and pass them via `--input <file>`.
 
-2. **Esquema de Autoría de Evidencia y Validación Estricta**:
-   - *Discrepancia*: Documentos de ejemplo incluían campos no permitidos en `payload` o identificadores de compuertas basados en enums (`implementation_tests`) en vez de IDs canónicos del contrato (`gate.tests`, `gate.baseline`, `gate.review`).
-   - *Causa*: `RunEvidence.from_dict` y `PAYLOAD_REQUIRED_KEYS` aplican validación estricta de claves cerradas (`RAPID1206`, `RAPID1207`).
-   - *Remediación*: Documentación precisa de los 9 tipos canónicos de `EvidenceKind` con esquemas mínimos y exactos.
+2. **Evidence Authoring Schema and Strict Validation**:
+   - *Discrepancy*: Example documents included fields not allowed in `payload`, or gate identifiers based on enums (`implementation_tests`) instead of the contract's canonical IDs (`gate.tests`, `gate.baseline`, `gate.review`).
+   - *Cause*: `RunEvidence.from_dict` and `PAYLOAD_REQUIRED_KEYS` enforce strict closed-key validation (`RAPID1206`, `RAPID1207`).
+   - *Remediation*: Precise documentation of the 9 canonical `EvidenceKind` types with minimal, exact schemas.
 
-3. **Harness Profiles Schema y Catálogo de Capabilities**:
-   - *Discrepancia*: `harness-profiles.md` presentaba `capabilities` como diccionario con estado no existente `conditional` y capabilities inventadas (`terminal.execute`, `filesystem.write`).
-   - *Causa*: `HarnessProfile` requiere una lista de objetos `CapabilitySupportDeclaration` (`capability_id`, `status`, `reason`). Los únicos estados válidos son `supported`, `unsupported`, `unknown` (`CapabilitySupportStatus`).
-   - *Remediación*: Alineación total con el catálogo canónico de 11 capabilities (`CANONICAL_CAPABILITY_IDS`).
+3. **Harness Profiles Schema and Capability Catalog**:
+   - *Discrepancy*: `harness-profiles.md` presented `capabilities` as a dictionary with a nonexistent `conditional` status and invented capabilities (`terminal.execute`, `filesystem.write`).
+   - *Cause*: `HarnessProfile` requires a list of `CapabilitySupportDeclaration` objects (`capability_id`, `status`, `reason`). The only valid statuses are `supported`, `unsupported`, `unknown` (`CapabilitySupportStatus`).
+   - *Remediation*: Full alignment with the canonical catalog of 11 capabilities (`CANONICAL_CAPABILITY_IDS`).
 
-4. **Catálogo de Diagnósticos**:
-   - *Discrepancia*: En `RAPID1101` y `RAPID1106` figuraban IDs ficticios y estados `conditional`.
-   - *Remediación*: Actualización en `docs/troubleshooting/diagnostics.md` a IDs y estados canónicos.
+4. **Diagnostics Catalog**:
+   - *Discrepancy*: `RAPID1101` and `RAPID1106` listed fictitious IDs and `conditional` statuses.
+   - *Remediation*: Update of `docs/troubleshooting/diagnostics.md` to canonical IDs and statuses.
 
-5. **Integración CI/CD**:
-   - *Discrepancia*: Pipeline de ejemplo iteraba a ciegas sobre `.rapid-os/runs/*/` con `--require-pass`, rompiendo ejecuciones activas o branches concurrentes.
-   - *Remediación*: Separación de los 3 checks independientes de CI (`rapid validate --strict`, `rapid harness resolve`, `rapid eval run`), eliminación de afirmaciones sobre "listo para producción", y adición de permisos mínimos (`contents: read`).
+5. **CI/CD Integration**:
+   - *Discrepancy*: The example pipeline blindly iterated over `.rapid-os/runs/*/` with `--require-pass`, breaking active runs or concurrent branches.
+   - *Remediation*: Separation into the 3 independent CI checks (`rapid validate --strict`, `rapid harness resolve`, `rapid eval run`), removal of "production-ready" claims, and addition of minimal permissions (`contents: read`).
 
-### 5.2 Pruebas de Contrato Automatizadas Añadidas
+### 5.2 Automated Contract Tests Added
 
-Se incorporó `tests/test_sprint3_remediation_contract.py` (11 pruebas automatizadas rigurosas) validando:
-- Inexistencia de flags inválidos en el parser CLI de `rapid evidence add`.
-- Validación estricta sin omisiones silenciosas de los 9 bloques JSON del cookbook contra `PAYLOAD_REQUIRED_KEYS`.
-- Rechazo estricto (`RAPID1206`) de campos desconocidos en payloads de evidencia.
-- Validación de deserialización y serialización de `HarnessProfile` con lista de `CapabilitySupportDeclaration`.
-- Rechazo de estados no canónicos (como `conditional`) en perfiles de harness.
-- Coherencia del catálogo de 11 capabilities en documentación contra `CANONICAL_CAPABILITY_IDS`.
-- Semántica de gobernanza de aislamiento: prueba explícita que confirma que `mode: "current"` produce `FAIL` para la compuerta `gate.workspace-isolation` (`rule.gate.workspace_isolation.v1`), exigiendo `mode: "isolated"`.
-- Conexión directa docs-to-fixtures: la prueba end-to-end ingesta directamente los 9 bloques JSON extraídos de `evidence-engine.md` sin intermediarios ni duplicación, validando la ingesta y verificación de los 9 tipos vía CLI (`rapid evidence verify`).
+`tests/test_sprint3_remediation_contract.py` was added (11 rigorous automated tests) validating:
+- Absence of invalid flags in the `rapid evidence add` CLI parser.
+- Strict validation, with no silent omissions, of the cookbook's 9 JSON blocks against `PAYLOAD_REQUIRED_KEYS`.
+- Strict rejection (`RAPID1206`) of unknown fields in evidence payloads.
+- Deserialization and serialization validation of `HarnessProfile` with a list of `CapabilitySupportDeclaration`.
+- Rejection of non-canonical statuses (such as `conditional`) in harness profiles.
+- Consistency of the 11-capability catalog in the documentation against `CANONICAL_CAPABILITY_IDS`.
+- Isolation governance semantics: an explicit test confirming that `mode: "current"` produces `FAIL` for the `gate.workspace-isolation` gate (`rule.gate.workspace_isolation.v1`), requiring `mode: "isolated"`.
+- Direct docs-to-fixtures link: the end-to-end test directly ingests the 9 JSON blocks extracted from `evidence-engine.md` with no intermediaries or duplication, validating ingestion and verification of the 9 types via the CLI (`rapid evidence verify`).
 
-### 5.3 Verificación de Quality Gates
+### 5.3 Quality Gates Verification
 
-- **Python Tests**: 316/316 pruebas exitosas (`discover tests`).
-- **Docusaurus TypeScript**: 0 errores de tipo (`npm run typecheck`).
-- **Docusaurus Build**: Compilación limpia, 0 enlaces rotos (`npm run build`).
+- **Python Tests**: 316/316 tests passing (`discover tests`).
+- **Docusaurus TypeScript**: 0 type errors (`npm run typecheck`).
+- **Docusaurus Build**: Clean build, 0 broken links (`npm run build`).

@@ -1,267 +1,267 @@
 ---
-title: Catálogo de Diagnósticos RAPIDxxx
-description: Referencia exhaustiva de códigos de diagnóstico de RAPID OS, causas comunes y acciones de remediación.
+title: RAPIDxxx Diagnostics Catalog
+description: Exhaustive reference of RAPID OS diagnostic codes, common causes, and remediation actions.
 ---
 
-# Catálogo de Diagnósticos RAPIDxxx
+# RAPIDxxx Diagnostics Catalog
 
-Cuando ejecutas `rapid validate`, `rapid scan`, o comandos de gobernanza, RAPID OS emite diagnósticos deterministas identificados por códigos únicos. Esta guía documenta el significado de cada código y cómo resolverlo.
+When you run `rapid validate`, `rapid scan`, or governance commands, RAPID OS emits deterministic diagnostics identified by unique codes. This guide documents the meaning of each code and how to resolve it.
 
 ---
 
-## 1. Configuración de Proyecto y Plantillas (`RAPID100–RAPID110`)
+## 1. Project Configuration and Templates (`RAPID100–RAPID110`)
 
-| Código | Severidad | Causa común | Acción de remediación |
+| Code | Severity | Common cause | Remediation action |
 | :--- | :--- | :--- | :--- |
-| `RAPID100` | INFO | Configuración del proyecto válida y cargada. | Informativo. |
-| `RAPID101` | ERROR | Archivo `.rapid-os/config.json` no encontrado. | Ejecutar `rapid init` para inicializar el proyecto. |
-| `RAPID102` | ERROR | Error de sintaxis JSON en `.rapid-os/config.json`. | Corregir la sintaxis JSON o restaurar desde el archivo de backup `.bak`. |
-| `RAPID103` | ERROR | Versión de esquema incompatible o inválida. | Verificar que `schema_version` coincida con la versión soportada. |
-| `RAPID104` | ERROR | Campos requeridos ausentes en `config.json`. | Regenerar la configuración con `rapid init`. |
-| `RAPID105` | ERROR | Una carpeta de plantillas obligatoria (`stacks` o `topologies`) no tiene ninguna plantilla Markdown. | Reinstalar Rapid OS o restaurar la carpeta `templates/`. |
-| `RAPID106` | ERROR | Un archivo de plantilla no es UTF-8 válido. | Guardarlo como UTF-8 o restaurar la plantilla original. |
-| `RAPID107` | ERROR | Un archivo de plantilla no se pudo leer (permisos o error de disco). | Revisar los permisos de `templates/` o reinstalar Rapid OS. |
-| `RAPID108` | WARNING | Un archivo de plantilla está vacío. | Restaurar la plantilla o eliminar el archivo. |
-| `RAPID109` | ERROR | Una plantilla `.json` no es JSON válido. | Corregir la sintaxis indicada en el mensaje o restaurar la plantilla. |
-| `RAPID110` | WARNING | Una plantilla contiene marcadores sin resolver (`{{...}}`, `TODO`, `REPLACE_ME`...). | Sustituir los marcadores; solo importa si editaste las plantillas. |
+| `RAPID100` | INFO | Project configuration valid and loaded. | Informational. |
+| `RAPID101` | ERROR | File `.rapid-os/config.json` not found. | Run `rapid init` to initialize the project. |
+| `RAPID102` | ERROR | JSON syntax error in `.rapid-os/config.json`. | Fix the JSON syntax or restore from the `.bak` backup file. |
+| `RAPID103` | ERROR | Incompatible or invalid schema version. | Verify that `schema_version` matches the supported version. |
+| `RAPID104` | ERROR | Required fields missing from `config.json`. | Regenerate the configuration with `rapid init`. |
+| `RAPID105` | ERROR | A mandatory templates folder (`stacks` or `topologies`) has no Markdown template. | Reinstall Rapid OS or restore the `templates/` folder. |
+| `RAPID106` | ERROR | A template file is not valid UTF-8. | Save it as UTF-8 or restore the original template. |
+| `RAPID107` | ERROR | A template file could not be read (permissions or disk error). | Check the permissions of `templates/` or reinstall Rapid OS. |
+| `RAPID108` | WARNING | A template file is empty. | Restore the template or delete the file. |
+| `RAPID109` | ERROR | A `.json` template is not valid JSON. | Fix the syntax indicated in the message or restore the template. |
+| `RAPID110` | WARNING | A template contains unresolved markers (`{{...}}`, `TODO`, `REPLACE_ME`...). | Replace the markers; it only matters if you edited the templates. |
 
 ---
 
-## 2. Fase 1 — Project Intelligence (`RAPID600–RAPID604`)
+## 2. Phase 1 — Project Intelligence (`RAPID600–RAPID604`)
 
-| Código | Severidad | Causa común | Acción de remediación |
+| Code | Severity | Common cause | Remediation action |
 | :--- | :--- | :--- | :--- |
-| `RAPID600` | INFO | Snapshot `.rapid-os/project.json` válido. | Informativo. |
-| `RAPID601` | ERROR | Sintaxis JSON corrupta en `project.json`. | Ejecutar `rapid scan --write` para regenerar el snapshot. |
-| `RAPID602` | ERROR | Permisos de lectura insuficientes en `project.json`. | Ajustar los permisos del sistema de archivos. |
-| `RAPID603` | ERROR | Versión de esquema de snapshot no soportada. | Ejecutar `rapid scan --write` para actualizar al schema version 1. |
-| `RAPID604` | ERROR | Hecho (`ProjectFact`) o evidencia corrupta en snapshot. | Regenerar el snapshot con `rapid scan --write`. |
+| `RAPID600` | INFO | Valid `.rapid-os/project.json` snapshot. | Informational. |
+| `RAPID601` | ERROR | Corrupt JSON syntax in `project.json`. | Run `rapid scan --write` to regenerate the snapshot. |
+| `RAPID602` | ERROR | Insufficient read permissions on `project.json`. | Adjust the file system permissions. |
+| `RAPID603` | ERROR | Unsupported snapshot schema version. | Run `rapid scan --write` to update to schema version 1. |
+| `RAPID604` | ERROR | Fact (`ProjectFact`) or evidence corrupt in the snapshot. | Regenerate the snapshot with `rapid scan --write`. |
 
 ---
 
-## 3. Fase 2 — Context Compiler (`RAPID700–RAPID705`)
+## 3. Phase 2 — Context Compiler (`RAPID700–RAPID705`)
 
-| Código | Severidad | Causa común | Acción de remediación |
+| Code | Severity | Common cause | Remediation action |
 | :--- | :--- | :--- | :--- |
-| `RAPID700` | INFO | Compilación de contexto exitosa. | Informativo. |
-| `RAPID701` | ERROR | Fuente de contexto requerida no encontrada. | Comprobar que los estándares (`.rapid-os/standards/`) existan o inicializarlos con `rapid init`. |
-| `RAPID702` | ERROR | El presupuesto de tokens/caracteres fue excedido por fuentes obligatorias. | Aumentar el límite con `--max-chars <n>` o reducir las fuentes requeridas en `.rapid-os/config.json`. |
-| `RAPID703` | WARNING | Conflicto detectado entre fuentes de contexto seleccionadas. | Revisar el manifest con `rapid context --manifest` y resolver reglas contradictorias. |
-| `RAPID704` | ERROR | Snapshot o fuente inválida para el compilador. | Ejecutar `rapid scan --write` y verificar integridad de archivos. |
-| `RAPID705` | ERROR | Petición de contexto inválida (harness o modo no reconocido). | Verificar que el modo sea `{feature,bugfix,refactor,hardening,research,general}` y el ID de harness válido. |
+| `RAPID700` | INFO | Context compilation succeeded. | Informational. |
+| `RAPID701` | ERROR | Required context source not found. | Check that the standards (`.rapid-os/standards/`) exist or initialize them with `rapid init`. |
+| `RAPID702` | ERROR | The token/character budget was exceeded by mandatory sources. | Raise the limit with `--max-chars <n>` or reduce the required sources in `.rapid-os/config.json`. |
+| `RAPID703` | WARNING | Conflict detected among the selected context sources. | Review the manifest with `rapid context --manifest` and resolve contradictory rules. |
+| `RAPID704` | ERROR | Invalid snapshot or source for the compiler. | Run `rapid scan --write` and verify file integrity. |
+| `RAPID705` | ERROR | Invalid context request (unrecognized harness or mode). | Verify that the mode is `{feature,bugfix,refactor,hardening,research,general}` and the harness ID is valid. |
 
 ---
 
-## 4. Fase 3 — Spec Registry (`RAPID800–RAPID809`)
+## 4. Phase 3 — Spec Registry (`RAPID800–RAPID809`)
 
-| Código | Severidad | Causa común | Acción de remediación |
+| Code | Severity | Common cause | Remediation action |
 | :--- | :--- | :--- | :--- |
-| `RAPID800` | INFO | Registro de especificaciones íntegro. | Informativo. |
-| `RAPID801` | ERROR | Archivo `spec.json` con esquema o contenido inválido. | Revisar la estructura en `.rapid-os/specs/<id>/spec.json`. |
-| `RAPID802` | ERROR | Historial de revisiones ausente o discontinuo. | Verificar que existan las carpetas `rev_0001`, `rev_0002` de forma secuencial. |
-| `RAPID803` | ERROR | Archivo `revision.json` corrupto. | Restaurar o regenerar la revisión de la spec con `rapid spec revise`. |
-| `RAPID804` | WARNING | Drift detectado entre markdown de spec y metadatos JSON. | Sincronizar el contenido o reexportar con `rapid spec export-legacy`. |
-| `RAPID805` | ERROR | Transición de ciclo de vida inválida en spec. | Las specs solo pueden transicionar entre `draft`, `ready` y `archived`. |
-| `RAPID806` | ERROR | Conflicto o formato inválido en identificador de spec. | Usar IDs alfanuméricos con guiones (`^[a-z0-9][a-z0-9-]{0,62}$`). |
-| `RAPID807` | ERROR | Spec referenciada no encontrada en el registro. | Verificar con `rapid spec list` que la spec exista antes de crear un run. |
-| `RAPID808` | ERROR | Ruta insegura detectada (path traversal intentado). | Mantener todas las operaciones dentro del árbol de trabajo del proyecto. |
-| `RAPID809` | WARNING | Revisión huérfana no enlazada en el historial. | Verificar el array `revisions` en `spec.json`. |
+| `RAPID800` | INFO | Specification registry intact. | Informational. |
+| `RAPID801` | ERROR | `spec.json` file with invalid schema or content. | Review the structure in `.rapid-os/specs/<id>/spec.json`. |
+| `RAPID802` | ERROR | Revision history missing or discontinuous. | Verify that the `rev_0001`, `rev_0002` folders exist sequentially. |
+| `RAPID803` | ERROR | Corrupt `revision.json` file. | Restore or regenerate the spec revision with `rapid spec revise`. |
+| `RAPID804` | WARNING | Drift detected between the spec markdown and the JSON metadata. | Synchronize the content or re-export with `rapid spec export-legacy`. |
+| `RAPID805` | ERROR | Invalid lifecycle transition in a spec. | Specs can only transition between `draft`, `ready`, and `archived`. |
+| `RAPID806` | ERROR | Conflict or invalid format in a spec identifier. | Use alphanumeric IDs with hyphens (`^[a-z0-9][a-z0-9-]{0,62}$`). |
+| `RAPID807` | ERROR | Referenced spec not found in the registry. | Verify with `rapid spec list` that the spec exists before creating a run. |
+| `RAPID808` | ERROR | Unsafe path detected (path traversal attempted). | Keep all operations inside the project's working tree. |
+| `RAPID809` | WARNING | Orphan revision not linked in the history. | Verify the `revisions` array in `spec.json`. |
 
 ---
 
-## 5. Fase 4 — Execution Policy y Runs (`RAPID1000–RAPID1014`)
+## 5. Phase 4 — Execution Policy and Runs (`RAPID1000–RAPID1014`)
 
-| Código | Severidad | Causa común | Acción de remediación |
+| Code | Severity | Common cause | Remediation action |
 | :--- | :--- | :--- | :--- |
-| `RAPID1000` | INFO | Registro de runs y contratos íntegros. | Informativo. |
-| `RAPID1001` | ERROR | Archivo `run.json` corrupto o con schema inválido. | Revisar `.rapid-os/runs/<id>/run.json`. |
-| `RAPID1002` | ERROR | Archivo `contract.json` corrupto o digest alterado. | No modificar `contract.json` manualmente; es inmutable. |
-| `RAPID1003` | ERROR | Discrepancia entre la spec del contrato y la spec registrada. | Regenerar el run asegurando que la spec esté en estado `ready`. |
-| `RAPID1004` | ERROR | Discrepancia en el digest del snapshot de contexto. | Volver a compilar contexto consistente antes de iniciar el run. |
-| `RAPID1005` | ERROR | Archivo `.rapid-os/policy.json` inválido o duplicado en `policy init`. | Corregir la sintaxis de la política o remover el archivo antes de inicializar uno nuevo. |
-| `RAPID1006` | ERROR | Violación de política o intento no autorizado de degradar riesgo. | Respetar la evaluación calculada por la política según las rutas y tags. |
-| `RAPID1007` | ERROR | Identificador de run no encontrado o duplicado. | Usar identificadores únicos con `rapid run list`. |
-| `RAPID1008` | ERROR | Ruta de run insegura fuera del directorio raíz. | Corregir rutas relativas. |
-| `RAPID1009` | ERROR | Transición de estado de run inválida. | Respetar el ciclo de vida: `prepared` → `active` → `finished` / `failed` / `cancelled`. |
-| `RAPID1010` | ERROR | Transición de tarea del contrato inválida. | Las tareas solo admiten: `in_progress`, `done`, `blocked`, `skipped`. |
-| `RAPID1011` | WARNING | Hueco en el historial secuencial de estados de run. | Comprobar que los archivos `state_0001.json` sigan secuencia numérica continua. |
-| `RAPID1012` | ERROR | Archivo `RunState` corrupto o digest discrepante. | Verificar la integridad de los estados en `.rapid-os/runs/<id>/states/`. |
-| `RAPID1013` | ERROR | Intento de eximir (`waive`) una compuerta que no está en `waivable_gates`. | Modificar la política en `policy.json` o satisfacer la compuerta con evidencia. |
-| `RAPID1014` | ERROR | Fallo en precondiciones de límite de fase al transicionar el run. | Completar las tareas requeridas antes de marcar el run como `finished`. |
+| `RAPID1000` | INFO | Run and contract registry intact. | Informational. |
+| `RAPID1001` | ERROR | `run.json` file corrupt or with invalid schema. | Review `.rapid-os/runs/<id>/run.json`. |
+| `RAPID1002` | ERROR | `contract.json` file corrupt or digest altered. | Do not modify `contract.json` manually; it is immutable. |
+| `RAPID1003` | ERROR | Mismatch between the contract's spec and the registered spec. | Regenerate the run, making sure the spec is in `ready` state. |
+| `RAPID1004` | ERROR | Mismatch in the context snapshot digest. | Recompile a consistent context before starting the run. |
+| `RAPID1005` | ERROR | Invalid `.rapid-os/policy.json` file, or duplicate on `policy init`. | Fix the policy syntax or remove the file before initializing a new one. |
+| `RAPID1006` | ERROR | Policy violation or unauthorized attempt to downgrade risk. | Respect the evaluation computed by the policy according to the paths and tags. |
+| `RAPID1007` | ERROR | Run identifier not found or duplicate. | Use unique identifiers with `rapid run list`. |
+| `RAPID1008` | ERROR | Unsafe run path outside the root directory. | Fix relative paths. |
+| `RAPID1009` | ERROR | Invalid run state transition. | Respect the lifecycle: `prepared` → `active` → `finished` / `failed` / `cancelled`. |
+| `RAPID1010` | ERROR | Invalid contract task transition. | Tasks only support: `in_progress`, `done`, `blocked`, `skipped`. |
+| `RAPID1011` | WARNING | Gap in the sequential run state history. | Check that the `state_0001.json` files follow a continuous numeric sequence. |
+| `RAPID1012` | ERROR | `RunState` file corrupt or digest mismatch. | Verify the integrity of the states in `.rapid-os/runs/<id>/states/`. |
+| `RAPID1013` | ERROR | Attempt to waive (`waive`) a gate that is not in `waivable_gates`. | Modify the policy in `policy.json` or satisfy the gate with evidence. |
+| `RAPID1014` | ERROR | Phase-boundary precondition failure when transitioning the run. | Complete the required tasks before marking the run as `finished`. |
 
 ---
 
-## 6. Fase 5 — Harness Capability Registry (`RAPID1100–RAPID1112`)
+## 6. Phase 5 — Harness Capability Registry (`RAPID1100–RAPID1112`)
 
-| Código | Severidad | Causa común | Acción de remediación |
+| Code | Severity | Common cause | Remediation action |
 | :--- | :--- | :--- | :--- |
-| `RAPID1100` | INFO | Perfiles de harness y lock íntegros. | Informativo. |
-| `RAPID1101` | ERROR | Identificador de capability no canónico o inválido. | Usar IDs canónicos (ej. `shell.execute`, `repository.write`). |
-| `RAPID1102` | ERROR | Perfil de harness (`HarnessProfile`) inválido. | Corregir `.rapid-os/harnesses/<id>.json` según el schema v1. |
-| `RAPID1103` | ERROR | Perfil de harness no encontrado. | Inicializar el perfil con `rapid harness init <id>` o usar uno integrado. |
-| `RAPID1104` | ERROR | Formato de harness ID inválido. | Usar nombres alfanuméricos en minúsculas con guiones. |
-| `RAPID1105` | ERROR | Ruta insegura o ilegible en el registro de harnesses o en `.rapid-os/capabilities.lock`: es un symlink, escapa de la raíz del proyecto o no es un directorio o archivo regular. | Reemplazarla por un directorio o archivo real dentro del proyecto (`.rapid-os/harnesses/`, `.rapid-os/capabilities.lock`); `rapid harness lock` regenera el lock. |
-| `RAPID1106` | ERROR | Nivel de soporte inválido en perfil. | Usar `supported`, `unsupported`, o `unknown`. |
-| `RAPID1107` | ERROR | Requerimiento de capability malformado en contrato. | Verificar la especificación de capacidades del contrato. |
-| `RAPID1108` | ERROR | Objeto `CapabilityResolution` inválido. | Ejecutar nuevamente `rapid harness resolve --run <id>`. |
-| `RAPID1109` | ERROR | Discrepancia en el digest de resolución. | Asegurarse de que el perfil y el contrato no hayan cambiado. |
-| `RAPID1110` | ERROR | Harness incompatible o no resuelto bajo `--require-compatible`. | Seleccionar un harness compatible o ajustar los requerimientos del contrato. |
-| `RAPID1111` | ERROR | Archivo `.rapid-os/capabilities.lock` ausente o corrupto bajo `--locked`. | Ejecutar `rapid harness lock` para generar el lock file. |
-| `RAPID1112` | WARNING | El archivo lock está desactualizado respecto a los perfiles actuales. | Regenerar el lock con `rapid harness lock`. |
+| `RAPID1100` | INFO | Harness profiles and lock intact. | Informational. |
+| `RAPID1101` | ERROR | Non-canonical or invalid capability identifier. | Use canonical IDs (e.g. `shell.execute`, `repository.write`). |
+| `RAPID1102` | ERROR | Invalid harness profile (`HarnessProfile`). | Fix `.rapid-os/harnesses/<id>.json` according to schema v1. |
+| `RAPID1103` | ERROR | Harness profile not found. | Initialize the profile with `rapid harness init <id>` or use a built-in one. |
+| `RAPID1104` | ERROR | Invalid harness ID format. | Use lowercase alphanumeric names with hyphens. |
+| `RAPID1105` | ERROR | Unsafe or unreadable path in the harness registry or in `.rapid-os/capabilities.lock`: it is a symlink, escapes the project root, or is not a regular directory or file. | Replace it with a real directory or file inside the project (`.rapid-os/harnesses/`, `.rapid-os/capabilities.lock`); `rapid harness lock` regenerates the lock. |
+| `RAPID1106` | ERROR | Invalid support level in a profile. | Use `supported`, `unsupported`, or `unknown`. |
+| `RAPID1107` | ERROR | Malformed capability requirement in the contract. | Verify the contract's capability specification. |
+| `RAPID1108` | ERROR | Invalid `CapabilityResolution` object. | Run `rapid harness resolve --run <id>` again. |
+| `RAPID1109` | ERROR | Mismatch in the resolution digest. | Make sure the profile and the contract have not changed. |
+| `RAPID1110` | ERROR | Incompatible or unresolved harness under `--require-compatible`. | Select a compatible harness or adjust the contract's requirements. |
+| `RAPID1111` | ERROR | `.rapid-os/capabilities.lock` file missing or corrupt under `--locked`. | Run `rapid harness lock` to generate the lock file. |
+| `RAPID1112` | WARNING | The lock file is out of date with respect to the current profiles. | Regenerate the lock with `rapid harness lock`. |
 
 ---
 
-## 7. Fase 6 — Evidence Engine (`RAPID1200–RAPID1211`)
+## 7. Phase 6 — Evidence Engine (`RAPID1200–RAPID1211`)
 
-| Código | Severidad | Causa común | Acción de remediación |
+| Code | Severity | Common cause | Remediation action |
 | :--- | :--- | :--- | :--- |
-| `RAPID1200` | INFO | Registros de evidencia íntegros y continuos. | Informativo. |
-| `RAPID1201` | ERROR | ID de evidencia inválido. | El Evidence Engine gestiona IDs canónicos como `E001`, `E002`. |
-| `RAPID1202` | ERROR | Schema de `RunEvidence` o `content_digest` inválido. | No alterar los archivos JSON de evidencia manualmente. |
-| `RAPID1203` | ERROR | Desalineación en el binding del contrato, estado o productor. | Asegurarse de que la evidencia corresponda al run y estado activo. |
-| `RAPID1204` | ERROR | Ruta insegura de evidencia fuera de `.rapid-os/evidence/`. | Mantener la estructura canónica. |
-| `RAPID1205` | ERROR | Artefacto copiado faltante o con hash SHA-256 / tamaño discrepante. | Verificar que el artefacto no haya sido modificado tras su registro. |
-| `RAPID1206` | ERROR | Payload JSON no satisface los campos mínimos para el `EvidenceKind`. | Consultar el [Cookbook de Evidencias](../cookbooks/evidence-engine.md) para el schema requerido. |
-| `RAPID1207` | ERROR | La evidencia referencia una tarea, compuerta o capability inexistente. | Verificar que el `task_id` o `gate_id` esté en el contrato. |
-| `RAPID1208` | ERROR | Hueco en la secuencia numérica de evidencias (ej. falta `E002` entre `E001` y `E003`). | Restaurar la secuencia inmutable. |
-| `RAPID1209` | WARNING | Directorio huérfano de artefactos detectado tras una interrupción. | Ejecutar `rapid evidence verify` para auditar inconsistencias. |
-| `RAPID1210` | ERROR | Archivo de evidencia referenciado no encontrado en disco. | Verificar la existencia de los archivos en `.rapid-os/evidence/<run-id>/`. |
-| `RAPID1211` | ERROR | Intento de sobreescritura de un archivo de evidencia existente. | La evidencia es append-only; nuevos registros deben usar el siguiente ordinal. |
+| `RAPID1200` | INFO | Evidence records intact and continuous. | Informational. |
+| `RAPID1201` | ERROR | Invalid evidence ID. | The Evidence Engine manages canonical IDs such as `E001`, `E002`. |
+| `RAPID1202` | ERROR | Invalid `RunEvidence` schema or `content_digest`. | Do not alter the evidence JSON files manually. |
+| `RAPID1203` | ERROR | Misalignment in the contract, state, or producer binding. | Make sure the evidence corresponds to the active run and state. |
+| `RAPID1204` | ERROR | Unsafe evidence path outside `.rapid-os/evidence/`. | Keep the canonical structure. |
+| `RAPID1205` | ERROR | Copied artifact missing or with a mismatched SHA-256 hash / size. | Verify that the artifact was not modified after being recorded. |
+| `RAPID1206` | ERROR | JSON payload does not satisfy the minimum fields for the `EvidenceKind`. | See the [Evidence Cookbook](../cookbooks/evidence-engine.md) for the required schema. |
+| `RAPID1207` | ERROR | The evidence references a nonexistent task, gate, or capability. | Verify that the `task_id` or `gate_id` is in the contract. |
+| `RAPID1208` | ERROR | Gap in the numeric sequence of evidence (e.g. `E002` is missing between `E001` and `E003`). | Restore the immutable sequence. |
+| `RAPID1209` | WARNING | Orphan artifacts directory detected after an interruption. | Run `rapid evidence verify` to audit inconsistencies. |
+| `RAPID1210` | ERROR | Referenced evidence file not found on disk. | Verify that the files exist in `.rapid-os/evidence/<run-id>/`. |
+| `RAPID1211` | ERROR | Attempt to overwrite an existing evidence file. | Evidence is append-only; new records must use the next ordinal. |
 
 ---
 
-## 8. Fase 6 — Behavioral Evals (`RAPID1220–RAPID1229`)
+## 8. Phase 6 — Behavioral Evals (`RAPID1220–RAPID1229`)
 
-| Código | Severidad | Causa común | Acción de remediación |
+| Code | Severity | Common cause | Remediation action |
 | :--- | :--- | :--- | :--- |
-| `RAPID1220` | INFO | Reportes de evaluación de comportamiento íntegros. | Informativo. |
-| `RAPID1221` | ERROR | Esquema de `EvaluationReport` inválido. | Regenerar el reporte con `rapid eval run --write`. |
-| `RAPID1222` | ERROR | Discrepancia en el hash SHA-256 del reporte de evaluación. | No editar manualmente los archivos en `.rapid-os/evals/`. |
-| `RAPID1223` | ERROR | Fallo en repetición semántica (replay mismatch). | El reporte almacenado difiere del cómputo determinista sobre la evidencia real. |
-| `RAPID1224` | ERROR | Ruta de reporte insegura. | Mantener los reportes en `.rapid-os/evals/<run-id>/reports/`. |
-| `RAPID1225` | ERROR | Veredicto `UNVERIFIED` bajo la bandera `--require-pass`. | Registrar evidencia observable para todas las compuertas reconocidas. |
-| `RAPID1226` | ERROR | Veredicto `FAIL` bajo la bandera `--require-pass`. | Corregir las pruebas o requerimientos fallidos antes de evaluar. |
-| `RAPID1227` | WARNING | El reporte almacenado precede al estado o evidencias más recientes. | Ejecutar `rapid eval run --write` para generar una nueva revisión de reporte. |
-| `RAPID1228` | ERROR | Reporte de evaluación referenciado no encontrado. | Ejecutar `rapid eval run --write` para crearlo. |
-| `RAPID1229` | ERROR | Intento de sobreescribir una revisión existente de reporte. | Las revisiones son append-only (`eval_report_0001.json`, `eval_report_0002.json`). |
+| `RAPID1220` | INFO | Behavioral evaluation reports intact. | Informational. |
+| `RAPID1221` | ERROR | Invalid `EvaluationReport` schema. | Regenerate the report with `rapid eval run --write`. |
+| `RAPID1222` | ERROR | Mismatch in the evaluation report's SHA-256 hash. | Do not edit the files in `.rapid-os/evals/` manually. |
+| `RAPID1223` | ERROR | Semantic replay failure (replay mismatch). | The stored report differs from the deterministic computation over the real evidence. |
+| `RAPID1224` | ERROR | Unsafe report path. | Keep the reports in `.rapid-os/evals/<run-id>/reports/`. |
+| `RAPID1225` | ERROR | `UNVERIFIED` verdict under the `--require-pass` flag. | Record observable evidence for all acknowledged gates. |
+| `RAPID1226` | ERROR | `FAIL` verdict under the `--require-pass` flag. | Fix the failed tests or requirements before evaluating. |
+| `RAPID1227` | WARNING | The stored report predates the most recent state or evidence. | Run `rapid eval run --write` to generate a new report revision. |
+| `RAPID1228` | ERROR | Referenced evaluation report not found. | Run `rapid eval run --write` to create it. |
+| `RAPID1229` | ERROR | Attempt to overwrite an existing report revision. | Revisions are append-only (`eval_report_0001.json`, `eval_report_0002.json`). |
 
 ---
 
-## 9. Capa de Intención y Configuración (`RAPID1300–RAPID1339`)
+## 9. Intent Layer and Configuration (`RAPID1300–RAPID1339`)
 
-| Código | Severidad | Causa común | Acción de remediación |
+| Code | Severity | Common cause | Remediation action |
 | :--- | :--- | :--- | :--- |
-| `RAPID1300` | WARNING | No se especificó ni detectó un harness en el entorno/configuración. Se aplicó fallback a `cursor`. | Especificar `--harness <id>`, fijar `RAPID_HARNESS=<id>`, configurar `"default_harness"` o dejar un solo harness soportado en `"tools"` de `.rapid-os/config.json` (con varios, el aviso los lista). |
-| `RAPID1301` | WARNING | Comando de prueba (`test_command`) ausente o vacío en `.rapid-os/config.json`. | Configurar `"test_command": ["python", "-m", "pytest"]` (como lista argv) en `.rapid-os/config.json` o inicializar con `rapid init --test-command "<cmd>"`. |
-| `RAPID1302` | ERROR | Entrada interactiva requerida en `rapid init` pero stdin no es una terminal (o finalizó con EOF). | Ejecutar con flag `-y` / `--yes` (modo desatendido con defaults) o proveer flags complementarios (`--stack`, `--topology`, `--agents`, `--test-command`). |
-| `RAPID1303` | ERROR | Playbook o plantilla de modo no encontrada, corrupta o sin instrucciones para la acción requerida. | Verificar que el archivo de plantilla `.json` bajo `templates/modes/<mode>.json` exista y sea sintácticamente válido. |
-| `RAPID1304` | ERROR | Sesión activa (`.rapid-os/session.json`) inválida o referencia un `run_id` inexistente en `RunRegistry`. | Verificar el run referenciado o reiniciar la sesión creando un nuevo run con `rapid run create`. |
-| `RAPID1305` | WARNING | El run activo en `.rapid-os/session.json` alcanzó un estado terminal (`finished`, `failed`, `cancelled`). | Iniciar un nuevo run de especificación o limpiar la sesión. |
-| `RAPID1306` | ERROR | Transición de tarea inválida, ambigua (múltiples en progreso sin ID explícito) o sin tareas pendientes. | Especificar explícitamente el `task_id` (ej. `T001`) o la razón obligatoria para `skip`. |
-| `RAPID1307` | ERROR | No existe una sesión activa (`.rapid-os/session.json`) para ejecutar comandos dependientes del run actual. | Crear o activar un run primero mediante `rapid run create --spec <spec-id>` o `rapid start`. |
-| `RAPID1308` | ERROR | Intento de iniciar un nuevo run (`rapid start`) cuando ya existe un run activo no terminal en sesión. | Continuar con `rapid next`, abortar el run existente con `rapid abort` o usar la bandera `--resume`. |
-| `RAPID1309` | ERROR | Proyecto no inicializado (directorio `.rapid-os/standards/` ausente al ejecutar `rapid start`). | Ejecutar `rapid init` para inicializar los estándares y la configuración del proyecto. |
-| `RAPID1310` | ERROR | Aprobación de compuerta humana (`rapid approve`) invocada sin terminal interactiva (TTY) o desde una sesión de agente (`CLAUDE_CODE_CHILD_SESSION == 1`), o bajo un proceso ancestro que es un harness de agente (hoy `claude`). La confirmación por TTY se puede emular (script/pty) y actúa como defensa en capas, no una garantía absoluta (reforzada en PRs 2.1 y 3.2). | Ejecutar `rapid approve <gate-id>` directamente por una persona en su propia terminal interactiva para confirmar la aprobación escribiendo `aprobar <gate-id>`. |
-| `RAPID1311` | ERROR | Harness no soportado para shortcuts (`rapid shortcuts --harness <id>`). | Usar uno de `claude`, `codex`, `antigravity`, `cursor` o `vscode`. |
-| `RAPID1312` | ERROR | No hay harness seleccionado: falta `--harness` y `.rapid-os/config.json` no existe o no lista ningún harness soportado en `tools`. | Pasar `--harness <id>` o ejecutar `rapid init --agents <lista>`. |
-| `RAPID1313` | ERROR | Plantilla de shortcut ausente o inválida bajo `templates/shortcuts/<nombre>.md` (frontmatter, descripción o cuerpo). | Restaurar la plantilla desde la instalación de Rapid OS o reinstalar el paquete. |
-| `RAPID1314` | ERROR | No se pudo leer, escribir o eliminar un archivo de shortcut: ruta insegura, enlace simbólico, error del sistema de archivos o contenido distinto renderizado por dos harnesses para la misma ruta. | Revisar permisos y que la ruta no sea un enlace simbólico; reintentar. |
-| `RAPID1315` | WARNING | Shortcut de modo omitido: no existe el playbook `templates/modes/<modo>.json`. | Esperado hasta que el modo tenga playbook; al agregarlo, ejecutar `rapid shortcuts install` de nuevo. |
-| `RAPID1316` | WARNING | Un archivo de shortcut existente no tiene el marcador `generated by rapid shortcuts` y será reemplazado. | La versión anterior queda como `.bak`; revisarla antes de continuar o usar otro nombre para el skill propio. |
-| `RAPID1317` | WARNING | `rapid shortcuts remove` omitió un archivo sin el marcador `generated by rapid shortcuts`. | Eliminarlo manualmente si realmente se desea; Rapid OS solo borra archivos que generó. |
-| `RAPID1318` | ERROR | `rapid shortcuts` se invocó sin subcomando. | Usar `install`, `list` o `remove`. |
-| `RAPID1319` | WARNING / INFO | `rapid doctor`: no se pudo leer la cadena de procesos padre (WARNING; `rapid approve` no puede buscar un harness de agente entre sus ancestros y solo aplica las comprobaciones de TTY y `CLAUDE_CODE_CHILD_SESSION`), o `doctor` se ejecuta bajo un harness de agente (INFO; allí `rapid approve` se rechaza con `RAPID1310`). | En el caso WARNING, comprobar permisos de `/proc`, la disponibilidad de `ps` o el soporte de la plataforma; en el caso INFO, ejecutar `rapid approve` en tu propia terminal. |
-| `RAPID1320` | ERROR | `rapid check --expect fail` ligado a una compuerta (`--gate`) o invocado sin una tarea válida (requiere `--task <id>` o exactamente una tarea `in_progress`). | Especificar `--task <task_id>` o verificar que haya exactamente una tarea `in_progress` en la sesión activa. No se permite ligar fallas esperadas a compuertas. |
-| `RAPID1321` | WARNING | `rapid shortcuts install`, `list` y `rapid init --shortcuts`: la selección de harnesses deja el mismo `/rapid-*` en dos carpetas que una misma herramienta lee (`cursor` o `vscode` junto con `claude`, `codex` o `antigravity`). Es solo un aviso: no cambia el exit code ni lo que se escribe, y la documentación oficial de Cursor y de VS Code no especifica cómo muestran skills del mismo nombre en carpetas distintas. | Instalar solo la combinación recomendada en el aviso (la herramienta ya lee esas carpetas); ver «Si combinas harnesses» en la [guía de shortcuts](../guides/shortcuts.md#si-combinas-harnesses). |
-| `RAPID1322` | ERROR | `rapid start <modo> --spec-file`: ya existe una spec con la misma identidad (id o título) y **contenido distinto** (o está archivada). Con el mismo contenido se reutiliza sin error. | Reutilizar la spec existente con `rapid start <modo> --spec <id>`, o cambiar el título/`id` del archivo de spec. |
-| `RAPID1330` | ERROR | `rapid approve` con opciones incompatibles: `--reject` y `--waive` juntos, o cualquiera de los dos sin `<gate-id>`. | Usar una sola acción y pasar el gate (`rapid approve` lista los pendientes). |
-| `RAPID1331` | ERROR | No se pudo determinar el revisor: no se pasó `--reviewer`, `git config user.name` no está definido y no se indicó un nombre en la terminal. | Pasar `--reviewer <nombre>` o ejecutar `git config user.name "<nombre>"`. |
-| `RAPID1332` | ERROR | El gate no existe, no es un gate humano, ya no está pendiente, o fue rechazado (`changes_requested`) y permanece en FAIL durante el run. | Verificar el id con `rapid approve`; si fue rechazado, ejecutar `rapid abort` e iniciar un run nuevo. |
-| `RAPID1333` | ERROR | Falta `--reason` en `--reject`/`--waive`, el gate no es dispensable según el contrato, o el run no está en un estado que permita modificar el gate (debe estar `active` y con todas las tareas terminales). | Indicar `--reason`, dispensar solo gates waivable (p. ej. `gate.review`) y completar las tareas antes de aprobar. |
-| `RAPID1334` | ERROR | No se pudo crear el worktree aislado de `rapid start --worktree` (no es un repositorio git, no hay commits, la ruta `../<repo>-<run-id>` ya existe o `git worktree add` falló). | Confirmar un repositorio git con al menos un commit, liberar la ruta y reintentar `rapid start --resume --worktree`. En un repositorio sin commits, `rapid start` ya no lo produce por una política que pide aislamiento: el run va en el espacio actual con `isolation_waived: "no_commits"` y las puertas humanas intactas; `--worktree` explícito sin commits sigue siendo este error. |
-| `RAPID1335` | ERROR | El worktree registrado en `workspace_path` de `session.json` ya no existe. | Restaurarlo con `git worktree add` en esa ruta o cancelar el run con `rapid abort`. |
-| `RAPID1336` | ERROR | `rapid attach` falló: sin `--label`, archivo inexistente, fuera del proyecto y del workspace, bajo `.rapid-os/`, o tarea inexistente. | Corregir la ruta, indicar `--label` y, si aplica, un `--task` válido. |
-| `RAPID1337` | ERROR | `rapid shortcuts install --hooks` / `remove --hooks` (o `rapid init --hooks`, donde se reporta como aviso) sin el harness `claude` seleccionado. | Seleccionar `claude` (`--harness claude` o `tools` en `.rapid-os/config.json`) o quitar `--hooks`. |
-| `RAPID1338` | ERROR | `.claude/settings.json` no se puede fusionar: JSON inválido, raíz que no es un objeto, `hooks` o `hooks.<Evento>` con un tipo inesperado, o error al escribirlo. El archivo no se modifica. | Corregir el archivo a mano (o restaurar el `.bak`) y repetir el comando. |
-| `RAPID1339` | WARNING | `rapid doctor`: hay hooks de Claude Code instalados pero `rapid` no se resuelve en el `PATH`; Claude Code trata el fallo como error no bloqueante y el run deja de reforzarse. | Instalar Rapid OS donde lo vea Claude Code (p. ej. `pipx install git+https://github.com/alyconr/Rapid-OS.git`) o añadir su directorio de scripts al `PATH`. |
+| `RAPID1300` | WARNING | No harness was specified or detected in the environment/configuration. A fallback to `cursor` was applied. | Specify `--harness <id>`, set `RAPID_HARNESS=<id>`, configure `"default_harness"`, or leave a single supported harness in `"tools"` of `.rapid-os/config.json` (with several, the warning lists them). |
+| `RAPID1301` | WARNING | Test command (`test_command`) missing or empty in `.rapid-os/config.json`. | Configure `"test_command": ["python", "-m", "pytest"]` (as an argv list) in `.rapid-os/config.json` or initialize with `rapid init --test-command "<cmd>"`. |
+| `RAPID1302` | ERROR | Interactive input required in `rapid init` but stdin is not a terminal (or ended with EOF). | Run with the `-y` / `--yes` flag (unattended mode with defaults) or provide complementary flags (`--stack`, `--topology`, `--agents`, `--test-command`). |
+| `RAPID1303` | ERROR | Mode playbook or template not found, corrupt, or lacking instructions for the required action. | Verify that the `.json` template file under `templates/modes/<mode>.json` exists and is syntactically valid. |
+| `RAPID1304` | ERROR | Active session (`.rapid-os/session.json`) invalid or references a `run_id` that does not exist in `RunRegistry`. | Verify the referenced run or restart the session by creating a new run with `rapid run create`. |
+| `RAPID1305` | WARNING | The active run in `.rapid-os/session.json` reached a terminal state (`finished`, `failed`, `cancelled`). | Start a new specification run or clear the session. |
+| `RAPID1306` | ERROR | Invalid or ambiguous task transition (several in progress without an explicit ID) or no pending tasks. | Explicitly specify the `task_id` (e.g. `T001`) or the mandatory reason for `skip`. |
+| `RAPID1307` | ERROR | There is no active session (`.rapid-os/session.json`) to run commands that depend on the current run. | Create or activate a run first with `rapid run create --spec <spec-id>` or `rapid start`. |
+| `RAPID1308` | ERROR | Attempt to start a new run (`rapid start`) when a non-terminal active run already exists in the session. | Continue with `rapid next`, abort the existing run with `rapid abort`, or use the `--resume` flag. |
+| `RAPID1309` | ERROR | Project not initialized (`.rapid-os/standards/` directory missing when running `rapid start`). | Run `rapid init` to initialize the project standards and configuration. |
+| `RAPID1310` | ERROR | Human gate approval (`rapid approve`) invoked without an interactive terminal (TTY) or from an agent session (`CLAUDE_CODE_CHILD_SESSION == 1`), or under an ancestor process that is an agent harness (today `claude`). TTY confirmation can be emulated (script/pty) and acts as defense in depth, not an absolute guarantee (reinforced in PRs 2.1 and 3.2). | Run `rapid approve <gate-id>` directly, by a person in their own interactive terminal, confirming the approval by typing `aprobar <gate-id>`. |
+| `RAPID1311` | ERROR | Harness not supported for shortcuts (`rapid shortcuts --harness <id>`). | Use one of `claude`, `codex`, `antigravity`, `cursor`, or `vscode`. |
+| `RAPID1312` | ERROR | No harness selected: `--harness` is missing and `.rapid-os/config.json` does not exist or lists no supported harness in `tools`. | Pass `--harness <id>` or run `rapid init --agents <list>`. |
+| `RAPID1313` | ERROR | Shortcut template missing or invalid under `templates/shortcuts/<name>.md` (frontmatter, description, or body). | Restore the template from the Rapid OS installation or reinstall the package. |
+| `RAPID1314` | ERROR | A shortcut file could not be read, written, or deleted: unsafe path, symbolic link, file system error, or different content rendered by two harnesses for the same path. | Check permissions and that the path is not a symbolic link; retry. |
+| `RAPID1315` | WARNING | Mode shortcut skipped: the `templates/modes/<mode>.json` playbook does not exist. | Expected until the mode has a playbook; when you add it, run `rapid shortcuts install` again. |
+| `RAPID1316` | WARNING | An existing shortcut file does not carry the `generated by rapid shortcuts` marker and will be replaced. | The previous version is kept as `.bak`; review it before continuing or use another name for your own skill. |
+| `RAPID1317` | WARNING | `rapid shortcuts remove` skipped a file without the `generated by rapid shortcuts` marker. | Delete it manually if you really want to; Rapid OS only deletes files it generated. |
+| `RAPID1318` | ERROR | `rapid shortcuts` was invoked without a subcommand. | Use `install`, `list`, or `remove`. |
+| `RAPID1319` | WARNING / INFO | `rapid doctor`: the parent process chain could not be read (WARNING; `rapid approve` cannot look for an agent harness among its ancestors and applies only the TTY and `CLAUDE_CODE_CHILD_SESSION` checks), or `doctor` runs under an agent harness (INFO; there `rapid approve` is rejected with `RAPID1310`). | In the WARNING case, check the permissions of `/proc`, the availability of `ps`, or platform support; in the INFO case, run `rapid approve` in your own terminal. |
+| `RAPID1320` | ERROR | `rapid check --expect fail` tied to a gate (`--gate`) or invoked without a valid task (requires `--task <id>` or exactly one `in_progress` task). | Specify `--task <task_id>` or verify that there is exactly one `in_progress` task in the active session. Tying expected failures to gates is not allowed. |
+| `RAPID1321` | WARNING | `rapid shortcuts install`, `list`, and `rapid init --shortcuts`: the harness selection leaves the same `/rapid-*` in two folders that a single tool reads (`cursor` or `vscode` together with `claude`, `codex`, or `antigravity`). It is only a warning: it changes neither the exit code nor what is written, and the official Cursor and VS Code documentation does not specify how they display same-named skills in different folders. | Install only the combination recommended in the warning (the tool already reads those folders); see "If you combine harnesses" in the [shortcuts guide](../guides/shortcuts.md#if-you-combine-harnesses). |
+| `RAPID1322` | ERROR | `rapid start <mode> --spec-file`: a spec with the same identity (id or title) and **different content** already exists (or is archived). With the same content it is reused without error. | Reuse the existing spec with `rapid start <mode> --spec <id>`, or change the title/`id` of the spec file. |
+| `RAPID1330` | ERROR | `rapid approve` with incompatible options: `--reject` and `--waive` together, or either one without `<gate-id>`. | Use a single action and pass the gate (`rapid approve` lists the pending ones). |
+| `RAPID1331` | ERROR | The reviewer could not be determined: `--reviewer` was not passed, `git config user.name` is not set, and no name was entered in the terminal. | Pass `--reviewer <name>` or run `git config user.name "<name>"`. |
+| `RAPID1332` | ERROR | The gate does not exist, is not a human gate, is no longer pending, or was rejected (`changes_requested`) and stays FAIL for the rest of the run. | Verify the id with `rapid approve`; if it was rejected, run `rapid abort` and start a new run. |
+| `RAPID1333` | ERROR | `--reason` is missing on `--reject`/`--waive`, the gate is not waivable according to the contract, or the run is not in a state that allows modifying the gate (it must be `active` with all tasks terminal). | Provide `--reason`, waive only waivable gates (e.g. `gate.review`), and complete the tasks before approving. |
+| `RAPID1334` | ERROR | The isolated worktree of `rapid start --worktree` could not be created (not a git repository, no commits, the path `../<repo>-<run-id>` already exists, or `git worktree add` failed). | Confirm a git repository with at least one commit, free the path, and retry `rapid start --resume --worktree`. In a repository with no commits, `rapid start` no longer produces this because of a policy that asks for isolation: the run goes in the current workspace with `isolation_waived: "no_commits"` and the human gates intact; an explicit `--worktree` with no commits is still this error. |
+| `RAPID1335` | ERROR | The worktree recorded in `workspace_path` of `session.json` no longer exists. | Restore it with `git worktree add` at that path or cancel the run with `rapid abort`. |
+| `RAPID1336` | ERROR | `rapid attach` failed: no `--label`, nonexistent file, outside the project and the workspace, under `.rapid-os/`, or nonexistent task. | Fix the path, provide `--label` and, if applicable, a valid `--task`. |
+| `RAPID1337` | ERROR | `rapid shortcuts install --hooks` / `remove --hooks` (or `rapid init --hooks`, where it is reported as a warning) without the `claude` harness selected. | Select `claude` (`--harness claude` or `tools` in `.rapid-os/config.json`) or remove `--hooks`. |
+| `RAPID1338` | ERROR | `.claude/settings.json` cannot be merged: invalid JSON, a root that is not an object, `hooks` or `hooks.<Event>` with an unexpected type, or an error writing it. The file is not modified. | Fix the file by hand (or restore the `.bak`) and repeat the command. |
+| `RAPID1339` | WARNING | `rapid doctor`: Claude Code hooks are installed but `rapid` does not resolve on the `PATH`; Claude Code treats the failure as a non-blocking error and the run stops being enforced. | Install Rapid OS where Claude Code can see it (e.g. `pipx install git+https://github.com/alyconr/Rapid-OS.git`) or add its scripts directory to the `PATH`. |
 
-## 10. Catálogo de stacks, onboarding, arquitectura y seguridad (`RAPID1400–RAPID1429`)
+## 10. Stack catalog, onboarding, architecture, and security (`RAPID1400–RAPID1429`)
 
-| Código | Nivel | Significado | Acción |
+| Code | Level | Meaning | Action |
 |---|---|---|---|
-| `RAPID1400` | INFO | `.rapid-os/setup.json` existe y es válido ("Setup válido"). Lo emite `rapid validate`. | Ninguna. |
-| `RAPID1401` | ERROR | Sidecar de catálogo inválido bajo `templates/stacks/`, `templates/topologies/` o `templates/setup/`: JSON ilegible, `schema_version` distinto de 1, campo faltante o vacío, `id` distinto del nombre del archivo, topología desconocida en `compatible_topologies`, `default_topology` fuera de `compatible_topologies`, o banco de preguntas mal formado. En un stack de `templates/stacks/<componente>/`: componente distinto de su carpeta, `covers` sin su componente, `factors` o `sources` incompletos (los once factores y al menos una URL https de cada uno), `hosting_fit` fuera de `serverless`, `containers` y `PaaS`, `supported_services` con un motor que no está en `templates/services/`, o un id repetido. Una topología sin `components`. `rapid init` aborta con este código en lugar de un traceback. | Corregir o restaurar el archivo indicado desde la instalación de Rapid OS, o reinstalar el paquete. |
-| `RAPID1402` | ERROR | `rapid setup set topology <id>` con una topología incompatible con el stack ya elegido (según `compatible_topologies` del catálogo; un stack fuera del catálogo acepta todas menos `doc-site`), o `rapid setup set services` con un motor que el stack no soporta (`service_roles` del stack). No se escribe nada. Al cambiar el stack con `set stack`, una topología que ya no encaja no es error: queda sin decidir. | Elegir una topología de la lista que muestra el mensaje o `rapid setup next`. También una topología que no encaja con alguno de los stacks ya elegidos (uno por componente), y `rapid setup set services` con un motor que el stack del backend no declara en `supported_services` (el mensaje lista los que sí). |
-| `RAPID1406` | ERROR | `.rapid-os/setup.json` es inválido: JSON ilegible, `schema_version` distinto de 1, o un campo con tipo o valor no permitido (`stack`, `docs.<id>.status`, etc.). `rapid setup next` y `show` salen con 1 sin traceback y no modifican el archivo. | Corregir el archivo según el mensaje, o moverlo para que el estado se derive del disco. |
-| `RAPID1403` | WARNING / ERROR | Un documento del onboarding redactado por el agente (`source: drafted`) no tiene una sección requerida de su banco: falta un encabezado `## ` que coincida con cualquiera de sus títulos (es/en, sin distinguir mayúsculas). No se evalúa para `source: provided`. **Doble uso:** en `rapid validate` es un WARNING sobre un documento ya escrito; en `rapid setup doc <id> --source drafted` es un rechazo (ERROR, exit 1) y no se escribe nada. | Añadir la sección o rehacer el documento. Las secciones condicionales (`Base de datos local` de `DATA_MODEL.md` con un servicio `database`) cuentan mientras se cumple su condición. |
-| `RAPID1404` | WARNING / ERROR | Un documento del onboarding redactado por el agente supera `max_chars` de su banco. No se evalúa para `source: provided`. Mismo doble uso que `RAPID1403`: WARNING en `rapid validate`, rechazo (exit 1, nada escrito) en `rapid setup doc ... --source drafted`. | Acortar el documento. |
-| `RAPID1405` | ERROR | `rapid setup doc <id> --source drafted` sobre un documento que una persona aportó (`source: provided`) o sobre un archivo escrito a mano: el borrador lo reemplazaría. No se escribe nada. | Repetir con `--replace` si se quiere reemplazar (queda un `.bak`), o dejar el documento como está. |
-| `RAPID1407` | ERROR | `rapid setup finish` mientras queda una decisión abierta (stack, topología, arquetipo, agentes, comando de test un documento `pending` o la revisión de borradores, `review_drafts`, sin cerrar). No se escribe nada. | Ejecutar el comando que indica el mensaje (el `command` de `rapid setup next`) y repetir `finish`. |
-| `RAPID1408` | WARNING | Un documento del onboarding redactado por el agente sigue sin confirmar por una persona; llega al agente como supuesto. | Que una persona lo revise y lo confirme. |
-| `RAPID1409` | ERROR | `rapid setup stack --custom` recibió un `tech-stack.md` sin alguna de las secciones `Runtime`, `Framework` o `Testing` (un encabezado `## ` o una línea `- **Nombre:**`). No se escribe nada. | Añadir las secciones que nombra el mensaje y repetir el comando. |
-| `RAPID1410` | WARNING | `standards/business.md` y `docs/BUSINESS_RULES.md` existen y sus cuerpos difieren (sin frontmatter y con espacios normalizados). Gana `docs/BUSINESS_RULES.md`; el estándar queda fuera del contexto. | Unificar el contenido o eliminar `standards/business.md`. |
-| `RAPID1412` | WARNING | Una plantilla de stack o topología (`.md`) no tiene su sidecar `.json`. La plantilla sigue siendo utilizable y se trata como compatible con todas las topologías excepto `doc-site`. | Añadir `templates/<stacks\|topologies>/<id>.json` para declarar `compatible_topologies` y `default_topology`; no es obligatorio. |
-| `RAPID1413` | ERROR | Subcomando, clave o valor de `rapid setup` inválido: clave de `set` desconocida, stack/topología/arquetipo/agente inexistente, `--file` ilegible o vacío, documento desconocido, rol o motor de `services` desconocido o pareja rol-motor incompatible (`rapid setup set services <rol>:<motor>`, con `@now` o `@later` opcional), plataforma desconocida en `rapid deploy --target` (`Plataforma desconocida`), `--component` con una clave que no es `stack`, un componente desconocido o que el stack no puede llenar (`rapid setup set stack go --component frontend`), combinación de modos de `doc` (`--skip`, `--confirm`, `--reopen`, `--from-legacy`, `--source`), nada que confirmar o importar, `--skip` de un documento ya escrito, o `rapid setup` sin subcomando, `rapid setup review` sin `--done`; también `rapid init --business-file` con una ruta vacía, un directorio o un archivo ilegible, y `rapid start bugfix|refactor|hardening` en un repositorio nuevo, sin código ni tests (`No hay código que arreglar|refactorizar|endurecer; usa /rapid-feature`), y `rapid shortcuts install|list|remove` con `--global` para un harness sin carpeta de usuario documentada (`vscode`), sin `--harness` o con `--hooks`, o con un `--only` que no es un shortcut. | Usar `next`, `show`, `set`, `stack`, `doc` o `finish` con valores de `rapid setup next`. |
-| `RAPID1414` | WARNING | `rapid init` instaló shortcuts o hooks, o `rapid doctor` los encontró, y `rapid` no se resuelve en el `PATH`: se ejecutan desde el shell del agente. No cambia el exit code (0). | Instalar Rapid OS con el instalador o con `pipx install git+https://github.com/alyconr/Rapid-OS.git`, o añadir su directorio de scripts al `PATH`. |
-| `RAPID1415` | ERROR / WARNING | El cuerpo de un documento del onboarding tiene un `?` entre dos letras o al inicio de una palabra (`vac?os`, `Decisi?n`, `?xito`): lo que deja una tubería que no es UTF-8 (la de Windows PowerShell 5.1 hacia programas nativos usa ASCII) de los acentos y la `ñ`. Se ignoran los bloques de código, el código en línea y las URL. En `rapid setup doc <id> --source drafted` es un rechazo (exit 1, no se escribe nada); con `--source provided` es un WARNING y el texto se guarda tal cual, porque Rapid OS no reescribe lo que pega la persona. | Escribir el documento en un archivo UTF-8 y enviarlo con `--file <ruta>`. En Windows PowerShell: `Set-Content -Encoding utf8 $env:TEMP\rapid-<id>.md` y `rapid setup doc <id> --source drafted --file $env:TEMP\rapid-<id>.md`. |
-| `RAPID1416` | ERROR | `rapid start` en una carpeta que no es un repositorio git, sin git instalado, o en un repositorio en el que git no confía. Rapid OS observa los cambios del run con git y el run nunca podría pasar. Se comprueba antes de crear el run y antes del rechazo de repositorio vacío (`RAPID1413`): no se escribe nada en `.rapid-os/runs` ni en `session.json`. | Ejecutar `git init`, o `rapid setup finish`, que crea el repositorio (sin commits) si falta; instalar git si no está. **Carpeta en la que git no confía** (`detected dubious ownership`, habitual en Windows en otra unidad o en carpetas creadas por otro usuario): el mismo código, otro texto (`RAPID1416 git no confía en esta carpeta (dubious ownership) ...`); `git init` no lo arregla, hay que ejecutar `git config --global --add safe.directory <ruta>` con la ruta que imprime el mensaje. `rapid setup finish` no ejecuta `git init` en ese caso: avisa con el mismo comando. Rapid OS ejecuta todos sus comandos git con `-c safe.directory=<raíz del proyecto>`, así que `untrusted` solo ocurre si git no respeta ese ajuste (versiones anteriores a 2.38) o si el repositorio está en una carpeta superior a la raíz del proyecto. El caso habitual del sandbox de Codex en Windows (otro usuario) ya no bloquea a Rapid OS: lo único pendiente es la excepción para el git de la persona, que llega como `person_actions` (`git-safe-directory`) en `rapid setup finish`, `rapid setup next --json` y `rapid doctor`. Ver [Windows: sandbox y git](../integrations/codex.md#windows-sandbox-y-git). |
-| `RAPID1420` | ERROR | `rapid arch check` encontró un import que rompe la regla de arquitectura de `.rapid-os/standards/architecture.json`; se emite una por violación, con archivo, línea, import y regla: `layer` (una capa importa una capa que no le toca), `cross_module` (un módulo importa de otro algo distinto de su punto público), `shared` (`shared` importa un módulo), `init_reexport` (el `__init__.py` de un módulo de Python importa algo distinto de su propio `public.py`) o `domain_forbidden_import` (`domain` importa `fastapi`, `sqlalchemy`, `react`, `@prisma/client`... según el stack). También se usa para un `architecture.json` ilegible o inválido y para un run cuyo contrato incluye `gate.architecture` cuando no hay `architecture.json` en el directorio actual ni en el proyecto principal de la sesión (`el run exige gate.architecture y no hay architecture.json`). En un run, hace fallar `rapid check --gate gate.architecture` y `rapid finish` no da `PASS`. | Cambiar el código para respetar la regla (importar solo el punto público del otro módulo, mover la lógica a la capa que toca, quitar la librería del `domain`). Nunca desactives ni edites `architecture.json` para que pase: pide a la persona que cambie la regla. En un proyecto con Ruby on Rails la regla delega en `bin/packwerk check`: si packwerk no está (`RAPID1420 packwerk no está disponible...`) el check termina con 1 y el gate no se da por satisfecho; instálalo con `bundle add packwerk --group development && bundle binstub packwerk`. Con un `architecture.json` de varias reglas (`rules`) se juzga cada una en su carpeta. |
-| `RAPID1421` | WARNING | `rapid doctor` encontró `.rapid-os/standards/security.md` y no menciona OWASP ASVS: el proyecto se inicializó antes de la base de seguridad (OWASP Top 10:2025, ASVS 5.0.0, SSDF, SLSA). No cambia el exit code. | Ejecutar `rapid setup set archetype <el actual> --refresh` (el aviso lo escribe con el arquetipo del proyecto): regenera `security.md` y `coding-rules.md` y deja las copias anteriores en `.rapid-os/backups/`. |
+| `RAPID1400` | INFO | `.rapid-os/setup.json` exists and is valid ("Setup válido"). Emitted by `rapid validate`. | None. |
+| `RAPID1401` | ERROR | Invalid catalog sidecar under `templates/stacks/`, `templates/topologies/`, or `templates/setup/`: unreadable JSON, `schema_version` other than 1, missing or empty field, `id` different from the file name, unknown topology in `compatible_topologies`, `default_topology` outside `compatible_topologies`, or a malformed question bank. In a stack under `templates/stacks/<component>/`: component different from its folder, `covers` without its component, incomplete `factors` or `sources` (all eleven factors and at least one https URL for each), `hosting_fit` outside `serverless`, `containers`, and `PaaS`, `supported_services` with an engine that is not in `templates/services/`, or a repeated id. A topology without `components`. `rapid init` aborts with this code instead of a traceback. | Fix or restore the indicated file from the Rapid OS installation, or reinstall the package. |
+| `RAPID1402` | ERROR | `rapid setup set topology <id>` with a topology incompatible with the stack already chosen (according to the catalog's `compatible_topologies`; a stack outside the catalog accepts all but `doc-site`), or `rapid setup set services` with an engine the stack does not support (the stack's `service_roles`). Nothing is written. When changing the stack with `set stack`, a topology that no longer fits is not an error: it is left undecided. | Choose a topology from the list shown by the message or `rapid setup next`. Also applies to a topology that does not fit one of the stacks already chosen (one per component), and to `rapid setup set services` with an engine that the backend stack does not declare in `supported_services` (the message lists the ones it does). |
+| `RAPID1406` | ERROR | `.rapid-os/setup.json` is invalid: unreadable JSON, `schema_version` other than 1, or a field with a disallowed type or value (`stack`, `docs.<id>.status`, etc.). `rapid setup next` and `show` exit with 1 without a traceback and do not modify the file. | Fix the file according to the message, or move it so the state is derived from disk. |
+| `RAPID1403` | WARNING / ERROR | An onboarding document drafted by the agent (`source: drafted`) lacks a section required by its bank: there is no `## ` heading matching any of its titles (es/en, case-insensitive). Not evaluated for `source: provided`. **Dual use:** in `rapid validate` it is a WARNING about an already-written document; in `rapid setup doc <id> --source drafted` it is a rejection (ERROR, exit 1) and nothing is written. | Add the section or redo the document. Conditional sections (`Base de datos local` in `DATA_MODEL.md` with a `database` service) count while their condition holds. |
+| `RAPID1404` | WARNING / ERROR | An onboarding document drafted by the agent exceeds its bank's `max_chars`. Not evaluated for `source: provided`. Same dual use as `RAPID1403`: WARNING in `rapid validate`, rejection (exit 1, nothing written) in `rapid setup doc ... --source drafted`. | Shorten the document. |
+| `RAPID1405` | ERROR | `rapid setup doc <id> --source drafted` on a document that a person supplied (`source: provided`) or on a hand-written file: the draft would replace it. Nothing is written. | Repeat with `--replace` if you want to replace it (a `.bak` is kept), or leave the document as it is. |
+| `RAPID1407` | ERROR | `rapid setup finish` while a decision remains open (stack, topology, archetype, agents, test command, a `pending` document, or the draft review, `review_drafts`, not closed). Nothing is written. | Run the command indicated by the message (the `command` of `rapid setup next`) and repeat `finish`. |
+| `RAPID1408` | WARNING | An onboarding document drafted by the agent is still unconfirmed by a person; it reaches the agent as an assumption. | Have a person review and confirm it. |
+| `RAPID1409` | ERROR | `rapid setup stack --custom` received a `tech-stack.md` missing one of the `Runtime`, `Framework`, or `Testing` sections (a `## ` heading or a `- **Name:**` line). Nothing is written. | Add the sections the message names and repeat the command. |
+| `RAPID1410` | WARNING | `standards/business.md` and `docs/BUSINESS_RULES.md` exist and their bodies differ (ignoring frontmatter and normalizing whitespace). `docs/BUSINESS_RULES.md` wins; the standard is left out of the context. | Unify the content or delete `standards/business.md`. |
+| `RAPID1412` | WARNING | A stack or topology template (`.md`) has no `.json` sidecar. The template remains usable and is treated as compatible with all topologies except `doc-site`. | Add `templates/<stacks\|topologies>/<id>.json` to declare `compatible_topologies` and `default_topology`; it is not mandatory. |
+| `RAPID1413` | ERROR | Invalid `rapid setup` subcommand, key, or value: unknown `set` key, nonexistent stack/topology/archetype/agent, unreadable or empty `--file`, unknown document, unknown `services` role or engine or an incompatible role-engine pair (`rapid setup set services <role>:<engine>`, with optional `@now` or `@later`), unknown platform in `rapid deploy --target` (`Plataforma desconocida`), `--component` with a key that is not `stack`, an unknown component or one the stack cannot fill (`rapid setup set stack go --component frontend`), a combination of `doc` modes (`--skip`, `--confirm`, `--reopen`, `--from-legacy`, `--source`), nothing to confirm or import, `--skip` of an already-written document, or `rapid setup` without a subcommand, `rapid setup review` without `--done`; also `rapid init --business-file` with an empty path, a directory, or an unreadable file, and `rapid start bugfix\|refactor\|hardening` in a new repository, with no code or tests (`No hay código que arreglar\|refactorizar\|endurecer; usa /rapid-feature`), and `rapid shortcuts install\|list\|remove` with `--global` for a harness without a documented user folder (`vscode`), without `--harness` or with `--hooks`, or with an `--only` that is not a shortcut. | Use `next`, `show`, `set`, `stack`, `doc`, or `finish` with values from `rapid setup next`. |
+| `RAPID1414` | WARNING | `rapid init` installed shortcuts or hooks, or `rapid doctor` found them, and `rapid` does not resolve on the `PATH`: they run from the agent's shell. It does not change the exit code (0). | Install Rapid OS with the installer or with `pipx install git+https://github.com/alyconr/Rapid-OS.git`, or add its scripts directory to the `PATH`. |
+| `RAPID1415` | ERROR / WARNING | The body of an onboarding document has a `?` between two letters or at the start of a word (`vac?os`, `Decisi?n`, `?xito`): what a non-UTF-8 pipe (the one from Windows PowerShell 5.1 to native programs uses ASCII) leaves in place of accents and `ñ`. Code blocks, inline code, and URLs are ignored. In `rapid setup doc <id> --source drafted` it is a rejection (exit 1, nothing is written); with `--source provided` it is a WARNING and the text is saved as is, because Rapid OS does not rewrite what the person pastes. | Write the document to a UTF-8 file and send it with `--file <path>`. In Windows PowerShell: `Set-Content -Encoding utf8 $env:TEMP\rapid-<id>.md` and `rapid setup doc <id> --source drafted --file $env:TEMP\rapid-<id>.md`. |
+| `RAPID1416` | ERROR | `rapid start` in a folder that is not a git repository, without git installed, or in a repository git does not trust. Rapid OS observes the run's changes with git and the run could never pass. It is checked before the run is created and before the empty-repository rejection (`RAPID1413`): nothing is written to `.rapid-os/runs` or `session.json`. | Run `git init`, or `rapid setup finish`, which creates the repository (with no commits) if it is missing; install git if it is not installed. **Folder git does not trust** (`detected dubious ownership`, common on Windows on another drive or in folders created by another user): same code, different text (`RAPID1416 git no confía en esta carpeta (dubious ownership) ...`); `git init` does not fix it, you must run `git config --global --add safe.directory <path>` with the path the message prints. `rapid setup finish` does not run `git init` in that case: it warns with the same command. Rapid OS runs all its git commands with `-c safe.directory=<project root>`, so `untrusted` only happens if git does not honor that setting (versions before 2.38) or if the repository is in a folder above the project root. The usual case of the Codex sandbox on Windows (another user) no longer blocks Rapid OS: the only thing pending is the exception for the person's own git, which arrives as `person_actions` (`git-safe-directory`) in `rapid setup finish`, `rapid setup next --json`, and `rapid doctor`. See [Windows: sandbox and git](../integrations/codex.md#windows-sandbox-and-git). |
+| `RAPID1420` | ERROR | `rapid arch check` found an import that breaks the architecture rule in `.rapid-os/standards/architecture.json`; one is emitted per violation, with file, line, import, and rule: `layer` (a layer imports a layer it is not allowed to), `cross_module` (a module imports from another something other than its public entry point), `shared` (`shared` imports a module), `init_reexport` (the `__init__.py` of a Python module imports something other than its own `public.py`), or `domain_forbidden_import` (`domain` imports `fastapi`, `sqlalchemy`, `react`, `@prisma/client`... depending on the stack). It is also used for an unreadable or invalid `architecture.json` and for a run whose contract includes `gate.architecture` when there is no `architecture.json` in the current directory or in the session's main project (`el run exige gate.architecture y no hay architecture.json`). In a run, it makes `rapid check --gate gate.architecture` fail and `rapid finish` does not give `PASS`. | Change the code to respect the rule (import only the other module's public entry point, move the logic to the layer where it belongs, remove the library from `domain`). Never disable or edit `architecture.json` to make it pass: ask the person to change the rule. In a Ruby on Rails project the rule delegates to `bin/packwerk check`: if packwerk is not there (`RAPID1420 packwerk no está disponible...`) the check ends with 1 and the gate is not considered satisfied; install it with `bundle add packwerk --group development && bundle binstub packwerk`. With an `architecture.json` of several rules (`rules`), each is judged in its own folder. |
+| `RAPID1421` | WARNING | `rapid doctor` found `.rapid-os/standards/security.md` and it does not mention OWASP ASVS: the project was initialized before the security baseline (OWASP Top 10:2025, ASVS 5.0.0, SSDF, SLSA). It does not change the exit code. | Run `rapid setup set archetype <the current one> --refresh` (the warning writes it out with the project's archetype): it regenerates `security.md` and `coding-rules.md` and leaves the previous copies in `.rapid-os/backups/`. |
 
 ---
 
-## 11. Validación del proyecto: estándares, configuración, stack y contexto (`RAPID200–RAPID502`)
+## 11. Project validation: standards, configuration, stack, and context (`RAPID200–RAPID502`)
 
-Los emiten `rapid validate` y `rapid doctor` sobre `.rapid-os/`.
+Emitted by `rapid validate` and `rapid doctor` over `.rapid-os/`.
 
-| Código | Severidad | Causa común | Acción de remediación |
+| Code | Severity | Common cause | Remediation action |
 | :--- | :--- | :--- | :--- |
-| `RAPID200` | ERROR | Falta la carpeta `.rapid-os/` del proyecto. | Ejecutar `rapid init` (o `rapid setup next`) en la raíz del proyecto. |
-| `RAPID201` | ERROR | Falta `.rapid-os/standards/`. | Ejecutar `rapid init` para regenerar los estándares. |
-| `RAPID202` | ERROR | Falta un estándar obligatorio (`tech-stack.md` o `topology.md`). | Ejecutar `rapid setup finish` o `rapid init` para generarlo. |
-| `RAPID203` | WARNING | Falta un estándar opcional (`security.md`, `business.md` o `coding-rules.md`). | Informativo; `rapid setup finish` escribe `security.md` y `coding-rules.md`. |
-| `RAPID204` | ERROR | Un estándar no es UTF-8 válido. | Guardarlo como UTF-8 o regenerarlo. |
-| `RAPID205` | ERROR | Un estándar no se pudo leer. | Revisar permisos y existencia del archivo. |
-| `RAPID206` | ERROR | Un estándar obligatorio está vacío. | Regenerarlo con `rapid init` o `rapid setup finish`. |
-| `RAPID207` | WARNING | Un estándar opcional está vacío. | Completarlo o eliminarlo. |
-| `RAPID208` | WARNING | Un estándar contiene marcadores sin resolver (`{{...}}`, `TODO`, `REPLACE_ME`...). | Sustituirlos por el contenido real. |
-| `RAPID300` | WARNING | Falta `.rapid-os/config.json`; se usan las herramientas por defecto. | Ejecutar `rapid init` o `rapid setup set agents <ids>`. |
-| `RAPID301` | ERROR | `config.json` no es JSON válido. | Corregir la sintaxis o restaurar el archivo desde `.rapid-os/backups/` o su `.bak`. |
-| `RAPID302` | ERROR | `config.json` no se pudo leer. | Revisar permisos del archivo. |
-| `RAPID303` | ERROR | El esquema de `config.json` es inválido (por ejemplo `tools` no es una lista). | Corregir el campo que indica el mensaje. |
-| `RAPID304` | WARNING | No hay herramientas seleccionadas en `config.json`. | Elegirlas con `rapid setup set agents <ids>`. |
-| `RAPID305` | ERROR | Los ids de `tools` en `config.json` deben ser cadenas. | Dejar solo ids de texto en `tools`. |
-| `RAPID306` | INFO | Se seleccionó una herramienta de investigación conocida (`context7`, `firecrawl`). | Informativo. |
-| `RAPID307` | ERROR | Referencia a una herramienta desconocida en `config.json`. | Usar un agente registrado o una herramienta de investigación conocida (el aviso las lista). |
-| `RAPID308` | ERROR | El agente seleccionado no tiene adaptador registrado. | Elegir un agente de la lista soportada. |
-| `RAPID309` | ERROR | El adaptador falló al renderizar el contexto de validación. | Reinstalar Rapid OS; si persiste, abrir un issue con el mensaje. |
-| `RAPID310` | ERROR | El adaptador no renderizó una de las salidas que declara. | Reinstalar Rapid OS; es un defecto del adaptador. |
-| `RAPID311` | ERROR | El adaptador declara una ruta de salida insegura (absoluta o con `..`). | Reinstalar Rapid OS; es un defecto del adaptador. |
-| `RAPID400` | INFO | Stack detectado en `tech-stack.md`. | Informativo. |
-| `RAPID401` | INFO | Topología detectada en `topology.md`. | Informativo. |
-| `RAPID402` | ERROR | El stack solo admite la topología `doc-site`. | Cambiar la topología con `rapid setup set topology doc-site` o elegir otro stack. |
-| `RAPID403` | ERROR | La topología `doc-site` debe usar el stack `docs-modern`. | `rapid setup set stack docs-modern` o cambiar de topología. |
-| `RAPID404` | ERROR | El stack no es compatible con la topología elegida (el mensaje lista las compatibles). | Elegir una topología compatible o cambiar el stack. |
-| `RAPID405` | WARNING | `fullstack-baas` con `python-ai`: la topología está pensada para aplicaciones web integradas. | Confirmar que la combinación es intencional. |
-| `RAPID500` | ERROR | El contexto ensamblado del proyecto está vacío. | Regenerar los estándares con `rapid init` o `rapid setup finish`. |
-| `RAPID501` | INFO | Longitud del contexto ensamblado. | Informativo. |
-| `RAPID502` | WARNING | El contexto ensamblado contiene marcadores sin resolver. | Sustituir los marcadores en los estándares que los contengan. |
+| `RAPID200` | ERROR | The project's `.rapid-os/` folder is missing. | Run `rapid init` (or `rapid setup next`) at the project root. |
+| `RAPID201` | ERROR | `.rapid-os/standards/` is missing. | Run `rapid init` to regenerate the standards. |
+| `RAPID202` | ERROR | A mandatory standard is missing (`tech-stack.md` or `topology.md`). | Run `rapid setup finish` or `rapid init` to generate it. |
+| `RAPID203` | WARNING | An optional standard is missing (`security.md`, `business.md`, or `coding-rules.md`). | Informational; `rapid setup finish` writes `security.md` and `coding-rules.md`. |
+| `RAPID204` | ERROR | A standard is not valid UTF-8. | Save it as UTF-8 or regenerate it. |
+| `RAPID205` | ERROR | A standard could not be read. | Check the permissions and existence of the file. |
+| `RAPID206` | ERROR | A mandatory standard is empty. | Regenerate it with `rapid init` or `rapid setup finish`. |
+| `RAPID207` | WARNING | An optional standard is empty. | Complete it or delete it. |
+| `RAPID208` | WARNING | A standard contains unresolved markers (`{{...}}`, `TODO`, `REPLACE_ME`...). | Replace them with the real content. |
+| `RAPID300` | WARNING | `.rapid-os/config.json` is missing; the default tools are used. | Run `rapid init` or `rapid setup set agents <ids>`. |
+| `RAPID301` | ERROR | `config.json` is not valid JSON. | Fix the syntax or restore the file from `.rapid-os/backups/` or its `.bak`. |
+| `RAPID302` | ERROR | `config.json` could not be read. | Check the file permissions. |
+| `RAPID303` | ERROR | The `config.json` schema is invalid (for example `tools` is not a list). | Fix the field indicated by the message. |
+| `RAPID304` | WARNING | No tools are selected in `config.json`. | Choose them with `rapid setup set agents <ids>`. |
+| `RAPID305` | ERROR | The `tools` ids in `config.json` must be strings. | Leave only text ids in `tools`. |
+| `RAPID306` | INFO | A known research tool was selected (`context7`, `firecrawl`). | Informational. |
+| `RAPID307` | ERROR | Reference to an unknown tool in `config.json`. | Use a registered agent or a known research tool (the warning lists them). |
+| `RAPID308` | ERROR | The selected agent has no registered adapter. | Choose an agent from the supported list. |
+| `RAPID309` | ERROR | The adapter failed to render the validation context. | Reinstall Rapid OS; if it persists, open an issue with the message. |
+| `RAPID310` | ERROR | The adapter did not render one of the outputs it declares. | Reinstall Rapid OS; it is an adapter defect. |
+| `RAPID311` | ERROR | The adapter declares an unsafe output path (absolute or with `..`). | Reinstall Rapid OS; it is an adapter defect. |
+| `RAPID400` | INFO | Stack detected in `tech-stack.md`. | Informational. |
+| `RAPID401` | INFO | Topology detected in `topology.md`. | Informational. |
+| `RAPID402` | ERROR | The stack only supports the `doc-site` topology. | Change the topology with `rapid setup set topology doc-site` or choose another stack. |
+| `RAPID403` | ERROR | The `doc-site` topology must use the `docs-modern` stack. | `rapid setup set stack docs-modern` or change topology. |
+| `RAPID404` | ERROR | The stack is not compatible with the chosen topology (the message lists the compatible ones). | Choose a compatible topology or change the stack. |
+| `RAPID405` | WARNING | `fullstack-baas` with `python-ai`: the topology is designed for integrated web applications. | Confirm that the combination is intentional. |
+| `RAPID500` | ERROR | The project's assembled context is empty. | Regenerate the standards with `rapid init` or `rapid setup finish`. |
+| `RAPID501` | INFO | Length of the assembled context. | Informational. |
+| `RAPID502` | WARNING | The assembled context contains unresolved markers. | Replace the markers in the standards that contain them. |
 
 ---
 
-## 12. Entorno de `rapid validate` (`RAPID900–RAPID909`)
+## 12. `rapid validate` environment (`RAPID900–RAPID909`)
 
-`rapid validate` abre su informe con el entorno que usó; son informativos salvo `RAPID906`.
+`rapid validate` opens its report with the environment it used; they are informational except `RAPID906`.
 
-| Código | Severidad | Causa común | Acción de remediación |
+| Code | Severity | Common cause | Remediation action |
 | :--- | :--- | :--- | :--- |
-| `RAPID900` | INFO | Directorio actual. | Informativo. |
-| `RAPID901` | INFO | Directorio de Rapid OS (`RAPID_HOME`). | Informativo. |
-| `RAPID902` | INFO | Directorio del script. | Informativo. |
-| `RAPID903` | INFO | Directorio de plantillas en uso. | Informativo. |
-| `RAPID904` | INFO | Directorio `.rapid-os/` del proyecto. | Informativo. |
-| `RAPID905` | INFO | Archivo de configuración en uso. | Informativo. |
-| `RAPID906` | WARNING | Node.js/npx no está disponible: los skills remotos y algunos flujos MCP no funcionarán. | Instalar Node.js si usas esos flujos. |
-| `RAPID907` | INFO | No hay un proyecto Rapid OS en el directorio actual. | Ejecutar `rapid init` o entrar a la raíz del proyecto. |
-| `RAPID908` | INFO | Harness por defecto de `config.json`. | Informativo. |
-| `RAPID909` | INFO | Comando de test de `config.json`. | Informativo; se cambia con `rapid setup set test-command <cmd>`. |
+| `RAPID900` | INFO | Current directory. | Informational. |
+| `RAPID901` | INFO | Rapid OS directory (`RAPID_HOME`). | Informational. |
+| `RAPID902` | INFO | Script directory. | Informational. |
+| `RAPID903` | INFO | Templates directory in use. | Informational. |
+| `RAPID904` | INFO | The project's `.rapid-os/` directory. | Informational. |
+| `RAPID905` | INFO | Configuration file in use. | Informational. |
+| `RAPID906` | WARNING | Node.js/npx is not available: remote skills and some MCP flows will not work. | Install Node.js if you use those flows. |
+| `RAPID907` | INFO | There is no Rapid OS project in the current directory. | Run `rapid init` or enter the project root. |
+| `RAPID908` | INFO | Default harness from `config.json`. | Informational. |
+| `RAPID909` | INFO | Test command from `config.json`. | Informational; change it with `rapid setup set test-command <cmd>`. |

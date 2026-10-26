@@ -1,135 +1,135 @@
 ---
-title: Arquitectura de referencia, el monolito modular
-description: La regla de arquitectura con la que arranca todo proyecto, los nombres idiomáticos de cada lenguaje, cuándo un módulo es hexagonal y cómo Rapid OS la verifica en cada run.
+title: Reference Architecture, the Modular Monolith
+description: The architecture rule every project starts with, the idiomatic names for each language, when a module is hexagonal, and how Rapid OS verifies it on every run.
 ---
 
-# Arquitectura de referencia, el monolito modular
+# Reference Architecture, the Modular Monolith
 
-Todo proyecto con stack de catálogo arranca como **monolito modular**: módulos por capacidad de negocio, capas dentro de cada módulo y puertos y adaptadores (hexagonal) solo en los módulos que lo justifican. La regla llega al agente como un estándar y Rapid OS la verifica en cada run, en el idioma del stack elegido.
+Every project with a catalog stack starts as a **modular monolith**: modules by business capability, layers inside each module, and ports and adapters (hexagonal) only in the modules that justify them. The rule reaches the agent as a standard, and Rapid OS verifies it on every run, in the idiom of the chosen stack.
 
-Los stacks `generic`, `custom` y `docs-modern` no reciben la regla. Ver [Stacks y componentes](./stacks.md).
+The `generic`, `custom`, and `docs-modern` stacks do not receive the rule. See [Stacks and components](./stacks.md).
 
-## La regla (igual en todos los lenguajes)
+## The rule (the same in every language)
 
-Las responsabilidades no cambian; cambian los nombres y el mecanismo.
+The responsibilities do not change; the names and the mechanism do.
 
-- El sistema se organiza en **módulos por capacidad de negocio** (citas, pagos, talleres), nunca en capas globales (`controllers/`, `services/`, `models/` en la raíz).
-- Cada módulo tiene una **entrada** (HTTP, eventos), una **aplicación** (casos de uso; aquí viven los puertos si el módulo es hexagonal), un **dominio** (entidades, reglas e invariantes, sin framework web ni ORM), una **infraestructura** (persistencia y adaptadores externos) y **un único contrato público**.
-- Dirección de dependencias: entrada → aplicación → dominio; infraestructura → aplicación y dominio (implementa los puertos); el dominio no importa nada de las otras capas ni librerías de framework web, ORM o clientes externos.
-- Entre módulos solo se usa el contrato público del otro módulo, nunca sus capas.
-- Cada módulo es dueño de sus tablas: otro módulo no las lee ni las escribe directamente.
-- `shared/` es un núcleo mínimo (configuración, sesión de base de datos, errores base) y no importa ningún módulo.
+- The system is organized into **modules by business capability** (appointments, payments, workshops), never into global layers (`controllers/`, `services/`, `models/` at the root).
+- Each module has an **entry** (HTTP, events), an **application** (use cases; this is where the ports live if the module is hexagonal), a **domain** (entities, rules, and invariants, with no web framework or ORM), an **infrastructure** (persistence and external adapters), and **a single public contract**.
+- Dependency direction: entry → application → domain; infrastructure → application and domain (it implements the ports); the domain imports nothing from the other layers nor web framework, ORM, or external client libraries.
+- Between modules, only the other module's public contract is used, never its layers.
+- Each module owns its tables: another module does not read or write them directly.
+- `shared/` is a minimal core (configuration, database session, base errors) and does not import any module.
 
-No se empieza con microservicios: un monolito modular da los mismos límites con un solo despliegue, y un módulo con contrato público y tablas propias se extrae después si hace falta.
+You do not start with microservices: a modular monolith gives the same boundaries with a single deployment, and a module with a public contract and its own tables can be extracted later if needed.
 
-## Los nombres de cada lenguaje
+## The names in each language
 
-| Stack | Módulos en | Entrada | Aplicación | Dominio | Infraestructura | Contrato público |
+| Stack | Modules in | Entry | Application | Domain | Infrastructure | Public contract |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | `python-fastapi` | `app/modules/<m>/` | `api/` | `application/` | `domain/` | `infrastructure/` | `public.py` |
-| `python-django` | `apps/<m>/` (una app por módulo) | `api/` (vistas y serializers) | `services/` | `domain/` | `models.py` | `public.py` |
-| `node-nestjs` | `src/modules/<m>/` | `controllers/` | `application/` | `domain/` | `infrastructure/` | `<m>.module.ts` (sus `exports`) o `index.ts` |
+| `python-django` | `apps/<m>/` (one app per module) | `api/` (views and serializers) | `services/` | `domain/` | `models.py` | `public.py` |
+| `node-nestjs` | `src/modules/<m>/` | `controllers/` | `application/` | `domain/` | `infrastructure/` | `<m>.module.ts` (its `exports`) or `index.ts` |
 | `node-fastify` | `src/modules/<m>/` | `routes/` | `application/` | `domain/` | `infrastructure/` | `index.ts` |
-| `go` | `internal/<m>/` | `http/` | `app/` | `domain/` | `store/` o `adapters/` | el paquete raíz del módulo (identificadores exportados) |
-| `rust-axum` | `src/modules/<m>/` | `routes.rs` | `application.rs` | `domain.rs` | `infra.rs` | `mod.rs` (`pub use`); el resto `pub(crate)` |
+| `go` | `internal/<m>/` | `http/` | `app/` | `domain/` | `store/` or `adapters/` | the module's root package (exported identifiers) |
+| `rust-axum` | `src/modules/<m>/` | `routes.rs` | `application.rs` | `domain.rs` | `infra.rs` | `mod.rs` (`pub use`); everything else `pub(crate)` |
 | `ruby-rails` | `packs/<m>/` (packwerk) | `app/controllers` | `app/use_cases` | `app/domain` (POROs) | `app/models` (Active Record) | `app/public/` |
-| `dotnet-aspnetcore` | `src/Modules/<M>/` | `<M>.Api` | `<M>.Application` | `<M>.Domain` | `<M>.Infrastructure` | el proyecto `<M>.Contracts` |
-| `java-spring-boot`, `kotlin-spring-boot` | `src/main/{java,kotlin}/com/example/app/<m>/` | `web/` | `application/` | `domain/` | `infrastructure/` | los tipos del paquete raíz del módulo (Spring Modulith) |
-| `php-laravel` | `app/Modules/<M>/` | `Http/` | `Application/` | `Domain/` | `Infrastructure/` | `Contracts/` y un ServiceProvider por módulo |
-| `nextjs`, `nuxt`, `sveltekit` (servidor) | `src/modules/<m>/` (`server/modules/` en Nuxt, `src/lib/server/modules/` en SvelteKit) | `api/` | `application/` | `domain/` | `infrastructure/` | `index.ts` |
+| `dotnet-aspnetcore` | `src/Modules/<M>/` | `<M>.Api` | `<M>.Application` | `<M>.Domain` | `<M>.Infrastructure` | the `<M>.Contracts` project |
+| `java-spring-boot`, `kotlin-spring-boot` | `src/main/{java,kotlin}/com/example/app/<m>/` | `web/` | `application/` | `domain/` | `infrastructure/` | the types in the module's root package (Spring Modulith) |
+| `php-laravel` | `app/Modules/<M>/` | `Http/` | `Application/` | `Domain/` | `Infrastructure/` | `Contracts/` and one ServiceProvider per module |
+| `nextjs`, `nuxt`, `sveltekit` (server) | `src/modules/<m>/` (`server/modules/` in Nuxt, `src/lib/server/modules/` in SvelteKit) | `api/` | `application/` | `domain/` | `infrastructure/` | `index.ts` |
 
-`architecture.md` se genera con los nombres del lenguaje elegido, el árbol de ese stack y una tabla final que mapea cada nombre a su responsabilidad canónica.
+`architecture.md` is generated with the names of the chosen language, the tree for that stack, and a final table that maps each name to its canonical responsibility.
 
-### El frontend
+### The frontend
 
-Los ocho stacks de frontend (`react-vite`, `nextjs`, `angular`, `vue-vite`, `nuxt`, `svelte-vite`, `sveltekit`, `astro`) organizan por **funcionalidad**: `src/features/<f>/` (`src/app/features/` en Angular, `app/features/` en Nuxt, `src/lib/features/` en SvelteKit) con
+The eight frontend stacks (`react-vite`, `nextjs`, `angular`, `vue-vite`, `nuxt`, `svelte-vite`, `sveltekit`, `astro`) are organized by **feature**: `src/features/<f>/` (`src/app/features/` in Angular, `app/features/` in Nuxt, `src/lib/features/` in SvelteKit) with
 
-| Carpeta | Responsabilidad |
+| Folder | Responsibility |
 | :--- | :--- |
-| `ui/` | componentes |
-| `state/` | estado de la funcionalidad |
-| `data-access/` | llamadas a la API |
-| `model/` | tipos y reglas de presentación |
-| `index.ts` | contrato público |
+| `ui/` | components |
+| `state/` | feature state |
+| `data-access/` | API calls |
+| `model/` | types and presentation rules |
+| `index.ts` | public contract |
 
-`ui` puede importar `state` y `model`; `state`, `data-access` y `model`; `data-access`, `model`; `model` no importa nada de las otras capas ni un framework de interfaz (`react`, `vue`, `svelte`, `@angular/core`...). Una funcionalidad solo importa el `index.ts` de otra.
+`ui` may import `state` and `model`; `state` may import `data-access` and `model`; `data-access` may import `model`; `model` imports nothing from the other layers nor a UI framework (`react`, `vue`, `svelte`, `@angular/core`...). A feature only imports another feature's `index.ts`.
 
-### Backend y frontend en el mismo proyecto
+### Backend and frontend in the same project
 
-Cuando el backend y el frontend son stacks distintos viven en `backend/` y `frontend/` y `architecture.json` trae dos reglas. Cuando un solo framework cubre ambos (`nextjs`, `nuxt`, `sveltekit`) las dos reglas están en la raíz, en `src/modules` y `src/features`. Un proyecto con una sola de las dos usa la raíz.
+When the backend and frontend are different stacks, they live in `backend/` and `frontend/`, and `architecture.json` carries two rules. When a single framework covers both (`nextjs`, `nuxt`, `sveltekit`), both rules are at the root, in `src/modules` and `src/features`. A project with only one of the two uses the root.
 
-## Cuándo un módulo es hexagonal
+## When a module is hexagonal
 
-Usa puertos en la capa de aplicación y adaptadores en la de infraestructura cuando el módulo integra un sistema externo (pagos, mensajería, IA, correo), cuando su dominio tiene reglas complejas que deben probarse sin infraestructura, o cuando se prevé cambiar de proveedor. Un CRUD simple no lo necesita.
+Use ports in the application layer and adapters in the infrastructure layer when the module integrates an external system (payments, messaging, AI, email), when its domain has complex rules that must be tested without infrastructure, or when a provider change is anticipated. A simple CRUD does not need it.
 
-## Cómo llega al proyecto
+## How it reaches the project
 
-`rapid setup finish` (y `rapid init`) escribe dos archivos en `.rapid-os/standards/`:
+`rapid setup finish` (and `rapid init`) writes two files in `.rapid-os/standards/`:
 
-| Archivo | Para quién | Qué contiene |
+| File | For whom | What it contains |
 | :--- | :--- | :--- |
-| `architecture.md` | El agente | La regla con el árbol y los nombres de cada stack. Entra al contexto y a los archivos de agente como estándar, sin banner de supuesto. |
-| `architecture.json` | Rapid OS | La regla en forma de máquina (ver abajo). |
+| `architecture.md` | The agent | The rule with the tree and the names for each stack. It enters the context and the agent files as a standard, without an assumption banner. |
+| `architecture.json` | Rapid OS | The rule in machine form (see below). |
 
-Si ya existen, no se sobrescriben al terminar de nuevo el onboarding (tu edición se respeta). Si cambias a un stack sin la regla, Rapid OS no borra estos archivos: bórralos tú si ya no aplican.
+If they already exist, they are not overwritten when onboarding finishes again (your edits are respected). If you switch to a stack without the rule, Rapid OS does not delete these files: delete them yourself if they no longer apply.
 
-`architecture.json` guarda `language`, `component`, `modules_root`, `shared_root`, `public_entry`, qué capas puede importar cada capa (`layers`) y las librerías prohibidas en la capa pura (`domain_forbidden_imports`), y desde el catálogo por componentes también `roles` (qué carpeta o paquete es cada capa canónica; `{m}` nombra al módulo), `module_pattern`, `public_contract`, `public_policy` (`entry`: solo el punto público; `root`: todo lo que no sea una capa), `public_dirs`, `namespace_root` (Java, Kotlin, C# y PHP), `aliases` (TypeScript), `pure_layer`, `delegate`, `root` y `rules` cuando hay varias. Los archivos anteriores siguen leyéndose igual. En Java y Kotlin cambia `com.example.app` por tu paquete real; en C# y PHP, `namespace_root` por tu espacio de nombres raíz.
+`architecture.json` stores `language`, `component`, `modules_root`, `shared_root`, `public_entry`, which layers each layer may import (`layers`), and the libraries forbidden in the pure layer (`domain_forbidden_imports`), and, since the per-component catalog, also `roles` (which folder or package is each canonical layer; `{m}` names the module), `module_pattern`, `public_contract`, `public_policy` (`entry`: only the public entry point; `root`: everything that is not a layer), `public_dirs`, `namespace_root` (Java, Kotlin, C#, and PHP), `aliases` (TypeScript), `pure_layer`, `delegate`, `root`, and `rules` when there are several. Earlier files are still read the same way. In Java and Kotlin, replace `com.example.app` with your real package; in C# and PHP, replace `namespace_root` with your root namespace.
 
-El documento `docs/ARCHITECTURE.md` del onboarding exige las secciones **Módulos**, **Reglas de dependencia** y **Servicios de infraestructura**, y parte de este estándar.
+The onboarding's `docs/ARCHITECTURE.md` document requires the **Modules**, **Dependency rules**, and **Infrastructure services** sections, and starts from this standard.
 
-## Cómo se verifica
+## How it is verified
 
-`rapid arch check` lee los imports de los archivos bajo `modules_root` y `shared_root` e informa cada violación con archivo, línea, import y regla (`RAPID1420`). No ejecuta nada ni añade dependencias:
+`rapid arch check` reads the imports of the files under `modules_root` and `shared_root` and reports each violation with file, line, import, and rule (`RAPID1420`). It runs nothing and adds no dependencies:
 
-| Lenguaje | Qué lee |
+| Language | What it reads |
 | :--- | :--- |
 | Python | `ast` |
-| TypeScript y JavaScript | `import`, `export ... from`, `import()` y `require`; el bloque `<script>` de `.vue` y `.svelte` y el frontmatter y los `<script>` de `.astro` |
-| Go | `import` (se ignoran los `_test.go`) |
-| Java y Kotlin | `import` |
-| C# | `using` y las referencias de los `.csproj` (`ProjectReference` y `PackageReference`) |
-| Rust | `use` (con `crate::`, `super::` y `self::`) |
+| TypeScript and JavaScript | `import`, `export ... from`, `import()`, and `require`; the `<script>` block of `.vue` and `.svelte` and the frontmatter and `<script>` of `.astro` |
+| Go | `import` (`_test.go` files are ignored) |
+| Java and Kotlin | `import` |
+| C# | `using` and the `.csproj` references (`ProjectReference` and `PackageReference`) |
+| Rust | `use` (with `crate::`, `super::`, and `self::`) |
 | PHP | `use` |
-| Ruby | no hay imports que leer: delega en `bin/packwerk check` |
+| Ruby | there are no imports to read: it delegates to `bin/packwerk check` |
 
-Las violaciones son:
+The violations are:
 
-- una capa que importa una capa que no le toca;
-- un módulo que importa de otro algo distinto de su contrato público;
-- `shared` que importa un módulo;
-- el `__init__.py` de un módulo de Python que importa algo distinto de su propio `public.py`;
-- la capa pura (`domain`, o `model` en el frontend) que importa una librería prohibida.
+- a layer that imports a layer it is not allowed to;
+- a module that imports from another anything other than its public contract;
+- `shared` importing a module;
+- the `__init__.py` of a Python module importing anything other than its own `public.py`;
+- the pure layer (`domain`, or `model` in the frontend) importing a forbidden library.
 
-Solo cuentan como módulos los directorios de `modules_root`. Sale con 1 si hay violaciones, con 0 si no las hay, si todavía no hay módulos o (con un aviso) si el proyecto no tiene `architecture.json`.
+Only the directories under `modules_root` count as modules. It exits with 1 if there are violations, and with 0 if there are none, if there are no modules yet, or (with a warning) if the project has no `architecture.json`.
 
 ### Ruby on Rails
 
-Rails carga el código por convención: no hay imports que leer. `rapid arch check` ejecuta `bin/packwerk check` y lo dice. Si packwerk no está, avisa (`RAPID1420 packwerk no está disponible...`) y termina con 1: el gate no se da por satisfecho. Instálalo con `bundle add packwerk --group development && bundle binstub packwerk`.
+Rails loads code by convention: there are no imports to read. `rapid arch check` runs `bin/packwerk check` and says so. If packwerk is not available, it warns (`RAPID1420 packwerk no está disponible...`) and exits with 1: the gate is not considered satisfied. Install it with `bundle add packwerk --group development && bundle binstub packwerk`.
 
-### Herramientas idiomáticas como prueba complementaria
+### Idiomatic tools as a complementary test
 
-Donde existe la herramienta del ecosistema, `architecture.md` la nombra como prueba complementaria que el scaffold puede añadir: Spring Modulith (`ApplicationModules.of(Application.class).verify()`), packwerk, Deptrac (PHP) y NetArchTest (.NET). El gate sigue siendo `rapid arch check`.
+Where the ecosystem's tool exists, `architecture.md` names it as a complementary test that the scaffold can add: Spring Modulith (`ApplicationModules.of(Application.class).verify()`), packwerk, Deptrac (PHP), and NetArchTest (.NET). The gate remains `rapid arch check`.
 
-### En un run con worktree
+### In a run with a worktree
 
-El worktree de un run no tiene `.rapid-os/`: el ledger y la regla viven en el proyecto principal. Si no hay `architecture.json` en el directorio actual y hay una sesión activa cuyo contrato incluye `gate.architecture`, `rapid arch check` lee la regla del proyecto principal (la raíz de la sesión) y analiza el código del directorio actual, es decir, del worktree. Si el run exige el gate y no encuentra la regla en ninguno de los dos sitios, termina con `RAPID1420 el run exige gate.architecture y no hay architecture.json` (exit 1): sin regla, el gate no puede parecer satisfecho. Fuera de un run, sin `architecture.json` sigue siendo exit 0 con un aviso.
+A run's worktree has no `.rapid-os/`: the ledger and the rule live in the main project. If there is no `architecture.json` in the current directory and there is an active session whose contract includes `gate.architecture`, `rapid arch check` reads the rule from the main project (the session's root) and analyzes the code of the current directory, that is, of the worktree. If the run requires the gate and the rule is found in neither place, it exits with `RAPID1420 el run exige gate.architecture y no hay architecture.json` (exit 1): without a rule, the gate cannot appear satisfied. Outside a run, a missing `architecture.json` is still exit 0 with a warning.
 
-### El gate `gate.architecture`
+### The `gate.architecture` gate
 
-En los runs de `feature`, `bugfix` y `refactor`, si existe `architecture.json`, el contrato incluye el gate de máquina `gate.architecture`. `rapid next` lo propone como una verificación más, igual que `gate.tests`:
+In `feature`, `bugfix`, and `refactor` runs, if `architecture.json` exists, the contract includes the machine gate `gate.architecture`. `rapid next` proposes it as one more verification, just like `gate.tests`:
 
 ```bash
 rapid check --gate gate.architecture -- rapid arch check
 ```
 
-`rapid finish` no da `PASS` mientras ese gate no esté satisfecho. El gate no se puede dispensar (no es waivable). Nunca desactives ni edites `architecture.json` para que un check pase: cambia el código o pide a la persona que cambie la regla.
+`rapid finish` does not give `PASS` while that gate is not satisfied. The gate cannot be waived (it is not waivable). Never disable or edit `architecture.json` to make a check pass: change the code or ask the person to change the rule.
 
-## Proyectos existentes
+## Existing projects
 
-La regla aplica al **código nuevo**. En un repositorio con capas globales, `rapid arch check` informa violaciones solo dentro de `modules_root`; no exige migrar. La migración a módulos se hace con `/rapid-refactor`, y en un proyecto nuevo la tarea de scaffold pide un módulo de ejemplo con sus capas y su contrato público.
+The rule applies to **new code**. In a repository with global layers, `rapid arch check` reports violations only inside `modules_root`; it does not require migrating. The migration to modules is done with `/rapid-refactor`, and in a new project the scaffold task asks for an example module with its layers and its public contract.
 
-## Límites
+## Limits
 
-- Los imports se resuelven desde la raíz del proyecto; un alias propio fuera de los de `architecture.json` (`aliases`) no se reconoce.
-- Go resuelve un import buscando la carpeta de los módulos (`internal`) dentro de la ruta, así que no necesita leer `go.mod`.
-- Las reglas de instrucción que no son de importación (por ejemplo, que cada módulo sea dueño de sus tablas) las cumple el agente; el verificador juzga solo `modules_root` y `shared_root`.
+- Imports are resolved from the project root; a custom alias outside those in `architecture.json` (`aliases`) is not recognized.
+- Go resolves an import by looking for the modules folder (`internal`) within the path, so it does not need to read `go.mod`.
+- Instruction rules that are not about imports (for example, that each module owns its tables) are upheld by the agent; the checker judges only `modules_root` and `shared_root`.

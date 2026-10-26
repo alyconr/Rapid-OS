@@ -1,57 +1,57 @@
 ---
-title: Modo Bugfix
-description: Flujo de trabajo para reproducir, aislar y corregir defectos con tests de regresión verificados.
+title: Bugfix Mode
+description: Workflow to reproduce, isolate, and fix defects with verified regression tests.
 ---
 
-# Modo Bugfix
+# Bugfix Mode
 
-El modo **Bugfix** prioriza la reproducción verificable del error, la contención del alcance para evitar efectos secundarios y la adición obligatoria de una prueba de regresión antes de declarar resuelto el defecto.
+**Bugfix** mode prioritizes verifiable reproduction of the error, scope containment to avoid side effects, and the mandatory addition of a regression test before declaring the defect resolved.
 
 ---
 
-## Con el shortcut `/rapid-bugfix`
+## With the `/rapid-bugfix` shortcut
 
 ```text
-/rapid-bugfix el descuento del 10% devuelve un total negativo
+/rapid-bugfix the 10% discount returns a negative total
 ```
 
-(En Codex: `$rapid-bugfix …`.) El shortcut conduce el run completo; la instalación y la invocación por harness están en la [guía de shortcuts](../shortcuts.md).
+(In Codex: `$rapid-bugfix …`.) The shortcut drives the whole run; installation and invocation per harness are in the [shortcuts guide](../shortcuts.md).
 
-Qué hace su playbook (`templates/modes/bugfix.json` y las reglas del Conductor):
+What its playbook does (`templates/modes/bugfix.json` and the Conductor rules):
 
-- La baseline se toma en `rapid start`, **antes** de que exista el test de reproducción.
-- La primera tarea (`T001`) es «Reproducir con un test en rojo». Mientras está en curso y no hay una aserción `reproduction.T001` en PASS, `rapid next` propone `rapid check --expect fail --task T001 -- <test_command>`, que registra el fallo esperado como evidencia.
-- **Arquitectura:** si el proyecto tiene `.rapid-os/standards/architecture.json` (lo escribe el onboarding con el stack elegido), el contrato incluye el gate de máquina `gate.architecture` (obligatorio, no dispensable) y `rapid next` propone `rapid check --gate gate.architecture -- rapid arch check`. Una violación de capas o de contrato público es `RAPID1420` y `rapid finish` no da `PASS` hasta que se corrija el código. Detalle en [Arquitectura por stack](../../concepts/architecture.md#el-gate-gatearchitecture).
-- Con el fallo registrado, `T001` se cierra con `rapid task done T001 --no-check` (la suite está en rojo a propósito) y la corrección va en las tareas siguientes.
+- The baseline is taken at `rapid start`, **before** the reproduction test exists.
+- The first task (`T001`) is "Reproduce with a red test". While it is in progress and there is no `reproduction.T001` assertion in PASS, `rapid next` proposes `rapid check --expect fail --task T001 -- <test_command>`, which records the expected failure as evidence.
+- **Architecture:** if the project has `.rapid-os/standards/architecture.json` (written by onboarding with the chosen stack), the contract includes the machine gate `gate.architecture` (mandatory, non-waivable) and `rapid next` proposes `rapid check --gate gate.architecture -- rapid arch check`. A layer or public-contract violation is `RAPID1420` and `rapid finish` does not give `PASS` until the code is fixed. Details in [Architecture by stack](../../concepts/architecture.md#the-gatearchitecture-gate).
+- With the failure recorded, `T001` is closed with `rapid task done T001 --no-check` (the suite is red on purpose) and the fix goes in the following tasks.
 
-El resto de esta guía describe el mismo ciclo con comandos v3 (**Modo avanzado**), útil para CI, depuración y auditoría.
-
----
-
-## Principios del modo Bugfix
-
-1. **No hay fix sin prueba de regresión**: Todo defecto debe reproducirse primero mediante una prueba que falle.
-2. **Alcance mínimo**: El parche debe limitarse estrictamente a corregir la causa raíz sin introducir refactorizaciones oportunistas.
-3. **Evidencia de no-regresión**: Se debe registrar evidencia de que la suite general de pruebas sigue aprobando al 100%.
+The rest of this guide describes the same cycle with v3 commands (**Advanced mode**), useful for CI, debugging, and auditing.
 
 ---
 
-## Flujo paso a paso
+## Bugfix mode principles
+
+1. **No fix without a regression test**: Every defect must first be reproduced by a failing test.
+2. **Minimal scope**: The patch must be strictly limited to fixing the root cause without introducing opportunistic refactors.
+3. **Non-regression evidence**: Evidence must be recorded that the overall test suite still passes at 100%.
+
+---
+
+## Step-by-step flow
 
 ```mermaid
 flowchart TD
-    Bug["1. Defecto reportado"] --> Spec["2. rapid spec create --mode bugfix"]
-    Spec --> TestFail["3. Escribir test de regresión (rojo)"]
-    TestFail --> EvFail["4. Guardar log de reproducción local"]
-    EvFail --> Fix["5. Harness aplica la corrección"]
-    Fix --> TestPass["6. Test de regresión y suite general pasan (verde)"]
-    TestPass --> EvPass["7. Registrar evidencia de resolución (test_result)"]
+    Bug["1. Defect reported"] --> Spec["2. rapid spec create --mode bugfix"]
+    Spec --> TestFail["3. Write regression test (red)"]
+    TestFail --> EvFail["4. Save local reproduction log"]
+    EvFail --> Fix["5. Harness applies the fix"]
+    Fix --> TestPass["6. Regression test and overall suite pass (green)"]
+    TestPass --> EvPass["7. Record resolution evidence (test_result)"]
     EvPass --> Eval["8. rapid eval run --require-pass"]
 ```
 
 ---
 
-## 1. Registrar la especificación del Bugfix
+## 1. Register the Bugfix specification
 
 ```bash
 rapid spec create \
@@ -68,7 +68,7 @@ rapid spec create \
 
 ---
 
-## 2. Compilar el contexto con foco en el defecto
+## 2. Compile the context focused on the defect
 
 ```bash
 rapid context \
@@ -82,7 +82,7 @@ rapid context \
 
 ---
 
-## 3. Crear el Run y vincular la política
+## 3. Create the Run and bind the policy
 
 ```bash
 rapid run create \
@@ -94,20 +94,20 @@ rapid run create \
 
 ---
 
-## 4. Capturar Evidencia de Reproducción y Resolución
+## 4. Capture Reproduction and Resolution Evidence
 
-### Paso A: Evidencia del fallo inicial (Reproducción local)
-Captura la traza y resultado del fallo como artefacto de reproducción local sin registrarlo todavía como `test_result` ligado a tareas o compuertas del run (ya que el evaluador actual clasificaría cualquier `test_result` con `exit_code != 0` o `failed > 0` como fallo irreversible del run):
+### Step A: Initial failure evidence (local reproduction)
+Capture the trace and result of the failure as a local reproduction artifact without yet recording it as a `test_result` linked to run tasks or gates (since the current evaluator would classify any `test_result` with `exit_code != 0` or `failed > 0` as an irreversible run failure):
 
 ```bash
-# Ejecutar test de reproducción y almacenar el log rojo como artefacto local
+# Run the reproduction test and store the red log as a local artifact
 pytest -k test_reconciliation_deadlock > reproduction.log 2>&1 || true
 ```
 
-> **Nota de Gobernanza (Roadmap):** El PR 2.1 introducirá soporte formal de contratos con `expectation: fail` para pruebas de reproducción previa. Hasta entonces, conserva el log de falla como artefacto local de diagnóstico (`reproduction.log`) y no lo vincules como evidencia de compuertas ni tareas.
+> **Governance Note (Roadmap):** PR 2.1 will introduce formal support for contracts with `expectation: fail` for prior reproduction tests. Until then, keep the failure log as a local diagnostic artifact (`reproduction.log`) and do not link it as evidence for gates or tasks.
 
-### Paso B: Evidencia de la corrección y no-regresión
-Una vez aplicado el cambio en el código y aprobadas todas las pruebas:
+### Step B: Fix and non-regression evidence
+Once the code change is applied and all tests pass:
 
 ```json
 {
@@ -133,9 +133,9 @@ rapid evidence add \
 
 ---
 
-## 5. Evaluación final del Run
+## 5. Final evaluation of the Run
 
-Ejecuta la evaluación final:
+Run the final evaluation:
 
 ```bash
 rapid eval run \
@@ -144,5 +144,5 @@ rapid eval run \
   --require-pass
 ```
 
-El veredicto confirmará que las compuertas de pruebas (`implementation_tests`) fueron satisfechas con evidencia empírica.
+The verdict will confirm that the test gates (`implementation_tests`) were satisfied with empirical evidence.
 
