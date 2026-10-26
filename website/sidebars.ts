@@ -60,7 +60,7 @@ const sidebars: SidebarsConfig = {
         {
           type: 'link',
           label: 'Claude Code Hooks',
-          href: '/integrations/claude-code#6-claude-code-hooks-optional-loop-enforcement',
+          href: '/integrations/claude-code',
         },
       ],
     },

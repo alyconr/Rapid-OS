@@ -15,7 +15,11 @@ const config: Config = {
 
   i18n: {
     defaultLocale: 'en',
-    locales: ['en'],
+    locales: ['en', 'es'],
+    localeConfigs: {
+      en: {label: 'English', htmlLang: 'en-US'},
+      es: {label: 'Español', htmlLang: 'es-ES'},
+    },
   },
 
   presets: [
@@ -61,6 +65,7 @@ const config: Config = {
         {to: '/cookbooks/policies-and-contracts', label: 'Cookbooks', position: 'left'},
         {to: '/governance-loop', label: 'Governance v3', position: 'left'},
         {to: '/cli', label: 'CLI', position: 'left'},
+        {type: 'localeDropdown', position: 'right'},
         {
           href: 'https://github.com/alyconr/Rapid-OS',
           label: 'GitHub',

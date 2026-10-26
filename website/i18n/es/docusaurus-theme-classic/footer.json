@@ -1,0 +1,98 @@
+{
+  "link.title.Learn": {
+    "message": "Aprender",
+    "description": "The title of the footer links column with title=Aprender in the footer"
+  },
+  "link.title.Governance and Practice": {
+    "message": "Gobernanza y Práctica",
+    "description": "The title of the footer links column with title=Gobernanza y Práctica in the footer"
+  },
+  "link.title.Reference": {
+    "message": "Referencia",
+    "description": "The title of the footer links column with title=Referencia in the footer"
+  },
+  "link.title.Project": {
+    "message": "Proyecto",
+    "description": "The title of the footer links column with title=Proyecto in the footer"
+  },
+  "link.item.label.What is Rapid OS": {
+    "message": "Qué es Rapid OS",
+    "description": "The label of footer link with label=Qué es Rapid OS linking to /concepts/what-is-rapid-os"
+  },
+  "link.item.label.Why Rapid OS": {
+    "message": "Por qué Rapid OS",
+    "description": "The label of footer link with label=Por qué Rapid OS linking to /concepts/why-rapid-os"
+  },
+  "link.item.label.Installation": {
+    "message": "Instalación",
+    "description": "The label of footer link with label=Instalación linking to /installation"
+  },
+  "link.item.label.Getting Started": {
+    "message": "Primeros pasos",
+    "description": "The label of footer link with label=Primeros pasos linking to /getting-started"
+  },
+  "link.item.label.Shortcuts": {
+    "message": "Shortcuts",
+    "description": "The label of footer link with label=Shortcuts linking to /guides/shortcuts"
+  },
+  "link.item.label.Engineering Modes": {
+    "message": "Modos de ingeniería",
+    "description": "The label of footer link with label=Modos de ingeniería linking to /guides/modes"
+  },
+  "link.item.label.Use Cases": {
+    "message": "Casos de uso",
+    "description": "The label of footer link with label=Casos de uso linking to /guides/use-cases"
+  },
+  "link.item.label.Policies and Contracts": {
+    "message": "Políticas y Contratos",
+    "description": "The label of footer link with label=Políticas y Contratos linking to /cookbooks/policies-and-contracts"
+  },
+  "link.item.label.Capabilities and Profiles": {
+    "message": "Capabilities y Perfiles",
+    "description": "The label of footer link with label=Capabilities y Perfiles linking to /cookbooks/harness-profiles"
+  },
+  "link.item.label.Evidence Engine": {
+    "message": "Evidence Engine",
+    "description": "The label of footer link with label=Evidence Engine linking to /cookbooks/evidence-engine"
+  },
+  "link.item.label.Behavioral Evals": {
+    "message": "Behavioral Evals",
+    "description": "The label of footer link with label=Behavioral Evals linking to /cookbooks/behavioral-evaluations"
+  },
+  "link.item.label.CI/CD Integration": {
+    "message": "Integración CI/CD",
+    "description": "The label of footer link with label=Integración CI/CD linking to /guides/ci-cd-integration"
+  },
+  "link.item.label.CLI": {
+    "message": "CLI",
+    "description": "The label of footer link with label=CLI linking to /cli"
+  },
+  "link.item.label.RAPIDxxx Diagnostics": {
+    "message": "Diagnósticos RAPIDxxx",
+    "description": "The label of footer link with label=Diagnósticos RAPIDxxx linking to /troubleshooting/diagnostics"
+  },
+  "link.item.label.v3 Architecture": {
+    "message": "Arquitectura v3",
+    "description": "The label of footer link with label=Arquitectura v3 linking to /architecture/rapid-os-v3"
+  },
+  "link.item.label.Orchestration Architecture": {
+    "message": "Arquitectura de orquestación",
+    "description": "The label of footer link with label=Arquitectura de orquestación linking to /architecture/orchestration"
+  },
+  "link.item.label.Release v3.1.1": {
+    "message": "Release v3.1.1",
+    "description": "The label of footer link with label=Release v3.1.1 linking to /release-v3.1.1"
+  },
+  "link.item.label.Repository": {
+    "message": "Repositorio",
+    "description": "The label of footer link with label=Repositorio linking to https://github.com/alyconr/Rapid-OS"
+  },
+  "link.item.label.Issues": {
+    "message": "Issues",
+    "description": "The label of footer link with label=Issues linking to https://github.com/alyconr/Rapid-OS/issues"
+  },
+  "copyright": {
+    "message": "Copyright © 2026 Rapid OS. MIT License.",
+    "description": "The footer copyright"
+  }
+}
