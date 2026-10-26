@@ -81,7 +81,7 @@ class Sprint4DocumentationLabsTests(unittest.TestCase):
             self.assertIn(section, manual, f"first-governed-project.md is missing mandatory section: {section}")
         for lab in ("feature", "bugfix", "refactor", "hardening", "research"):
             content = (DOCS / "tutorials" / f"{lab}-lab.md").read_text(encoding="utf-8")
-            for section in ("## Con shortcuts", "### Estado inicial", "### Requisitos", "## Modo avanzado",
+            for section in ("## With shortcuts", "### Starting state", "### Requirements", "## Advanced mode",
                             "first-governed-project.md"):
                 self.assertIn(section, content, f"Lab {lab}-lab.md is missing mandatory section: {section}")
 

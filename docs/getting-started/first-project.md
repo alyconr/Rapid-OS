@@ -85,6 +85,6 @@ Return to the agent and enter `/rapid-next`; the run closes with its verdict. Yo
 - Try one lab for each mode: [Hands-on labs](/tutorials/).
 - Adopt Rapid OS in an existing repository: [An existing project](/getting-started/existing-project).
 
-## Advanced workflow (v3 commands)
+## Advanced mode (v3 commands)
 
-You do not need this for normal use. For the same workflow using v3 commands (for CI or auditing), follow the [manual walkthrough](/tutorials/first-governed-project) and the [v3 governance loop](/governance-loop).
+You do not need this for normal use. For the same workflow using v3 commands (for CI or auditing), follow the [manual walkthrough (Under the hood)](../tutorials/first-governed-project.md) and the [v3 governance loop](../governance-loop.md).

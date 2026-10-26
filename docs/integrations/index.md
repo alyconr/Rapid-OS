@@ -33,7 +33,7 @@ Rapid OS evaluates exactly **11 canonical capability identifiers**:
 
 ## 3. Main workflow: shortcuts
 
-The main workflow for any of these harnesses uses `/rapid-<mode>` shortcuts (`$rapid-<mode>` in Codex). Run `rapid init --shortcuts` or `rapid shortcuts install --harness <id>` to generate them for your tool. The agent guides the run (`rapid next` → `rapid start` → `rapid check` → `rapid finish`) and stops when a person needs to act. The v3 commands (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`, and others) remain available in **Advanced Mode** for CI, debugging, and auditing. See the [shortcuts guide](../guides/shortcuts.md) for harness locations and invocation details.
+The main workflow for any of these harnesses uses `/rapid-<mode>` shortcuts (`$rapid-<mode>` in Codex). Run `rapid init --shortcuts` or `rapid shortcuts install --harness <id>` to generate them for your tool. The agent guides the run (`rapid next` → `rapid start` → `rapid check` → `rapid finish`) and stops when a person needs to act. The v3 commands (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`, and others) remain available in **Advanced mode** for CI, debugging, and auditing. See the [shortcuts guide](../guides/shortcuts.md) for harness locations and invocation details.
 
 ## 4. Harness guides
 
