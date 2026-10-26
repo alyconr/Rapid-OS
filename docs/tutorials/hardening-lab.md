@@ -1,49 +1,52 @@
-# Laboratorio 4: Hardening & Security Engineering Lab
+---
+title: Lab 4 - Hardening and Security Engineering
+description: Harden user registration by validating and bounding input with the Rapid OS workflow.
+---
 
-Endurece la seguridad de un registro de usuarios: validar y acotar las entradas de `register_user`. En tu agente escribes tres cosas; en la terminal solo preparas el ejemplo y apruebas.
+# Lab 4: Hardening and Security Engineering
 
-## Con shortcuts
+Harden user registration by validating and bounding input to `register_user`. You will enter three things in your agent; in the terminal, you only prepare the example and approve the result.
 
-### 1. Prepara el proyecto de ejemplo
+## With shortcuts
+
+### 1. Prepare the example project
 
 ```bash
 cp -r ~/.rapid-os/examples/hardening-lab/starter user-profiles && cd user-profiles
 git init -b main && git add . && git commit -m "starter"
 ```
 
-En Windows PowerShell, la copia es `Copy-Item -Recurse $HOME\.rapid-os\examples\hardening-lab\starter user-profiles`. Si instalaste Rapid OS con `pip`, el ejemplo está en [`examples/hardening-lab/starter`](https://github.com/alyconr/Rapid-OS/tree/main/examples/hardening-lab/starter).
+In Windows PowerShell, use `Copy-Item -Recurse $HOME\.rapid-os\examples\hardening-lab\starter user-profiles`. If you installed Rapid OS with `pip`, the example is in [`examples/hardening-lab/starter`](https://github.com/alyconr/Rapid-OS/tree/main/examples/hardening-lab/starter).
 
-### 2. Configura el proyecto
+### 2. Set up the project
 
-Abre tu agente en la carpeta y escribe `/rapid-init` (en Codex, `$rapid-init`). Detecta Python y propone `python -m unittest discover` como comando de tests: acéptalo. Los documentos del proyecto puedes omitirlos en este laboratorio. Cuando te pregunte el arquetipo, elige **Corporate** (`corporate`): es el que trae las reglas de seguridad más estrictas.
+Open your agent in the folder and enter `/rapid-init` (`$rapid-init` in Codex). It detects Python and suggests `python -m unittest discover` as the test command; accept it. You can skip the project documents for this lab. When asked for an archetype, choose **Corporate** (`corporate`), which includes stricter security rules.
 
-### 3. Pide el trabajo
+### 3. Request the work
 
 ```text
-/rapid-hardening validar y acotar las entradas de register_user
+/rapid-hardening validate and bound register_user inputs
 ```
 
-El agente trabaja en una copia aislada del repositorio (`rapid start --resume --worktree` crea la carpeta `../<repo>-<run-id>` en la rama `rapid/<run-id>`), así tu rama `main` no cambia hasta que revises. Además de la verificación final te pide una revisión (`gate.review`), que puedes aprobar o dispensar.
+The agent works in an isolated copy of the repository (`rapid start --resume --worktree` creates `../<repo>-<run-id>` on branch `rapid/<run-id>`), so your `main` branch does not change before review. In addition to final verification, the agent requests a review (`gate.review`), which you can approve or waive.
 
-### 4. Aprueba en tu terminal
+### 4. Approve in your terminal
 
-Cuando el agente termina, se detiene y te da el comando exacto. Ejecútalo en **otra terminal**, fuera del agente, por ejemplo:
+When the agent finishes, it stops and gives you the exact command. Run it in **another terminal**, outside the agent, for example:
 
 ```bash
 rapid approve gate.final-verification
 ```
 
-Vuelve al agente y escribe `/rapid-next` para cerrar el run.
+Return to the agent and enter `/rapid-next` to close the run.
 
-**Resultado:** `register_user` rechaza usuarios, correos y biografías fuera de los límites, con sus tests, y el run termina con veredicto `pass` (o `pass_with_waivers` si dispensaste la revisión).
+**Result:** `register_user` rejects usernames, emails, and bios outside the limits, with tests for each; the run ends with a `pass` verdict (or `pass_with_waivers` if you waived the review).
 
-¿No tienes los shortcuts? Una sola vez: `rapid shortcuts install --global --harness claude`, o dentro de la carpeta `rapid init --shortcuts`. Detalle en la [guía de shortcuts](../guides/shortcuts.md).
+No shortcuts yet? Install them once with `rapid shortcuts install --global --harness claude`, or run `rapid init --shortcuts` inside the folder. Replace `claude` with your agent. See the [shortcuts guide](../guides/shortcuts.md).
 
----
+## Lab details
 
-## Detalles del laboratorio
-
-### Estado inicial
+### Starting state
 
 ```text
 user-profiles/
@@ -53,18 +56,15 @@ user-profiles/
     └── test_profile_mgr.py
 ```
 
-En la versión inicial (`starter`):
-`UserProfileManager.register_user(username, email, bio)` almacena cualquier tipo de cadena sin validación alguna.
+In the starter version, `UserProfileManager.register_user(username, email, bio)` stores any string without validation.
 
-### Requisitos
+### Requirements
 
-1. **Username:** Expresión regular `^[a-zA-Z0-9_-]{3,32}$`.
-2. **Email:** Validación estricta con regex y formato estándar.
-3. **Bio:** Longitud máxima de 200 caracteres y prohibición explícita de caracteres nulos (`\x00`).
-4. **Excepciones:** Lanzar `ValidationError` (derivado de `ValueError`) ante cualquier violación de frontera.
+1. **Username:** Match the regular expression `^[a-zA-Z0-9_-]{3,32}$`.
+2. **Email:** Apply strict validation with a standard email format.
+3. **Bio:** Limit length to 200 characters and explicitly reject null characters (`\x00`).
+4. **Exceptions:** Raise `ValidationError` (derived from `ValueError`) for any boundary violation.
 
----
+## Advanced mode
 
-## Modo avanzado
-
-No lo necesitas para hacer el laboratorio. El mismo tipo de trabajo hecho a mano con los comandos v3 (spec, run, evidencia y evaluación), para CI o auditoría, está en el [recorrido manual (Bajo el capó)](first-governed-project.md) y en el [ciclo de gobernanza v3](../governance-loop.md).
+You do not need this for the lab. The same kind of work done manually with v3 commands (spec, run, evidence, and evaluation), for CI or auditing, is covered in the [manual walkthrough](first-governed-project.md) and the [v3 governance loop](../governance-loop.md).

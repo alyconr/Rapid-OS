@@ -1,51 +1,54 @@
-# Laboratorio 2: Bugfix Engineering Lab
+---
+title: Lab 2 - Bugfix Engineering
+description: Reproduce and fix a percentage discount bug using the Rapid OS bugfix workflow.
+---
 
-Corrige un bug real: un descuento del 10% sobre $100 devuelve un total negativo. En tu agente escribes tres cosas; en la terminal solo preparas el ejemplo y apruebas.
+# Lab 2: Bugfix Engineering
 
-## Con shortcuts
+Fix a real bug: a 10% discount on $100 returns a negative total. You will enter three things in your agent; in the terminal, you only prepare the example and approve the result.
 
-### 1. Prepara el proyecto de ejemplo
+## With shortcuts
+
+### 1. Prepare the example project
 
 ```bash
 cp -r ~/.rapid-os/examples/bugfix-lab/starter pricer-app && cd pricer-app
 git init -b main && git add . && git commit -m "starter"
 ```
 
-En Windows PowerShell, la copia es `Copy-Item -Recurse $HOME\.rapid-os\examples\bugfix-lab\starter pricer-app`. Si instalaste Rapid OS con `pip`, el ejemplo está en [`examples/bugfix-lab/starter`](https://github.com/alyconr/Rapid-OS/tree/main/examples/bugfix-lab/starter).
+In Windows PowerShell, copy it with `Copy-Item -Recurse $HOME\.rapid-os\examples\bugfix-lab\starter pricer-app`. If you installed Rapid OS with `pip`, the example is in [`examples/bugfix-lab/starter`](https://github.com/alyconr/Rapid-OS/tree/main/examples/bugfix-lab/starter).
 
-El ejemplo trae un test en rojo (`test_regression_expected_discount` en `tests/test_pricer.py`). Bórralo antes de empezar: la baseline debe quedar en verde, y el agente escribirá su propio test que reproduce el bug.
+The example includes a failing test (`test_regression_expected_discount` in `tests/test_pricer.py`). Delete it before starting: the baseline must pass, and the agent will write its own test to reproduce the bug.
 
-### 2. Configura el proyecto
+### 2. Set up the project
 
-Abre tu agente en la carpeta y escribe `/rapid-init` (en Codex, `$rapid-init`). Detecta Python y propone `python -m unittest discover` como comando de tests: acéptalo. Los documentos del proyecto puedes omitirlos en este laboratorio.
+Open your agent in the folder and enter `/rapid-init` (`$rapid-init` in Codex). It detects Python and suggests `python -m unittest discover` as the test command; accept it. You can skip the project documents for this lab.
 
-### 3. Pide el trabajo
+### 3. Request the work
 
 ```text
-/rapid-bugfix el descuento del 10% devuelve un total negativo
+/rapid-bugfix the 10% discount returns a negative total
 ```
 
-Primero el agente reproduce el bug con un test que falla (Rapid OS registra ese rojo como evidencia esperada), después corrige la fórmula y comprueba que el mismo test pasa.
+First, the agent reproduces the bug with a failing test (Rapid OS records that failure as expected evidence). It then fixes the formula and checks that the same test passes.
 
-### 4. Aprueba en tu terminal
+### 4. Approve in your terminal
 
-Cuando el agente termina, se detiene y te da el comando exacto. Ejecútalo en **otra terminal**, fuera del agente, por ejemplo:
+When the agent finishes, it stops and gives you the exact command. Run it in **another terminal**, outside the agent, for example:
 
 ```bash
 rapid approve gate.final-verification
 ```
 
-Vuelve al agente y escribe `/rapid-next` para cerrar el run.
+Return to the agent and enter `/rapid-next` to close the run.
 
-**Resultado:** El descuento se calcula bien, el test que reproducía el bug queda en verde y el run termina con veredicto `pass`.
+**Result:** The discount is calculated correctly, the regression test passes, and the run ends with a `pass` verdict.
 
-¿No tienes los shortcuts? Una sola vez: `rapid shortcuts install --global --harness claude`, o dentro de la carpeta `rapid init --shortcuts`. Detalle en la [guía de shortcuts](../guides/shortcuts.md).
+No shortcuts yet? Install them once with `rapid shortcuts install --global --harness claude`, or run `rapid init --shortcuts` inside the folder. Replace `claude` with your agent. See the [shortcuts guide](../guides/shortcuts.md).
 
----
+## Lab details
 
-## Detalles del laboratorio
-
-### Estado inicial
+### Starting state
 
 ```text
 pricer-app/
@@ -55,21 +58,19 @@ pricer-app/
     └── test_pricer.py
 ```
 
-En la versión inicial (`starter`):
+The starter version contains this bug:
 ```python
-discount_amount = subtotal * discount_percent # ERROR: falta dividir entre 100.0
+discount_amount = subtotal * discount_percent # ERROR: must divide by 100.0
 ```
-Un descuento del 10% en $100 resulta en `-$900.00`.
+A 10% discount on $100 results in `-$900.00`.
 
-### Requisitos
+### Requirements
 
-1. **Fórmula:** Corregir el cálculo a `subtotal * (discount_percent / 100.0)`.
-2. **Límites:** Validar que `discount_percent` esté en el rango `[0.0, 100.0]`; de lo contrario, lanzar `ValueError`.
-3. **Regresión:** Mantener el soporte para carritos con múltiples productos y cantidades.
-4. **Verificación:** Probar baseline con el comportamiento defectuoso antes de aplicar el parche.
+1. **Formula:** Calculate the discount as `subtotal * (discount_percent / 100.0)`.
+2. **Limits:** Validate that `discount_percent` is in the `[0.0, 100.0]` range; otherwise, raise `ValueError`.
+3. **Regression:** Preserve support for carts with multiple products and quantities.
+4. **Verification:** Check the baseline with the defective behavior before applying the fix.
 
----
+## Advanced mode
 
-## Modo avanzado
-
-No lo necesitas para hacer el laboratorio. El mismo tipo de trabajo hecho a mano con los comandos v3 (spec, run, evidencia y evaluación), para CI o auditoría, está en el [recorrido manual (Bajo el capó)](first-governed-project.md) y en el [ciclo de gobernanza v3](../governance-loop.md).
+You do not need this for the lab. The same kind of work done manually with v3 commands (spec, run, evidence, and evaluation), for CI or auditing, is covered in the [manual walkthrough](first-governed-project.md) and the [v3 governance loop](../governance-loop.md).

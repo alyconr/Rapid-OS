@@ -1,19 +1,18 @@
 # Bugfix Lab — Order Pricing Discount Bug
 
-Acompaña al tutorial canónico [Bugfix Engineering Lab](../../docs/tutorials/bugfix-lab.md).
+Accompanies the canonical tutorial [Bugfix Engineering Lab](../../docs/tutorials/bugfix-lab.md).
 
-## Requisitos
+## Requirements
 
-- `starter/`: Cálculo de descuento erróneo sin normalización de porcentaje. Incluye caracterización del defecto (`test_defect_characterization`) y prueba de regresión que falla deliberadamente (`test_regression_expected_discount`) comprobando la existencia real del bug.
-- `solution/`: Fórmula corregida `subtotal * (discount_percent / 100.0)` con suite completa de regresión en verde (`TestOrderPricerSolution`).
+- `starter/`: Wrong discount calculation without percentage normalization. It includes a characterization of the defect (`test_defect_characterization`) and a regression test that fails on purpose (`test_regression_expected_discount`), confirming that the bug really exists.
+- `solution/`: Corrected formula `subtotal * (discount_percent / 100.0)` with the full regression suite green (`TestOrderPricerSolution`).
 
-## Ejecución de pruebas
+## Running the tests
 
 ```bash
-# El starter falla con exit code 1 (failures=1 en test_regression_expected_discount)
+# The starter fails with exit code 1 (failures=1 in test_regression_expected_discount)
 python -m unittest discover -s examples/bugfix-lab/starter/tests -t examples/bugfix-lab/starter
 
-# La solución pasa al 100% con exit code 0
+# The solution passes 100% with exit code 0
 python -m unittest discover -s examples/bugfix-lab/solution/tests -t examples/bugfix-lab/solution
 ```
-

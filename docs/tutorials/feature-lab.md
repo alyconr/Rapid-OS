@@ -1,49 +1,52 @@
-# Laboratorio 1: Feature Engineering Lab
+---
+title: Lab 1 - Feature Engineering
+description: Add availability validation to a booking system using the Rapid OS feature workflow.
+---
 
-Añade una funcionalidad a un sistema de reservas: que rechace reservas que se solapen en el mismo horario. En tu agente escribes tres cosas; en la terminal solo preparas el ejemplo y apruebas.
+# Lab 1: Feature Engineering
 
-## Con shortcuts
+Add a feature to a booking system: reject bookings that overlap in the same time slot. You will enter three things in your agent; in the terminal, you only prepare the example and approve the result.
 
-### 1. Prepara el proyecto de ejemplo
+## With shortcuts
+
+### 1. Prepare the example project
 
 ```bash
 cp -r ~/.rapid-os/examples/feature-lab/starter booking-app && cd booking-app
 git init -b main && git add . && git commit -m "starter"
 ```
 
-En Windows PowerShell, la copia es `Copy-Item -Recurse $HOME\.rapid-os\examples\feature-lab\starter booking-app`. Si instalaste Rapid OS con `pip`, el ejemplo está en [`examples/feature-lab/starter`](https://github.com/alyconr/Rapid-OS/tree/main/examples/feature-lab/starter).
+In Windows PowerShell, copy it with `Copy-Item -Recurse $HOME\.rapid-os\examples\feature-lab\starter booking-app`. If you installed Rapid OS with `pip`, the example is in [`examples/feature-lab/starter`](https://github.com/alyconr/Rapid-OS/tree/main/examples/feature-lab/starter).
 
-### 2. Configura el proyecto
+### 2. Set up the project
 
-Abre tu agente en la carpeta y escribe `/rapid-init` (en Codex, `$rapid-init`). Detecta Python y propone `python -m unittest discover` como comando de tests: acéptalo. Los documentos del proyecto puedes omitirlos en este laboratorio.
+Open your agent in the folder and enter `/rapid-init` (`$rapid-init` in Codex). It detects Python and suggests `python -m unittest discover` as the test command; accept it. You can skip the project documents for this lab.
 
-### 3. Pide el trabajo
+### 3. Request the work
 
 ```text
-/rapid-feature añadir control de disponibilidad: rechazar reservas que se solapen en el mismo horario
+/rapid-feature add availability checks: reject bookings that overlap in the same time slot
 ```
 
-El agente redacta la spec, comprueba que los tests del ejemplo pasan antes de tocar nada (baseline), implementa la validación con sus tests y los ejecuta con `rapid check`.
+The agent drafts the spec, checks that the example tests pass before changing anything (the baseline), implements the validation with tests, and runs them with `rapid check`.
 
-### 4. Aprueba en tu terminal
+### 4. Approve in your terminal
 
-Cuando el agente termina, se detiene y te da el comando exacto. Ejecútalo en **otra terminal**, fuera del agente, por ejemplo:
+When the agent finishes, it stops and gives you the exact command. Run it in **another terminal**, outside the agent, for example:
 
 ```bash
 rapid approve gate.final-verification
 ```
 
-Vuelve al agente y escribe `/rapid-next` para cerrar el run.
+Return to the agent and enter `/rapid-next` to close the run.
 
-**Resultado:** Reservar un horario ocupado lanza un error, la suite queda en verde y el run termina con veredicto `pass`.
+**Result:** Booking an occupied time slot raises an error, the test suite passes, and the run ends with a `pass` verdict.
 
-¿No tienes los shortcuts? Una sola vez: `rapid shortcuts install --global --harness claude`, o dentro de la carpeta `rapid init --shortcuts`. Detalle en la [guía de shortcuts](../guides/shortcuts.md).
+No shortcuts yet? Install them once with `rapid shortcuts install --global --harness claude`, or run `rapid init --shortcuts` inside the folder. Replace `claude` with your agent. See the [shortcuts guide](../guides/shortcuts.md).
 
----
+## Lab details
 
-## Detalles del laboratorio
-
-### Estado inicial
+### Starting state
 
 ```text
 booking-app/
@@ -53,17 +56,15 @@ booking-app/
     └── test_booking.py
 ```
 
-En la versión inicial (`starter`), `BookingSystem.create_booking(user_id, slot)` guarda cualquier reserva sin verificar si el horario ya fue ocupado previamente.
+In the starter version, `BookingSystem.create_booking(user_id, slot)` saves any booking without checking whether the time slot is already occupied.
 
-### Requisitos
+### Requirements
 
-1. **Detección de colisiones:** Lanzar `SlotAlreadyBookedError` si el horario solicitado ya se encuentra registrado.
-2. **Saneamiento:** Limpiar espacios en blanco en `user_id` y `slot`.
-3. **Casos borde:** Rechazar cadenas vacías o compuestas únicamente de espacios en blanco.
-4. **Preservación:** Las reservas válidas deben continuar registrándose con normalidad.
+1. **Detect collisions:** Raise `SlotAlreadyBookedError` if the requested time slot is already registered.
+2. **Normalize input:** Strip whitespace from `user_id` and `slot`.
+3. **Handle edge cases:** Reject empty strings or strings containing only whitespace.
+4. **Preserve valid bookings:** Valid bookings must continue to be saved normally.
 
----
+## Advanced mode
 
-## Modo avanzado
-
-No lo necesitas para hacer el laboratorio. El mismo tipo de trabajo hecho a mano con los comandos v3 (spec, run, evidencia y evaluación), para CI o auditoría, está en el [recorrido manual (Bajo el capó)](first-governed-project.md) y en el [ciclo de gobernanza v3](../governance-loop.md).
+You do not need this for the lab. The same kind of work done manually with v3 commands (spec, run, evidence, and evaluation), for CI or auditing, is covered in the [manual walkthrough](first-governed-project.md) and the [v3 governance loop](../governance-loop.md).

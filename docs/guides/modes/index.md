@@ -1,100 +1,94 @@
 ---
-title: Modos de ingeniería
-description: Guía de modos de trabajo en RAPID OS (feature, bugfix, refactor, hardening, research).
+title: Engineering Modes
+description: Rapid OS modes for features, bug fixes, refactoring, hardening, and research.
 ---
 
-# Modos de ingeniería
+# Engineering Modes
 
-RAPID OS clasifica el trabajo de ingeniería en **modos declarativos**. Cada modo define la intención del ciclo de trabajo y ajusta:
+Rapid OS classifies engineering work into **declarative modes**. Each mode defines the intent of the workflow and adjusts:
 
-1. **Context Compiler**: Qué estándares, reglas de arquitectura y restricciones se incluyen o priorizan en el bundle de contexto generado (`rapid context --mode <mode>`).
-2. **Spec Registry**: La naturaleza de los requerimientos y criterios de aceptación definidos en la especificación (`rapid spec create --mode <mode>`).
-3. **Execution Policy**: La evaluación de riesgos (`RiskLevel`), clases de ejecución (`ExecutionClass`) y las compuertas de calidad (`GateKind`) requeridas antes de completar un run.
+1. **Context Compiler:** Which standards, architecture rules, and constraints are included or prioritized in the generated context bundle (`rapid context --mode <mode>`).
+2. **Spec Registry:** The nature of the requirements and acceptance criteria in the specification (`rapid spec create --mode <mode>`).
+3. **Execution Policy:** Risk evaluation (`RiskLevel`), execution classes (`ExecutionClass`), and quality gates (`GateKind`) required before a run can finish.
 
 ```mermaid
 flowchart TD
-    Mode["Modo de ingeniería seleccionado"] --> CC["Context Compiler\n(Filtra fuentes y presupuesto)"]
-    Mode --> SR["Spec Registry\n(Define alcance y aceptación)"]
-    Mode --> EP["Execution Policy\n(Asigna riesgo y gates requeridos)"]
-    
-    CC --> Run["Execution Contract & Run"]
+    Mode[Selected engineering mode] --> CC[Context Compiler]
+    Mode --> SR[Spec Registry]
+    Mode --> EP[Execution Policy]
+    CC --> Run[Execution Contract and Run]
     SR --> Run
     EP --> Run
 ```
 
----
+## Every mode has a shortcut
 
-## Cada modo tiene su shortcut
+The main workflow is the mode shortcut: install shortcuts once (`rapid init --shortcuts` or `rapid shortcuts install`), then the agent guides the run. The v3 commands below are **Advanced Mode**, useful for CI, debugging, and auditing.
 
-El flujo principal es el shortcut del modo: lo instalas una vez (`rapid init --shortcuts` o `rapid shortcuts install`) y el agente conduce el run. Los comandos v3 de las secciones siguientes son el **Modo avanzado**, útil para CI, depuración y auditoría.
+| Mode | Shortcut (Codex uses `$` instead of `/`) | Playbook behavior |
+|---|---|---|
+| `feature` | `/rapid-feature <goal>` | Spec template, verified baseline at start, and `next` → `check` → `finish` loop. |
+| `bugfix` | `/rapid-bugfix <bug>` | Baseline before the failing test; `rapid check --expect fail` on `T001` records reproduction. |
+| `refactor` | `/rapid-refactor <scope>` | Required baseline; blocks if the passing test count drops below it. |
+| `hardening` | `/rapid-hardening <area>` | Isolated worktree with `rapid start --worktree`; `gate.review` can be waived. |
+| `research` | `/rapid-research <topic>` | Spike with no required tests; attach findings with `rapid attach`. |
 
-| Modo | Shortcut (Codex: `$` en lugar de `/`) | Qué hace su playbook |
-| :--- | :--- | :--- |
-| `feature` | `/rapid-feature <objetivo>` | Plantilla de spec, baseline verificada al iniciar y bucle `next` → `check` → `finish`. |
-| `bugfix` | `/rapid-bugfix <bug>` | Baseline antes del test rojo; `rapid check --expect fail` sobre `T001` registra la reproducción. |
-| `refactor` | `/rapid-refactor <alcance>` | Baseline obligatoria; se bloquea si bajan los tests que pasan respecto a ella. |
-| `hardening` | `/rapid-hardening <área>` | Worktree aislado con `rapid start --worktree`; `gate.review` dispensable. |
-| `research` | `/rapid-research <tema>` | Spike sin tests obligatorios; los hallazgos se adjuntan con `rapid attach`. |
+There are also `/rapid-next`, `/rapid-status`, and `/rapid-approve` (the last one does not approve; it gives you the command to run in your terminal). See the [shortcuts guide](../shortcuts.md).
 
-Además existen `/rapid-next`, `/rapid-status` y `/rapid-approve` (este último no aprueba: te da el comando para tu terminal). Todo está en la [guía de shortcuts](../shortcuts.md).
+## Available modes
 
----
+Rapid OS supports these five canonical operating modes:
 
-## Modos disponibles
+| Mode | Main intent | Context focus | Typical risk | Suggested gates |
+|---|---|---|---|---|
+| [Feature](./feature.md) | New feature or capability | Functional requirements, API contracts, design standards | `medium` (50) to `high` (80) | Baseline, unit/integration tests, peer review |
+| [Bugfix](./bugfix.md) | Fix defects or regressions | Reproduction case, affected code, existing tests | `low` (10) to `medium` (50) | Baseline, regression test, review |
+| [Refactor](./refactor.md) | Improve structure without changing behavior | Architecture, interface contracts, full test suite | `medium` (50) to `high` (80) | Strict baseline, unchanged API, peer review |
+| [Hardening](./hardening.md) | Security, robustness, observability, dependencies | Vulnerabilities, security policies, dependencies | `high` (80) to `critical` (100) | Security review, static audit, isolated verification |
+| [Research](./research.md) | Exploratory spikes and feasibility prototypes | Open context, technical documentation, proofs of concept | `low` (10), `ExecutionClass.SPIKE` | Minimal or waivable gates; no critical code changes |
 
-RAPID OS soporta los siguientes cinco modos operativos canónicos:
+## How the mode affects Rapid OS commands
 
-| Modo | Intención principal | Enfoque de contexto | Riesgo típico | Gates sugeridos |
-| :--- | :--- | :--- | :--- | :--- |
-| [`feature`](./feature.md) | Nueva funcionalidad o capacidad | Requisitos funcionales, contratos de API, estándares de diseño | `medium` (50) a `high` (80) | Baseline, tests unitarios/integración, peer review |
-| [`bugfix`](./bugfix.md) | Corrección de defectos o regresiones | Caso de reproducción, código afectado, pruebas existentes | `low` (10) a `medium` (50) | Baseline, test de regresión, review |
-| [`refactor`](./refactor.md) | Mejora de estructura sin alterar comportamiento | Arquitectura, contratos de interfaz, suite completa de tests | `medium` (50) a `high` (80) | Baseline estricto, suite de tests sin cambios de API, peer review |
-| [`hardening`](./hardening.md) | Seguridad, robustez, observabilidad, dependencias | Vulnerabilidades, políticas de seguridad, dependencias | `high` (80) a `critical` (100) | Security review, auditoría estática, verificación aislada |
-| [`research`](./research.md) | Spikes exploratorios y prototipos de viabilidad | Contexto abierto, documentación técnica, pruebas de concepto | `low` (10) (`ExecutionClass.SPIKE`) | Gates mínimos o waiveables, no altera código crítico |
+### 1. Context compilation (`rapid context`)
 
----
-
-## Cómo influye el modo en los comandos de RAPID OS
-
-### 1. En la compilación de contexto (`rapid context`)
-Al invocar `rapid context --mode <mode>`, el compilador de contexto selecciona las secciones de estándares más pertinentes:
+With `rapid context --mode <mode>`, the compiler selects the most relevant standards:
 
 ```bash
-# Compilar contexto enfocado en una nueva funcionalidad
-rapid context --mode feature --objective "Agregar autenticación OAuth2" --manifest
+# Compile context for a new feature
+rapid context --mode feature --objective "Add OAuth2 authentication" --manifest
 
-# Compilar contexto enfocado en endurecimiento de seguridad
-rapid context --mode hardening --objective "Rotación de secrets y sanitización de inputs" --manifest
+# Compile context for security hardening
+rapid context --mode hardening --objective "Rotate secrets and sanitize inputs" --manifest
 ```
 
-### 2. En la creación de la especificación (`rapid spec create`)
-La especificación formal registra el modo para asegurar trazabilidad entre el diseño y la ejecución:
+### 2. Specification creation (`rapid spec create`)
+
+The formal spec records the mode to maintain traceability between design and execution:
 
 ```bash
 rapid spec create \
-  --title "Migrar endpoint de checkout a v2" \
+  --title "Migrate checkout endpoint to v2" \
   --mode refactor \
-  --objective "Reestructurar handlers desacoplando la capa de persistencia" \
-  --scope "Servicio de pagos y controladores HTTP" \
-  --acceptance "100% tests verdes sin modificar contratos externos" \
+  --objective "Restructure handlers to decouple persistence" \
+  --scope "Payment service and HTTP controllers" \
+  --acceptance "All tests pass without changing external contracts" \
   --status ready
 ```
 
-### 3. En la creación del run (`rapid run create`)
-Al generar un run a partir de una spec, la política de ejecución evalúa el modo junto con las etiquetas (`tags`) y rutas afectadas para calcular la clase de ejecución:
+### 3. Run creation (`rapid run create`)
+
+When creating a run from a spec, execution policy evaluates the mode along with tags and affected paths to calculate the execution class:
 
 ```bash
 rapid run create --spec checkout-v2 --harness codex
 ```
 
----
+## Next step
 
-## Siguiente paso
+Start with the [shortcuts guide](../shortcuts.md), then explore the detailed guide for each mode:
 
-Empieza por la [guía de shortcuts](../shortcuts.md) y explora la guía detallada de cada modo para comprender el flujo paso a paso y los tipos de evidencia requeridos:
-
-- [Modo Feature](./feature.md)
-- [Modo Bugfix](./bugfix.md)
-- [Modo Refactor](./refactor.md)
-- [Modo Hardening](./hardening.md)
-- [Modo Research](./research.md)
+- [Feature mode](./feature.md)
+- [Bugfix mode](./bugfix.md)
+- [Refactor mode](./refactor.md)
+- [Hardening mode](./hardening.md)
+- [Research mode](./research.md)

@@ -1,95 +1,95 @@
-# Integración con Cursor IDE
+# Cursor IDE Integration
 
-Aprende a integrar **Cursor** (Composer y reglas de workspace) con la arquitectura determinista de **RAPID OS v3**.
-
----
-
-## 1. Qué es Cursor y cómo encaja con RAPID OS
-
-Cursor es un editor de código bifurcado de VS Code optimizado para asistencia por IA en múltiples archivos a través de Composer, chat contextual y reglas de proyecto.
-
-**Encaje con RAPID OS:**
-Cursor proporciona la interfaz de usuario y las capacidades de edición asistida en el editor, mientras que RAPID OS gobierna el ciclo de vida del cambio técnico, evitando que el modelo haga modificaciones no autorizadas o cierre tareas sin evidencia de pruebas reales.
+Learn how to integrate **Cursor** (Composer and workspace rules) with the deterministic architecture of **RAPID OS v3**.
 
 ---
 
-## 2. Configuración en RAPID OS
+## 1. What Cursor is and how it fits with RAPID OS
 
-El perfil `cursor` viene predefinido en RAPID OS:
+Cursor is a code editor forked from VS Code and optimized for multi-file AI assistance through Composer, contextual chat, and project rules.
+
+**How it fits with RAPID OS:**
+Cursor provides the user interface and the assisted-editing capabilities in the editor, while RAPID OS governs the lifecycle of the technical change, preventing the model from making unauthorized modifications or closing tasks without evidence of real tests.
+
+---
+
+## 2. Configuration in RAPID OS
+
+The `cursor` profile comes predefined in RAPID OS:
 
 ```bash
 rapid harness show cursor
 ```
 
-Declara soporte nativo para consumir contexto y operar en el workspace actual del editor.
+It declares native support for consuming context and operating in the editor's current workspace.
 
 ---
 
-## 3. Configuración en Cursor (`.cursorrules`)
+## 3. Configuration in Cursor (`.cursorrules`)
 
-Para que el modelo en Cursor respete automáticamente las reglas de RAPID OS, agrega en la raíz de tu proyecto un archivo `.cursorrules`:
+So that the model in Cursor automatically respects the RAPID OS rules, add a `.cursorrules` file at the root of your project:
 
 ```markdown
-# Reglas de Gobernanza RAPID OS
-1. Antes de iniciar cualquier tarea, consulta `.rapid-os/specs/` para conocer los requerimientos.
-2. No modifiques archivos que no formen parte del alcance del contrato de ejecución actual.
-3. Tras modificar código, ejecuta siempre las pruebas unitarias en la terminal.
-4. No des por finalizada una tarea sin generar y registrar la evidencia en RAPID OS.
+# RAPID OS Governance Rules
+1. Before starting any task, consult `.rapid-os/specs/` to learn the requirements.
+2. Do not modify files that are not part of the scope of the current execution contract.
+3. After modifying code, always run the unit tests in the terminal.
+4. Do not consider a task finished without generating and recording the evidence in RAPID OS.
 ```
 
 ---
 
-## Flujo principal: shortcuts
+## Main workflow: shortcuts
 
-La forma recomendada de trabajar con Cursor es con los shortcuts `/rapid-<modo>`. Los 9 shortcuts, el bucle que siguen, la aprobación humana y los errores frecuentes están en la [guía de shortcuts](../guides/shortcuts.md).
+The recommended way to work with Cursor is through the `/rapid-<mode>` shortcuts. The 9 shortcuts, the loop they follow, human approval, and common errors are covered in the [shortcuts guide](../guides/shortcuts.md).
 
-### Instalación
+### Install
 
 ```bash
-rapid init --shortcuts                                # al inicializar el proyecto
-rapid shortcuts install --harness cursor              # en un proyecto ya inicializado
+rapid init --shortcuts                                # when initializing the project
+rapid shortcuts install --harness cursor              # in an already initialized project
 ```
 
-Genera `.cursor/skills/rapid-*/SKILL.md` (los 9 shortcuts; [documentación de skills de Cursor](https://cursor.com/docs/context/skills)). Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`. `.cursorrules` sigue aportando las reglas del proyecto.
+This generates `.cursor/skills/rapid-*/SKILL.md` (the 9 shortcuts; [Cursor skills documentation](https://cursor.com/docs/context/skills)). After updating Rapid OS, run `rapid shortcuts install` again. `.cursorrules` continues to provide the project rules.
 
-### Primer paso: `/rapid-init` (onboarding)
+### First step: `/rapid-init` (onboarding)
 
-El punto de entrada de un proyecto es `/rapid-init`: conduce el onboarding (`rapid setup next`), te pregunta el stack de cada componente, la arquitectura, los servicios y los documentos, y revisa contigo los borradores antes de cerrar. Después usas `/rapid-feature` y los demás modos. Ver [Primer proyecto](../getting-started/first-project.md).
+A project's entry point is `/rapid-init`: it drives the onboarding (`rapid setup next`), asks you for the stack of each component, the architecture, the services, and the documents, and reviews the drafts with you before closing. After that you use `/rapid-feature` and the other modes. See [First project](../getting-started/first-project.md).
 
-Para tener `/rapid-init` y los demás shortcuts en todos tus proyectos sin instalarlos en cada uno, instálalos en tu carpeta de usuario (`~/.cursor/skills/`); el instalador de Rapid OS te lo pregunta al terminar:
+To have `/rapid-init` and the other shortcuts in all your projects without installing them in each one, install them in your user folder (`~/.cursor/skills/`); the Rapid OS installer asks you about this when it finishes:
 
 ```bash
 rapid shortcuts install --global --harness cursor
 ```
 
-Los shortcuts y los hooks ejecutan `rapid` desde el shell del agente: si no está en el `PATH`, `rapid init` y `rapid doctor` avisan con `RAPID1414` (aviso, no error). Ver la [guía de shortcuts](../guides/shortcuts.md).
+Shortcuts and hooks run `rapid` from the agent's shell: if it is not on the `PATH`, `rapid init` and `rapid doctor` warn with `RAPID1414` (a warning, not an error). See the [shortcuts guide](../guides/shortcuts.md).
 
-### Invocación
+### Invocation
 
-En el chat del Agent escribe `/` y busca el shortcut:
+In the Agent chat, type `/` and search for the shortcut:
 
 ```text
-/rapid-feature añadir exportación CSV al informe mensual
+/rapid-feature add CSV export to the monthly report
 ```
 
-- `/rapid-approve` lleva `disable-model-invocation`: solo se incluye si lo invocas tú. **No aprueba**: te da el comando para tu terminal (`RAPID1310` si lo intenta un agente).
-- Cursor lee además `.agents/skills/` y `.claude/skills/`. Si usas Cursor junto con Claude Code, Codex o Antigravity, consulta [cómo combinar harnesses](../guides/shortcuts.md#si-combinas-harnesses) antes de añadir `cursor` a la instalación.
+- `/rapid-approve` carries `disable-model-invocation`: it is only included if you invoke it yourself. It **does not approve**: it gives you the command to run in your terminal (`RAPID1310` if an agent tries it).
+- Cursor also reads `.agents/skills/` and `.claude/skills/`. If you use Cursor together with Claude Code, Codex, or Antigravity, see [how to combine harnesses](../guides/shortcuts.md#if-you-combine-harnesses) before adding `cursor` to the installation.
 
 ---
 
-## Modo avanzado (comandos v3)
+## Advanced mode (v3 commands)
 
-Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) siguen disponibles para CI, depuración y auditoría, y tampoco hace falta usarlos a mano en el día a día. Las secciones 4 y 5 conservan el flujo manual completo.
+The v3 commands (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) remain available for CI, debugging, and auditing, and you do not need to use them by hand day to day. Sections 4 and 5 keep the full manual workflow.
 
-## 4. Flujo de Trabajo en Cursor Composer
+## 4. Workflow in Cursor Composer
 
-1. **Crear Run:**
+1. **Create the Run:**
 ```bash
 rapid run create --spec <spec-id> --harness cursor
 ```
 
-2. **Verificar Baseline:**
-Ejecuta las pruebas base guardando el log auténtico como artefacto (`base.log`), registra la evidencia de baseline (conforme a [`evidence_baseline.json`](../tutorials/first-governed-project.md#1-registrar-evidencia-de-baseline-y-acreditar-gatebaseline)) y reconoce `gate.baseline` antes de activar el run:
+2. **Verify the Baseline:**
+Run the baseline tests, saving the authentic log as an artifact (`base.log`), record the baseline evidence (following [`evidence_baseline.json`](../tutorials/first-governed-project.md#1-record-baseline-evidence-and-acknowledge-gatebaseline)), and acknowledge `gate.baseline` before activating the run:
 ```bash
 python -m unittest discover -s tests -t . > base.log 2>&1
 rapid evidence add --run <run-id> --input evidence_baseline.json
@@ -98,19 +98,19 @@ rapid run status <run-id> active
 rapid run task <run-id> T001 in_progress
 ```
 
-3. **Inyectar Contexto en Composer:**
-En la ventana de Composer de Cursor, referencia el archivo generado:
-> `@.rapid-os/runs/<run-id>/contract.json implementa la tarea T001 y corre las pruebas.`
+3. **Inject Context into Composer:**
+In Cursor's Composer window, reference the generated file:
+> `@.rapid-os/runs/<run-id>/contract.json implement task T001 and run the tests.`
 
-4. **Verificar Pruebas en Terminal:**
-Comprueba que los tests pasen en la terminal integrada de Cursor.
+4. **Verify Tests in the Terminal:**
+Check that the tests pass in Cursor's integrated terminal.
 
-5. **Registrar Evidencia:**
-Ingiere los resultados mediante `rapid evidence add` (ver estructuras en el [laboratorio Bajo el capó](../tutorials/first-governed-project.md#7-evidence-collection)):
-- [`evidence_files.json`](../tutorials/first-governed-project.md#3-registrar-evidencia-de-cambios-en-el-código-file_change): evidencia de modificación de archivos.
-- [`evidence_tests.json`](../tutorials/first-governed-project.md#4-registrar-evidencia-de-pruebas-aprobadas-test_result): resultado de pruebas con log adjunto.
-- [`evidence_workspace.json`](../tutorials/first-governed-project.md#5-registrar-evidencia-de-espacio-de-trabajo-workspace): espacio de trabajo actual (`workspace.current`).
-- [`evidence_review.json`](../tutorials/first-governed-project.md#6-registrar-evidencia-de-revisión-final-review): revisión contractual aprobada.
+5. **Record Evidence:**
+Ingest the results with `rapid evidence add` (see the structures in the [Under the hood lab](../tutorials/first-governed-project.md#7-evidence-collection)):
+- [`evidence_files.json`](../tutorials/first-governed-project.md#3-record-code-change-evidence-file_change): file modification evidence.
+- [`evidence_tests.json`](../tutorials/first-governed-project.md#4-record-passing-test-evidence-test_result): test result with attached log.
+- [`evidence_workspace.json`](../tutorials/first-governed-project.md#5-record-workspace-evidence-workspace): current workspace (`workspace.current`).
+- [`evidence_review.json`](../tutorials/first-governed-project.md#6-record-final-review-evidence-review): approved contractual review.
 
 ```bash
 rapid evidence add --run <run-id> --input evidence_files.json
@@ -123,13 +123,13 @@ rapid run task <run-id> T001 done
 rapid run status <run-id> finished
 ```
 
-6. **Evaluar:**
+6. **Evaluate:**
 ```bash
 rapid eval run --run <run-id> --write --require-pass
 ```
 
 ---
 
-## 5. Problemas Frecuentes
+## 5. Common Problems
 
-- **Composer añade archivos temporales no deseados:** Asegúrate de que `.gitignore` excluya archivos temporales y que solo las rutas necesarias figuren en la evidencia de tipo `file_change`.
+- **Composer adds unwanted temporary files:** Make sure `.gitignore` excludes temporary files and that only the necessary paths appear in the `file_change` evidence.

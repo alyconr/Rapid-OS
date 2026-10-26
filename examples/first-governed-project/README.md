@@ -1,13 +1,13 @@
 # First Governed Project — Task Tracker
 
-Este proyecto de ejemplo acompaña al tutorial canónico [Primer Proyecto Gobernado](../../docs/tutorials/first-governed-project.md).
+This example project accompanies the canonical tutorial [First Governed Project](../../docs/tutorials/first-governed-project.md).
 
-## Estructura
+## Structure
 
-- `starter/`: Aplicación básica de seguimiento de tareas sin soporte de prioridades.
-- `solution/`: Aplicación con soporte de prioridades (`low`, `medium`, `high`) y filtrado.
+- `starter/`: Basic task tracking application without priority support.
+- `solution/`: Application with priority support (`low`, `medium`, `high`) and filtering.
 
-## Ejecución de pruebas
+## Running the tests
 
 ```bash
 # Starter

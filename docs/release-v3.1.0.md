@@ -89,7 +89,7 @@ rapid init       (... [--shortcuts] [--hooks])
 
 ## 6. How to Upgrade
 
-See [De 3.0 a 3.1](./installation/upgrade.md#5-de-30-a-31). In short:
+See [De 3.0 a 3.1](./installation/upgrade.md#5-from-30-to-31). In short:
 
 ```bash
 rapid --version                      # Rapid OS 3.1.0

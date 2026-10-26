@@ -1,76 +1,75 @@
 ---
-title: Límites y fronteras del producto
-description: Qué hace y qué NO hace Rapid OS v3. Separación estricta de responsabilidades.
+title: Product Limits and Boundaries
+description: What Rapid OS v3 does and does NOT do. Strict separation of responsibilities.
 ---
 
-# Límites y fronteras del producto
+# Product Limits and Boundaries
 
-Para utilizar Rapid OS con éxito es indispensable comprender sus fronteras técnicas. Rapid OS es una capa de **gobernanza, especificación, auditoría y control de calidad**. No es un ejecutor de modelos ni un agente autónomo.
+To use Rapid OS successfully you need to understand its technical boundaries. Rapid OS is a layer of **governance, specification, auditing, and quality control**. It is not a model runner or an autonomous agent.
 
 ---
 
-## Separación estricta de conceptos
+## Strict separation of concepts
 
-Una de las fuentes más comunes de error en herramientas de IA es confundir declaraciones humanas con hechos físicos o conclusiones lógicas. Rapid OS establece distinciones rigurosas:
+One of the most common sources of error in AI tooling is confusing human statements with physical facts or logical conclusions. Rapid OS draws rigorous distinctions:
 
 ```text
-Declaración != Capability != Evidencia != Evaluación
+Declaration != Capability != Evidence != Evaluation
 ```
 
-1. **Gate Acknowledged:** Un operador humano o script declara que un control fue satisfecho (`ACKNOWLEDGED`). Esto es una declaración, **no constituye evidencia** de que el código funcione.
-2. **Harness Compatible:** Un harness declara que soporta `tests.execute`. Esto significa que la herramienta *dice poder correr pruebas*, **no prueba** que las haya ejecutado.
-3. **Run Evidence:** Se almacena el archivo de salida con el exit code `0` del ejecutor de tests y su hash SHA-256. Esto es **evidencia física**.
-4. **Evaluation PASS:** El evaluador analiza la evidencia registrada bajo reglas deterministas y emite un veredicto. Esto es una **evaluación formal**.
+1. **Gate Acknowledged:** A human operator or script declares that a control was satisfied (`ACKNOWLEDGED`). This is a declaration, **not evidence** that the code works.
+2. **Harness Compatible:** A harness declares that it supports `tests.execute`. This means the tool *says it can run tests*; it **does not prove** that it ran them.
+3. **Run Evidence:** The output file with the test runner's exit code `0` and its SHA-256 hash is stored. This is **physical evidence**.
+4. **Evaluation PASS:** The evaluator analyzes the recorded evidence under deterministic rules and issues a verdict. This is a **formal evaluation**.
 
 ---
 
-## Qué NO hace Rapid OS
+## What Rapid OS does NOT do
 
-:::warning Fronteras explícitas
-Rapid OS mantiene un alcance estricto de ingeniería determinista. Las siguientes operaciones están fuera de su diseño:
+:::warning Explicit boundaries
+Rapid OS keeps a strict scope of deterministic engineering. The following operations are outside its design:
 :::
 
-- **No invoca automáticamente LLMs o APIs de modelos:** Rapid OS no llama a OpenAI, Anthropic, Google u otros proveedores en segundo plano. La interacción con el modelo de lenguaje ocurre en el coding harness que el desarrollador decida utilizar (Codex, Claude, Cursor, Antigravity, etc.).
-- **No orquesta agentes autónomos de fondo:** No es un daemon de ejecución continua ni un runtime de agentes recursivos.
-- **No utiliza LLM-as-a-judge:** Las evaluaciones de comportamiento (`rapid eval`) son 100% deterministas, ejecutadas mediante código Python de la biblioteca estándar contra reglas lógicas.
-- **El plumbing no ejecuta nada del repositorio; el porcelain ejecuta solo lo que se le pide:** `rapid scan`, `rapid context`, `rapid spec`, `rapid policy`, `rapid run`, `rapid harness`, `rapid evidence`, `rapid eval` y `rapid validate` operan de forma estática sobre archivos y registros. El porcelain ejecuta solo el `test_command` de `.rapid-os/config.json` (en la baseline de `rapid start` y en `rapid task done`) o el argv que se pasa a `rapid check -- <comando>`, sin shell, y comandos `git` de lectura (`rev-parse`, `diff`, `ls-files`, `config user.name`) para registrar los cambios del run; con `rapid start --worktree` añade `git worktree add`. No ejecuta ningún otro comando del proyecto.
-- **Nunca aprueba gates humanos:** `rapid approve` lo ejecuta una persona en su terminal. Rapid OS nunca aprueba, dispensa ni rechaza un gate humano por su cuenta, y tampoco lo hace un shortcut, un hook o una evidencia producida por un harness.
-- **No crea automáticamente branches o worktrees de Git:** Cuando una política exige `workspace.isolated`, Rapid OS declara la necesidad en el contrato y `rapid start` se detiene en `blocked`. Solo `rapid start --worktree`, ejecutado por el operador o su harness, crea el worktree aislado (`../<repo>-<run-id>`, rama `rapid/<run-id>`); `rapid abort` nunca lo elimina. Para el resto de casos la creación efectiva del entorno aislado o rama corresponde al operador o al harness.
-- **Todos sus comandos git pasan por una sola puerta:** `rapid_os/orchestration/git.py` ejecuta git con `-c safe.directory=<raíz del proyecto>` (solo esa carpeta, nunca `*`) y `-c core.fsmonitor=false`, para no depender de quién es el dueño de la carpeta (sandbox de Codex en Windows) y para que un repositorio ajeno no ejecute programas al leerse. La excepción para el git de la persona, que solo ella puede conceder, se le entrega como `person_actions`; Rapid OS nunca modifica la configuración de git de la persona.
-- **Solo crea un repositorio git para poder observar los runs:** `rapid setup finish` y `rapid init` ejecutan `git init` (y fijan la rama inicial con `git symbolic-ref HEAD`, siempre `main`) únicamente cuando la carpeta no está dentro de un repositorio. Nunca anida repositorios, nunca hace commits y, sin git instalado, solo avisa. `rapid start` en una carpeta sin repositorio falla con `RAPID1416` sin escribir nada.
-- **La arquitectura se verifica leyendo imports, no ejecutando código:** `rapid arch check` lee el texto de los archivos bajo `modules_root` y `shared_root` (Python con `ast`; TypeScript, JavaScript y el script de `.vue`, `.svelte` y `.astro`, Go, Java, Kotlin, C#, Rust y PHP con expresiones regulares; Ruby on Rails delega en `bin/packwerk check`) y solo informa; nunca edita el código ni migra un proyecto existente. Rapid OS escribe la regla (`architecture.md` y `architecture.json`) para los stacks de backend y de frontend del catálogo (con los nombres idiomáticos de su lenguaje), y no sobrescribe un archivo existente. Ver [Arquitectura de referencia](./architecture.md).
-- **Escribe el entorno local de servicios, pero no lo levanta ni despliega:** `rapid setup finish` escribe `compose.yaml` y `.env.example` para los servicios decididos `@now` (y añade `.env` a `.gitignore`); si el `compose.yaml` ya existe solo añade los servicios que faltan y no modifica lo que hay. No ejecuta Docker: la persona ejecuta `docker compose up -d`. `rapid deploy --target <plataforma>` imprime una plantilla y no escribe nada; el despliegue lo hace la persona. Ver [Servicios de infraestructura](./infrastructure-services.md) y la [guía de despliegue](../guides/deployment.md).
-- **Escribe la base de seguridad y su CI, pero no ejecuta los escaneos:** `rapid setup finish` escribe `standards/security.md` y, solo en un repositorio vacío, un workflow por lenguaje `.github/workflows/rapid-security-<lenguaje>.yml` (gitleaks, semgrep, bandit o `pip-audit`/`npm audit`, y SBOM y procedencia en Corporate, todo fijado por SHA completo). Nunca sobrescribe un workflow existente ni un `security.md` hecho a mano. Los escaneos los ejecuta tu CI, no Rapid OS. Ver [Base de seguridad](./security-baseline.md).
-- **Los hooks deniegan herramientas al agente, pero Rapid OS no invoca agentes:** `rapid hook stop|pre-tool` los ejecuta Claude Code cuando el agente intenta detenerse o usar una herramienta; solo devuelven un bloqueo de parada o una denegación (reservan `rapid approve`, `rapid abort` y las escrituras en `.rapid-os/` a la persona) y nunca lanzan al agente. Solo `rapid shortcuts install --hooks` o `rapid init --hooks` los escriben en `.claude/settings.json`, sin tocar los hooks del usuario, y la detección de comandos es de mejor esfuerzo.
-- **No instala shortcuts de harness por su cuenta:** `rapid shortcuts install` (o `rapid init --shortcuts`) es la única vía que escribe los comandos `/rapid-<modo>` (y `/rapid-init`) en `.claude/skills`, `.agents/skills`, `.cursor/skills` o `.github/prompts`, y `rapid shortcuts install --global` la única que los escribe fuera del proyecto, en la carpeta de skills de tu usuario (solo para los harnesses con carpeta documentada; `install.sh` e `install.ps1` lo ofrecen como opción y nunca por defecto); `rapid shortcuts remove` borra solo los archivos que llevan el marcador `generated by rapid shortcuts`. Los shortcuts nunca aprueban gates humanos.
-- **No confirma por la persona ni crea documentación por su cuenta:** `rapid setup doc` y `rapid init` son los únicos comandos que escriben `docs/PRODUCT_BRIEF.md`, `docs/BUSINESS_RULES.md`, `docs/DATA_MODEL.md` y `docs/ARCHITECTURE.md` (con frontmatter `rapid-doc`, `source`, `status` y `sha256`, y un `.bak` del archivo anterior); `rapid setup finish` y `rapid init` son los únicos que copian stack, topología, arquetipo y seguridad a `.rapid-os/standards/`. Un documento redactado por el agente se guarda como `source: drafted` y `status: draft`, entra al contexto como supuesto y solo `rapid setup doc <id> --confirm` lo confirma. `rapid init` ya no crea el andamiaje `TODO` de `docs/`.
-- **Solo marca la historia que el run cerró, y no llena la raíz de backups:** cuando `rapid finish` termina en PASS y la spec lleva el tag `story:<ID>`, cambia en `docs/PRODUCT_BRIEF.md` esa única línea `- [ ] <ID>:` a `- [x] <ID>:` (copia previa en `.rapid-os/backups/`, `source` y `status` sin cambios: un borrador sigue siendo borrador); si el veredicto no es PASS, si pasas `--no-tick` o si el brief no es un documento de Rapid OS, solo sugiere la historia. Un run cubre una historia. Los archivos de agente que Rapid OS regenera guardan su copia anterior en `.rapid-os/backups/` (solo si cambió el contenido, 5 por archivo), no en la raíz del proyecto.
-- **No es una sandbox de sistema operativo:** Las "capabilities" en Rapid OS son declaraciones de capacidades de software, no jaulas de seguridad de kernel o contenedores forzados.
-- **No garantiza matemáticamente ausencia de defectos:** Un veredicto `PASS` certifica que las reglas del contrato y la evidencia registrada fueron satisfechas. No equivale a una prueba formal de corrección matemática de todo el software ni sustituye el criterio de los ingenieros.
+- **It does not automatically invoke LLMs or model APIs:** Rapid OS does not call OpenAI, Anthropic, Google, or other providers in the background. Interaction with the language model happens in the coding harness the developer chooses to use (Codex, Claude, Cursor, Antigravity, etc.).
+- **It does not orchestrate background autonomous agents:** It is not a continuously running daemon or a recursive-agent runtime.
+- **It does not use LLM-as-a-judge:** Behavioral evaluations (`rapid eval`) are 100% deterministic, executed by standard-library Python code against logical rules.
+- **Plumbing executes nothing from the repository; porcelain executes only what it is asked to:** `rapid scan`, `rapid context`, `rapid spec`, `rapid policy`, `rapid run`, `rapid harness`, `rapid evidence`, `rapid eval`, and `rapid validate` operate statically on files and records. The porcelain runs only the `test_command` from `.rapid-os/config.json` (in the `rapid start` baseline and in `rapid task done`) or the argv passed to `rapid check -- <command>`, without a shell, plus read-only `git` commands (`rev-parse`, `diff`, `ls-files`, `config user.name`) to record the run's changes; with `rapid start --worktree` it adds `git worktree add`. It runs no other project command.
+- **It never approves human gates:** `rapid approve` is run by a person in their terminal. Rapid OS never approves, waives, or rejects a human gate on its own, and neither does a shortcut, a hook, or evidence produced by a harness.
+- **It does not automatically create Git branches or worktrees:** When a policy requires `workspace.isolated`, Rapid OS declares the need in the contract and `rapid start` stops at `blocked`. Only `rapid start --worktree`, run by the operator or their harness, creates the isolated worktree (`../<repo>-<run-id>`, branch `rapid/<run-id>`); `rapid abort` never removes it. In every other case, actually creating the isolated environment or branch is up to the operator or the harness.
+- **All its git commands go through a single gate:** `rapid_os/orchestration/git.py` runs git with `-c safe.directory=<project root>` (only that folder, never `*`) and `-c core.fsmonitor=false`, so it does not depend on who owns the folder (Codex sandbox on Windows) and so a foreign repository cannot run programs just by being read. The exception for the person's own git, which only they can grant, is handed to them as `person_actions`; Rapid OS never modifies the person's git configuration.
+- **It only creates a git repository so it can observe runs:** `rapid setup finish` and `rapid init` run `git init` (and set the initial branch with `git symbolic-ref HEAD`, always `main`) only when the folder is not inside a repository. It never nests repositories, never makes commits, and without git installed it only warns. `rapid start` in a folder with no repository fails with `RAPID1416` without writing anything.
+- **Architecture is verified by reading imports, not by running code:** `rapid arch check` reads the text of the files under `modules_root` and `shared_root` (Python with `ast`; TypeScript, JavaScript, and the script blocks of `.vue`, `.svelte`, and `.astro`, Go, Java, Kotlin, C#, Rust, and PHP with regular expressions; Ruby on Rails delegates to `bin/packwerk check`) and only reports; it never edits code or migrates an existing project. Rapid OS writes the rule (`architecture.md` and `architecture.json`) for the backend and frontend stacks in the catalog (using the idiomatic names of their language), and it does not overwrite an existing file. See [Reference architecture](./architecture.md).
+- **It writes the local services environment, but does not start it or deploy:** `rapid setup finish` writes `compose.yaml` and `.env.example` for the services decided `@now` (and adds `.env` to `.gitignore`); if `compose.yaml` already exists it only adds the missing services and does not modify what is there. It does not run Docker: the person runs `docker compose up -d`. `rapid deploy --target <platform>` prints a template and writes nothing; the person does the deployment. See [Infrastructure services](./infrastructure-services.md) and the [deployment guide](../guides/deployment.md).
+- **It writes the security baseline and its CI, but does not run the scans:** `rapid setup finish` writes `standards/security.md` and, only in an empty repository, one workflow per language `.github/workflows/rapid-security-<language>.yml` (gitleaks, semgrep, bandit or `pip-audit`/`npm audit`, and SBOM and provenance in Corporate, all pinned by full SHA). It never overwrites an existing workflow or a hand-written `security.md`. The scans are run by your CI, not by Rapid OS. See [Security baseline](./security-baseline.md).
+- **Hooks deny tools to the agent, but Rapid OS does not invoke agents:** `rapid hook stop|pre-tool` are run by Claude Code when the agent tries to stop or to use a tool; they only return a stop block or a denial (they reserve `rapid approve`, `rapid abort`, and writes to `.rapid-os/` for the person) and never launch the agent. Only `rapid shortcuts install --hooks` or `rapid init --hooks` write them to `.claude/settings.json`, without touching the user's hooks, and command detection is best-effort.
+- **It does not install harness shortcuts on its own:** `rapid shortcuts install` (or `rapid init --shortcuts`) is the only way to write the `/rapid-<mode>` commands (and `/rapid-init`) into `.claude/skills`, `.agents/skills`, `.cursor/skills`, or `.github/prompts`, and `rapid shortcuts install --global` is the only way to write them outside the project, in your user's skills folder (only for harnesses with a documented folder; `install.sh` and `install.ps1` offer it as an option and never by default); `rapid shortcuts remove` deletes only the files that carry the `generated by rapid shortcuts` marker. Shortcuts never approve human gates.
+- **It does not confirm on the person's behalf or create documentation on its own:** `rapid setup doc` and `rapid init` are the only commands that write `docs/PRODUCT_BRIEF.md`, `docs/BUSINESS_RULES.md`, `docs/DATA_MODEL.md`, and `docs/ARCHITECTURE.md` (with `rapid-doc`, `source`, `status`, and `sha256` frontmatter, and a `.bak` of the previous file); `rapid setup finish` and `rapid init` are the only ones that copy stack, topology, archetype, and security into `.rapid-os/standards/`. A document drafted by the agent is saved as `source: drafted` and `status: draft`, enters the context as an assumption, and only `rapid setup doc <id> --confirm` confirms it. `rapid init` no longer creates the `TODO` scaffolding in `docs/`.
+- **It only ticks the story the run closed, and does not fill the root with backups:** when `rapid finish` ends in PASS and the spec carries the `story:<ID>` tag, it changes that single `- [ ] <ID>:` line to `- [x] <ID>:` in `docs/PRODUCT_BRIEF.md` (previous copy in `.rapid-os/backups/`, `source` and `status` unchanged: a draft stays a draft); if the verdict is not PASS, if you pass `--no-tick`, or if the brief is not a Rapid OS document, it only suggests the story. A run covers one story. The agent files that Rapid OS regenerates keep their previous copy in `.rapid-os/backups/` (only if the content changed, 5 per file), not in the project root.
+- **It is not an operating-system sandbox:** "Capabilities" in Rapid OS are declarations of software capabilities, not kernel security cages or enforced containers.
+- **It does not mathematically guarantee the absence of defects:** A `PASS` verdict certifies that the contract rules and the recorded evidence were satisfied. It is not a formal proof of mathematical correctness of all the software, and it does not replace the judgment of engineers.
 
 ---
 
-## Qué SÍ hace Rapid OS
+## What Rapid OS DOES do
 
-- Conduce un run gobernado de principio a fin con el porcelain (`rapid start`, `rapid next`, `rapid check`, `rapid task`, `rapid attach`, `rapid finish`) y genera los shortcuts `/rapid-<modo>` de cada harness (`rapid shortcuts`).
-- Analiza repositorios de forma determinista y extrae hechos con procedencia (`rapid scan`).
-- Mantiene especificaciones de software con revisiones inmutables (`rapid spec`).
-- Compila contexto estructurado respetando presupuestos estrictos de caracteres (`rapid context`).
-- Modela políticas de riesgo y gates de control (`rapid policy`).
-- Emite contratos inmutables de ejecución vinculados por digests SHA-256 (`rapid run`).
-- Modela y valida capabilities declaradas por herramientas de codificación (`rapid harness`).
-- Registra y custodia artefactos de evidencia de ejecución (`rapid evidence`).
-- Evalúa evidencia física offline mediante reglas reproducibles (`rapid eval`).
-- Audita la integridad cruzada completa del proyecto (`rapid validate`).
+- Drives a governed run from start to finish with the porcelain (`rapid start`, `rapid next`, `rapid check`, `rapid task`, `rapid attach`, `rapid finish`) and generates each harness's `/rapid-<mode>` shortcuts (`rapid shortcuts`).
+- Analyzes repositories deterministically and extracts facts with provenance (`rapid scan`).
+- Maintains software specifications with immutable revisions (`rapid spec`).
+- Compiles structured context within strict character budgets (`rapid context`).
+- Models risk policies and control gates (`rapid policy`).
+- Issues immutable execution contracts bound by SHA-256 digests (`rapid run`).
+- Models and validates the capabilities declared by coding tools (`rapid harness`).
+- Records and safeguards execution evidence artifacts (`rapid evidence`).
+- Evaluates physical evidence offline using reproducible rules (`rapid eval`).
+- Audits the full cross-integrity of the project (`rapid validate`).
 
 ---
 
-## Fronteras en compuertas humanas y defensa en capas
+## Boundaries on human gates and defense in depth
 
-Un principio fundamental de gobernanza en Rapid OS es que **las compuertas de revisión humana nunca se reconocen automáticamente**.
+A core governance principle in Rapid OS is that **human review gates are never acknowledged automatically**.
 
-Para mitigar que agentes o subprocesos auto-aprueben compuertas humanas:
-- `rapid approve` exige una terminal interactiva (TTY), solicita confirmación textual explícita (`aprobar <gate-id>`) y rechaza la ejecución si detecta marcadores de sesión de agente hijo (`CLAUDE_CODE_CHILD_SESSION == "1"`).
-- Además recorre la cadena de procesos padre y rechaza la ejecución (`RAPID1310`) si algún ancestro es un harness de agente. Hoy solo se reconoce Claude Code (el binario `claude`/`claude.exe`, el paquete npm `@anthropic-ai/claude-code` y el directorio `~/.local/share/claude/versions/` del instalador nativo), porque son los únicos nombres confirmados en su documentación oficial o en una instalación real; Codex y Cursor no se reconocen porque su nombre de proceso no está confirmado. La detección por ascendencia es de **mejor esfuerzo**: un proceso que se desacopla de su padre (doble fork, `setsid`, `nohup … &`) pasa a colgar de `init` y deja de tener a `claude` como ancestro. Junto al `claude.exe` renombrado y el pid reutilizado de un padre ya muerto, es un límite conocido. La regla sigue siendo que una persona apruebe en su propia terminal. Si la ascendencia no se puede leer (Linux: `/proc`; macOS: `ps`; Windows: `CreateToolhelp32Snapshot`), `rapid approve` **no** rechaza por ello y `rapid doctor` registra el motivo (`RAPID1319`). Una persona que usa su propia terminal, aunque sea la integrada de un IDE, no tiene un proceso `claude` entre sus ancestros; tampoco puede aprobar desde el modo `!` de Claude Code, porque ahí `claude` sí es el ancestro.
-- Es importante destacar que la confirmación por TTY se puede emular externamente (mediante comandos como `script` o emuladores `pty`), por lo que actúa como **defensa en capas** y fricción deliberada, no como una garantía criptográfica o infalible. Rapid OS no atestigua criptográficamente quién aprueba: la identidad del revisor es la que se declara (`--reviewer` o `git config user.name`).
-
+To prevent agents or subprocesses from self-approving human gates:
+- `rapid approve` requires an interactive terminal (TTY), asks for explicit textual confirmation (`aprobar <gate-id>`), and refuses to run if it detects child-agent session markers (`CLAUDE_CODE_CHILD_SESSION == "1"`).
+- It also walks the parent process chain and refuses to run (`RAPID1310`) if any ancestor is an agent harness. Today only Claude Code is recognized (the `claude`/`claude.exe` binary, the `@anthropic-ai/claude-code` npm package, and the native installer's `~/.local/share/claude/versions/` directory), because those are the only names confirmed in its official documentation or in a real installation; Codex and Cursor are not recognized because their process name is not confirmed. Ancestry detection is **best-effort**: a process that detaches from its parent (double fork, `setsid`, `nohup … &`) ends up hanging from `init` and no longer has `claude` as an ancestor. Along with a renamed `claude.exe` and the reused pid of a dead parent, this is a known limit. The rule remains that a person approves in their own terminal. If ancestry cannot be read (Linux: `/proc`; macOS: `ps`; Windows: `CreateToolhelp32Snapshot`), `rapid approve` does **not** refuse because of it and `rapid doctor` records the reason (`RAPID1319`). A person using their own terminal, even an IDE's integrated one, has no `claude` process among their ancestors; they also cannot approve from Claude Code's `!` mode, because there `claude` is the ancestor.
+- It is important to note that TTY confirmation can be emulated externally (with commands such as `script` or `pty` emulators), so it acts as **defense in depth** and deliberate friction, not as a cryptographic or foolproof guarantee. Rapid OS does not cryptographically attest who approves: the reviewer's identity is the one declared (`--reviewer` or `git config user.name`).

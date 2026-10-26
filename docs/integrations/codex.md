@@ -1,109 +1,109 @@
-# Integración con OpenAI Codex / CLI
+# OpenAI Codex / CLI Integration
 
-Guía técnica para gobernar tareas asistidas por modelos de código en línea de comandos y entornos headless mediante **RAPID OS v3**.
-
----
-
-## 1. Qué es y cómo encaja con RAPID OS
-
-OpenAI Codex y sus herramientas de línea de comandos asociadas permiten la generación y transformación automatizada de código en entornos automatizados o terminales de desarrollo.
-
-**Encaje con RAPID OS:**
-RAPID OS actúa como la capa determinista de gobernanza que define qué cambios están autorizados mediante una especificación (`Spec`) y un contrato (`ExecutionContract`). Codex actúa como el motor de codificación externa que produce los parches y ejecuta comandos.
+Technical guide to governing tasks assisted by code models in the command line and in headless environments with **RAPID OS v3**.
 
 ---
 
-## 2. Configuración en RAPID OS
+## 1. What it is and how it fits with RAPID OS
 
-RAPID OS incluye el perfil integrado `codex`:
+OpenAI Codex and its associated command-line tools enable automated code generation and transformation in automated environments or developer terminals.
+
+**Fit with RAPID OS:**
+RAPID OS acts as the deterministic governance layer that defines which changes are authorized through a specification (`Spec`) and a contract (`ExecutionContract`). Codex acts as the external coding engine that produces the patches and runs commands.
+
+---
+
+## 2. Configuration in RAPID OS
+
+RAPID OS includes the built-in `codex` profile:
 
 ```bash
 rapid harness show codex
 ```
 
-Salida declarada:
+Declared output:
 - `context.consume`: `supported`
 - `repository.read`: `supported`
 - `workspace.current`: `supported`
-- `repository.write`, `shell.execute`, `tests.execute`: `unknown` (declarados como sujetos a los permisos del entorno local).
+- `repository.write`, `shell.execute`, `tests.execute`: `unknown` (declared as subject to the permissions of the local environment).
 
-Para sobreescribir estas capacidades y declarar que tu entorno local autoriza la ejecución de pruebas y modificación de archivos, puedes inicializar un perfil de proyecto en `.rapid-os/harnesses/codex.json`.
-
----
-
-## 3. Configuración del Usuario en Codex
-
-1. Configura tu entorno de ejecución con las variables y claves de API correspondientes según la documentación oficial de OpenAI.
-2. Asegura que la herramienta tenga permisos de lectura y escritura en el repositorio.
-3. Configura el sandbox de ejecución local para permitir que la herramienta corra `python -m unittest`.
+To override these capabilities and declare that your local environment authorizes running tests and modifying files, you can initialize a project profile at `.rapid-os/harnesses/codex.json`.
 
 ---
 
-## Flujo principal: shortcuts
+## 3. User Configuration in Codex
 
-La forma recomendada de trabajar con Codex es con los shortcuts de Rapid OS. Los 9 shortcuts, el bucle que siguen, la aprobación humana y los errores frecuentes están en la [guía de shortcuts](../guides/shortcuts.md).
+1. Configure your runtime environment with the corresponding variables and API keys according to the official OpenAI documentation.
+2. Make sure the tool has read and write permissions on the repository.
+3. Configure the local execution sandbox to allow the tool to run `python -m unittest`.
 
-### Instalación
+---
+
+## Main workflow: shortcuts
+
+The recommended way to work with Codex is with the Rapid OS shortcuts. The 9 shortcuts, the loop they follow, human approval, and common errors are in the [shortcuts guide](../guides/shortcuts.md).
+
+### Install
 
 ```bash
-rapid init --shortcuts                                # al inicializar el proyecto
-rapid shortcuts install --harness codex               # en un proyecto ya inicializado
+rapid init --shortcuts                                # when initializing the project
+rapid shortcuts install --harness codex               # in an already initialized project
 ```
 
-Genera `.agents/skills/rapid-*/SKILL.md` (los 9 shortcuts; [documentación de skills de Codex](https://learn.chatgpt.com/docs/build-skills)). Es la misma carpeta que usa Antigravity: si seleccionas ambos, se escribe una sola vez. Tras actualizar Rapid OS, vuelve a ejecutar `rapid shortcuts install`.
+It generates `.agents/skills/rapid-*/SKILL.md` (the 9 shortcuts; [Codex skills documentation](https://learn.chatgpt.com/docs/build-skills)). It is the same folder Antigravity uses: if you select both, it is written only once. After updating Rapid OS, run `rapid shortcuts install` again.
 
-### Invocación: Codex CLI y extensión de IDE
+### Invoke: Codex CLI and IDE extension
 
-Los shortcuts son *skills* de Codex. Según la [documentación oficial de skills](https://learn.chatgpt.com/docs/build-skills): "In Codex CLI or the IDE extension, run `/skills` or type `$` to mention a skill". Por eso la forma que funciona en todas las variantes de Codex es `$`:
+The shortcuts are Codex *skills*. According to the [official skills documentation](https://learn.chatgpt.com/docs/build-skills): "In Codex CLI or the IDE extension, run `/skills` or type `$` to mention a skill". That is why the form that works in every Codex variant is `$`:
 
 ```text
-$rapid-init API de facturación para pymes, en Python
-$rapid-feature añadir exportación CSV al informe mensual
+$rapid-init Billing API for small businesses, in Python
+$rapid-feature add CSV export to the monthly report
 ```
 
-| Variante de Codex | Cómo invocar un shortcut | Qué muestra `/` |
+| Codex variant | How to invoke a shortcut | What `/` shows |
 | --- | --- | --- |
-| **Codex CLI** (`codex` en una terminal) | `$rapid-<modo>`, o elegirlo desde `/skills` | Solo los comandos propios de Codex (`/model`, `/skills`…). **`/rapid-*` no aparece**: escribe `$`. |
-| **Extensión de Codex para VS Code** | `$rapid-<modo>` o `/skills`; en la extensión también aparecen al escribir `/` | Comandos de Codex y, en la extensión, los skills. |
+| **Codex CLI** (`codex` in a terminal) | `$rapid-<mode>`, or pick it from `/skills` | Only Codex's own commands (`/model`, `/skills`…). **`/rapid-*` does not appear**: type `$`. |
+| **Codex extension for VS Code** | `$rapid-<mode>` or `/skills`; in the extension they also appear when you type `/` | Codex commands and, in the extension, the skills. |
 
-Las dos variantes leen la misma carpeta (`.agents/skills/` del proyecto, y `~/.agents/skills/` si instalaste con `--global`), así que no hace falta instalar nada distinto para cada una. Si `$` no muestra los `rapid-*`:
+Both variants read the same folder (the project's `.agents/skills/`, and `~/.agents/skills/` if you installed with `--global`), so there is no need to install anything different for each one. If `$` does not show the `rapid-*` skills:
 
-1. Abre Codex desde la raíz del proyecto (Codex busca `.agents/skills` desde el directorio de trabajo hacia la raíz del repositorio).
-2. Comprueba que existan: `rapid shortcuts list --harness codex`.
-3. Comprueba que `rapid` esté en el `PATH` de esa terminal (`rapid --version`): el skill le pide a Codex ejecutarlo.
-4. Si actualizaste Rapid OS o los instalaste con Codex abierto, reinicia la sesión de Codex.
+1. Open Codex from the project root (Codex looks for `.agents/skills` from the working directory up to the repository root).
+2. Check that they exist: `rapid shortcuts list --harness codex`.
+3. Check that `rapid` is on the `PATH` of that terminal (`rapid --version`): the skill asks Codex to run it.
+4. If you updated Rapid OS or installed them while Codex was open, restart the Codex session.
 
-`$rapid-approve` **no aprueba**: muestra los gates pendientes y la evidencia, y te da el comando para tu terminal. `rapid approve` exige una terminal interactiva tuya y falla con `RAPID1310` si lo lanza un agente. El archivo `AGENTS.md` generado por `rapid init` sigue aportando el contexto del proyecto.
+`$rapid-approve` **does not approve**: it shows the pending gates and the evidence, and gives you the command for your terminal. `rapid approve` requires an interactive terminal of your own and fails with `RAPID1310` if an agent launches it. The `AGENTS.md` file generated by `rapid init` still provides the project context.
 
 ---
 
-## Modo avanzado (comandos v3)
+## Advanced mode (v3 commands)
 
-Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) siguen disponibles para CI, depuración y auditoría, y tampoco hace falta usarlos a mano en el día a día. Las secciones 4 a 8 conservan el flujo manual completo.
+The v3 commands (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) remain available for CI, debugging, and auditing, and you do not need to use them by hand day to day either. Sections 4 to 8 keep the full manual flow.
 
-## 4. Entrega del Context Bundle y Spec
+## 4. Context Bundle and Spec Delivery
 
-RAPID OS compila un paquete de contexto optimizado:
+RAPID OS compiles an optimized context package:
 
 ```bash
 rapid context --manifest
 ```
 
-Entrega a la herramienta:
-- La especificación activa (`.rapid-os/specs/<spec-id>/spec.json`).
-- El manifiesto de contexto compilado (`.rapid-os/context/manifest.json`).
-- Las instrucciones del contrato de ejecución (`.rapid-os/runs/<run-id>/contract.json`).
+Deliver to the tool:
+- The active specification (`.rapid-os/specs/<spec-id>/spec.json`).
+- The compiled context manifest (`.rapid-os/context/manifest.json`).
+- The execution contract instructions (`.rapid-os/runs/<run-id>/contract.json`).
 
 ---
 
-## 5. Respeto del Execution Contract y Herramientas Externas
+## 5. Respecting the Execution Contract and External Tools
 
-El harness debe ceñirse a:
-- La lista de tareas inmutables (`T001`, `T002`, ...).
-- Los archivos autorizados en el alcance (`paths`).
-- Las compuertas declaradas en la política.
+The harness must adhere to:
+- The immutable task list (`T001`, `T002`, ...).
+- The files authorized in the scope (`paths`).
+- The gates declared in the policy.
 
-Antes de comenzar la ejecución externa, captura el log de baseline como artefacto (`base.log`), registra la evidencia de baseline (conforme a [`evidence_baseline.json`](../tutorials/first-governed-project.md#1-registrar-evidencia-de-baseline-y-acreditar-gatebaseline)) y reconoce `gate.baseline`:
+Before starting external execution, capture the baseline log as an artifact (`base.log`), record the baseline evidence (according to [`evidence_baseline.json`](../tutorials/first-governed-project.md#1-record-baseline-evidence-and-acknowledge-gatebaseline)), and acknowledge `gate.baseline`:
 ```bash
 python -m unittest discover -s tests -t . > base.log 2>&1
 rapid evidence add --run <run-id> --input evidence_baseline.json
@@ -114,27 +114,27 @@ rapid run task <run-id> T001 in_progress
 
 ---
 
-## 6. Registro de Resultados y Evidencia
+## 6. Recording Results and Evidence
 
-Una vez que Codex aplique los cambios y ejecute las pruebas en la terminal externa (consulta la definición canónica de cada evidencia en el [laboratorio Bajo el capó](../tutorials/first-governed-project.md#7-evidence-collection)):
+Once Codex applies the changes and runs the tests in the external terminal (see the canonical definition of each piece of evidence in the [Under the hood lab](../tutorials/first-governed-project.md#7-evidence-collection)):
 
-1. Ingerir evidencia de los archivos modificados ([`evidence_files.json`](../tutorials/first-governed-project.md#3-registrar-evidencia-de-cambios-en-el-código-file_change)):
+1. Ingest evidence of the modified files ([`evidence_files.json`](../tutorials/first-governed-project.md#3-record-code-change-evidence-file_change)):
 ```bash
 rapid evidence add --run <run-id> --input evidence_files.json
 ```
 
-2. Ingerir evidencia del resultado de las pruebas con log adjunto ([`evidence_tests.json`](../tutorials/first-governed-project.md#4-registrar-evidencia-de-pruebas-aprobadas-test_result)):
+2. Ingest evidence of the test result with the attached log ([`evidence_tests.json`](../tutorials/first-governed-project.md#4-record-passing-test-evidence-test_result)):
 ```bash
 rapid evidence add --run <run-id> --input evidence_tests.json
 ```
 
-3. Ingerir evidencia de espacio de trabajo ([`evidence_workspace.json`](../tutorials/first-governed-project.md#5-registrar-evidencia-de-espacio-de-trabajo-workspace)) y revisión final ([`evidence_review.json`](../tutorials/first-governed-project.md#6-registrar-evidencia-de-revisión-final-review)):
+3. Ingest workspace evidence ([`evidence_workspace.json`](../tutorials/first-governed-project.md#5-record-workspace-evidence-workspace)) and final review evidence ([`evidence_review.json`](../tutorials/first-governed-project.md#6-record-final-review-evidence-review)):
 ```bash
 rapid evidence add --run <run-id> --input evidence_workspace.json
 rapid evidence add --run <run-id> --input evidence_review.json
 ```
 
-4. Actualizar el estado del run:
+4. Update the run state:
 ```bash
 rapid run gate <run-id> gate.tests acknowledged
 rapid run gate <run-id> gate.final-verification acknowledged
@@ -144,9 +144,9 @@ rapid run status <run-id> finished
 
 ---
 
-## 7. Evaluación Determinista
+## 7. Deterministic Evaluation
 
-Evalúa la validez de la ejecución:
+Evaluate the validity of the execution:
 
 ```bash
 rapid eval run --run <run-id> --write --require-pass
@@ -154,30 +154,30 @@ rapid eval run --run <run-id> --write --require-pass
 
 ---
 
-## Windows: sandbox y git
+## Windows: sandbox and git
 
-**Por qué pasa.** En Windows, Codex ejecuta los comandos dentro de un sandbox. En su modo por defecto (`elevated`) los comandos corren con usuarios de sandbox dedicados y de menos privilegios ([Windows sandbox](https://learn.chatgpt.com/docs/windows/windows-sandbox.md)). git, por su parte, se niega a leer una carpeta cuyo dueño no es el usuario que lo ejecuta (`detected dubious ownership`). Esa página de Codex describe el sandbox pero no menciona git: la relación entre ambos es esta, observada en la práctica. Resultado: lo que corre el harness y lo que corres tú a mano en tu terminal ven la misma carpeta con distinto dueño.
+**Why it happens.** On Windows, Codex runs commands inside a sandbox. In its default mode (`elevated`) the commands run with dedicated, lower-privileged sandbox users ([Windows sandbox](https://learn.chatgpt.com/docs/windows/windows-sandbox.md)). git, for its part, refuses to read a folder whose owner is not the user running it (`detected dubious ownership`). That Codex page describes the sandbox but does not mention git: the relationship between the two is this one, observed in practice. Result: what the harness runs and what you run by hand in your terminal see the same folder with a different owner.
 
-**Lo que Rapid OS ya resuelve.** Todos los comandos git de Rapid OS pasan por una sola puerta (`rapid_os/orchestration/git.py`) que añade `-c safe.directory=<raíz del proyecto>` y `-c core.fsmonitor=false`. Confía solo en la raíz del proyecto, nunca en `*`, y desactiva el fsmonitor (lo que permite que un repositorio ajeno ejecute programas al leerlo). Por eso `rapid setup finish`, `rapid start` y `rapid finish` funcionan dentro del sandbox sin pedirte nada. `safe.directory` por línea de comandos se respeta desde git 2.38; en versiones anteriores git lo ignora y Rapid OS lo trata como `untrusted` (`RAPID1416`).
+**What Rapid OS already solves.** All of Rapid OS's git commands go through a single gateway (`rapid_os/orchestration/git.py`) that adds `-c safe.directory=<project root>` and `-c core.fsmonitor=false`. It trusts only the project root, never `*`, and disables fsmonitor (which allows a foreign repository to run programs when it is read). That is why `rapid setup finish`, `rapid start`, and `rapid finish` work inside the sandbox without asking you for anything. `safe.directory` on the command line is honored since git 2.38; in earlier versions git ignores it and Rapid OS treats it as `untrusted` (`RAPID1416`).
 
-**Lo único que te toca a ti.** Para usar git tú mismo en esa carpeta (`git status`, `git commit`...), el git de tu usuario necesita la excepción. Rapid OS lo detecta (pregunta a git como lo harías tú, sin esos `-c`) y lo entrega como una acción en `person_actions` de `rapid setup finish`, `rapid setup next --json` (`kind: done`) y `rapid doctor`, y el shortcut te la muestra con su explicación:
+**The only thing left for you.** To use git yourself in that folder (`git status`, `git commit`...), your user's git needs the exception. Rapid OS detects it (it asks git the way you would, without those `-c` flags) and delivers it as an action in `person_actions` of `rapid setup finish`, `rapid setup next --json` (`kind: done`), and `rapid doctor`, and the shortcut shows it to you with its explanation:
 
 ```bash
-git config --global --add safe.directory C:/ruta/de/tu/proyecto
+git config --global --add safe.directory C:/path/to/your/project
 ```
 
-La ruta es la raíz del proyecto con `/`. No necesita permisos de administrador (solo lo lee tu usuario) y nunca se usa `--system` ni `*`. Ejecútalo en tu propia terminal: el agente no debe hacerlo por ti.
+The path is the project root written with `/`. It does not need administrator permissions (only your user reads it) and `--system` or `*` are never used. Run it in your own terminal: the agent must not do it for you.
 
-**Alternativa: `unelevated`.** Si prefieres que los comandos corran con tu propio usuario, Codex permite el sandbox `unelevated` en `config.toml`:
+**Alternative: `unelevated`.** If you prefer the commands to run with your own user, Codex allows the `unelevated` sandbox in `config.toml`:
 
 ```toml
 [windows]
 sandbox = "unelevated"
 ```
 
-Tiene un costo de aislamiento: según la misma página es un modo heredado (*legacy fallback*) que usa un token restringido derivado de tu usuario en lugar del límite de usuario de sandbox de `elevated`, con un aislamiento de red más débil (controles a nivel de entorno en vez de la regla de firewall dedicada) y sin soporte para rutas de lectura denegadas. Rapid OS funciona igual con cualquiera de los dos.
+It has an isolation cost: according to the same page it is a legacy mode (*legacy fallback*) that uses a restricted token derived from your user instead of the sandbox-user boundary of `elevated`, with weaker network isolation (environment-level controls instead of the dedicated firewall rule) and no support for denied read paths. Rapid OS works the same with either one.
 
-## 8. Problemas Frecuentes
+## 8. Common Problems
 
-- **El harness intenta modificar rutas fuera de scope:** La evaluación detectará discrepancias si la evidencia no coincide con las rutas del contrato.
-- **Falta de evidencia de pruebas:** No intentes cerrar `gate.tests` sin una evidencia válida de `test_result` con `exit_code: 0`.
+- **The harness tries to modify paths outside the scope:** The evaluation will detect discrepancies if the evidence does not match the contract's paths.
+- **Missing test evidence:** Do not try to close `gate.tests` without valid `test_result` evidence with `exit_code: 0`.

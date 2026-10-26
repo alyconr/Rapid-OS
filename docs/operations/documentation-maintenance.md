@@ -1,86 +1,70 @@
-# Guía de Mantenimiento y Operación Continua de Documentación
-
-Este documento establece las directrices operativas para mantener la salud técnica, la seguridad, la precisión del contenido y la vigencia del portal de documentación de **RAPID OS v3**.
-
+---
+title: Documentation Maintenance and Operations
+description: Ongoing maintenance guidelines for the accuracy, security, and health of the Rapid OS v3 documentation site.
 ---
 
-## 1. Cadencia y Tareas de Mantenimiento
+# Documentation Maintenance and Operations
 
-### Mensual: Auditoría de Enlaces y Dependencias
+This document sets operating guidelines to keep the **Rapid OS v3** documentation site technically healthy, secure, accurate, and current.
 
-1. **Actualización de Dependencias de Node.js:**
-   - Revisar vulnerabilidades con `npm audit`:
-     ```bash
-     cd website
-     npm audit
-     ```
-   - Actualizar paquetes menores/patches respetando las versiones fijadas de Docusaurus:
-     ```bash
-     npm update
-     ```
-2. **Validación de Enlaces Rotos:**
-   - La configuración de Docusaurus (`onBrokenLinks: 'throw'`) bloquea enlaces internos rotos en cada compilación.
-   - En auditorías periódicas, auditar enlaces externos hacia repositorios y herramientas de coding harnesses.
+## 1. Maintenance schedule
 
-### Trimestral: Auditoría SEO y Metadatos
+### Monthly: link and dependency audit
 
-1. Verificar que los tags de Open Graph y Twitter Cards renderizan adecuadamente en herramientas de vista previa (e.g., opengraph.xyz).
-2. Inspeccionar `sitemap.xml` para garantizar que todas las páginas nuevas del portal están indexadas.
-3. Verificar compatibilidad con lectores de pantalla y directrices de accesibilidad web (WCAG 2.1 AA) mediante auditorías Lighthouse.
+1. **Update Node.js dependencies:** Check vulnerabilities with `npm audit` and update minor/patch versions while respecting pinned Docusaurus versions:
+   ```bash
+   cd website
+   npm audit
+   npm update
+   ```
+2. **Check for broken links:** Docusaurus configuration (`onBrokenLinks: 'throw'`) blocks internal broken links during every build. Periodically audit external links to repositories and coding harness tools.
 
----
+### Quarterly: SEO and metadata audit
 
-## 2. Estrategia de Versionamiento Documental
+1. Verify that Open Graph and Twitter Card tags render correctly in preview tools (for example, opengraph.xyz).
+2. Inspect `sitemap.xml` to ensure new site pages are indexed.
+3. Check screen-reader compatibility and WCAG 2.1 AA accessibility with Lighthouse audits.
 
-### Principio Canónico: Documentación Atada al Producto
+## 2. Documentation versioning strategy
 
-En RAPID OS, la documentación evoluciona de manera sincronizada con el ciclo de vida del producto:
+### Canonical principle: documentation tracks the product
 
-- **Versión Activa (`v3.1.1`):** La documentación en `docs/` refleja con exactitud la release actual del CLI y la arquitectura determinista v3.
-- **Rama de Desarrollo (`develop`):** Contiene cambios pendientes de release; se compila y valida en CI pero **no se publica** a GitHub Pages hasta merge en `main`.
+Rapid OS documentation evolves in sync with the product lifecycle:
 
-### Procedimiento para Nuevas Versiones Mayores / Menores (Docusaurus Versioning)
+- **Active version (`v3.1.1`):** `docs/` accurately reflects the current CLI release and deterministic v3 architecture.
+- **Development branch (`develop`):** Holds changes pending release; CI builds and validates it, but it is **not published** to GitHub Pages until merged into `main`.
 
-Cuando se lance una nueva versión menor o mayor del producto (por ejemplo, RAPID OS v3.1.0 o v4.0.0):
+### New major/minor versions (Docusaurus versioning)
 
-1. **Snapshot de la Versión Previa:**
-   Docusaurus incluye soporte nativo para snapshotting documental:
+When a new minor or major product version ships (for example, Rapid OS v3.1.0 or v4.0.0):
+
+1. **Snapshot the previous version:** Docusaurus has built-in documentation snapshotting:
    ```bash
    cd website
    npm run docusaurus docs:version 3.0.0
    ```
-   Esto congela la versión actual en `website/versioned_docs/version-3.0.0` y `website/versioned_sidebars/version-3.0.0-sidebars.json`.
-2. **Actualización de `docs/`:**
-   El directorio raíz `docs/` pasa a ser la versión en desarrollo (`Next`), reflejando las nuevas características de la futura release.
-3. **Selector de Versiones:**
-   Activar el selector de versiones en `website/docusaurus.config.ts`:
+   This freezes the current content in `website/versioned_docs/version-3.0.0` and `website/versioned_sidebars/version-3.0.0-sidebars.json`.
+2. **Update `docs/`:** The root `docs/` directory becomes the development (`Next`) version and reflects upcoming release features.
+3. **Enable the version selector** in `website/docusaurus.config.ts`:
    ```ts
    navbar: {
      items: [
-       {
-         type: 'docsVersionDropdown',
-         position: 'right',
-       },
+       { type: 'docsVersionDropdown', position: 'right' },
        // ...
      ],
    }
    ```
-4. **Regla de Product Truth sobre Snapshots:**
-   *No fabricar retroactivamente versiones ficticias anteriores a v3.0.0*. Las versiones previas a la arquitectura unificada v3 no contaban con la suite documental actual; crear snapshots artificiales viola la integridad del producto.
+4. **Product truth for snapshots:** *Do not fabricate historical versions before v3.0.0.* Versions before the unified v3 architecture did not have this documentation set; artificial snapshots would misrepresent the product.
 
----
+## 3. Contribution and review policy
 
-## 3. Política de Contribución y Revisión
-
-- **Única Fuente de Verdad:** Toda modificación documental se realiza exclusivamente en `docs/`. Está prohibido duplicar o editar directamente en `website/build/` o crear carpetas paralelas en `website/docs/`.
-- **Verificación Automatizada Requerida:** Todo PR que afecte la documentación debe pasar sin advertencias ni errores:
+- **Single source of truth:** Make documentation changes only in `docs/`. Do not duplicate or edit content in `website/build/` or create parallel folders in `website/docs/`.
+- **Required automated verification:** Any PR affecting documentation must pass without warnings or errors:
   - `npm ci`
   - `npm run typecheck`
   - `npm run build`
-  - Pruebas Python de documentación (`tests/test_documentation_labs.py`, `tests/test_documentation_deployment.py`).
+  - Python documentation tests (`tests/test_documentation_labs.py`, `tests/test_documentation_deployment.py`).
 
----
+## 4. The `site/` directory was removed
 
-## 4. Directorio `site/` eliminado
-
-El repositorio conservaba un `site/` con la plantilla por defecto de Docusaurus (`README.md`, `blog/`, `debug_rapid_config.py`, `docusaurus.config.ts`…). Ningún workflow, test, configuración de empaquetado ni documento lo usaba: el portal se construye y se publica **solo** desde `website/` (con `docs.path = '../docs'`). Se eliminó para que no haya dos proyectos Docusaurus. Si necesitas la plantilla, consulta el historial de git; no recrees `site/`: cualquier cambio documental va en `docs/` y la navegación en `website/sidebars.ts`.
+The repository used to contain a `site/` directory with the default Docusaurus template (`README.md`, `blog/`, `debug_rapid_config.py`, `docusaurus.config.ts`, and others). No workflow, test, packaging config, or document used it: the site is built and published **only** from `website/` (`docs.path = '../docs'`). It was removed to avoid having two Docusaurus projects. If you need the template, consult Git history; do not recreate `site/`. Documentation belongs in `docs/`, and navigation belongs in `website/sidebars.ts`.

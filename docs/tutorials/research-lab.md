@@ -1,49 +1,52 @@
-# Laboratorio 5: Research & Spike Engineering Lab
+---
+title: Lab 5 - Research and Spike Engineering
+description: Compare JSON and SQLite for storing preferences and record the findings with Rapid OS.
+---
 
-Haz un spike: compara JSON y SQLite para guardar preferencias y deja el aprendizaje registrado. En tu agente escribes tres cosas; en la terminal solo preparas el ejemplo y apruebas.
+# Lab 5: Research and Spike Engineering
 
-## Con shortcuts
+Run a spike: compare JSON and SQLite for storing preferences, then record what you learned. You will enter three things in your agent; in the terminal, you only prepare the example and approve the result.
 
-### 1. Prepara el proyecto de ejemplo
+## With shortcuts
+
+### 1. Prepare the example project
 
 ```bash
 cp -r ~/.rapid-os/examples/research-lab/starter storage-spike && cd storage-spike
 git init -b main && git add . && git commit -m "starter"
 ```
 
-En Windows PowerShell, la copia es `Copy-Item -Recurse $HOME\.rapid-os\examples\research-lab\starter storage-spike`. Si instalaste Rapid OS con `pip`, el ejemplo está en [`examples/research-lab/starter`](https://github.com/alyconr/Rapid-OS/tree/main/examples/research-lab/starter).
+In Windows PowerShell, use `Copy-Item -Recurse $HOME\.rapid-os\examples\research-lab\starter storage-spike`. If you installed Rapid OS with `pip`, the example is in [`examples/research-lab/starter`](https://github.com/alyconr/Rapid-OS/tree/main/examples/research-lab/starter).
 
-### 2. Configura el proyecto
+### 2. Set up the project
 
-Abre tu agente en la carpeta y escribe `/rapid-init` (en Codex, `$rapid-init`). Detecta Python y propone `python -m unittest discover` como comando de tests: acéptalo. Los documentos del proyecto puedes omitirlos en este laboratorio.
+Open your agent in the folder and enter `/rapid-init` (`$rapid-init` in Codex). It detects Python and suggests `python -m unittest discover` as the test command; accept it. You can skip the project documents for this lab.
 
-### 3. Pide el trabajo
+### 3. Request the work
 
 ```text
-/rapid-research comparar JSON y SQLite para guardar las preferencias
+/rapid-research compare JSON and SQLite for storing preferences
 ```
 
-Un spike no exige baseline ni tests: el agente prueba las dos opciones y registra cada hallazgo como evidencia del run (`rapid attach <ruta> --label "…"`).
+A spike does not require a baseline or tests: the agent tries both options and records each finding as run evidence (`rapid attach <path> --label "..."`).
 
-### 4. Aprueba en tu terminal
+### 4. Approve in your terminal
 
-Cuando el agente termina, se detiene y te da el comando exacto. Ejecútalo en **otra terminal**, fuera del agente, por ejemplo:
+When the agent finishes, it stops and gives you the exact command. Run it in **another terminal**, outside the agent, for example:
 
 ```bash
 rapid approve gate.final-verification
 ```
 
-Vuelve al agente y escribe `/rapid-next` para cerrar el run.
+Return to the agent and enter `/rapid-next` to close the run.
 
-**Resultado:** Una comparación con los datos medidos, registrada en el run, y un veredicto `pass`.
+**Result:** A comparison based on measured data is recorded in the run, which ends with a `pass` verdict.
 
-¿No tienes los shortcuts? Una sola vez: `rapid shortcuts install --global --harness claude`, o dentro de la carpeta `rapid init --shortcuts`. Detalle en la [guía de shortcuts](../guides/shortcuts.md).
+No shortcuts yet? Install them once with `rapid shortcuts install --global --harness claude`, or run `rapid init --shortcuts` inside the folder. Replace `claude` with your agent. See the [shortcuts guide](../guides/shortcuts.md).
 
----
+## Lab details
 
-## Detalles del laboratorio
-
-### Estado inicial
+### Starting state
 
 ```text
 storage-spike/
@@ -53,18 +56,15 @@ storage-spike/
     └── test_experiment.py
 ```
 
-En la versión inicial (`starter`):
-`StorageExperiment` contiene únicamente la firma de método sin lógica ejecutable.
+In the starter version, `StorageExperiment` contains only a method signature, with no executable logic.
 
-### Requisitos
+### Requirements
 
-1. **Implementación de JSON:** Escribir y leer 50 registros estructurados mediante `json.dump` / `json.loads`.
-2. **Implementación de SQLite:** Crear tabla relacional, insertar y consultar los mismos 50 registros utilizando `sqlite3`.
-3. **Métricas deterministas:** Contabilizar registros verificados y tamaño del archivo resultante en bytes.
-4. **Cero dependencias:** No añadir paquetes externos de ORM ni frameworks de benchmarks.
+1. **JSON implementation:** Write and read 50 structured records using `json.dump` / `json.loads`.
+2. **SQLite implementation:** Create a relational table, insert the same 50 records, and query them with `sqlite3`.
+3. **Deterministic metrics:** Count verified records and measure the resulting file size in bytes.
+4. **No dependencies:** Do not add external ORM packages or benchmarking frameworks.
 
----
+## Advanced mode
 
-## Modo avanzado
-
-No lo necesitas para hacer el laboratorio. El mismo tipo de trabajo hecho a mano con los comandos v3 (spec, run, evidencia y evaluación), para CI o auditoría, está en el [recorrido manual (Bajo el capó)](first-governed-project.md) y en el [ciclo de gobernanza v3](../governance-loop.md).
+You do not need this for the lab. The same kind of work done manually with v3 commands (spec, run, evidence, and evaluation), for CI or auditing, is covered in the [manual walkthrough](first-governed-project.md) and the [v3 governance loop](../governance-loop.md).

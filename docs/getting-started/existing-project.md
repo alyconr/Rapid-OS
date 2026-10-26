@@ -1,144 +1,144 @@
 ---
-title: Un proyecto que ya existe
-description: Cómo adoptar Rapid OS en repositorios con código preexistente sin riesgo para el código de negocio.
+title: An Existing Project
+description: How to adopt Rapid OS in repositories with preexisting code without risk to the business code.
 ---
 
-# Un proyecto que ya existe
+# An Existing Project
 
-Adoptar Rapid OS en un repositorio que ya se encuentra en producción o desarrollo activo es un proceso seguro y no invasivo. Rapid OS está diseñado para **analizar y gobernar sin modificar tu código de negocio**.
+Adopting Rapid OS in a repository that is already in production or active development is a safe, non-invasive process. Rapid OS is designed to **analyze and govern without modifying your business code**.
 
-## Con shortcuts
+## With shortcuts
 
-1. **Abre tu agente en la raíz del repositorio** y escribe:
+1. **Open your agent at the repository root** and type:
 
    ```text
    /rapid-init
    ```
 
-   El agente lee lo que detecta en tu repositorio (lenguaje, framework, carpeta de tests) y te lo propone como punto de partida: stack, comando de tests y documentos. Tú confirmas o cambias. Si la carpeta aún no es un repositorio git, lo crea en la rama `main`, sin commits.
+   The agent reads what it detects in your repository (language, framework, tests folder) and proposes it as a starting point: stack, test command, and documents. You confirm or change it. If the folder is not yet a git repository, it creates one on the `main` branch, with no commits.
 
-2. **Pide el trabajo:**
+2. **Ask for the work:**
 
    ```text
-   /rapid-bugfix el descuento del 10% devuelve un total negativo
+   /rapid-bugfix the 10% discount returns a negative total
    ```
 
-3. **Aprueba en tu terminal** cuando el agente te lo pida (te da el comando exacto, por ejemplo `rapid approve gate.final-verification`) y escribe `/rapid-next` para cerrar. Más opciones en [Cuando el agente se detiene](./when-the-agent-stops.md).
+3. **Approve in your terminal** when the agent asks you to (it gives you the exact command, for example `rapid approve gate.final-verification`) and type `/rapid-next` to close. More options in [When the agent stops](./when-the-agent-stops.md).
 
-Rapid OS no toca tu código de negocio: escribe su configuración en `.rapid-os/`, los documentos en `docs/` y las instrucciones de tu agente (`CLAUDE.md`, `AGENTS.md`…); si añade algo más (por ejemplo un workflow de seguridad), te lo dice al cerrar el onboarding. El primer paso de cada run es un *baseline* de tus tests: si tu suite ya está en rojo, el run no avanza hasta que la arregles (o abandones el run con `rapid abort`).
+Rapid OS does not touch your business code: it writes its configuration to `.rapid-os/`, the documents to `docs/`, and your agent's instructions (`CLAUDE.md`, `AGENTS.md`…); if it adds anything else (for example a security workflow), it tells you when it closes the onboarding. The first step of every run is a *baseline* of your tests: if your suite is already red, the run does not advance until you fix it (or abandon the run with `rapid abort`).
 
-¿Aún no tienes los shortcuts? Una sola vez: `rapid shortcuts install --global --harness claude` (cambia `claude` por tu agente), o dentro del repositorio `rapid init --shortcuts`. Detalle en la [guía de shortcuts](../guides/shortcuts.md).
+Don't have the shortcuts yet? One time only: `rapid shortcuts install --global --harness claude` (replace `claude` with your agent), or inside the repository `rapid init --shortcuts`. Details in the [shortcuts guide](../guides/shortcuts.md).
 
-## Modo avanzado
+## Advanced mode
 
-No lo necesitas para usar Rapid OS. Es la ruta con comandos v3 (`rapid doctor`, `rapid scan`…): útil para ver qué descubre Rapid OS en tu repositorio, para CI y para auditoría.
+You don't need it to use Rapid OS. It is the path with v3 commands (`rapid doctor`, `rapid scan`…): useful to see what Rapid OS discovers in your repository, for CI, and for auditing.
 
 <details>
-<summary>Ver los pasos con comandos v3</summary>
+<summary>See the steps with v3 commands</summary>
 
 ---
 
-## 1. Localizar la raíz del repositorio
+## 1. Locate the repository root
 
-El CLI de Rapid OS opera siempre sobre el directorio de trabajo actual (`current working directory`). Posiciónate en la raíz del repositorio (donde reside el archivo `.git` o los archivos principales de configuración del proyecto):
+The Rapid OS CLI always operates on the current working directory. Move to the repository root (where the `.git` folder or the project's main configuration files live):
 
 ```bash
-cd /ruta/a/tu-proyecto-existente
+cd /path/to/your-existing-project
 ```
 
 ---
 
-## 2. Diagnóstico previo con `rapid doctor`
+## 2. Pre-check with `rapid doctor`
 
-Ejecuta un chequeo inicial para comprobar el estado del entorno en ese directorio:
+Run an initial check to verify the state of the environment in that directory:
 
 ```bash
 rapid doctor
 ```
 
-Si el proyecto aún no tiene Rapid OS, reportará que `.rapid-os/config.json` no existe. Esto es esperado.
+If the project does not have Rapid OS yet, it will report that `.rapid-os/config.json` does not exist. This is expected.
 
 ---
 
-## 3. Escaneo en modo solo lectura (`rapid scan`)
+## 3. Read-only scan (`rapid scan`)
 
-Antes de crear cualquier archivo, ejecuta el escáner del proyecto:
+Before creating any file, run the project scanner:
 
 ```bash
 rapid scan
 ```
 
-O para ver la evidencia detallada de cada hecho detectado:
+Or to see the detailed evidence for each detected fact:
 
 ```bash
 rapid scan --verbose
 ```
 
-### ¿Qué analiza el escáner?
-Rapid OS busca marcadores estándar del ecosistema de software:
-- **Lenguajes y empaquetadores:** `pyproject.toml`, `package.json`, `Cargo.toml`, `go.mod`, `pom.xml`, etc.
+### What does the scanner analyze?
+Rapid OS looks for standard markers of the software ecosystem:
+- **Languages and packagers:** `pyproject.toml`, `package.json`, `Cargo.toml`, `go.mod`, `pom.xml`, etc.
 - **Frameworks:** Django, FastAPI, Flask, React, Next.js, Vue, Spring, etc.
 - **Testing:** `pytest`, `unittest`, `jest`, `vitest`, `mocha`, etc.
-- **Contenedores y orquestación:** `Dockerfile`, `docker-compose.yml`.
-- **Estructura:** Detección de monorepos (`pnpm-workspace.yaml`, `lerna.json`, carpetas de apps).
+- **Containers and orchestration:** `Dockerfile`, `docker-compose.yml`.
+- **Structure:** Monorepo detection (`pnpm-workspace.yaml`, `lerna.json`, app folders).
 
-### ¿Qué NO lee el escáner (Seguridad de secretos)?
-- **No analiza archivos de secretos:** Ignora automáticamente `.env`, archivos con claves privadas (`.pem`, `.key`), tokens y directorios ignorados como `.git`, `node_modules`, `venv`, `__pycache__` o `.docusaurus`.
-- **No modifica código fuente:** `rapid scan` es **100% de solo lectura**.
+### What does the scanner NOT read (secrets safety)?
+- **It does not analyze secrets files:** It automatically ignores `.env`, files with private keys (`.pem`, `.key`), tokens, and ignored directories such as `.git`, `node_modules`, `venv`, `__pycache__`, or `.docusaurus`.
+- **It does not modify source code:** `rapid scan` is **100% read-only**.
 
 ---
 
-## 4. Persistir la inteligencia del proyecto
+## 4. Persist the project intelligence
 
-Una vez que revises los hechos descubiertos, persiste la instantánea de inteligencia:
+Once you have reviewed the discovered facts, persist the intelligence snapshot:
 
 ```bash
 rapid scan --write
 ```
 
-Esto crea exclusivamente `.rapid-os/project.json`, permitiendo que las etapas posteriores reutilicen la información sin volver a recorrer el árbol de archivos.
+This creates only `.rapid-os/project.json`, letting later stages reuse the information without walking the file tree again.
 
 ---
 
-## 5. Inicializar gobernanza con `rapid init`
+## 5. Initialize governance with `rapid init`
 
-Para establecer los estándares del proyecto y los archivos de contexto para coding agents, ejecuta:
+To establish the project standards and the context files for coding agents, run:
 
 ```bash
 rapid init
 ```
 
-### Documentación del proyecto y reglas de negocio previas
+### Project documentation and prior business rules
 
-`rapid init` también pregunta por los cuatro documentos del proyecto (`docs/PRODUCT_BRIEF.md`, `docs/BUSINESS_RULES.md`, `docs/DATA_MODEL.md`, `docs/ARCHITECTURE.md`); si ya los resolviste en una ejecución anterior, los conserva. Si tu proyecto venía de una versión anterior con `.rapid-os/standards/business.md`, `rapid setup next` lo ofrece como `legacy_source` y `rapid setup doc business --from-legacy` lo importa como documento aportado por una persona, sin borrar el original. Para un proyecto que ya existe, `rapid setup finish` solo escribe los estándares que cambiaron: no pisa los que ya expresan tu decisión.
+`rapid init` also asks about the four project documents (`docs/PRODUCT_BRIEF.md`, `docs/BUSINESS_RULES.md`, `docs/DATA_MODEL.md`, `docs/ARCHITECTURE.md`); if you already resolved them in a previous run, it keeps them. If your project came from an earlier version with `.rapid-os/standards/business.md`, `rapid setup next` offers it as `legacy_source` and `rapid setup doc business --from-legacy` imports it as a person-supplied document, without deleting the original. For a project that already exists, `rapid setup finish` writes only the standards that changed: it does not overwrite those that already express your decision.
 
-### Protección de archivos existentes con `.bak`
-Si tu proyecto ya cuenta con archivos como `.cursorrules`, `CLAUDE.md`, `INSTRUCTIONS.md` o `.rapid-os/config.json`:
-- Rapid OS **no los elimina sin aviso**.
-- Crea automáticamente un respaldo con extensión `.bak` (por ejemplo, `.cursorrules.bak`) antes de actualizar el contenido.
-- Puedes inspeccionar la diferencia o fusionar tus reglas previas dentro de los nuevos archivos de estándares en `.rapid-os/standards/`.
+### Protection of existing files with `.bak`
+If your project already has files such as `.cursorrules`, `CLAUDE.md`, `INSTRUCTIONS.md`, or `.rapid-os/config.json`:
+- Rapid OS **does not delete them without warning**.
+- It automatically creates a backup with a `.bak` extension (for example, `.cursorrules.bak`) before updating the content.
+- You can inspect the difference or merge your previous rules into the new standards files in `.rapid-os/standards/`.
 
 ---
 
-## 6. Validación de integridad (`rapid validate`)
+## 6. Integrity validation (`rapid validate`)
 
-Verifica que la configuración y los estándares del proyecto sean coherentes:
+Verify that the project's configuration and standards are consistent:
 
 ```bash
 rapid validate
 ```
 
-Para activar una verificación estricta donde cualquier advertencia produzca un código de salida distinto de cero:
+To enable strict checking, where any warning produces a non-zero exit code:
 
 ```bash
 rapid validate --strict
 ```
 
-### Cómo interpretar advertencias comunes
-- `STD001–STD004`: Falta algún archivo estándar recomendado en `.rapid-os/standards/` (ej. `tech-stack.md` o `topology.md`).
-- `CONFIG001–CONFIG004`: Inconsistencias menores en la configuración del proyecto.
-- `RAPID600–RAPID604`: Discrepancias en la instantánea de Project Intelligence.
+### How to interpret common warnings
+- `STD001–STD004`: A recommended standards file is missing from `.rapid-os/standards/` (e.g. `tech-stack.md` or `topology.md`).
+- `CONFIG001–CONFIG004`: Minor inconsistencies in the project configuration.
+- `RAPID600–RAPID604`: Discrepancies in the Project Intelligence snapshot.
 
-Una vez que `rapid validate` retorne código `0`, tu repositorio cuenta con una línea base de gobernanza verificada y está listo para recibir especificaciones y compilaciones de contexto.
+Once `rapid validate` returns code `0`, your repository has a verified governance baseline and is ready to receive specifications and context compilations.
 
 </details>

@@ -1,19 +1,22 @@
-# Stacks y componentes
+---
+title: Stacks and Components
+description: Choose a technology stack for each project topology component from the Rapid OS catalog.
+---
 
-Cada componente de la topología elige su tecnología en un catálogo amplio. El agente recomienda con criterio (el brief, las reglas de negocio, el equipo, la carga y los costos) y la persona decide. Rapid OS no elige: registra la decisión, escribe el `tech-stack.md` correspondiente y la arquitectura modular en el idioma del stack.
+# Stacks and Components
 
-## Componentes por topología
+Each topology component selects its technology from a broad catalog. The agent makes a recommendation based on the brief, business rules, team, workload, and costs; a person decides. Rapid OS records the decision, writes the matching `tech-stack.md`, and provides modular architecture guidance in the stack's language.
 
-La topología dice qué piezas tiene el proyecto, y cada pieza necesita su stack:
+## Components by topology
 
-| Topología | Componentes | Qué se pregunta |
+| Topology | Components | What is selected |
 |---|---|---|
-| `front-end-only` | `frontend` | un stack de frontend |
-| `fullstack-separated` | `frontend`, `backend` | uno de cada |
-| `fullstack-baas` | `frontend`, `baas` | solo el frontend: el backend como servicio no tiene stack en el catálogo |
+| `front-end-only` | `frontend` | One frontend stack |
+| `fullstack-separated` | `frontend`, `backend` | One stack for each |
+| `fullstack-baas` | `frontend`, `baas` | Frontend stack only; the catalog has no stack for a backend-as-a-service |
 | `doc-site` | `docs` | `docs-modern` |
 
-`rapid setup next` emite `choose_stack` una vez por componente, en el orden de la topología (`frontend` antes que `backend`). Si la persona todavía no decidió la topología, la primera decisión puede ser el stack de cualquier componente: la topología se pregunta después, con solo las opciones compatibles, y el resto de componentes se pregunta al final.
+`rapid setup next` asks for `choose_stack` once per component, in topology order (`frontend` before `backend`). If topology has not yet been chosen, the first stack decision can be for any component; topology is then selected from compatible options, and remaining components are chosen afterward.
 
 ```bash
 rapid setup set topology fullstack-separated
@@ -21,15 +24,15 @@ rapid setup set stack vue-vite --component frontend
 rapid setup set stack go --component backend
 ```
 
-Un framework que cubre varios componentes (`nextjs`, `nuxt`, `sveltekit`, y en modo monolítico `ruby-rails`, `python-django` y `php-laravel`) llena todos los que la topología pide con una sola elección; `--component` lo limita a uno. Un componente que el stack no puede llenar es `RAPID1413`, y un stack que no encaja con la topología es `RAPID1402`.
+A framework covering multiple components (`nextjs`, `nuxt`, `sveltekit`, and, in monolithic mode, `ruby-rails`, `python-django`, and `php-laravel`) fills all topology components in one selection; `--component` limits it to one. A component the stack cannot fill returns `RAPID1413`; a stack incompatible with the topology returns `RAPID1402`.
 
-## El catálogo
+## The catalog
 
-Cada stack son dos archivos en `templates/stacks/<componente>/`: `<id>.json` (la ficha que `rapid setup next` muestra al agente) y `<id>.md` (el `tech-stack.md`: runtime y versión soportada actual, framework, validación, acceso a datos, pruebas y linters). Una ficha inválida es `RAPID1401`.
+Each stack has two files under `templates/stacks/<component>/`: `<id>.json` (the profile shown to the agent by `rapid setup next`) and `<id>.md` (the `tech-stack.md` with runtime and supported version, framework, validation, data access, tests, and linters). An invalid profile returns `RAPID1401`.
 
 ### Backend
 
-| Stack | Lenguaje | Cubre | Hosting | Gestor | Pruebas |
+| Stack | Language | Covers | Hosting | Package manager | Tests |
 |---|---|---|---|---|---|
 | `python-fastapi` | Python | backend | containers, PaaS | uv | `pytest` |
 | `python-django` | Python | backend, frontend | containers, PaaS | pip | `python manage.py test` |
@@ -45,7 +48,7 @@ Cada stack son dos archivos en `templates/stacks/<componente>/`: `<id>.json` (la
 
 ### Frontend
 
-| Stack | Lenguaje | Cubre | Hosting | Gestor | Pruebas |
+| Stack | Language | Covers | Hosting | Package manager | Tests |
 |---|---|---|---|---|---|
 | `react-vite` | TypeScript | frontend | serverless, PaaS | pnpm | `pnpm exec vitest run` |
 | `nextjs` | TypeScript | frontend, backend | containers, PaaS, serverless | pnpm | `pnpm exec vitest run` |
@@ -56,28 +59,24 @@ Cada stack son dos archivos en `templates/stacks/<componente>/`: `<id>.json` (la
 | `sveltekit` | TypeScript | frontend, backend | containers, PaaS, serverless | pnpm | `pnpm exec vitest run` |
 | `astro` | TypeScript | frontend | serverless, PaaS, containers | pnpm | `pnpm exec vitest run` |
 
-`generic` (la convención del repositorio, construida con lo que detecta el escáner) y `custom` (el `tech-stack.md` que escribe el agente con `rapid setup stack --custom --file -`) cubren todos los componentes. `docs-modern` cubre `docs`.
+`generic` (repository conventions detected by the scanner) and `custom` (a `tech-stack.md` supplied with `rapid setup stack --custom --file -`) cover all components. `docs-modern` covers `docs`.
 
-### Los factores
+## Stack factors
 
-Cada ficha trae `factors`, cualitativos (nunca puntajes inventados), y `sources` con las URL oficiales de cada uno:
+Each profile includes qualitative (not invented numerical) `factors` and official `sources`: `performance`, `memory_footprint`, `cold_start`, `concurrency_model`, `typing`, `productivity`, `learning_curve`, `maintainability`, `ecosystem_maturity`, `hiring_pool`, and `hosting_fit` (`serverless`, `containers`, or `PaaS`). Popularity factors cite professional developer percentages from the 2025 Stack Overflow survey; other factors cite official language or framework documentation. Profiles also include `fits`, `avoid_if`, `default_test_command`, `package_manager`, and `supported_services` (infrastructure service engines and their drivers).
 
-`performance`, `memory_footprint`, `cold_start`, `concurrency_model`, `typing`, `productivity`, `learning_curve`, `maintainability`, `ecosystem_maturity`, `hiring_pool` y `hosting_fit` (`serverless`, `containers` o `PaaS`).
+## How the agent recommends a stack
 
-Los factores de popularidad (`hiring_pool`) citan los porcentajes de desarrolladores profesionales de la encuesta de Stack Overflow 2025; los demás, la documentación oficial del lenguaje o del framework. La ficha también trae `fits`, `avoid_if`, `default_test_command`, `package_manager` y `supported_services` (los motores de [servicios de infraestructura](./infrastructure-services.md) con su driver).
+`choose_stack` provides options and factors, questions from `templates/setup/stack-questions.json` (team expertise, expected load and latency, infrastructure budget, real-time needs, compute-intensive or AI/ML workloads, maintenance horizon, and organizational constraints), and this instruction:
 
-## Cómo recomienda el agente
+> Ask questions the brief does not answer. Recommend one option and an alternative, explain the difference using catalog factors applied to this product (for example, memory use and concurrency versus development speed), and do not claim anything the catalog does not say. The person decides.
 
-`choose_stack` entrega al agente las opciones con sus factores, las preguntas de `templates/setup/stack-questions.json` (lenguajes que domina el equipo, carga y latencia esperadas, presupuesto de infraestructura, tiempo real, cómputo intensivo o IA/ML, horizonte de mantenimiento y restricciones de la organización) y esta instrucción:
+`recommended` is what the scanner detected in an existing repository (for example, `go.mod`, `Cargo.toml` with `axum`, `Gemfile` with `rails`, `*.csproj`, `pom.xml` or `build.gradle(.kts)` with `spring-boot`, `composer.json` with `laravel/framework`, `angular.json`, or frontend packages in `package.json`). If a repository has more than one backend or frontend, it makes no recommendation for that component.
 
-> Haz las preguntas que el brief no responda. Recomienda una opción y una alternativa, y explica la diferencia con los factors del catálogo aplicados a este producto (p. ej. consumo de memoria y concurrencia frente a velocidad de desarrollo). No afirmes nada que el catálogo no diga. La persona decide.
+## Services follow the backend stack
 
-`recommended` es lo que el escáner detectó en un repositorio existente (por ejemplo `go.mod`, `Cargo.toml` con `axum`, `Gemfile` con `rails`, `*.csproj`, `pom.xml` o `build.gradle(.kts)` con `spring-boot`, `composer.json` con `laravel/framework`, `angular.json`, o `vue`, `nuxt`, `svelte`, `@sveltejs/kit` y `astro` en `package.json`). Con más de un backend (o frontend) en el mismo repositorio no sugiere nada para ese componente.
+`rapid setup set services` is checked against the backend component's stack (or a stack that covers it). An engine not listed in `supported_services` returns `RAPID1402` with supported engines. The driver, `.env.example` connection URL, and database lines in `tech-stack.md` come from the same declaration.
 
-## Los servicios siguen al stack del backend
+## Previous IDs
 
-`rapid setup set services` se valida contra el stack del componente `backend` (o el que lo cubre): un motor que el stack no declara en `supported_services` es `RAPID1402` con la lista de los que sí. El driver y la URL de conexión de `.env.example` y las líneas de base de datos del `tech-stack.md` salen de esa misma declaración.
-
-## Ids anteriores
-
-Los ids de antes del catálogo por componentes se siguen aceptando en `setup.json`, en `rapid setup set stack` y en el contenido de un `tech-stack.md` existente. Ver la [guía de migración de `setup.json`](../guides/setup-json-migration.md).
+IDs from before the per-component catalog remain accepted in `setup.json`, `rapid setup set stack`, and existing `tech-stack.md` content. See the [`setup.json` migration guide](../guides/setup-json-migration.md).

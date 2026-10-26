@@ -1,32 +1,32 @@
-# Auditoría y Validación Técnica — Sprint 5
+# Technical Audit and Validation — Sprint 5
 
-## 1. Resumen Ejecutivo y Cierre Formal
+## 1. Executive Summary and Formal Closure
 
-- **Sprint:** Sprint 5 — Despliegue de Documentación, Operaciones de Release y Preparación para Producción.
-- **Estado de Cierre:** **CERRADO FORMALMENTE & DESPLEGADO EXITOSAMENTE (PRODUCTION ACTIVE)**
-- **Portal Público Oficial:** [https://alyconr.github.io/Rapid-OS/](https://alyconr.github.io/Rapid-OS/)
-- **Rama Canónica:** `main`
-- **Commit Desplegado en Producción:** [`bf61aa0`](https://github.com/alyconr/Rapid-OS/commit/bf61aa09028bfe7df2fdfc5ab2e67df1bb28935c) (tras integración de PR #44 y hotfix PR #47)
-- **Workflow de Despliegue Exitoso:** [Run 38111697114](https://github.com/alyconr/Rapid-OS/actions/runs/38111697114) (`Deploy Documentation (main)`)
-- **Cobertura y Calidad:** 100% de los requisitos del Sprint 5 y remediaciones de auditoría completadas. Cero modificaciones al runtime `rapid_os/`.
+- **Sprint:** Sprint 5 — Documentation Deployment, Release Operations, and Production Readiness.
+- **Closure Status:** **FORMALLY CLOSED & SUCCESSFULLY DEPLOYED (PRODUCTION ACTIVE)**
+- **Official Public Portal:** [https://alyconr.github.io/Rapid-OS/](https://alyconr.github.io/Rapid-OS/)
+- **Canonical Branch:** `main`
+- **Commit Deployed to Production:** [`bf61aa0`](https://github.com/alyconr/Rapid-OS/commit/bf61aa09028bfe7df2fdfc5ab2e67df1bb28935c) (after integrating PR #44 and hotfix PR #47)
+- **Successful Deployment Workflow:** [Run 38111697114](https://github.com/alyconr/Rapid-OS/actions/runs/38111697114) (`Deploy Documentation (main)`)
+- **Coverage and Quality:** 100% of the Sprint 5 requirements and audit remediations completed. Zero changes to the `rapid_os/` runtime.
 
 ---
 
-## 2. Evidencia de Despliegue en Producción (Workflow Run 38111697114)
+## 2. Production Deployment Evidence (Workflow Run 38111697114)
 
-El pipeline desacoplado y seguro (`.github/workflows/docs-deploy.yml`) ejecutó secuencialmente los tres jobs requeridos sobre la rama `main`:
+The decoupled, secure pipeline (`.github/workflows/docs-deploy.yml`) sequentially executed the three required jobs on the `main` branch:
 
-| Job | Duración | Estado | Detalle y Permisos |
+| Job | Duration | Status | Details and Permissions |
 | :--- | :--- | :--- | :--- |
-| **Build Documentation Artifact** | 1m 31s | **PASS (✓)** | Compilación TypeScript y generación estática en `website/build` con permisos `contents: read`. Configurado con `trailingSlash: false` y `baseUrl: '/Rapid-OS/'`. |
-| **Deploy to GitHub Pages** | 11s | **PASS (✓)** | Publicación oficial mediante `actions/deploy-pages@v4` y autenticación OIDC nativa en entorno protegido `github-pages`. Permisos: `pages: write`, `id-token: write`. Exportó `outputs.page_url`. |
-| **Post-Deployment Smoke Tests** | 6s | **PASS (✓)** | Ejecución de suite HTTP `TestLiveDocsSmoke` consumiendo la URL oficial publicada (`https://alyconr.github.io/Rapid-OS/`). Permisos: `contents: read`. |
+| **Build Documentation Artifact** | 1m 31s | **PASS (✓)** | TypeScript compilation and static generation in `website/build` with `contents: read` permissions. Configured with `trailingSlash: false` and `baseUrl: '/Rapid-OS/'`. |
+| **Deploy to GitHub Pages** | 11s | **PASS (✓)** | Official publication via `actions/deploy-pages@v4` and native OIDC authentication in the protected `github-pages` environment. Permissions: `pages: write`, `id-token: write`. Exported `outputs.page_url`. |
+| **Post-Deployment Smoke Tests** | 6s | **PASS (✓)** | Execution of the `TestLiveDocsSmoke` HTTP suite consuming the official published URL (`https://alyconr.github.io/Rapid-OS/`). Permissions: `contents: read`. |
 
 ---
 
-## 3. Resultado de los Cinco Smoke Tests HTTP en Vivo
+## 3. Results of the Five Live HTTP Smoke Tests
 
-La suite automatizada ejecutó y validó con éxito las cinco rutas críticas del portal público sin fallbacks silenciosos:
+The automated suite successfully executed and validated the five critical routes of the public portal with no silent fallbacks:
 
 ```text
 Testing live deployment at: https://alyconr.github.io/Rapid-OS/
@@ -43,42 +43,42 @@ Smoke tests passed successfully on attempt 1.
 
 ---
 
-## 4. Matriz Final de Hallazgos y Remediaciones
+## 4. Final Findings and Remediations Matrix
 
-| Hallazgo | Severidad | Acción Aplicada | Estado Final |
+| Finding | Severity | Action Applied | Final Status |
 | :--- | :--- | :--- | :--- |
-| **P0: Publicación Exclusivamente Autorizada** | Crítica | Eliminado trigger `push` en `.github/workflows/docs-deploy.yml`. Restringido a `workflow_dispatch` sobre `main`. Permisos mínimos por job. | **VERIFICADO & OPERATIVO** |
-| **P1: Validación Obligatoria del Artifact** | Alta | `.github/workflows/docs.yml` ejecuta obligatoriamente `TestDocumentationStaticBuildIntegrity` con `RAPID_DOCS_STRICT_BUILD_CHECK=1` tras `npm run build`. | **VERIFICADO & OPERATIVO** |
-| **P1: Smoke Tests Posteriores al Despliegue** | Alta | Añadido job `smoke-test` dependiente de `deploy` con reintentos para CDN. Consume `outputs.page_url` exportado formalmente y verifica que no esté vacío. | **VERIFICADO & OPERATIVO** |
-| **P1: Rollback Reproducible** | Media | Reescrito `docs/operations/documentation-rollback.md` basado estrictamente en `git revert` vía PR a `main` y nuevo despliegue manual autorizado. | **VERIFICADO & OPERATIVO** |
-| **P1: Ruta de Tutoriales con `trailingSlash: false`** | Alta | Hotfix PR #47 alineando la prueba a `/tutorials` (archivo `tutorials.html`) y agregando prueba de regresión para todas las rutas. | **VERIFICADO & OPERATIVO** |
+| **P0: Exclusively Authorized Publication** | Critical | Removed the `push` trigger in `.github/workflows/docs-deploy.yml`. Restricted to `workflow_dispatch` on `main`. Minimal permissions per job. | **VERIFIED & OPERATIONAL** |
+| **P1: Mandatory Artifact Validation** | High | `.github/workflows/docs.yml` mandatorily runs `TestDocumentationStaticBuildIntegrity` with `RAPID_DOCS_STRICT_BUILD_CHECK=1` after `npm run build`. | **VERIFIED & OPERATIONAL** |
+| **P1: Post-Deployment Smoke Tests** | High | Added a `smoke-test` job depending on `deploy`, with retries for the CDN. It consumes the formally exported `outputs.page_url` and verifies it is not empty. | **VERIFIED & OPERATIONAL** |
+| **P1: Reproducible Rollback** | Medium | Rewrote `docs/operations/documentation-rollback.md` strictly based on `git revert` via a PR to `main` and a new authorized manual deployment. | **VERIFIED & OPERATIONAL** |
+| **P1: Tutorials Route with `trailingSlash: false`** | High | Hotfix PR #47 aligning the test to `/tutorials` (`tutorials.html` file) and adding a regression test for all routes. | **VERIFIED & OPERATIONAL** |
 
 ---
 
-## 5. Matriz de Preparación y Producción (Readiness Matrix)
+## 5. Production Readiness Matrix
 
-| Dimensión | Requisito | Estado | Verificación |
+| Dimension | Requirement | Status | Verification |
 | :--- | :--- | :--- | :--- |
-| **Portal Público** | URL en vivo accesible | **CUMPLIDO** | `https://alyconr.github.io/Rapid-OS/` (HTTP 200) |
-| **Configuración Docusaurus** | `trailingSlash: false` explícito | **CUMPLIDO** | `website/docusaurus.config.ts` |
-| **Configuración Docusaurus** | `baseUrl: '/Rapid-OS/'` canónico | **CUMPLIDO** | `website/docusaurus.config.ts` |
-| **Configuración Docusaurus** | Favicon & Metadatos SEO / Open Graph | **CUMPLIDO** | Metadatos y social card activos en producción |
-| **Seguridad de CI/CD** | Desacoplamiento de validación y despliegue | **CUMPLIDO** | `docs.yml` (PRs) vs `docs-deploy.yml` (Release) |
-| **Seguridad de CI/CD** | Mínimos privilegios por job | **CUMPLIDO** | OIDC en entorno `github-pages` sin PAT |
-| **Seguridad de CI/CD** | Concurrency control (`group: "pages"`) | **CUMPLIDO** | `cancel-in-progress: false` |
-| **Gobernanza Operativa** | Runbook de despliegue reproducible | **CUMPLIDO** | `docs/operations/documentation-deployment.md` |
-| **Gobernanza Operativa** | Runbook de rollback reproducible vía Git | **CUMPLIDO** | `docs/operations/documentation-rollback.md` |
-| **Gobernanza Operativa** | Runbook de mantenimiento y versionamiento | **CUMPLIDO** | `docs/operations/documentation-maintenance.md` |
-| **Automatización QA** | Tests de configuración y artefactos | **CUMPLIDO** | `tests/test_documentation_deployment.py` |
-| **Automatización QA** | Smoke tests post-deploy en vivo | **CUMPLIDO** | Aprobados en Run 38111697114 y en verificación local |
-| **Metadata del Paquete** | URL de Documentation en `pyproject.toml` | **CUMPLIDO** | Enlaza a `https://alyconr.github.io/Rapid-OS/` |
-| **README Principal** | Acceso visible al portal y catálogo completo | **CUMPLIDO** | Índice exhaustivo de la suite documental v3 |
+| **Public Portal** | Live URL accessible | **MET** | `https://alyconr.github.io/Rapid-OS/` (HTTP 200) |
+| **Docusaurus Configuration** | Explicit `trailingSlash: false` | **MET** | `website/docusaurus.config.ts` |
+| **Docusaurus Configuration** | Canonical `baseUrl: '/Rapid-OS/'` | **MET** | `website/docusaurus.config.ts` |
+| **Docusaurus Configuration** | Favicon & SEO / Open Graph metadata | **MET** | Metadata and social card active in production |
+| **CI/CD Security** | Decoupling of validation and deployment | **MET** | `docs.yml` (PRs) vs `docs-deploy.yml` (Release) |
+| **CI/CD Security** | Least privilege per job | **MET** | OIDC in the `github-pages` environment with no PAT |
+| **CI/CD Security** | Concurrency control (`group: "pages"`) | **MET** | `cancel-in-progress: false` |
+| **Operational Governance** | Reproducible deployment runbook | **MET** | `docs/operations/documentation-deployment.md` |
+| **Operational Governance** | Reproducible Git-based rollback runbook | **MET** | `docs/operations/documentation-rollback.md` |
+| **Operational Governance** | Maintenance and versioning runbook | **MET** | `docs/operations/documentation-maintenance.md` |
+| **QA Automation** | Configuration and artifact tests | **MET** | `tests/test_documentation_deployment.py` |
+| **QA Automation** | Live post-deploy smoke tests | **MET** | Passed in Run 38111697114 and in local verification |
+| **Package Metadata** | Documentation URL in `pyproject.toml` | **MET** | Links to `https://alyconr.github.io/Rapid-OS/` |
+| **Main README** | Visible access to the portal and full catalog | **MET** | Exhaustive index of the v3 documentation suite |
 
 ---
 
-## 6. Conclusión y Veredicto Final
+## 6. Conclusion and Final Verdict
 
-El Sprint 5 ha alcanzado plenamente todos sus objetivos técnicos, operativos y de gobernanza:
-- El portal documental de **RAPID OS v3** se encuentra publicado, operable y protegido mediante pipelines reproducibles de despliegue y rollback.
-- Se mantiene 100% de aislamiento sobre el runtime del CLI.
-- **Estado Oficial:** **SPRINT 5 COMPLETADO Y CERRADO CON ÉXITO**.
+Sprint 5 has fully achieved all of its technical, operational, and governance objectives:
+- The **RAPID OS v3** documentation portal is published, operable, and protected by reproducible deployment and rollback pipelines.
+- 100% isolation from the CLI runtime is maintained.
+- **Official Status:** **SPRINT 5 COMPLETED AND SUCCESSFULLY CLOSED**.

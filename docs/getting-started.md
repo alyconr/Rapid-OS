@@ -1,92 +1,82 @@
 ---
-title: Primeros pasos
-description: Empieza en 3 pasos (instalar, /rapid-init, /rapid-feature), el mapa de la sección y, plegado, el recorrido avanzado con los comandos v3.
+title: Getting Started
+description: Start in three steps (install, /rapid-init, /rapid-feature), explore this section, and find the advanced v3 command walkthrough.
 ---
 
-# Primeros pasos con Rapid OS
+# Getting Started with Rapid OS
 
-Rapid OS gobierna el trabajo de tu agente de código: cada cambio ocurre dentro de un **run** con spec, tareas, gates y evidencia verificable. Tú no tienes que aprender esos comandos: los ejecuta el agente a través de los **shortcuts** (`/rapid-…`). En tu terminal solo instalas y apruebas.
+Rapid OS governs work by your coding agent: every change happens within a **run** with a spec, tasks, gates, and verifiable evidence. You do not need to learn those commands; the agent runs them through **shortcuts** (`/rapid-...`). In your terminal, you only install and approve.
 
----
+## 1. Start in three steps
 
-## 1. Empieza en 3 pasos
+You need Python 3.10+, Git, and a coding agent: Claude Code, Codex, Cursor, Antigravity, or VS Code (Copilot).
 
-Necesitas Python 3.10+, Git y un agente de código: Claude Code, Codex, Cursor, Antigravity o VS Code (Copilot).
+### Step 1: Install
 
-### Paso 1: instalar
-
-Usa el instalador de tu sistema ([Linux](./installation/linux.md), [macOS](./installation/macos.md), [Windows](./installation/windows.md) o [WSL](./installation/wsl.md)). Al final pregunta para qué agentes instalar los shortcuts: escribe el tuyo (por ejemplo `claude`) y quedan disponibles en todos tus proyectos. Si te lo saltaste, una sola vez:
+Use the installer for your system ([Linux](./installation/linux.md), [macOS](./installation/macos.md), [Windows](./installation/windows.md), or [WSL](./installation/wsl.md)). At the end, it asks which agents should receive shortcuts; enter yours (for example, `claude`) to make them available across projects. If you skipped that step, run this once:
 
 ```bash
 rapid shortcuts install --global --harness claude
 ```
 
-:::note VS Code y versiones anteriores
-VS Code no tiene carpeta de usuario para shortcuts: instálalos en cada proyecto con `rapid init --shortcuts`. Lo mismo si tu versión de Rapid OS aún no trae `/rapid-init` ni `--global` (lo verás en `rapid shortcuts install --help`).
+:::note VS Code and earlier versions
+VS Code has no user directory for shortcuts, so install them in each project with `rapid init --shortcuts`. Do the same if your Rapid OS version does not yet include `/rapid-init` or `--global` (check `rapid shortcuts install --help`).
 :::
 
-### Paso 2: describir el proyecto con `/rapid-init`
+### Step 2: Describe the project with `/rapid-init`
 
-Abre tu agente en la carpeta del proyecto (nueva o con código) y escribe:
-
-```text
-/rapid-init una API en Python para validar nombres de usuario
-```
-
-El agente te propone, una decisión a la vez, el stack, el comando de tests y los documentos del proyecto (brief, reglas de negocio, modelo de datos, arquitectura). Para cada documento eliges: lo pegas, lo redacta el agente o lo omites. Lo que redacta queda como **borrador** hasta que tú digas que lo confirmas. En Codex se escribe `$rapid-init`.
-
-### Paso 3: pedir el trabajo
+Open your agent in the project folder (new or existing) and enter:
 
 ```text
-/rapid-feature añadir exportación CSV al informe mensual
+/rapid-init a Python API for validating usernames
 ```
 
-El agente redacta la spec, implementa tarea por tarea y corre los tests. Cuando necesita a una persona se detiene y te da el comando exacto para **tu** terminal, por ejemplo:
+The agent proposes the stack, test command, and project documents (brief, business rules, data model, and architecture), one decision at a time. For each document, you can provide it, have the agent draft it, or skip it. Agent-written content remains a **draft** until you confirm it. In Codex, enter `$rapid-init`.
+
+### Step 3: Request the work
+
+```text
+/rapid-feature add CSV export to the monthly report
+```
+
+The agent drafts the spec, implements it task by task, and runs the tests. When a person needs to act, it stops and gives you the exact command for **your** terminal, for example:
 
 ```bash
 rapid approve gate.final-verification
 ```
 
-Después escribe `/rapid-next` en el agente y el run se cierra. Ningún shortcut aprueba por ti. Qué hacer en cada parada está en [Cuando el agente se detiene](./getting-started/when-the-agent-stops.md).
+Then enter `/rapid-next` in the agent to close the run. No shortcut approves anything on your behalf. See [When the Agent Stops](./getting-started/when-the-agent-stops.md) for what to do at each pause.
 
-| Quieres… | Escribe en tu agente |
-| :--- | :--- |
-| Una funcionalidad nueva | `/rapid-feature <objetivo>` |
-| Corregir un bug | `/rapid-bugfix <qué falla>` |
-| Refactorizar sin romper tests | `/rapid-refactor <alcance>` |
-| Endurecer seguridad | `/rapid-hardening <área>` |
-| Investigar una opción | `/rapid-research <pregunta>` |
-| Ver en qué va o seguir | `/rapid-status` · `/rapid-next` |
-| Saber qué aprobar | `/rapid-approve` |
+| You want to... | Enter in your agent |
+|---|---|
+| Build a new feature | `/rapid-feature <goal>` |
+| Fix a bug | `/rapid-bugfix <what is broken>` |
+| Refactor without breaking tests | `/rapid-refactor <scope>` |
+| Harden security | `/rapid-hardening <area>` |
+| Investigate an option | `/rapid-research <question>` |
+| Check progress or continue | `/rapid-status` · `/rapid-next` |
+| See what needs approval | `/rapid-approve` |
 
-Carpetas y forma de invocarlos en cada agente: [guía de shortcuts](./guides/shortcuts.md).
+See the [shortcuts guide](./guides/shortcuts.md) for shortcut locations and invocation in each agent.
 
----
+## 2. Section map
 
-## 2. Mapa de esta sección
+Read these pages in order; each takes a few minutes.
 
-Léela en este orden; cada página toma unos minutos.
+| Page | What you will learn |
+|---|---|
+| [1. Your First Project](./getting-started/first-project.md) | Go from an empty folder to your first approved feature. |
+| [2. An Existing Project](./getting-started/existing-project.md) | Use Rapid OS in a coded repository without changing business code during setup. |
+| [3. When the Agent Stops](./getting-started/when-the-agent-stops.md) | Approve, reject, check progress, cancel, and read the verdict. |
+| [4. Writing the Spec](./getting-started/first-spec.md) | What the agent asks to draft a spec and how to make a good request. |
+| [5. What the Agent Knows About Your Project](./getting-started/first-context.md) | Where its rules come from, drafts versus confirmed content, and how to change them. |
+| [6. Next Steps](./getting-started/next-steps.md) | Labs, choosing a mode, teamwork, and troubleshooting. |
 
-| Página | Qué aprendes |
-| :--- | :--- |
-| [1. Tu primer proyecto](./getting-started/first-project.md) | De una carpeta vacía a tu primera funcionalidad aprobada. |
-| [2. Un proyecto que ya existe](./getting-started/existing-project.md) | Usarlo en un repositorio con código, sin tocar tu código de negocio. |
-| [3. Cuando el agente se detiene](./getting-started/when-the-agent-stops.md) | Aprobar, rechazar, ver en qué va, cancelar y leer el veredicto. |
-| [4. Cómo se escribe la spec](./getting-started/first-spec.md) | Qué pide el agente para redactar la spec y cómo hacer un buen pedido. |
-| [5. Qué sabe el agente de tu proyecto](./getting-started/first-context.md) | De dónde salen sus reglas, borradores frente a confirmados y cómo cambiarlos. |
-| [6. Próximos pasos](./getting-started/next-steps.md) | Laboratorios, qué modo usar, trabajo en equipo y qué hacer si algo falla. |
+Also see the [shortcuts guide](./guides/shortcuts.md), [hands-on labs](./tutorials/index.md), [CLI reference](./cli.md), and [diagnostics](./troubleshooting/diagnostics.md).
 
-Fuera de esta sección:
+## Advanced mode
 
-- [Guía de shortcuts](./guides/shortcuts.md): instalación por harness, el bucle y la aprobación humana.
-- [Laboratorios](./tutorials/index.md): un laboratorio por modo, cada uno con su shortcut.
-- [Referencia de CLI](./cli.md) y [diagnósticos](./troubleshooting/diagnostics.md).
+You do not need this to use Rapid OS. The v3 commands (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`, and others) let you do manually what the agent does with shortcuts; they are useful for CI, debugging, and auditing. See **How It Works**:
 
----
-
-## Modo avanzado
-
-No lo necesitas para usar Rapid OS. Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) hacen a mano lo que hace el agente con los shortcuts; sirven para CI, depuración y auditoría. Están en la sección **Cómo funciona**:
-
-- [Ciclo de gobernanza v3](./governance-loop.md): qué registra cada paso y por qué.
-- [Recorrido manual (Bajo el capó)](./tutorials/first-governed-project.md): un proyecto completo hecho a mano, de `rapid init` al veredicto.
+- [v3 Governance Loop](./governance-loop.md): What each step records and why.
+- [Manual Walkthrough](./tutorials/first-governed-project.md): A complete project done manually, from `rapid init` to the verdict.

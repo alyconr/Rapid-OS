@@ -1,39 +1,38 @@
-# Laboratorios prácticos de RAPID OS
-
-Cada laboratorio es un proyecto de ejemplo pequeño (Python, sin dependencias) y un modo de ingeniería. Todos se hacen igual, en cuatro pasos:
-
-1. **Prepara el ejemplo**: copias la carpeta `starter` y haces un commit.
-2. **`/rapid-init`** en tu agente: acepta lo que propone.
-3. **`/rapid-<modo>`** con el objetivo del laboratorio: el agente hace el trabajo.
-4. **`rapid approve`** en tu terminal cuando el agente te lo pida, y `/rapid-next` para cerrar.
-
-No necesitas aprender ningún otro comando. Si aún no tienes los shortcuts, una sola vez: `rapid shortcuts install --global --harness claude` (cambia `claude` por tu agente). Detalle en la [guía de shortcuts](../guides/shortcuts.md).
-
+---
+title: Rapid OS Hands-on Labs
+description: Small, dependency-free Python projects for practicing each Rapid OS engineering mode.
 ---
 
-## Elige un laboratorio
+# Rapid OS Hands-on Labs
 
-| Laboratorio | Shortcut | Qué practicas |
+Each lab is a small example project (Python, no dependencies) paired with an engineering mode. Every lab follows the same four steps:
+
+1. **Prepare the example:** copy the `starter` folder and make a commit.
+2. Run **`/rapid-init`** in your agent and accept its proposals.
+3. Run **`/rapid-<mode>`** with the lab goal; the agent does the work.
+4. Run **`rapid approve`** in your terminal when prompted, then use `/rapid-next` to close the run.
+
+You do not need to learn any other commands. If you do not have shortcuts yet, install them once with `rapid shortcuts install --global --harness claude` (replace `claude` with your agent). See the [shortcuts guide](../guides/shortcuts.md).
+
+## Choose a lab
+
+| Lab | Shortcut | What you will practice |
 |---|---|---|
-| [1. Feature](feature-lab.md) | `/rapid-feature` | Añadir una funcionalidad con criterios de aceptación y tests. Empieza aquí. |
-| [2. Bugfix](bugfix-lab.md) | `/rapid-bugfix` | Reproducir el bug con un test en rojo antes de corregirlo. |
-| [3. Refactor](refactor-lab.md) | `/rapid-refactor` | Cambiar la estructura sin que bajen los tests que pasan. |
-| [4. Hardening](hardening-lab.md) | `/rapid-hardening` | Endurecer seguridad en una copia aislada del repositorio, con revisión humana. |
-| [5. Research](research-lab.md) | `/rapid-research` | Un spike que compara opciones y deja los hallazgos registrados. |
+| [1. Feature](feature-lab.md) | `/rapid-feature` | Add a feature with acceptance criteria and tests. Start here. |
+| [2. Bugfix](bugfix-lab.md) | `/rapid-bugfix` | Reproduce a bug with a failing test before fixing it. |
+| [3. Refactor](refactor-lab.md) | `/rapid-refactor` | Change structure without reducing the passing test count. |
+| [4. Hardening](hardening-lab.md) | `/rapid-hardening` | Improve security in an isolated repository copy with human review. |
+| [5. Research](research-lab.md) | `/rapid-research` | Run a spike comparing options and record the findings. |
 
-Los ejemplos están en [`examples/`](https://github.com/alyconr/Rapid-OS/tree/main/examples) (con el instalador, en `~/.rapid-os/examples/`). Cada uno trae `starter/` (el punto de partida) y `solution/` (una solución de referencia).
+Examples are in [`examples/`](https://github.com/alyconr/Rapid-OS/tree/main/examples) (also installed at `~/.rapid-os/examples/`). Each contains `starter/` (the starting point) and `solution/` (a reference solution).
 
----
+## What Rapid OS does and what your agent does
 
-## Qué hace Rapid OS y qué hace tu agente
+- **Your agent** edits code, runs tests, and drafts the spec.
+- **Rapid OS** sets the run rules (tasks, gates, required tests), records evidence of what ran, and returns a verdict. It never approves for you: you approve human gates in your terminal.
 
-- **Tu agente** edita el código, ejecuta los tests y redacta la spec.
-- **Rapid OS** fija las reglas del run (tareas, gates, tests obligatorios), registra la evidencia de lo que se ejecutó y da un veredicto. Nunca aprueba por ti: los gates humanos los apruebas tú en tu terminal.
+## Advanced mode
 
----
+The labs do not use the v3 commands. To do the work manually (for CI, auditing, or to understand what Rapid OS records at each step), follow the [manual walkthrough](first-governed-project.md), in the **How it works** section.
 
-## Modo avanzado
-
-Los laboratorios no usan los comandos v3. Si necesitas hacer el trabajo a mano (para CI, auditoría o para entender qué registra Rapid OS en cada paso), sigue el [recorrido manual (Bajo el capó)](first-governed-project.md), en la sección **Cómo funciona**.
-
-Si algo falla, revisa la [guía de problemas en los laboratorios](../troubleshooting/tutorials.md).
+If anything fails, see [Troubleshooting the labs](../troubleshooting/tutorials.md).

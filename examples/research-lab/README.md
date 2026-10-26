@@ -1,13 +1,13 @@
 # Research Lab — Local Storage Strategy Spike
 
-Acompaña al tutorial canónico [Research & Spike Engineering Lab](../../docs/tutorials/research-lab.md).
+Accompanies the canonical tutorial [Research & Spike Engineering Lab](../../docs/tutorials/research-lab.md).
 
-## Requisitos
+## Requirements
 
-- `starter/`: Interfaz preliminar del spike sin implementación.
-- `solution/`: Comparación empírica reproducible entre almacenamiento JSON plano y base de datos SQLite embebida de la biblioteca estándar de Python.
+- `starter/`: Preliminary spike interface without an implementation.
+- `solution/`: Reproducible empirical comparison between flat JSON storage and the embedded SQLite database from the Python standard library.
 
-## Ejecución de pruebas
+## Running the tests
 
 ```bash
 python -m unittest discover examples/research-lab/starter/tests

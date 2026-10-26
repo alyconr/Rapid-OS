@@ -1,80 +1,80 @@
 ---
-title: Integración en CI/CD
-description: Cómo integrar las compuertas de gobernanza y validación de RAPID OS en pipelines de integración continua.
+title: CI/CD Integration
+description: How to integrate RAPID OS governance and validation gates into continuous integration pipelines.
 ---
 
-# Integración en CI/CD
+# CI/CD Integration
 
-RAPID OS no solo gobierna el trabajo local de los desarrolladores y coding harnesses; sus comandos emiten códigos de salida estandarizados (`exit codes`) y documentos JSON deterministas (`--json`), lo que facilita su integración en pipelines de Integración Continua (CI/CD) como GitHub Actions, GitLab CI o Bitbucket Pipelines.
+RAPID OS does not only govern the local work of developers and coding harnesses; its commands emit standardized exit codes and deterministic JSON documents (`--json`), which makes it easy to integrate into Continuous Integration (CI/CD) pipelines such as GitHub Actions, GitLab CI, or Bitbucket Pipelines.
 
 ---
 
-## Compuertas de CI Independientes
+## Independent CI Gates
 
-En un pipeline de CI se pueden incorporar tres controles independientes según la fase del ciclo de trabajo:
+In a CI pipeline you can add three independent controls depending on the phase of the work cycle:
 
 ```mermaid
 flowchart TD
-    Commit["Commit / Pull Request"] --> V1["1. Repository Validation\n(rapid validate --strict)\nAplica a todo el repositorio"]
+    Commit["Commit / Pull Request"] --> V1["1. Repository Validation\n(rapid validate --strict)\nApplies to the whole repository"]
     
-    Commit -.-> RunTarget{"¿El PR gobierna un Run específico?"}
-    RunTarget -- Sí --> V2["2. Harness Compatibility (Opcional)\n(rapid harness resolve --run $TARGET_RUN_ID --locked --require-compatible)"]
-    RunTarget -- Sí --> V3["3. Behavioral Evaluation (Opcional)\n(rapid eval run --run $TARGET_RUN_ID --require-pass)"]
-    RunTarget -- No --> Skip["No se auditan runs incompletos"]
+    Commit -.-> RunTarget{"Does the PR govern a specific Run?"}
+    RunTarget -- Yes --> V2["2. Harness Compatibility (Optional)\n(rapid harness resolve --run $TARGET_RUN_ID --locked --require-compatible)"]
+    RunTarget -- Yes --> V3["3. Behavioral Evaluation (Optional)\n(rapid eval run --run $TARGET_RUN_ID --require-pass)"]
+    RunTarget -- No --> Skip["Incomplete runs are not audited"]
     
-    V1 --> Merge["Merge Permitido"]
+    V1 --> Merge["Merge Allowed"]
     V2 --> Merge
     V3 --> Merge
 ```
 
 ---
 
-## 1. Validación de Integridad del Repositorio (Control Base)
+## 1. Repository Integrity Validation (Base Control)
 
-Este control es **universal y seguro para cualquier repositorio o PR**. No asume que existan runs activos ni evidencias previas; valida que las plantillas, el snapshot de Project Intelligence, las especificaciones y la configuración no presenten errores:
+This control is **universal and safe for any repository or PR**. It does not assume that active runs or prior evidence exist; it validates that the templates, the Project Intelligence snapshot, the specifications, and the configuration have no errors:
 
 ```bash
 rapid validate --strict
 ```
 
-- **Exit code `0`**: El repositorio está 100% íntegro sin errores ni advertencias diagnósticas.
-- **Exit code `1`**: Al menos un diagnóstico de advertencia o error está presente (bloquea el pipeline).
+- **Exit code `0`**: The repository is 100% intact with no diagnostic errors or warnings.
+- **Exit code `1`**: At least one warning or error diagnostic is present (blocks the pipeline).
 
 ---
 
-## 2. Validación de Capabilities del Harness (Control Específico)
+## 2. Harness Capabilities Validation (Specific Control)
 
-Aplica cuando el PR está asociado a un run preparado y el equipo utiliza perfiles declarativos con archivo lock (`.rapid-os/capabilities.lock`):
+Applies when the PR is associated with a prepared run and the team uses declarative profiles with a lock file (`.rapid-os/capabilities.lock`):
 
 ```bash
-# Requiere: TARGET_RUN_ID identificado y capabilities.lock presente
+# Requires: TARGET_RUN_ID identified and capabilities.lock present
 rapid harness resolve --run "$TARGET_RUN_ID" --locked --require-compatible
 ```
 
-- **Exit code `0`**: El harness satisface todas las capabilities obligatorias exigidas por el contrato.
-- **Exit code `1`**: Se detecta incompatibilidad (`RAPID1110`).
+- **Exit code `0`**: The harness satisfies all the mandatory capabilities required by the contract.
+- **Exit code `1`**: An incompatibility is detected (`RAPID1110`).
 
 ---
 
-## 3. Compuerta de Evaluación de Comportamiento (Control de Cierre)
+## 3. Behavioral Evaluation Gate (Closing Control)
 
-Aplica **únicamente sobre el Run específico que fue completado en el PR**. 
+Applies **only to the specific Run that was completed in the PR**. 
 
-> **Advertencia de Product Truth**: **Nunca** ejecutes `rapid eval run --require-pass` en un bucle ciego sobre todas las carpetas dentro de `.rapid-os/runs/`. El directorio de runs puede contener runs preparados, pausados, cancelados o históricos que legítimamente no cuentan con evidencias completas todavía. La evaluación debe apuntar explícitamente al `TARGET_RUN_ID` del cambio actual.
+> **Product Truth warning**: **Never** run `rapid eval run --require-pass` in a blind loop over all the folders inside `.rapid-os/runs/`. The runs directory may contain prepared, paused, cancelled, or historical runs that legitimately do not yet have complete evidence. The evaluation must explicitly target the `TARGET_RUN_ID` of the current change.
 
 ```bash
-# Requiere: TARGET_RUN_ID con ejecución externa finalizada y evidencias registradas
+# Requires: TARGET_RUN_ID with finished external execution and recorded evidence
 rapid eval run --run "$TARGET_RUN_ID" --require-pass
 ```
 
-- **Exit code `0`**: El veredicto es `PASS` o `PASS_WITH_WAIVERS`.
-- **Exit code `1`**: El veredicto es `UNVERIFIED` (`RAPID1225`) o `FAIL` (`RAPID1226`).
+- **Exit code `0`**: The verdict is `PASS` or `PASS_WITH_WAIVERS`.
+- **Exit code `1`**: The verdict is `UNVERIFIED` (`RAPID1225`) or `FAIL` (`RAPID1226`).
 
 ---
 
-## Ejemplo de Referencia: Workflow en GitHub Actions
+## Reference Example: GitHub Actions Workflow
 
-A continuación se muestra un workflow de referencia configurado con **permisos mínimos** (`contents: read`):
+Below is a reference workflow configured with **minimal permissions** (`contents: read`):
 
 ```yaml
 name: RAPID OS Governance & Integrity Check
@@ -127,9 +127,9 @@ jobs:
 
 ---
 
-## Integración en Pre-commit Hooks
+## Pre-commit Hooks Integration
 
-Puedes incorporar la validación estricta de RAPID OS en tu archivo `.pre-commit-config.yaml` para asegurar la integridad de la configuración y especificaciones antes de confirmar cambios locales:
+You can add RAPID OS strict validation to your `.pre-commit-config.yaml` file to ensure the integrity of the configuration and specifications before committing local changes:
 
 ```yaml
 repos:

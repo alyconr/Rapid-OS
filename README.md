@@ -6,7 +6,7 @@
 
 ### Context Injection for AI Engineering
 
-Convierte a tus Agentes (Cursor, Claude, Antigravity, VS Code y Codex) en Ingenieros Senior instantáneamente.
+Turn your agents (Cursor, Claude, Antigravity, VS Code and Codex) into Senior Engineers instantly.
 
 </div>
 
@@ -32,7 +32,7 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity, VS Code y Codex) en Ingeni
         <li><a href="#update">Update</a></li>
       </ul>
     </li>
-    <li><a href="#quick-start-shortcuts">Quick start con shortcuts</a></li>
+    <li><a href="#quick-start-shortcuts">Quick start with shortcuts</a></li>
     <li><a href="#usage">Usage</a></li>
     <li><a href="#run-tests">Run tests</a></li>
     <li><a href="#deployment">Deployment</a></li>
@@ -50,51 +50,51 @@ Convierte a tus Agentes (Cursor, Claude, Antigravity, VS Code y Codex) en Ingeni
 
 ## 📖 About the Project <a name="about-the-project"></a>
 
-**Rapid OS** es un **Contract-Driven Engineering OS** y framework de **Inyección y Gobernanza de Contexto** diseñado para resolver el problema de la **"Amnesia de Contexto"** y la falta de verificación determinista en los agentes de codificación con IA.
+**Rapid OS** is a **Contract-Driven Engineering OS** and a **Context Injection and Governance** framework designed to solve the **"Context Amnesia"** problem and the lack of deterministic verification in AI coding agents.
 
-Cuando trabajas con asistentes de IA como Cursor, Claude, Antigravity, VS Code o Codex, Rapid OS no solo inyecta una **"Constitución de Proyecto"** estandarizada, sino que gobierna el ciclo completo de ingeniería: inteligencia del repositorio (`rapid scan`), especificaciones inmutables (`rapid spec`), compilación selectiva de contexto (`rapid context`), contratos y políticas de ejecución (`rapid policy` / `rapid run`), perfiles y compatibilidad de capacidades del harness (`rapid harness`), evidencia inmutable (`rapid evidence`) y evaluación conductual determinista (`rapid eval`).
+When you work with AI assistants such as Cursor, Claude, Antigravity, VS Code or Codex, Rapid OS does not just inject a standardized **"Project Constitution"**: it governs the full engineering cycle — repository intelligence (`rapid scan`), immutable specifications (`rapid spec`), selective context compilation (`rapid context`), execution contracts and policies (`rapid policy` / `rapid run`), harness capability profiles and compatibility (`rapid harness`), immutable evidence (`rapid evidence`) and deterministic behavioral evaluation (`rapid eval`).
 
-**🌐 Portal Oficial de Documentación**: [https://alyconr.github.io/Rapid-OS/](https://alyconr.github.io/Rapid-OS/)
+**🌐 Official Documentation Portal**: [https://alyconr.github.io/Rapid-OS/](https://alyconr.github.io/Rapid-OS/)
 
-### 📚 Suite Canónica de Documentación (`v3.1.0`)
+### 📚 Canonical Documentation Suite (`v3.1.0`)
 
-El portal público incluye la documentación completa, estructurada en las siguientes áreas:
+The public portal includes the complete documentation, organized into the following areas:
 
-- **Aprender e Iniciar**:
-  - [Qué es Rapid OS](https://alyconr.github.io/Rapid-OS/concepts/what-is-rapid-os) · [Por qué Rapid OS](https://alyconr.github.io/Rapid-OS/concepts/why-rapid-os)
-  - [Guía de Instalación](https://alyconr.github.io/Rapid-OS/installation) · [Primeros Pasos](https://alyconr.github.io/Rapid-OS/getting-started)
-  - [Shortcuts por harness (`/rapid-<modo>`)](https://alyconr.github.io/Rapid-OS/guides/shortcuts)
-  - [Modos de Ingeniería (Feature, Bugfix, Refactor, Hardening, Research)](https://alyconr.github.io/Rapid-OS/guides/modes)
-  - [Casos de Uso Reales](https://alyconr.github.io/Rapid-OS/guides/use-cases)
-- **Laboratorios Prácticos Reproducibles (Hands-on Tutorials)**:
-  - [Catálogo de Laboratorios](https://alyconr.github.io/Rapid-OS/tutorials)
+- **Learn and Get Started**:
+  - [What is Rapid OS](https://alyconr.github.io/Rapid-OS/concepts/what-is-rapid-os) · [Why Rapid OS](https://alyconr.github.io/Rapid-OS/concepts/why-rapid-os)
+  - [Installation Guide](https://alyconr.github.io/Rapid-OS/installation) · [Getting Started](https://alyconr.github.io/Rapid-OS/getting-started)
+  - [Shortcuts per harness (`/rapid-<mode>`)](https://alyconr.github.io/Rapid-OS/guides/shortcuts)
+  - [Engineering Modes (Feature, Bugfix, Refactor, Hardening, Research)](https://alyconr.github.io/Rapid-OS/guides/modes)
+  - [Real-World Use Cases](https://alyconr.github.io/Rapid-OS/guides/use-cases)
+- **Reproducible Hands-on Labs (Tutorials)**:
+  - [Lab Catalog](https://alyconr.github.io/Rapid-OS/tutorials)
   - [Feature Lab](https://alyconr.github.io/Rapid-OS/tutorials/feature-lab)
   - [Bugfix Lab](https://alyconr.github.io/Rapid-OS/tutorials/bugfix-lab)
   - [Refactor Lab](https://alyconr.github.io/Rapid-OS/tutorials/refactor-lab)
   - [Hardening Lab](https://alyconr.github.io/Rapid-OS/tutorials/hardening-lab)
   - [Research Lab](https://alyconr.github.io/Rapid-OS/tutorials/research-lab)
-  - [Recorrido manual con comandos v3 (avanzado)](https://alyconr.github.io/Rapid-OS/tutorials/first-governed-project)
-- **Integraciones con Coding Harnesses**:
+  - [Manual walkthrough with v3 commands (advanced)](https://alyconr.github.io/Rapid-OS/tutorials/first-governed-project)
+- **Coding Harness Integrations**:
   - [Codex](https://alyconr.github.io/Rapid-OS/integrations/codex) · [Claude Code](https://alyconr.github.io/Rapid-OS/integrations/claude-code)
   - [Cursor](https://alyconr.github.io/Rapid-OS/integrations/cursor) · [VS Code](https://alyconr.github.io/Rapid-OS/integrations/vscode) · [Google Antigravity](https://alyconr.github.io/Rapid-OS/integrations/antigravity)
-- **Gobernanza y Cookbooks**:
-  - [Políticas y Contratos de Ejecución](https://alyconr.github.io/Rapid-OS/cookbooks/policies-and-contracts)
-  - [Perfiles y Capabilities de Harnesses](https://alyconr.github.io/Rapid-OS/cookbooks/harness-profiles)
+- **Governance and Cookbooks**:
+  - [Execution Policies and Contracts](https://alyconr.github.io/Rapid-OS/cookbooks/policies-and-contracts)
+  - [Harness Profiles and Capabilities](https://alyconr.github.io/Rapid-OS/cookbooks/harness-profiles)
   - [Evidence Engine](https://alyconr.github.io/Rapid-OS/cookbooks/evidence-engine)
-  - [Evaluaciones Conductuales Deterministas](https://alyconr.github.io/Rapid-OS/cookbooks/behavioral-evaluations)
-  - [Integración con CI/CD](https://alyconr.github.io/Rapid-OS/guides/ci-cd-integration)
-- **Operaciones, Release y Auditoría**:
-  - [Procedimiento de Despliegue](https://alyconr.github.io/Rapid-OS/operations/documentation-deployment)
-  - [Procedimiento de Rollback](https://alyconr.github.io/Rapid-OS/operations/documentation-rollback)
-  - [Mantenimiento y Versionamiento](https://alyconr.github.io/Rapid-OS/operations/documentation-maintenance)
-  - [Diagnósticos RAPIDxxx](https://alyconr.github.io/Rapid-OS/troubleshooting/diagnostics) · [Referencia de CLI](https://alyconr.github.io/Rapid-OS/cli)
-  - [Arquitectura v3](https://alyconr.github.io/Rapid-OS/architecture/rapid-os-v3) · [Arquitectura de orquestación](https://alyconr.github.io/Rapid-OS/architecture/orchestration) · [Release v3.1.0](https://alyconr.github.io/Rapid-OS/release-v3.1.0) · [Release v3.0.0](https://alyconr.github.io/Rapid-OS/release-v3.0.0) · [Changelog](CHANGELOG.md)
+  - [Deterministic Behavioral Evaluations](https://alyconr.github.io/Rapid-OS/cookbooks/behavioral-evaluations)
+  - [CI/CD Integration](https://alyconr.github.io/Rapid-OS/guides/ci-cd-integration)
+- **Operations, Release and Audit**:
+  - [Deployment Procedure](https://alyconr.github.io/Rapid-OS/operations/documentation-deployment)
+  - [Rollback Procedure](https://alyconr.github.io/Rapid-OS/operations/documentation-rollback)
+  - [Maintenance and Versioning](https://alyconr.github.io/Rapid-OS/operations/documentation-maintenance)
+  - [RAPIDxxx Diagnostics](https://alyconr.github.io/Rapid-OS/troubleshooting/diagnostics) · [CLI Reference](https://alyconr.github.io/Rapid-OS/cli)
+  - [v3 Architecture](https://alyconr.github.io/Rapid-OS/architecture/rapid-os-v3) · [Orchestration Architecture](https://alyconr.github.io/Rapid-OS/architecture/orchestration) · [Release v3.1.0](https://alyconr.github.io/Rapid-OS/release-v3.1.0) · [Release v3.0.0](https://alyconr.github.io/Rapid-OS/release-v3.0.0) · [Changelog](CHANGELOG.md)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Rapid OS v3.1.0 Status <a name="rapid-os-v3-status"></a> <a name="rapid-os-v2-status"></a>
 
-> **Versión de desarrollo.** `main` está en `3.2.0.dev0`; la versión estable sigue siendo `v3.1.1` (los instaladores y la documentación de instalación apuntan a ese tag). Lo que `main` añade sobre la estable: el onboarding por `rapid setup` / `/rapid-init` con un stack por componente y documentos que revisas antes de cerrar, la arquitectura por stack con el gate `gate.architecture` (`rapid arch check`), los servicios de infraestructura y el documento de despliegue, la base de seguridad (OWASP ASVS 5.0.0, SSDF, SLSA) con un workflow de CI por lenguaje, y `rapid shortcuts install --global` para `/rapid-init` a nivel usuario. Ver el [CHANGELOG](CHANGELOG.md).
+> **Development version.** `main` is at `3.2.0.dev0`; the stable version is still `v3.1.1` (the installers and the installation docs point to that tag). What `main` adds on top of the stable release: onboarding through `rapid setup` / `/rapid-init` with one stack per component and documents you review before closing, per-stack architecture with the `gate.architecture` gate (`rapid arch check`), infrastructure services and the deployment document, the security baseline (OWASP ASVS 5.0.0, SSDF, SLSA) with a per-language CI workflow, and `rapid shortcuts install --global` for user-level `/rapid-init`. See the [CHANGELOG](CHANGELOG.md).
 
 Rapid OS `v3.1.0` is complete and preserves full backward compatibility with all v3.0 and v2 commands and generated file locations. It adds the porcelain layer, the five engineering modes, shortcuts and Claude Code hooks on top of the v3 governance engine.
 
@@ -124,63 +124,63 @@ Rapid OS `v3.1.0` is complete and preserves full backward compatibility with all
 
 ## 🧩 How it Works <a name="how-it-works"></a>
 
-Rapid OS actúa como el **Arquitecto** que define las reglas, mientras tu IA (Cursor/Claude) actúa como el **Constructor**.
+Rapid OS acts as the **Architect** who defines the rules, while your AI (Cursor/Claude) acts as the **Builder**.
 
 ```mermaid
 graph TD
-    %% Estilos
+    %% Styles
     classDef user fill:#f9f,stroke:#333,stroke-width:2px,color:black;
     classDef rapid fill:#005f99,stroke:#333,stroke-width:2px,color:white;
     classDef context fill:#ffeb99,stroke:#d4a017,stroke-width:2px,stroke-dasharray: 5 5,color:black;
     classDef ai fill:#009966,stroke:#333,stroke-width:2px,color:white;
     classDef code fill:#333,stroke:#333,stroke-width:2px,color:white;
 
-    %% Nodos Principales
-    User(👤 Usuario):::user
-    AI(🤖 Agente IA <br> Cursor / Claude / Copilot):::ai
-    FinalCode(📦 Código de la Aplicación <br> .ts, .py, .css):::code
+    %% Main nodes
+    User(👤 User):::user
+    AI(🤖 AI Agent <br> Cursor / Claude / Copilot):::ai
+    FinalCode(📦 Application Code <br> .ts, .py, .css):::code
 
-    %% Subgrafo: Rapid OS (El Director Técnico)
-    subgraph "🛠️ FASE 1: Preparación del Contexto (Rapid OS CLI)"
+    %% Subgraph: Rapid OS (the Technical Director)
+    subgraph "🛠️ PHASE 1: Context Preparation (Rapid OS CLI)"
         RapidCLI(🖥️ Rapid OS CLI):::rapid
 
-        User -->|1. Ejecuta 'rapid init'| RapidCLI
+        User -->|1. Runs 'rapid init'| RapidCLI
 
-        ContextFiles[📄 Archivos de Contexto <br> .cursorrules, CLAUDE.md, etc.]:::context
-        RapidCLI -->|"Genera Reglas (Stack, Seguridad)"| ContextFiles
+        ContextFiles[📄 Context Files <br> .cursorrules, CLAUDE.md, etc.]:::context
+        RapidCLI -->|"Generates Rules (Stack, Security)"| ContextFiles
     end
 
-    %% Subgrafo: Tareas Específicas (Opcional)
-    subgraph "🎯 FASE 2: Definición de Tareas (Opcional)"
-        ScopeCmd(Comando 'rapid scope'):::rapid
-        DeployCmd(Comando 'rapid deploy'):::rapid
-        SkillCmd(Comando 'rapid skill'):::rapid
+    %% Subgraph: Specific tasks (optional)
+    subgraph "🎯 PHASE 2: Task Definition (Optional)"
+        ScopeCmd(Command 'rapid scope'):::rapid
+        DeployCmd(Command 'rapid deploy'):::rapid
+        SkillCmd(Command 'rapid skill'):::rapid
 
-        User -->|2a. Define funcionalidad| ScopeCmd
-        User -->|2b. Instala Skills| SkillCmd
+        User -->|2a. Defines functionality| ScopeCmd
+        User -->|2b. Installs Skills| SkillCmd
 
-        SpecsFile[📄 SPECS.md / TASKS.md / ACCEPTANCE.md <br> Plan de Implementación]:::context
-        SkillsFolder[📂 Skills Activas <br> .cursor/skills]:::context
+        SpecsFile[📄 SPECS.md / TASKS.md / ACCEPTANCE.md <br> Implementation Plan]:::context
+        SkillsFolder[📂 Active Skills <br> .cursor/skills]:::context
 
         ScopeCmd --> SpecsFile
         SkillCmd --> SkillsFolder
     end
 
-    %% Subgrafo: La Generación Real (El Constructor)
-    subgraph "🚀 FASE 3: La Acción de Generar (El Constructor)"
-        %% La Inyección Mágica
-        ContextFiles -.->|"⚡ INYECCIÓN AUTOMÁTICA DE CONTEXTO ⚡"| AI
-        SpecsFile -.->|"Lee instrucciones precisas"| AI
-        SkillsFolder -.->|"Usa Herramientas (Ej. Deploy, DB)"| AI
+    %% Subgraph: The actual generation (the Builder)
+    subgraph "🚀 PHASE 3: The Act of Generating (the Builder)"
+        %% The magic injection
+        ContextFiles -.->|"⚡ AUTOMATIC CONTEXT INJECTION ⚡"| AI
+        SpecsFile -.->|"Reads precise instructions"| AI
+        SkillsFolder -.->|"Uses tools (e.g. Deploy, DB)"| AI
 
-        %% La Acción del Usuario - CORREGIDA
-        User == "3. Prompt Simple: 'Haz el login' o 'Implementa SPECS.md'" ==> AI
+        %% The user's action
+        User == "3. Simple prompt: 'Build the login' or 'Implement SPECS.md'" ==> AI
 
-        %% El Resultado
-        AI ==>|"Genera código guiado por contexto, reglas y criterios verificables"| FinalCode
+        %% The result
+        AI ==>|"Generates code guided by context, rules and verifiable criteria"| FinalCode
     end
 
-    %% Leyenda
+    %% Legend
     linkStyle 6,7,8 stroke:orange,stroke-width:2px,fill:none;
     linkStyle 9 stroke:blue,stroke-width:3px,fill:none;
     linkStyle 10 stroke:green,stroke-width:3px,fill:none;
@@ -192,7 +192,7 @@ graph TD
 
 ### Tech Stack <a name="tech-stack"></a>
 
-Este proyecto está construido utilizando tecnologías nativas para asegurar máxima compatibilidad y cero dependencias pesadas:
+This project is built with native technologies to ensure maximum compatibility and zero heavy dependencies:
 
 - **Core Logic**
 - **Installer (Linux/Mac)**
@@ -201,63 +201,63 @@ Este proyecto está construido utilizando tecnologías nativas para asegurar má
 
 ### Key Features <a name="key-features"></a>
 
-- **🧰 Gestor de Skills Híbrido**: Instala capacidades activas para tu IA desde dos fuentes:
-  - _Remoto_: Acceso directo al ecosistema de la comunidad (`npx skills`) para instalar miles de herramientas.
-  - _Local_: Usa tus propios templates privados (`templates/skills`) para estandarizar flujos de tu equipo.
-- **🤖 Multi-Agente Modular**: No más ruido. Elige exactamente qué archivos de configuración generar: Cursor (`.cursorrules`), Claude Code (`CLAUDE.md`), Google Antigravity (`.agent/rules`), VS Code (`INSTRUCTIONS.md`) o Codex (`AGENTS.md`). La generación usa adaptadores internos para mantener cada agente aislado y listo para crecer sin cambiar tus comandos.
-- **🧠 Contexto de Negocio Inteligente**: Las reglas de negocio viven en `docs/BUSINESS_RULES.md`: pegadas por ti, redactadas por el agente o omitidas, siempre con su procedencia visible (un borrador del agente entra al contexto como supuesto hasta que lo confirmas). Sin plantillas reutilizables.
-- **🏗️ Topologías Arquitectónicas**: Define si tu proyecto es Frontend Only, BaaS (Supabase), Fullstack Separado o **Sitio de Documentación** para evitar alucinaciones de código.
-- **🔌 Herramientas MCP (Model Context Protocol)**: Configura automáticamente servidores de base de datos (Postgres/Supabase) y herramientas de investigación (Context7, Firecrawl).
-- **🖼️ Contexto de Referencia Visual (Vision)**: Registra capturas de pantalla en `references/` junto con una descripción humana en `references/VISION_CONTEXT.md` y reensambla el contexto de agentes.
-- **🚀 Stacks Senior**: Templates pre-configurados para Web Moderno, Python AI, Creative Frontend, **Docusaurus Docs**, etc.
-- **🛡️ Seguridad por Defecto**: Inyección automática de protocolos OWASP y reglas Anti-PII.
-- **☁️ Guías de Despliegue**: `rapid deploy --target <plataforma>` imprime la plantilla local (`templates/deploy/<plataforma>.md`: `aws`, `azure`, `vercel`, `render`, `railway`, `dokploy`) sin escribir nada; el documento del proyecto es `docs/DEPLOYMENT.md`, opcional en el onboarding.
+- **🧰 Hybrid Skills Manager**: Installs active capabilities for your AI from two sources:
+  - _Remote_: Direct access to the community ecosystem (`npx skills`) to install thousands of tools.
+  - _Local_: Use your own private templates (`templates/skills`) to standardize your team's workflows.
+- **🤖 Modular Multi-Agent**: No more noise. Choose exactly which configuration files to generate: Cursor (`.cursorrules`), Claude Code (`CLAUDE.md`), Google Antigravity (`.agent/rules`), VS Code (`INSTRUCTIONS.md`) or Codex (`AGENTS.md`). Generation uses internal adapters to keep each agent isolated and ready to grow without changing your commands.
+- **🧠 Smart Business Context**: Business rules live in `docs/BUSINESS_RULES.md`: pasted by you, drafted by the agent or skipped, always with their provenance visible (an agent draft enters the context as an assumption until you confirm it). No reusable templates.
+- **🏗️ Architectural Topologies**: Define whether your project is Frontend Only, BaaS (Supabase), Separated Fullstack or **Documentation Site** to avoid code hallucinations.
+- **🔌 MCP Tools (Model Context Protocol)**: Automatically configures database servers (Postgres/Supabase) and research tools (Context7, Firecrawl).
+- **🖼️ Visual Reference Context (Vision)**: Records screenshots in `references/` together with a human description in `references/VISION_CONTEXT.md` and reassembles the agents' context.
+- **🚀 Senior Stacks**: Pre-configured templates for Modern Web, Python AI, Creative Frontend, **Docusaurus Docs**, etc.
+- **🛡️ Secure by Default**: Automatic injection of OWASP protocols and Anti-PII rules.
+- **☁️ Deployment Guides**: `rapid deploy --target <platform>` prints the local template (`templates/deploy/<platform>.md`: `aws`, `azure`, `vercel`, `render`, `railway`, `dokploy`) without writing anything; the project document is `docs/DEPLOYMENT.md`, optional during onboarding.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## 💻 Getting Started <a name="getting-started"></a>
 
-Sigue estos pasos para instalar Rapid OS en tu entorno local.
+Follow these steps to install Rapid OS in your local environment.
 
 ### Setup <a name="setup"></a>
 
-No necesitas clonar este repositorio manualmente para usar la herramienta. El instalador se encargará de todo.
+You do not need to clone this repository manually to use the tool. The installer takes care of everything.
 
 ### Prerequisites <a name="prerequisites"></a>
 
-Asegúrate de tener instalado:
+Make sure you have the following installed:
 
-- **Git**: Para control de versiones.
-- **Python 3.10+**: Para ejecutar el núcleo de gobernanza de Rapid OS (`3.10`, `3.11`, `3.12`, `3.13` verificados en CI; biblioteca estándar sin dependencias obligatorias externas).
-- **Node.js (Opcional)**: Requerido solo si deseas instalar Skills remotas usando `npx` (`rapid skill add`).
+- **Git**: For version control.
+- **Python 3.10+**: To run the Rapid OS governance core (`3.10`, `3.11`, `3.12`, `3.13` verified in CI; standard library with no mandatory external dependencies).
+- **Node.js (Optional)**: Required only if you want to install remote Skills using `npx` (`rapid skill add`).
 
 ### Install <a name="install"></a>
 
 #### Stable Release (`v3.1.1`)
 
-Una vez publicado el tag estable `v3.1.1`, utiliza los instaladores anclados a ese release reproducible:
+Once the stable tag `v3.1.1` is published, use the installers pinned to that reproducible release:
 
-- **Opción A: Instalación estándar de paquete Python (`pip` / `venv`) en el tag `v3.1.1`**:
+- **Option A: Standard Python package installation (`pip` / `venv`) at tag `v3.1.1`**:
   ```bash
   git clone --branch v3.1.1 https://github.com/alyconr/Rapid-OS.git
   cd Rapid-OS
   python -m pip install .
   rapid --version
   ```
-- **Opción B: Linux, macOS o WSL (Stable `v3.1.1`)**:
+- **Option B: Linux, macOS or WSL (Stable `v3.1.1`)**:
   ```bash
   curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.sh | bash
   ```
-- **Opción C: Windows PowerShell (Stable `v3.1.1`)**:
+- **Option C: Windows PowerShell (Stable `v3.1.1`)**:
   ```powershell
   irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.ps1 | iex
   ```
 
-Reinicia tu terminal después de la instalación para cargar el comando `rapid` y verifica con `rapid --version` (`Rapid OS 3.1.1`).
+Restart your terminal after installation to load the `rapid` command and verify with `rapid --version` (`Rapid OS 3.1.1`).
 
 #### Development (`latest development version` on `main`)
 
-Si deseas probar cambios en desarrollo desde la rama `main` (no anclado a un release estable):
+If you want to try in-development changes from the `main` branch (not pinned to a stable release):
 
 ```bash
 git clone https://github.com/alyconr/Rapid-OS.git
@@ -270,30 +270,30 @@ python -m pip install -e .
 
 ### Update <a name="update"></a>
 
-#### Actualizar a la versión estable `v3.1.1`
+#### Update to the stable version `v3.1.1`
 
 - **Windows PowerShell (Stable `v3.1.1`)**:
   ```powershell
   git -C "$HOME\.rapid-os" fetch --tags --force origin
   git -C "$HOME\.rapid-os" checkout --detach v3.1.1
   ```
-  O ejecutando el instalador estable:
+  Or by running the stable installer:
   ```powershell
   irm https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.ps1 | iex
   ```
-- **Linux, macOS o WSL (Stable `v3.1.1`)**:
+- **Linux, macOS or WSL (Stable `v3.1.1`)**:
   ```bash
   git -C "$HOME/.rapid-os" fetch --tags --force origin
   git -C "$HOME/.rapid-os" checkout --detach v3.1.1
   ```
-  O ejecutando el instalador estable:
+  Or by running the stable installer:
   ```bash
   curl -sL https://raw.githubusercontent.com/alyconr/Rapid-OS/v3.1.1/install.sh | bash
   ```
 
-#### Actualizar un entorno de desarrollo (`latest development version` en `main`)
+#### Update a development environment (`latest development version` on `main`)
 
-Si estás trabajando sobre un checkout de desarrollo en `main`:
+If you are working on a development checkout of `main`:
 
 ```bash
 git checkout main
@@ -303,118 +303,118 @@ rapid doctor
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## ⚡ Quick start con shortcuts <a name="quick-start-shortcuts"></a>
+## ⚡ Quick start with shortcuts <a name="quick-start-shortcuts"></a>
 
-El flujo principal de Rapid OS son los **shortcuts**: un comando `/rapid-<modo>` por modo de ingeniería que tu agente de código ejecuta para llevar el trabajo de principio a fin dentro de un run gobernado.
+The main Rapid OS workflow is **shortcuts**: one `/rapid-<mode>` command per engineering mode that your coding agent runs to carry the work from start to finish inside a governed run.
 
 ```bash
-rapid shortcuts install --global --harness claude   # 1. una vez: los shortcuts en todos tus proyectos (el instalador te lo pregunta)
-rapid init --shortcuts                              #    o, en VS Code / para versionarlos con el repo: en cada proyecto
+rapid shortcuts install --global --harness claude   # 1. once: the shortcuts in all your projects (the installer asks you)
+rapid init --shortcuts                              #    or, in VS Code / to version them with the repo: in each project
 ```
 
 ```text
-/rapid-init API de facturación para pymes                    # 2. onboarding conducido por tu agente (Codex: $rapid-init)
-/rapid-feature añadir exportación CSV al informe mensual     # 3. Claude Code, Cursor, Antigravity, VS Code
-$rapid-feature añadir exportación CSV al informe mensual     #    Codex
+/rapid-init invoicing API for small businesses               # 2. onboarding driven by your agent (Codex: $rapid-init)
+/rapid-feature add CSV export to the monthly report          # 3. Claude Code, Cursor, Antigravity, VS Code
+$rapid-feature add CSV export to the monthly report          #    Codex
 ```
 
-- `/rapid-init` conduce el onboarding con `rapid setup` (a nivel usuario desde 3.2.0 con `rapid shortcuts install --global --harness <id>`). Hay un shortcut por modo (`/rapid-feature`, `-bugfix`, `-refactor`, `-hardening`, `-research`) y tres de apoyo (`/rapid-next`, `/rapid-status`, `/rapid-approve`).
-- El agente sigue el bucle `rapid next --json` → `rapid start` → `rapid task` / `rapid check` → `rapid finish`, y se detiene cuando hace falta una persona. Entonces tú ejecutas en **tu terminal** el comando que te da (por ejemplo `rapid approve gate.final-verification`) y escribes `/rapid-next` para cerrar: el agente nunca aprueba, aborta ni edita `.rapid-os/`.
-- Detalle por harness (carpeta generada e invocación), aprobación humana y errores frecuentes: [Shortcuts por harness](https://alyconr.github.io/Rapid-OS/guides/shortcuts).
-- Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) siguen disponibles como **Modo avanzado** para CI, depuración y auditoría: ver [CLI Command Reference](#cli-reference).
+- `/rapid-init` drives onboarding with `rapid setup` (user-level since 3.2.0 with `rapid shortcuts install --global --harness <id>`). There is one shortcut per mode (`/rapid-feature`, `-bugfix`, `-refactor`, `-hardening`, `-research`) and three helpers (`/rapid-next`, `/rapid-status`, `/rapid-approve`).
+- The agent follows the loop `rapid next --json` → `rapid start` → `rapid task` / `rapid check` → `rapid finish`, and stops when a person is needed. Then you run the command it gives you in **your terminal** (for example `rapid approve gate.final-verification`) and type `/rapid-next` to close: the agent never approves, aborts or edits `.rapid-os/`.
+- Per-harness details (generated folder and invocation), human approval and common errors: [Shortcuts per harness](https://alyconr.github.io/Rapid-OS/guides/shortcuts).
+- The v3 commands (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) remain available as **Advanced mode** for CI, debugging and auditing: see the [CLI Command Reference](#cli-reference).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Usage <a name="usage"></a>
 
-### 1. Inicializar Proyecto (Nuevo o Legacy)
+### 1. Initialize a Project (New or Legacy)
 
-`rapid init` es el comando universal. Úsalo tanto para proyectos desde cero como para "curar" proyectos existentes con **Amnesia de Contexto**.
+`rapid init` is the universal command. Use it both for projects from scratch and to "heal" existing projects suffering from **Context Amnesia**.
 
-1.  Abre tu terminal en la **raíz de tu proyecto**.
-2.  Ejecuta:
+1.  Open your terminal at the **root of your project**.
+2.  Run:
     ```bash
     rapid init
     ```
-3.  Sigue el asistente interactivo:
-    - **Scanner seguro**: Rapid OS revisa señales locales como `package.json`, `tsconfig.json`, Docker, tests, monorepo, base de datos y provider de deploy para sugerir stack/topología. Nada se aplica sin confirmación.
-    - **Tech Stack**: Define las tecnologías permitidas (ej. "Solo React Functional Components").
-    - **Arquetipo**: "Corporate" para código estricto con tests, o "MVP" para velocidad.
-    - **Documentación del proyecto**: Para cada documento (brief, reglas de negocio, modelo de datos y arquitectura) eliges: 1) pegar o importar un archivo, 2) escribirlo ahí mismo, 3) dejarlo para tu agente (`/rapid-init`) u 4) omitirlo. Con `--business-file <ruta>` importas las reglas de negocio sin preguntar.
-    - **Capacidades de Investigación**: Activa `Context7` (Docs) y `Firecrawl` (Web Scraping) para que tu IA pueda investigar librerías y sitios web por sí misma.
+3.  Follow the interactive wizard:
+    - **Safe scanner**: Rapid OS checks local signals such as `package.json`, `tsconfig.json`, Docker, tests, monorepo, database and deploy provider to suggest a stack/topology. Nothing is applied without confirmation.
+    - **Tech Stack**: Defines the allowed technologies (e.g. "Only React Functional Components").
+    - **Archetype**: "Corporate" for strict code with tests, or "MVP" for speed.
+    - **Project documentation**: For each document (brief, business rules, data model and architecture) you choose: 1) paste or import a file, 2) write it right there, 3) leave it for your agent (`/rapid-init`) or 4) skip it. With `--business-file <path>` you import the business rules without being asked.
+    - **Research Capabilities**: Enables `Context7` (Docs) and `Firecrawl` (Web Scraping) so your AI can research libraries and websites by itself.
 
-> **Para Refactorización**: Al ejecutar esto en un proyecto legacy, Rapid OS inyectará un archivo `.cursorrules` o `.agent` que obligará a la IA a respetar los nuevos estándares en cualquier refactorización futura, evitando que imite el código antiguo ("code drift").
+> **For Refactoring**: When you run this on a legacy project, Rapid OS injects a `.cursorrules` or `.agent` file that forces the AI to respect the new standards in any future refactoring, preventing it from imitating the old code ("code drift").
 
-Para conservar el flujo manual anterior, usa:
+To keep the previous manual flow, use:
 
 ```bash
 rapid init --no-scan
 ```
 
-Si pasas `--stack`, ese valor manda sobre cualquier sugerencia del scanner:
+If you pass `--stack`, that value takes precedence over any scanner suggestion:
 
 ```bash
 rapid init --stack nextjs
 ```
 
-También puedes fijar el arquetipo directamente por CLI (`mvp` o `corporate`) sin pregunta interactiva:
+You can also set the archetype directly from the CLI (`mvp` or `corporate`) without an interactive prompt:
 
 ```bash
 rapid init --archetype corporate
 rapid init --archetype mvp
 ```
 
-### 2. Refinamiento de Reglas (Rapid Refine)
+### 2. Rule Refinement (Rapid Refine)
 
-Si sientes que tu Agente (Cursor/Claude) ignora tus reglas o las malinterpreta, usa `rapid refine` para mejorar la documentación con ayuda de la IA.
+If you feel your Agent (Cursor/Claude) ignores or misreads your rules, use `rapid refine` to improve the documentation with the help of the AI.
 
-1.  Identifica el archivo de reglas problemático (ej. `docs/BUSINESS_RULES.md`).
-2.  Ejecuta:
+1.  Identify the problematic rules file (e.g. `docs/BUSINESS_RULES.md`).
+2.  Run:
     ```bash
     rapid refine docs/BUSINESS_RULES.md
     ```
-3.  **Copia el Mega-Prompt** que aparecerá en tu terminal.
-4.  **Pégalo en tu Chat** con la IA.
-5.  La IA te devolverá una versión profesional y sin ambigüedades de tus reglas. Reemplaza el contenido del archivo con esta nueva versión.
+3.  **Copy the Mega-Prompt** that appears in your terminal.
+4.  **Paste it into your Chat** with the AI.
+5.  The AI will return a professional, unambiguous version of your rules. Replace the file's content with this new version.
 
-### 3. Instalar Skills (Capacidades Activas)
+### 3. Install Skills (Active Capabilities)
 
-Dota a tu agente de herramientas para ejecutar tareas complejas (ej. consultar bases de datos, navegar web).
+Give your agent tools to run complex tasks (e.g. query databases, browse the web).
 
 ```bash
-# Opción A: Desde el Marketplace (Vercel)
+# Option A: From the Marketplace (Vercel)
 rapid skill add vercel-labs/agent-skills
 
-# Opción B: Templates Privados de tu equipo
-rapid skill install mi-workflow-interno
+# Option B: Your team's private templates
+rapid skill install my-internal-workflow
 ```
 
-Si ejecutas `rapid skill` sin argumentos, Rapid OS abre un menú interactivo para listar, instalar un template local, agregar una skill remota o salir sin cambios.
+If you run `rapid skill` with no arguments, Rapid OS opens an interactive menu to list, install a local template, add a remote skill or exit without changes.
 
-### 4. Definir Scope y Refactorizaciones
+### 4. Define Scope and Refactorings
 
-Evita darle instrucciones vagas a la IA como _"Mejora el código"_. Usa el **Asistente de Alcance**.
+Avoid giving the AI vague instructions like _"Improve the code"_. Use the **Scope Assistant**.
 
 ```bash
 rapid scope
 ```
 
-- Selecciona el modo: **new feature**, **refactor**, **bugfix** o **legacy hardening**.
-- Responde preguntas de negocio, alcance, actores, flujo, casos borde, reglas, restricciones, impacto en datos, criterios de aceptación, pruebas y tareas.
-- Rapid OS generará `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` optimizados para implementación guiada por specs.
-- **Tu Prompt Final**: _"Implementa el plan detallado en SPECS.md paso a paso y valida contra ACCEPTANCE.md."_
+- Select the mode: **new feature**, **refactor**, **bugfix** or **legacy hardening**.
+- Answer questions about business, scope, actors, flow, edge cases, rules, constraints, data impact, acceptance criteria, tests and tasks.
+- Rapid OS generates `SPECS.md`, `TASKS.md` and `ACCEPTANCE.md` optimized for spec-guided implementation.
+- **Your Final Prompt**: _"Implement the plan detailed in SPECS.md step by step and validate against ACCEPTANCE.md."_
 
-### 5. Configurar Herramientas de Base de Datos (MCP)
+### 5. Configure Database Tools (MCP)
 
-Si tu arquitectura incluye base de datos, genera los drivers para que la IA pueda ejecutar SQL real y ver tablas:
+If your architecture includes a database, generate the drivers so the AI can run real SQL and see tables:
 
 ```bash
 rapid mcp --ide claude --scope project
 ```
 
-(Soporta Postgres y Supabase automáticamente).
+(Supports Postgres and Supabase automatically).
 
-Ejemplos adicionales:
+Additional examples:
 
 ```bash
 rapid mcp --ide codex --scope project
@@ -425,142 +425,142 @@ rapid mcp --ide vscode --scope project
 rapid mcp --ide antigravity --scope global
 ```
 
-Rapid OS modela los servidores MCP internamente y luego renderiza el formato específico de cada editor:
+Rapid OS models MCP servers internally and then renders each editor's specific format:
 
-- Codex -> `.codex/config.toml` con bloques `mcp_servers`
-- Claude -> `.mcp.json` o `~/.claude.json` con `mcpServers`
-- Cursor -> `.cursor/mcp.json` o `~/.cursor/mcp.json` con `mcpServers`
-- VS Code -> `.vscode/mcp.json` con `servers`
-- Antigravity -> `~/.gemini/antigravity/mcp_config.json` con una estructura JSON conservadora basada en `mcpServers`
+- Codex -> `.codex/config.toml` with `mcp_servers` blocks
+- Claude -> `.mcp.json` or `~/.claude.json` with `mcpServers`
+- Cursor -> `.cursor/mcp.json` or `~/.cursor/mcp.json` with `mcpServers`
+- VS Code -> `.vscode/mcp.json` with `servers`
+- Antigravity -> `~/.gemini/antigravity/mcp_config.json` with a conservative JSON structure based on `mcpServers`
 
-Si el proyecto aún no fue inicializado con `rapid init`, `rapid mcp` ofrece crear solo la estructura mínima necesaria para generar MCP o cancelar sin escribir archivos.
+If the project has not been initialized with `rapid init` yet, `rapid mcp` offers to create only the minimal structure needed to generate MCP, or to cancel without writing files.
 
-Si omites `--ide` o `--scope`, Rapid OS entra en modo interactivo y te deja elegir destino y alcance antes de escribir el archivo.
+If you omit `--ide` or `--scope`, Rapid OS enters interactive mode and lets you choose the target and scope before writing the file.
 
-### 6. Contexto de Referencia Visual (Vision)
+### 6. Visual Reference Context (Vision)
 
-Registra una referencia visual del proyecto para acompañar tus reglas con contexto de interfaz:
+Register a visual reference for the project to accompany your rules with interface context:
 
 ```bash
-rapid vision ruta/al/diseño.png
+rapid vision path/to/design.png
 ```
 
-`rapid vision` copia la imagen dentro de `references/`, solicita una descripción humana del diseño, agrega la entrada a `references/VISION_CONTEXT.md` y regenera los archivos de contexto de los agentes configurados. Si ejecutas `rapid vision` sin ruta, el comando pide el path de forma interactiva y permite cancelar con `0`, `q`, `quit`, `exit`, `salir` o `cancelar`.
+`rapid vision` copies the image into `references/`, asks for a human description of the design, adds the entry to `references/VISION_CONTEXT.md` and regenerates the context files of the configured agents. If you run `rapid vision` without a path, the command asks for the path interactively and lets you cancel with `0`, `q`, `quit`, `exit`, `salir` or `cancelar`.
 
-### 7. Documentación con Docusaurus
+### 7. Documentation with Docusaurus
 
-Rapid OS incluye un stack especializado para crear sitios de documentación modernos:
+Rapid OS includes a specialized stack for creating modern documentation sites:
 
 ```bash
 rapid init --shortcuts
-# y en tu agente: /rapid-init (o rapid setup next)
+# and in your agent: /rapid-init (or rapid setup next)
 # Stack: docs-modern (componente docs)
 # Topology: doc-site
 ```
 
-O desde la terminal, sin agente: `rapid setup set topology doc-site` y `rapid setup set stack docs-modern`.
+Or from the terminal, without an agent: `rapid setup set topology doc-site` and `rapid setup set stack docs-modern`.
 
-**Incluye:**
+**Includes:**
 
 - **Framework**: Docusaurus 3+ (Static Site Generator).
-- **Lenguaje**: TypeScript y MDX (Markdown con componentes React).
-- **Diagramas**: Soporte nativo para Mermaid.js (Diagramas de flujo, secuencia, GANTT).
-- **Búsqueda**: Configuración lista para Algolia DocSearch o búsqueda local.
-- **Versionado**: Estructura de carpetas optimizada para versionado semántico de documentación.
-- **Topología**: `doc-site` organiza tu proyecto con carpetas específicas para `docs`, `blog`, `src/components` y `static` assets.
+- **Language**: TypeScript and MDX (Markdown with React components).
+- **Diagrams**: Native Mermaid.js support (flowcharts, sequence, GANTT).
+- **Search**: Configuration ready for Algolia DocSearch or local search.
+- **Versioning**: Folder structure optimized for semantic documentation versioning.
+- **Topology**: `doc-site` organizes your project with specific folders for `docs`, `blog`, `src/components` and `static` assets.
 
-### 🧩 Reglas de Negocio (`docs/BUSINESS_RULES.md`)
+### 🧩 Business Rules (`docs/BUSINESS_RULES.md`)
 
-Las reglas de negocio de tu proyecto viven en `docs/BUSINESS_RULES.md`, el equivalente a la "Constitución" de tu proyecto. Rapid OS escribe el archivo con un frontmatter (`rapid-doc`, `source`, `status`, `sha256`) que dice quién lo redactó:
+Your project's business rules live in `docs/BUSINESS_RULES.md`, the equivalent of your project's "Constitution". Rapid OS writes the file with a frontmatter (`rapid-doc`, `source`, `status`, `sha256`) that says who authored it:
 
-- **Aportado por ti** (`source: provided`): se guarda tal cual y cuenta como confirmado.
-- **Redactado por el agente** (`source: drafted`): queda como borrador y llega al contexto marcado como supuesto hasta que lo confirmes con `rapid setup doc business --confirm`.
-- **Omitido**: el agente recibe la línea `Reglas de negocio: sin definir. Pregunta, no inventes.`
+- **Provided by you** (`source: provided`): saved as-is and counts as confirmed.
+- **Drafted by the agent** (`source: drafted`): stays as a draft and reaches the context marked as an assumption until you confirm it with `rapid setup doc business --confirm`.
+- **Skipped**: the agent receives the line `Reglas de negocio: sin definir. Pregunta, no inventes.`
 
-Un buen documento define: qué problema resuelves y por qué te deben comprar, cómo adquieres, activas y retienes clientes, y cómo generas ingresos (SaaS, E-com, etc.).
+A good document defines: what problem you solve and why people should buy from you, how you acquire, activate and retain customers, and how you generate revenue (SaaS, E-com, etc.).
 
-> **Legado**: `.rapid-os/standards/business.md` (de versiones anteriores) se sigue leyendo. Para pasarlo al documento nuevo: `rapid setup doc business --from-legacy` (no borra el original).
+> **Legacy**: `.rapid-os/standards/business.md` (from earlier versions) is still read. To migrate it to the new document: `rapid setup doc business --from-legacy` (it does not delete the original).
 
-### 🔄 Cómo Actualizar tus Reglas de Negocio
+### 🔄 How to Update your Business Rules
 
-Si necesitas modificar tus reglas existentes, tienes tres caminos desde la CLI:
+If you need to modify your existing rules, you have three paths from the CLI:
 
-1.  **Opción A: `rapid refine` (Recomendada para Mejorar)**
-    Si ya tienes reglas pero quieres que la IA las profesionalice y elimine ambigüedades:
+1.  **Option A: `rapid refine` (Recommended for Improving)**
+    If you already have rules but want the AI to make them professional and remove ambiguity:
 
     ```bash
     rapid refine docs/BUSINESS_RULES.md
     ```
 
-    _Genera un prompt para que tu IA reescriba las reglas con nivel Senior._
+    _Generates a prompt for your AI to rewrite the rules at a Senior level._
 
-2.  **Opción B: aportar un archivo nuevo**
-    Si quieres reemplazar las reglas por un archivo tuyo:
+2.  **Option B: provide a new file**
+    If you want to replace the rules with a file of your own:
     ```bash
-    rapid setup doc business --source provided --file <archivo>
+    rapid setup doc business --source provided --file <file>
     ```
-    _Reemplaza el documento y guarda un `.bak` del anterior._
+    _Replaces the document and keeps a `.bak` of the previous one._
 
-3.  **Opción C: que el agente las redacte de nuevo**
+3.  **Option C: have the agent draft them again**
     ```bash
     rapid setup doc business --reopen
     ```
-    _Devuelve el documento a pendiente (si estaba omitido) o a borrador (si estaba confirmado) para que tu agente lo redacte de nuevo con `/rapid-init`. Un documento que aportaste tú se reemplaza con la opción B._
+    _Returns the document to pending (if it was skipped) or to draft (if it was confirmed) so your agent drafts it again with `/rapid-init`. A document you provided yourself is replaced with option B._
 
 ---
 
 ## ⚡ CLI Command Reference <a name="cli-reference"></a>
 
-### Flujo principal: verbos porcelain
+### Main flow: porcelain verbs
 
-Son los comandos que usan los shortcuts.
+These are the commands the shortcuts use.
 
-| Comando                      | Descripción                                                                                     | Resultado / Output                                                                                |
+| Command                      | Description                                                                                     | Result / Output                                                                                   |
 | :--------------------------- | :---------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------ |
-| `rapid start <modo>`         | **Inicia o reanuda un run gobernado** (`feature`, `bugfix`, `refactor`, `hardening`, `research`) desde una spec (`--spec-file -`, `--spec`). | Crea el run, toma la baseline y devuelve la siguiente acción. `--resume` continúa; `--worktree` crea el worktree aislado cuando el contrato lo exige. |
-| `rapid next`                 | **Siguiente acción determinista** del run activo (`author_spec`, `implement_task`, `verify`, `await_human_approval`, `finish`, `done`, `blocked`). | Read-only. Incluye el comando exacto a ejecutar. |
-| `rapid check -- <comando>`   | **Ejecuta un comando y registra evidencia** (tests, gates, tareas).                              | Log en `.rapid-os/scratch/checks/`. Soporta `--task`, `--gate` y `--expect fail` (reproducir un bug). |
-| `rapid task start\|done\|skip` | **Transiciona tareas** del run activo.                                                          | `done` verifica con `test_command` salvo `--no-check`. |
-| `rapid attach <ruta> --label` | **Adjunta un archivo como evidencia** (`artifact`) a la tarea en curso.                         | Evidencia con productor `rapid:attach`; la usa el modo `research`. |
-| `rapid finish`               | **Cierra el run**: registra los cambios, reconoce gates de máquina y evalúa.                    | Imprime el veredicto; sale `0` solo con `pass` o `pass_with_waivers`. |
-| `rapid approve [gate]`       | **Aprobación humana** de un gate (`--waive`, `--reject`, `--reviewer`). Sin argumentos lista los pendientes. | Solo una persona en su terminal: falla con `RAPID1310` sin TTY, bajo un agente o con `claude` como ancestro. |
-| `rapid status`               | **Estado del run activo**: tareas, gates y último veredicto.                                     | Read-only. |
-| `rapid abort`                | **Cancela el run activo** y limpia la sesión.                                                    | Lo decide una persona; el worktree aislado, si existe, se conserva. |
-| `rapid shortcuts install\|list\|remove` | **Genera los shortcuts** `/rapid-<modo>` de cada harness (`--harness`, `--dry-run`, `--hooks`). | Idempotente, con backup `.bak`; `remove` solo borra lo generado. |
-| `rapid hook stop\|pre-tool`  | **Entradas de los hooks de Claude Code** (se instalan con `shortcuts install --hooks`; no se escriben a mano). | Mantienen al agente trabajando y le deniegan comandos reservados y la edición de `.rapid-os/`. |
+| `rapid start <mode>`         | **Starts or resumes a governed run** (`feature`, `bugfix`, `refactor`, `hardening`, `research`) from a spec (`--spec-file -`, `--spec`). | Creates the run, takes the baseline and returns the next action. `--resume` continues; `--worktree` creates the isolated worktree when the contract requires it. |
+| `rapid next`                 | **Next deterministic action** of the active run (`author_spec`, `implement_task`, `verify`, `await_human_approval`, `finish`, `done`, `blocked`). | Read-only. Includes the exact command to run. |
+| `rapid check -- <command>`   | **Runs a command and records evidence** (tests, gates, tasks).                                   | Log in `.rapid-os/scratch/checks/`. Supports `--task`, `--gate` and `--expect fail` (reproduce a bug). |
+| `rapid task start\|done\|skip` | **Transitions tasks** of the active run.                                                       | `done` verifies with `test_command` unless `--no-check`. |
+| `rapid attach <path> --label` | **Attaches a file as evidence** (`artifact`) to the task in progress.                           | Evidence with producer `rapid:attach`; used by `research` mode. |
+| `rapid finish`               | **Closes the run**: records the changes, acknowledges machine gates and evaluates.               | Prints the verdict; exits `0` only with `pass` or `pass_with_waivers`. |
+| `rapid approve [gate]`       | **Human approval** of a gate (`--waive`, `--reject`, `--reviewer`). With no arguments it lists the pending ones. | Only a person in their terminal: fails with `RAPID1310` without a TTY, under an agent or with `claude` as an ancestor. |
+| `rapid status`               | **State of the active run**: tasks, gates and last verdict.                                      | Read-only. |
+| `rapid abort`                | **Cancels the active run** and clears the session.                                               | Decided by a person; the isolated worktree, if any, is kept. |
+| `rapid shortcuts install\|list\|remove` | **Generates the `/rapid-<mode>` shortcuts** of each harness (`--harness`, `--dry-run`, `--hooks`). | Idempotent, with a `.bak` backup; `remove` deletes only what was generated. |
+| `rapid hook stop\|pre-tool`  | **Entry points for the Claude Code hooks** (installed with `shortcuts install --hooks`; not written by hand). | Keep the agent working and deny it reserved commands and edits inside `.rapid-os/`. |
 
-### Comandos v3 y utilidades (Modo avanzado)
+### v3 commands and utilities (Advanced mode)
 
-Para CI, depuración y auditoría. Tabla completa de comandos disponibles en Rapid OS y sus resultados.
+For CI, debugging and auditing. Full table of the commands available in Rapid OS and their results.
 
-| Comando                      | Descripción                                                                                     | Resultado / Output                                                                                |
+| Command                      | Description                                                                                     | Result / Output                                                                                   |
 | :--------------------------- | :---------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------ |
-| `rapid init`                 | **Inicializa Rapid OS**. Escanea señales locales y sugiere stack/topología con confirmación.   | Crea `.cursorrules`, `.agent/rules`, `.rapid-os/` y puede crear docs opcionales con backups. Soporta `--no-scan`, `--stack` y `--archetype {mvp,corporate}`. |
-| `rapid scan`                 | **Project Intelligence**. Escanea el repositorio y construye el `ProjectModel` determinista con evidencia trazable. | Read-only por defecto. Soporta `--verbose` (muestra evidencia), `--json` (JSON puro en stdout) y `--write` (persiste `.rapid-os/project.json` con backup). |
-| `rapid context`              | **Context Compiler**. Compila contexto selectivo y trazable por tarea, modo, spec, harness y presupuesto. | Read-only. Soporta `--mode`, `--harness`, `--objective`, `--spec`, `--spec-revision`, `--max-chars`, `--manifest` y `--json`. |
-| `rapid spec`                 | **Spec Registry (v3)**. Gestiona especificaciones con identidad estable, revisiones inmutables y estado (`draft`, `ready`, `archived`). | Subcomandos: `create`, `list`, `show`, `revise`, `status` y `export-legacy`. Persiste bajo `.rapid-os/specs/<spec-id>/`. |
-| `rapid policy`               | **Execution Policy (v3)**. Inspecciona la política de ejecución efectiva o inicializa `.rapid-os/policy.json`. | Subcomandos: `show [--json]` (read-only) e `init [--json]`. |
-| `rapid run`                  | **Run Registry & Execution Contracts (v3)**. Crea y gobierna contratos de ejecución inmutables e historial de estados de ejecución declarada. | Subcomandos: `create`, `list`, `show`, `status`, `task` y `gate`. Persiste bajo `.rapid-os/runs/<run-id>/`. |
-| `rapid harness`              | **Harness Capability Registry (v3)**. Inspecciona perfiles de capacidades de harnesses, inicializa overrides de proyecto, genera `.rapid-os/capabilities.lock` y resuelve compatibilidad declarada contra un `ExecutionContract`. | Subcomandos: `list`, `show`, `init`, `lock` y `resolve` (`--run`, `--locked`, `--require`, `--require-compatible`, `--json`). |
-| `rapid evidence`             | **Evidence Engine (v3)**. Registra, lista, inspecciona y verifica evidencias inmutables de ejecución (`RunEvidence`) y artefactos copiados con verificación SHA-256. | Subcomandos: `list`, `show`, `add` (`--run`, `--input`, `--json`) y `verify`. Persiste bajo `.rapid-os/evidence/<run-id>/`. |
-| `rapid eval`                 | **Behavioral Evals (v3)**. Evalúa determinísticamente contratos de ejecución, estados de Run, evidencias y capacidades observables (`EvaluationReport`). | Subcomandos: `run` (`--run`, `--require`, `--write`, `--require-pass`, `--json`), `list` y `show`. Persiste bajo `.rapid-os/evals/<run-id>/`. |
-| `rapid scope`                | **Asistente de Alcance (Legacy Compatible)**. Te entrevista para definir una feature, refactor, bugfix o hardening. | Genera `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` con backups. Con `--register` también registra la spec en `.rapid-os/specs/`. |
-| `rapid refine <file>`        | **Refinamiento de Reglas**. Mejora cualquier documento de reglas usando IA.                     | Genera un Mega-Prompt para que pegues en tu chat y la IA reescriba el archivo profesionalmente.   |
-| `rapid skill [action] [name]` | **Instala o lista Skills** desde menú interactivo, registro comunitario o template privado.     | Sin argumentos abre menú; con `add`/`install` conserva el flujo directo existente.                 |
-| `rapid mcp [--ide ... --scope ...]` | **Configura MCP Servers**. Modela filesystem, BD y research tools.                    | Escribe el archivo MCP propio de cada editor con backup previo; si faltan flags entra en modo interactivo. |
-| `rapid vision [image_path]`  | **Contexto de Referencia Visual**. Copia una imagen de referencia y documenta su descripción.   | Copia la imagen a `references/`, registra la descripción en `references/VISION_CONTEXT.md` y actualiza el contexto de agentes. |
-| `rapid deploy --target <plataforma>` | **Guía de Despliegue**. Imprime la plantilla de la plataforma. | Solo lectura: imprime `templates/deploy/<plataforma>.md` (`aws`, `azure`, `vercel`, `render`, `railway`, `dokploy`) y el comando `rapid setup doc deployment --reopen`. Una plataforma desconocida es `RAPID1413`. |
-| `rapid validate`             | **Validación de Proyecto**. Revisa templates, estándares, config, snapshots, specs, policy, runs, harnesses, capabilities.lock, evidence, evals, herramientas y contexto. | No escribe archivos. Sale con `0` si no hay errores y `1` si encuentra errores de validación.     |
-| `rapid doctor`               | **Diagnóstico Local**. Revisa rutas resueltas, templates, Node/npx opcional y proyecto actual.  | No escribe archivos. Usa advertencias para capacidades opcionales como Node/npx.                  |
-| `rapid inspect-context`      | **Inspección de Contexto**. Ensambla y previsualiza el contexto final antes de generar archivos. | No escribe archivos. Muestra secciones incluidas, herramientas seleccionadas y preview final.     |
-| `rapid guide`                | **Guía del Flujo v3**. Muestra el flujo de gobernanza de 8 pasos de Rapid OS v3 y clasifica comandos read-only vs write. | No escribe archivos. |
-| `rapid prompt`               | **Prompt Rápido (Legacy)**. Imprime un bloque rápido de contexto para copiar al portapapeles. | No escribe archivos. |
+| `rapid init`                 | **Initializes Rapid OS**. Scans local signals and suggests a stack/topology with confirmation.  | Creates `.cursorrules`, `.agent/rules`, `.rapid-os/` and can create optional docs with backups. Supports `--no-scan`, `--stack` and `--archetype {mvp,corporate}`. |
+| `rapid scan`                 | **Project Intelligence**. Scans the repository and builds the deterministic `ProjectModel` with traceable evidence. | Read-only by default. Supports `--verbose` (shows evidence), `--json` (pure JSON on stdout) and `--write` (persists `.rapid-os/project.json` with a backup). |
+| `rapid context`              | **Context Compiler**. Compiles selective, traceable context per task, mode, spec, harness and budget. | Read-only. Supports `--mode`, `--harness`, `--objective`, `--spec`, `--spec-revision`, `--max-chars`, `--manifest` and `--json`. |
+| `rapid spec`                 | **Spec Registry (v3)**. Manages specifications with stable identity, immutable revisions and status (`draft`, `ready`, `archived`). | Subcommands: `create`, `list`, `show`, `revise`, `status` and `export-legacy`. Persists under `.rapid-os/specs/<spec-id>/`. |
+| `rapid policy`               | **Execution Policy (v3)**. Inspects the effective execution policy or initializes `.rapid-os/policy.json`. | Subcommands: `show [--json]` (read-only) and `init [--json]`. |
+| `rapid run`                  | **Run Registry & Execution Contracts (v3)**. Creates and governs immutable execution contracts and a declared execution state history. | Subcommands: `create`, `list`, `show`, `status`, `task` and `gate`. Persists under `.rapid-os/runs/<run-id>/`. |
+| `rapid harness`              | **Harness Capability Registry (v3)**. Inspects harness capability profiles, initializes project overrides, generates `.rapid-os/capabilities.lock` and resolves declared compatibility against an `ExecutionContract`. | Subcommands: `list`, `show`, `init`, `lock` and `resolve` (`--run`, `--locked`, `--require`, `--require-compatible`, `--json`). |
+| `rapid evidence`             | **Evidence Engine (v3)**. Records, lists, inspects and verifies immutable execution evidence (`RunEvidence`) and copied artifacts with SHA-256 verification. | Subcommands: `list`, `show`, `add` (`--run`, `--input`, `--json`) and `verify`. Persists under `.rapid-os/evidence/<run-id>/`. |
+| `rapid eval`                 | **Behavioral Evals (v3)**. Deterministically evaluates execution contracts, Run states, evidence and observable capabilities (`EvaluationReport`). | Subcommands: `run` (`--run`, `--require`, `--write`, `--require-pass`, `--json`), `list` and `show`. Persists under `.rapid-os/evals/<run-id>/`. |
+| `rapid scope`                | **Scope Assistant (Legacy Compatible)**. Interviews you to define a feature, refactor, bugfix or hardening. | Generates `SPECS.md`, `TASKS.md` and `ACCEPTANCE.md` with backups. With `--register` it also registers the spec in `.rapid-os/specs/`. |
+| `rapid refine <file>`        | **Rule Refinement**. Improves any rules document using AI.                                      | Generates a Mega-Prompt for you to paste into your chat so the AI rewrites the file professionally. |
+| `rapid skill [action] [name]` | **Installs or lists Skills** from an interactive menu, the community registry or a private template. | With no arguments it opens a menu; with `add`/`install` it keeps the existing direct flow.         |
+| `rapid mcp [--ide ... --scope ...]` | **Configures MCP Servers**. Models filesystem, DB and research tools.                     | Writes each editor's own MCP file with a prior backup; if flags are missing it enters interactive mode. |
+| `rapid vision [image_path]`  | **Visual Reference Context**. Copies a reference image and documents its description.            | Copies the image to `references/`, records the description in `references/VISION_CONTEXT.md` and updates the agents' context. |
+| `rapid deploy --target <platform>` | **Deployment Guide**. Prints the platform template.                                          | Read-only: prints `templates/deploy/<platform>.md` (`aws`, `azure`, `vercel`, `render`, `railway`, `dokploy`) and the `rapid setup doc deployment --reopen` command. An unknown platform is `RAPID1413`. |
+| `rapid validate`             | **Project Validation**. Checks templates, standards, config, snapshots, specs, policy, runs, harnesses, capabilities.lock, evidence, evals, tools and context. | Writes no files. Exits `0` if there are no errors and `1` if it finds validation errors.          |
+| `rapid doctor`               | **Local Diagnostics**. Checks resolved paths, templates, optional Node/npx and the current project. | Writes no files. Uses warnings for optional capabilities such as Node/npx.                        |
+| `rapid inspect-context`      | **Context Inspection**. Assembles and previews the final context before generating files.        | Writes no files. Shows included sections, selected tools and the final preview.                   |
+| `rapid guide`                | **v3 Workflow Guide**. Shows the Rapid OS v3 8-step governance flow and classifies commands as read-only vs write. | Writes no files. |
+| `rapid prompt`               | **Quick Prompt (Legacy)**. Prints a quick context block to copy to the clipboard.                 | Writes no files. |
 
 ---
 
 ### Project Intelligence (`rapid scan`)
 
-Puedes inspeccionar qué hechos detecta Rapid OS sobre tu repositorio (lenguajes, frameworks, gestores de paquetes, Docker, testing, monorepo, bases de datos y proveedores de deploy) sin modificar ningún archivo:
+You can inspect which facts Rapid OS detects about your repository (languages, frameworks, package managers, Docker, testing, monorepo, databases and deploy providers) without modifying any file:
 
 ```bash
 rapid scan
@@ -568,7 +568,7 @@ rapid scan --verbose
 rapid scan --json
 ```
 
-Si deseas persistir un snapshot determinista y trazable del `ProjectModel` (`schema_version: 1`) en `.rapid-os/project.json`:
+If you want to persist a deterministic, traceable snapshot of the `ProjectModel` (`schema_version: 1`) in `.rapid-os/project.json`:
 
 ```bash
 rapid scan --write
@@ -577,33 +577,33 @@ rapid scan --json --write
 
 ### Spec Registry (`rapid spec`)
 
-El **Spec Registry** de Rapid OS v3 reemplaza los archivos singleton sobrescribibles por un registro estructurado en `.rapid-os/specs/<spec-id>/` con identidad estable (`spec.json`), ciclo de vida (`draft`, `ready`, `archived`) y revisiones inmutables (`revisions/0001/`, `0002/`, ... con `revision.json`, `requirements.md`, `tasks.md` y `acceptance.md`):
+Rapid OS v3's **Spec Registry** replaces the overwritable singleton files with a structured registry in `.rapid-os/specs/<spec-id>/` with stable identity (`spec.json`), lifecycle (`draft`, `ready`, `archived`) and immutable revisions (`revisions/0001/`, `0002/`, ... with `revision.json`, `requirements.md`, `tasks.md` and `acceptance.md`):
 
 ```bash
-# Crear una spec (interactivo o por flags)
+# Create a spec (interactive or via flags)
 rapid spec create --title "Booking Idempotency" --mode feature --objective "Prevent duplicate charges" --problem "Retries duplicate bookings" --scope "POST /bookings" --acceptance "Duplicate key returns 200" --task "Add idempotency key store"
 
-# Listar y consultar specs (read-only)
+# List and query specs (read-only)
 rapid spec list
 rapid spec list --json
 rapid spec show booking-idempotency
 rapid spec show booking-idempotency --revision 1 --json
 
-# Crear una nueva revisión inmutable (hereda campos no especificados)
+# Create a new immutable revision (inherits unspecified fields)
 rapid spec revise booking-idempotency --acceptance "Duplicate key returns 200" --acceptance "Timeout retries are safe"
 
-# Marcar como lista para consumo del Context Compiler
+# Mark as ready for the Context Compiler to consume
 rapid spec status booking-idempotency ready
 
-# Exportar explícitamente a SPECS.md / TASKS.md / ACCEPTANCE.md (compatibilidad v2)
+# Explicitly export to SPECS.md / TASKS.md / ACCEPTANCE.md (v2 compatibility)
 rapid spec export-legacy booking-idempotency
 ```
 
-> **Compatibilidad con `rapid scope`**: `rapid scope` conserva su comportamiento clásico escribiendo `SPECS.md`, `TASKS.md` y `ACCEPTANCE.md` en la raíz, y soporta `rapid scope --register [--spec-id <id>] [--status {draft,ready}]` para registrar simultáneamente la spec en `.rapid-os/specs/`.
+> **Compatibility with `rapid scope`**: `rapid scope` keeps its classic behavior of writing `SPECS.md`, `TASKS.md` and `ACCEPTANCE.md` at the root, and supports `rapid scope --register [--spec-id <id>] [--status {draft,ready}]` to simultaneously register the spec in `.rapid-os/specs/`.
 
 ### Context Compiler (`rapid context`)
 
-El **Context Compiler** de Rapid OS v3 selecciona y compila únicamente el contexto relevante para una tarea concreta combinando `ProjectModel`, estándares del proyecto, specs `ready` del Spec Registry, precedencia determinista, detección de conflictos y presupuesto de caracteres (`max_chars`):
+Rapid OS v3's **Context Compiler** selects and compiles only the context relevant to a specific task by combining the `ProjectModel`, project standards, `ready` specs from the Spec Registry, deterministic precedence, conflict detection and a character budget (`max_chars`):
 
 ```bash
 rapid context
@@ -615,40 +615,40 @@ rapid context --manifest
 rapid context --json
 ```
 
-- **Read-only**: `rapid context` nunca escribe ni modifica archivos en el repositorio.
-- **`--spec <spec-id>`**: Carga `requirements.md`, `tasks.md` y `acceptance.md` de una spec en estado `ready` desde `.rapid-os/specs/<spec-id>/` (y excluye los singletons raíz `SPECS.md`/`TASKS.md`/`ACCEPTANCE.md` para evitar ambigüedad).
-- **`--manifest`**: Muestra qué fuentes se seleccionaron (`SELECTED`), cuáles se omitieron (`SKIPPED` y por qué) y cualquier conflicto detectado (`CONFLICTS`).
-- **`--json`**: Emite el documento `CompiledContext` (`schema_version: 1`, `manifest` y `content`) listo para consumo automatizado.
+- **Read-only**: `rapid context` never writes or modifies files in the repository.
+- **`--spec <spec-id>`**: Loads `requirements.md`, `tasks.md` and `acceptance.md` of a spec in `ready` status from `.rapid-os/specs/<spec-id>/` (and excludes the root singletons `SPECS.md`/`TASKS.md`/`ACCEPTANCE.md` to avoid ambiguity).
+- **`--manifest`**: Shows which sources were selected (`SELECTED`), which were skipped (`SKIPPED` and why) and any conflicts detected (`CONFLICTS`).
+- **`--json`**: Emits the `CompiledContext` document (`schema_version: 1`, `manifest` and `content`) ready for automated consumption.
 
 ### Execution Policy Engine & Run Contracts (`rapid policy` & `rapid run`)
 
-La **Fase 4** de Rapid OS v3 introduce gobernanza determinista de ejecución vinculando cada intento concreto (`Run`) a una revisión exacta e inmutable de Spec (`ready`), un snapshot exacto de `CompiledContext`, el `ProjectModel` y la `ExecutionPolicy` vigente:
+**Phase 4** of Rapid OS v3 introduces deterministic execution governance by binding each concrete attempt (`Run`) to an exact, immutable Spec revision (`ready`), an exact `CompiledContext` snapshot, the `ProjectModel` and the `ExecutionPolicy` in force:
 
 ```bash
-# Inspeccionar o inicializar .rapid-os/policy.json
+# Inspect or initialize .rapid-os/policy.json
 rapid policy show
 rapid policy show --json
 rapid policy init
 
-# Crear un Run vinculado a una Spec ready
+# Create a Run bound to a ready Spec
 rapid run create --spec booking-idempotency --harness codex
 rapid run create --spec booking-idempotency --spec-revision 1 --risk high --json
 
-# Listar e inspeccionar Runs (read-only)
+# List and inspect Runs (read-only)
 rapid run list
 rapid run list --status prepared --json
 rapid run show booking-idempotency-r1-run-001
 rapid run show booking-idempotency-r1-run-001 --json
 
-# Atender gates pre-ejecución y activar el Run
+# Handle pre-execution gates and activate the Run
 rapid run gate booking-idempotency-r1-run-001 gate.baseline acknowledge --reason "Baseline green"
 rapid run status booking-idempotency-r1-run-001 active
 
-# Actualizar ledger de tareas (T001, T002, ...)
+# Update the task ledger (T001, T002, ...)
 rapid run task booking-idempotency-r1-run-001 T001 in_progress
 rapid run task booking-idempotency-r1-run-001 T001 done
 
-# Atender/waive gates post-ejecución y declarar el Run como finished
+# Handle/waive post-execution gates and declare the Run as finished
 rapid run gate booking-idempotency-r1-run-001 gate.tests acknowledge --reason "Unit tests added"
 rapid run gate booking-idempotency-r1-run-001 gate.final-verification acknowledge --reason "Ready for verification"
 rapid run status booking-idempotency-r1-run-001 finished
@@ -656,41 +656,41 @@ rapid run status booking-idempotency-r1-run-001 finished
 
 ### Harness Capability Registry (`rapid harness`)
 
-La **Fase 5** de Rapid OS v3 introduce un registro determinista y declarativo de capacidades de harnesses (`HarnessProfile`) y un resolvedor de compatibilidad (`CapabilityResolver`) frente a los requisitos derivados de cada `ExecutionContract`:
+**Phase 5** of Rapid OS v3 introduces a deterministic, declarative registry of harness capabilities (`HarnessProfile`) and a compatibility resolver (`CapabilityResolver`) against the requirements derived from each `ExecutionContract`:
 
 ```bash
-# Listar perfiles activos (built-in + overrides/perfiles de proyecto en .rapid-os/harnesses/)
+# List active profiles (built-in + project overrides/profiles in .rapid-os/harnesses/)
 rapid harness list
 rapid harness list --json
 
-# Inspeccionar un perfil activo (read-only)
+# Inspect an active profile (read-only)
 rapid harness show codex
 rapid harness show codex --json
 
-# Inicializar un override de proyecto editable (.rapid-os/harnesses/codex.json) desde el built-in
+# Initialize an editable project override (.rapid-os/harnesses/codex.json) from the built-in
 rapid harness init codex
 rapid harness init codex --json
 
-# Generar snapshot determinista de todos los perfiles activos en .rapid-os/capabilities.lock
+# Generate a deterministic snapshot of all active profiles in .rapid-os/capabilities.lock
 rapid harness lock
 rapid harness lock --json
 
-# Resolver compatibilidad declarada contra el ExecutionContract de un Run (read-only; evalúa contract.harness y nunca muta el Run)
+# Resolve declared compatibility against a Run's ExecutionContract (read-only; evaluates contract.harness and never mutates the Run)
 rapid harness resolve --run booking-idempotency-r1-run-001
 rapid harness resolve --run booking-idempotency-r1-run-001 --json
 rapid harness resolve --run booking-idempotency-r1-run-001 --require mcp.invoke --require shell.execute
 rapid harness resolve --run booking-idempotency-r1-run-001 --locked --require-compatible
 ```
 
-- **Fuente de verdad del harness**: `rapid harness resolve` evalúa exclusivamente `ExecutionContract.harness` (`profile.id == contract.harness`). El harness se selecciona al crear el Run (`rapid run create --harness <id>`); `validate_harness_id()` valida el ID canónico (`RAPID1104` `HarnessIdentityError`).
-- **Derivación determinista de requisitos (`CapabilityRequirementResolver`)**:
-  - **Siempre**: `context.consume` (`source="contract.context"`), `repository.read` (`source="contract.repository"`).
-  - **Si `contract.tasks` no está vacío**: `repository.write` (`source="contract.tasks"`).
+- **Harness source of truth**: `rapid harness resolve` evaluates exclusively `ExecutionContract.harness` (`profile.id == contract.harness`). The harness is selected when the Run is created (`rapid run create --harness <id>`); `validate_harness_id()` validates the canonical ID (`RAPID1104` `HarnessIdentityError`).
+- **Deterministic requirement derivation (`CapabilityRequirementResolver`)**:
+  - **Always**: `context.consume` (`source="contract.context"`), `repository.read` (`source="contract.repository"`).
+  - **If `contract.tasks` is not empty**: `repository.write` (`source="contract.tasks"`).
   - **Workspace (`contract.workspace`)**: `current_allowed` → `workspace.current` (`source="contract.workspace"`), `isolated_required` → `workspace.isolated` (`source="contract.workspace"`).
   - **Required `gate.tests`**: `tests.execute` (`source="contract.gate.tests"`).
-  - **Gates humanos/de gobernanza**: No derivan capacidades técnicas del harness.
-  - **`--require <capability-id>` explícitos**: Estrictamente aditivos (`source="cli.require"`); nunca eliminan, degradan ni reemplazan requisitos derivados del contrato.
-- **Códigos de diagnóstico (`RAPID1100–RAPID1119`)**:
+  - **Human/governance gates**: They do not derive technical harness capabilities.
+  - **Explicit `--require <capability-id>`**: Strictly additive (`source="cli.require"`); they never remove, downgrade or replace requirements derived from the contract.
+- **Diagnostic codes (`RAPID1100–RAPID1119`)**:
   - `RAPID1100` (`INFO`): Harness capability registry / lock valid.
   - `RAPID1101` (`ERROR`): Invalid or unknown `capability_id` (`InvalidCapabilityIdError`).
   - `RAPID1102` (`ERROR`): Invalid `HarnessProfile` schema/content/digest (`InvalidHarnessProfileError`).
@@ -701,10 +701,10 @@ rapid harness resolve --run booking-idempotency-r1-run-001 --locked --require-co
   - `RAPID1107` (`ERROR`): Invalid `CapabilityRequirement` (`InvalidCapabilityRequirementError`).
   - `RAPID1108` (`ERROR`): Invalid `CapabilityResolution` (`InvalidCapabilityResolutionError`).
   - `RAPID1109` (`ERROR`): `CapabilityResolution` digest mismatch (`CapabilityResolutionDigestMismatchError`).
-  - `RAPID1110` (`ERROR`): Strict compatibility requirement not satisfied (`IncompatibleHarnessError`; aplica tanto a `incompatible` como a `unresolved` bajo `--require-compatible`).
+  - `RAPID1110` (`ERROR`): Strict compatibility requirement not satisfied (`IncompatibleHarnessError`; applies to both `incompatible` and `unresolved` under `--require-compatible`).
   - `RAPID1111` (`ERROR`): Invalid or missing `capabilities.lock` (`InvalidCapabilityLockError`).
   - `RAPID1112` (`WARNING`): `capabilities.lock` stale relative to active profiles.
-  - `RAPID1113–RAPID1119`: Reservados.
+  - `RAPID1113–RAPID1119`: Reserved.
 
 ```text
 HarnessProfile
@@ -718,14 +718,14 @@ Neither proves runtime behavior.
 
 ### Evidence Engine & Behavioral Evals (`rapid evidence` & `rapid eval`)
 
-La **Fase 6** de Rapid OS v3 cierra el bucle de gobernanza separando estrictamente **Declaración** (`GateDisposition.ACKNOWLEDGED`), **Capacidad** (`HarnessProfile`), **Observación** (`RunEvidence`) y **Juicio Determinista** (`BehavioralEvaluator` → `EvaluationReport`):
+**Phase 6** of Rapid OS v3 closes the governance loop by strictly separating **Declaration** (`GateDisposition.ACKNOWLEDGED`), **Capability** (`HarnessProfile`), **Observation** (`RunEvidence`) and **Deterministic Judgment** (`BehavioralEvaluator` → `EvaluationReport`):
 
 ```bash
-# Ingestar evidencia inmutable ligada a un Run y copiar artefactos verificados por SHA-256
+# Ingest immutable evidence bound to a Run and copy SHA-256-verified artifacts
 rapid evidence add --run booking-idempotency-r1-run-001 --input evidence.json
 rapid evidence add --run booking-idempotency-r1-run-001 --input evidence.json --json
 
-# Listar, inspeccionar y verificar integridad de evidencias y artefactos (read-only)
+# List, inspect and verify the integrity of evidence and artifacts (read-only)
 rapid evidence list --run booking-idempotency-r1-run-001
 rapid evidence list --run booking-idempotency-r1-run-001 --json
 rapid evidence show --run booking-idempotency-r1-run-001 E001
@@ -733,7 +733,7 @@ rapid evidence show --run booking-idempotency-r1-run-001 E001 --json
 rapid evidence verify --run booking-idempotency-r1-run-001
 rapid evidence verify --run booking-idempotency-r1-run-001 --json
 
-# Evaluar el comportamiento observado contra el contrato, estado y evidencias del Run
+# Evaluate the observed behavior against the Run's contract, state and evidence
 rapid eval run --run booking-idempotency-r1-run-001
 rapid eval run --run booking-idempotency-r1-run-001 --json
 rapid eval run --run booking-idempotency-r1-run-001 --require mcp.invoke
@@ -741,23 +741,23 @@ rapid eval run --run booking-idempotency-r1-run-001 --write
 rapid eval run --run booking-idempotency-r1-run-001 --require-pass
 rapid eval run --run booking-idempotency-r1-run-001 --write --require-pass --json
 
-# Listar e inspeccionar reportes de evaluación persistidos (read-only)
+# List and inspect persisted evaluation reports (read-only)
 rapid eval list --run booking-idempotency-r1-run-001
 rapid eval list --run booking-idempotency-r1-run-001 --json
 rapid eval show --run booking-idempotency-r1-run-001
 rapid eval show --run booking-idempotency-r1-run-001 --revision 1 --json
 ```
 
-- **Esquemas canónicos deterministas**:
-  - `RunEvidence` (`schema_version = 1`): `id`, `run_id`, `contract_digest`, `state_revision`, `state_digest`, `kind`, `producer`, `summary`, `task_ids`, `gate_ids`, `capability_ids`, `payload` (ej. `command_result`: `{"label": "...", "exit_code": 0}`), `artifacts`, `content_digest` (sin marcas de tiempo de reloj, garantizando digests deterministas).
+- **Deterministic canonical schemas**:
+  - `RunEvidence` (`schema_version = 1`): `id`, `run_id`, `contract_digest`, `state_revision`, `state_digest`, `kind`, `producer`, `summary`, `task_ids`, `gate_ids`, `capability_ids`, `payload` (e.g. `command_result`: `{"label": "...", "exit_code": 0}`), `artifacts`, `content_digest` (no wall-clock timestamps, guaranteeing deterministic digests).
   - `EvidenceArtifact`: `path`, `sha256`, `size_bytes`.
-  - `EvaluationReport` (`schema_version = 1`): incluye `extra_capability_ids` (validados contra el catálogo de Fase 5, ordenados, deduplicados e incluidos en `report_digest`) y `EvaluationVerdict` (`pass`, `pass_with_waivers`, `fail`, `unverified`).
-  - **Replay semántico obligatorio (`RAPID1223`)**: Todo `EvaluationReport` persistido se reconstruye con `BehavioralEvaluator` a partir de `ExecutionContract + RunState histórico + conjunto exacto de evidencias + BehavioralRuleset + extra_capability_ids`, exigiendo igualdad exacta de `assertions`, `verdict`, `ruleset_digest`, `evidence_set_digest`, `extra_capability_ids` y `report_digest`.
-- **Aislamiento inmutable (Fase 4 y Fase 5 intactas)**: `rapid evidence` y `rapid eval` nunca modifican `.rapid-os/runs/<run-id>/` (`run.json`, `contract.json`, `context.md`, `context-manifest.json`, `states/*.json`), nunca auto-reconocen gates, nunca auto-finalizan Runs y nunca mutan `.rapid-os/harnesses/` ni `.rapid-os/capabilities.lock`.
-- **`ACKNOWLEDGED` no implica `PASS`**: Un gate reconocido (`GateDisposition.ACKNOWLEDGED`) o una tarea marcada `DONE` sin evidencia verificada permanece en `UNVERIFIED`. Un gate con exención explícita (`WAIVED`) produce `WAIVED` y veredicto global `PASS_WITH_WAIVERS` (`pass_with_waivers`) cuando el resto de aserciones requeridas pasan.
-- **Significado de `EvaluationVerdict.PASS` (`pass`)**: Indica que las reglas deterministas de evidencia de Fase 6 se cumplen para el conjunto exacto de evidencias registradas; **no** demuestra matemáticamente ausencia total de bugs, perfección de seguridad ni completitud de requisitos.
-- **Autenticidad de evidencias**: El Evidence Registry verifica integridad local (`content_digest`, `sha256` de artefactos copiados, `size_bytes`, secuencia continua `E001..E00N` y vinculación a `run_id`, `contract_digest` y `RunState`), pero no proporciona atestación criptográfica externa de hardware o runtime remoto.
-- **Códigos de diagnóstico (`RAPID1200–RAPID1239`)**:
+  - `EvaluationReport` (`schema_version = 1`): includes `extra_capability_ids` (validated against the Phase 5 catalog, sorted, deduplicated and included in `report_digest`) and `EvaluationVerdict` (`pass`, `pass_with_waivers`, `fail`, `unverified`).
+  - **Mandatory semantic replay (`RAPID1223`)**: Every persisted `EvaluationReport` is rebuilt with `BehavioralEvaluator` from `ExecutionContract + historical RunState + exact evidence set + BehavioralRuleset + extra_capability_ids`, requiring exact equality of `assertions`, `verdict`, `ruleset_digest`, `evidence_set_digest`, `extra_capability_ids` and `report_digest`.
+- **Immutable isolation (Phase 4 and Phase 5 untouched)**: `rapid evidence` and `rapid eval` never modify `.rapid-os/runs/<run-id>/` (`run.json`, `contract.json`, `context.md`, `context-manifest.json`, `states/*.json`), never auto-acknowledge gates, never auto-finish Runs and never mutate `.rapid-os/harnesses/` or `.rapid-os/capabilities.lock`.
+- **`ACKNOWLEDGED` does not imply `PASS`**: An acknowledged gate (`GateDisposition.ACKNOWLEDGED`) or a task marked `DONE` without verified evidence remains `UNVERIFIED`. A gate with an explicit waiver (`WAIVED`) produces `WAIVED` and an overall verdict of `PASS_WITH_WAIVERS` (`pass_with_waivers`) when the remaining required assertions pass.
+- **Meaning of `EvaluationVerdict.PASS` (`pass`)**: Indicates that the deterministic Phase 6 evidence rules are met for the exact set of recorded evidence; it does **not** mathematically prove the total absence of bugs, perfect security or completeness of requirements.
+- **Evidence authenticity**: The Evidence Registry verifies local integrity (`content_digest`, `sha256` of copied artifacts, `size_bytes`, continuous `E001..E00N` sequence and binding to `run_id`, `contract_digest` and `RunState`), but it does not provide external cryptographic attestation of hardware or a remote runtime.
+- **Diagnostic codes (`RAPID1200–RAPID1239`)**:
   - `RAPID1200` (`INFO`): Evidence Registry valid.
   - `RAPID1201` (`ERROR`): Invalid evidence ID (`InvalidEvidenceIdError`).
   - `RAPID1202` (`ERROR`): Invalid `RunEvidence` schema or `content_digest` (`InvalidRunEvidenceError`).
@@ -766,11 +766,11 @@ rapid eval show --run booking-idempotency-r1-run-001 --revision 1 --json
   - `RAPID1205` (`ERROR`): Evidence artifact missing, digest mismatch, or size mismatch (`EvidenceArtifactIntegrityError`).
   - `RAPID1206` (`ERROR`): Invalid `EvidenceKind` or payload (`InvalidEvidencePayloadError`).
   - `RAPID1207` (`ERROR`): Invalid task, gate, or capability reference (`InvalidEvidenceReferenceError`).
-  - `RAPID1208` (`ERROR`): Evidence sequence gap or duplicate identity (`EvidenceSequenceGapError`, incluyendo cualquier record histórico faltante aunque su directorio `artifacts/E00K/` exista).
-  - `RAPID1209` (`WARNING`): Trailing crash-orphan evidence artifact directory (`artifacts/E00N` sin `records/E00N.json` en `max_record_ordinal + 1`; bloquea de forma segura `rapid evidence add`).
+  - `RAPID1208` (`ERROR`): Evidence sequence gap or duplicate identity (`EvidenceSequenceGapError`, including any missing historical record even if its `artifacts/E00K/` directory exists).
+  - `RAPID1209` (`WARNING`): Trailing crash-orphan evidence artifact directory (`artifacts/E00N` without `records/E00N.json` at `max_record_ordinal + 1`; safely blocks `rapid evidence add`).
   - `RAPID1210` (`ERROR`): Evidence not found (`EvidenceNotFoundError`).
   - `RAPID1211` (`ERROR`): Append-only evidence overwrite violation (`EvidenceOverwriteError`).
-  - `RAPID1212–RAPID1219`: Reservados para Evidence.
+  - `RAPID1212–RAPID1219`: Reserved for Evidence.
   - `RAPID1220` (`INFO`): Eval Registry valid.
   - `RAPID1221` (`ERROR`): Invalid `EvaluationReport` schema (`InvalidEvaluationReportError`).
   - `RAPID1222` (`ERROR`): `EvaluationReport` digest mismatch (`EvaluationReportDigestMismatchError`).
@@ -781,7 +781,7 @@ rapid eval show --run booking-idempotency-r1-run-001 --revision 1 --json
   - `RAPID1227` (`WARNING`): Stored `EvaluationReport` is stale relative to current `RunState`, `evidence_set_digest`, or `ruleset_digest`.
   - `RAPID1228` (`ERROR`): `EvaluationReport` not found (`EvaluationReportNotFoundError`).
   - `RAPID1229` (`ERROR`): Append-only evaluation report overwrite violation (`EvaluationOverwriteError`).
-  - `RAPID1230–RAPID1239`: Reservados para Evals.
+  - `RAPID1230–RAPID1239`: Reserved for Evals.
 
 ```text
 Phase 4 RunState
@@ -798,9 +798,9 @@ Phase 6 EvaluationReport
 ```
 
 
-### Validación y Diagnósticos
+### Validation and Diagnostics
 
-Antes de regenerar contexto o usar Rapid OS en CI, puedes validar el estado del proyecto:
+Before regenerating context or using Rapid OS in CI, you can validate the project state:
 
 ```bash
 rapid validate
@@ -808,18 +808,18 @@ rapid validate --json
 rapid validate --strict
 ```
 
-`rapid validate` falla con código `1` cuando hay errores, como `tech-stack.md` o `topology.md` faltantes, JSON inválido en `.rapid-os/config.json`, `.rapid-os/project.json`, `.rapid-os/specs/` (`RAPID801–RAPID809`), `.rapid-os/policy.json` o `.rapid-os/runs/` (`RAPID1001–RAPID1014`), `.rapid-os/harnesses/` o `.rapid-os/capabilities.lock` (`RAPID1101–RAPID1112`), `.rapid-os/evidence/` (`RAPID1201–RAPID1211`), `.rapid-os/evals/` (`RAPID1221–RAPID1229`), templates MCP, herramientas desconocidas en `.rapid-os/config.json`, combinaciones stack/topología incompatibles o contexto ensamblado vacío. Con `--strict`, las advertencias también devuelven `1`.
+`rapid validate` fails with code `1` when there are errors, such as missing `tech-stack.md` or `topology.md`, invalid JSON in `.rapid-os/config.json`, `.rapid-os/project.json`, `.rapid-os/specs/` (`RAPID801–RAPID809`), `.rapid-os/policy.json` or `.rapid-os/runs/` (`RAPID1001–RAPID1014`), `.rapid-os/harnesses/` or `.rapid-os/capabilities.lock` (`RAPID1101–RAPID1112`), `.rapid-os/evidence/` (`RAPID1201–RAPID1211`), `.rapid-os/evals/` (`RAPID1221–RAPID1229`), MCP templates, unknown tools in `.rapid-os/config.json`, incompatible stack/topology combinations or an empty assembled context. With `--strict`, warnings also return `1`.
 
-Para revisar la instalación local sin modificar nada:
+To review the local installation without modifying anything:
 
 ```bash
 rapid doctor
 rapid doctor --json
 ```
 
-`rapid doctor` reporta rutas resueltas, directorio de templates activo, estado del proyecto actual (incluyendo `.rapid-os/project.json`, `.rapid-os/specs/`, `.rapid-os/policy.json`, `.rapid-os/runs/`, `.rapid-os/harnesses/`, `.rapid-os/capabilities.lock`, `.rapid-os/evidence/` y `.rapid-os/evals/` si existen) y disponibilidad opcional de Node/npx.
+`rapid doctor` reports resolved paths, the active templates directory, the state of the current project (including `.rapid-os/project.json`, `.rapid-os/specs/`, `.rapid-os/policy.json`, `.rapid-os/runs/`, `.rapid-os/harnesses/`, `.rapid-os/capabilities.lock`, `.rapid-os/evidence/` and `.rapid-os/evals/` if they exist) and optional Node/npx availability.
 
-Para ver el contexto final antes de escribir archivos de agente:
+To see the final context before writing agent files:
 
 ```bash
 rapid inspect-context
@@ -827,11 +827,11 @@ rapid inspect-context --summary
 rapid inspect-context --json
 ```
 
-`rapid inspect-context` usa el mismo ensamblado de contexto que la generación normal, pero no escribe `.cursorrules`, `CLAUDE.md`, `INSTRUCTIONS.md`, `AGENTS.md` ni archivos de Antigravity.
+`rapid inspect-context` uses the same context assembly as normal generation, but it does not write `.cursorrules`, `CLAUDE.md`, `INSTRUCTIONS.md`, `AGENTS.md` or Antigravity files.
 
 ---
 
-## ✅ Capacidades y Limitaciones
+## ✅ Capabilities and Limitations
 
 ```text
 Rapid OS DOES:
@@ -858,80 +858,80 @@ Rapid OS RUNS, only through the porcelain:
 - read-only git commands to record the run's changes (and `git worktree add` with --worktree)
 ```
 
-Lo que Rapid OS **ES** y lo que **NO ES**:
+What Rapid OS **IS** and what it **IS NOT**:
 
-| LO QUE PUEDES HACER (Do's)                                                         | LO QUE NO HACE (Don'ts)                                                                              |
+| WHAT YOU CAN DO (Do's)                                                             | WHAT IT DOES NOT DO (Don'ts)                                                                         |
 | :--------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------- |
-| **Inyectar Contexto Senior**: Obligar a la IA a seguir Clean Architecture y SOLID. | **Escribir código por sí solo**: Rapid OS es el _Arquitecto_, tu IA (Cursor/Claude) es el _Albañil_. |
-| **Gobernar Contratos de Ejecución**: Clasificar riesgo, exigir gates y fijar snapshots inmutables por Run. | **Invocar Agentes ni aprobar gates**: No lanza editores ni modelos y nunca aprueba gates humanos. Ejecuta solo el `test_command` configurado o el argv de `rapid check` (el plumbing no ejecuta nada) y crea un worktree solo con `rapid start --worktree`. |
-| **Refactorizar Legacy**: Definir reglas modernas para limpiar código antiguo.      | **Ejecutarse en la Nube**: Es una CLI 100% local. No sube tu código a ningún lado.                   |
-| **Estandarizar Equipos**: Que todos los devs (y sus IAs) escriban igual.           | **Compilar tu App**: No reemplaza a `npm run build` o compiladores.                                  |
-| **Generar Guías y Contexto**: Crea reglas de agentes, specs, MCPs y el documento de despliegue (`docs/DEPLOYMENT.md`). | **Desplegar Producción**: `rapid deploy` imprime la plantilla de la plataforma (no escribe `DEPLOY.md`), pero TÚ ejecutas el deploy final. |
+| **Inject Senior Context**: Force the AI to follow Clean Architecture and SOLID.    | **Write code on its own**: Rapid OS is the _Architect_, your AI (Cursor/Claude) is the _Builder_.    |
+| **Govern Execution Contracts**: Classify risk, require gates and pin immutable snapshots per Run. | **Invoke Agents or approve gates**: It does not launch editors or models and never approves human gates. It runs only the configured `test_command` or the argv of `rapid check` (the plumbing runs nothing) and creates a worktree only with `rapid start --worktree`. |
+| **Refactor Legacy**: Define modern rules to clean up old code.                     | **Run in the Cloud**: It is a 100% local CLI. It does not upload your code anywhere.                 |
+| **Standardize Teams**: Have every dev (and their AIs) write the same way.          | **Compile your App**: It does not replace `npm run build` or compilers.                              |
+| **Generate Guides and Context**: Creates agent rules, specs, MCPs and the deployment document (`docs/DEPLOYMENT.md`). | **Deploy to Production**: `rapid deploy` prints the platform template (it does not write `DEPLOY.md`), but YOU run the final deploy. |
 
 ---
 
-## 🧩 Ejemplo Práctico: Refactorización Legacy
+## 🧩 Practical Example: Legacy Refactoring
 
-**Escenario**: Tienes un proyecto React viejo con Redux y clases que quieres migrar a Hooks y Context API.
+**Scenario**: You have an old React project with Redux and classes that you want to migrate to Hooks and the Context API.
 
-1.  **Inyección**: Entras a la carpeta y ejecutas `rapid init --shortcuts`; en tu agente, `/rapid-init` (o `rapid setup next`) te hace elegir el stack de cada componente (por ejemplo `react-vite` para el frontend).
-2.  **Scope**: Ejecutas `rapid scope`.
-    - _Nombre_: "Migración Auth a Context"
-    - _Modo_: "refactor"
-    - _Objetivo_: "Eliminar Redux de /auth y usar React Context."
-    - _Tareas_: "Crear AuthContext, Migrar Login.js, Eliminar reducers."
-3.  **Ejecución**:
-    - Abres Cursor/Claude.
-    - Escribes: _"@SPECS.md @.cursorrules Sigue el plan de refactorización. Empieza por el paso 1."_
-4.  **Resultado**: La IA escribirá el nuevo código siguiendo TUS estándares modernos, ignorando el estilo viejo del resto del proyecto.
+1.  **Injection**: You enter the folder and run `rapid init --shortcuts`; in your agent, `/rapid-init` (or `rapid setup next`) has you choose the stack for each component (for example `react-vite` for the frontend).
+2.  **Scope**: You run `rapid scope`.
+    - _Name_: "Auth migration to Context"
+    - _Mode_: "refactor"
+    - _Objective_: "Remove Redux from /auth and use React Context."
+    - _Tasks_: "Create AuthContext, Migrate Login.js, Remove reducers."
+3.  **Execution**:
+    - You open Cursor/Claude.
+    - You type: _"@SPECS.md @.cursorrules Follow the refactoring plan. Start with step 1."_
+4.  **Result**: The AI will write the new code following YOUR modern standards, ignoring the old style of the rest of the project.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## 📚 Ejemplo Práctico: Documentación de Producto
+## 📚 Practical Example: Product Documentation
 
-**Escenario**: Quieres crear la documentación oficial de tu SaaS, asegurando que cada nueva página siga el mismo tono de voz, estructura y formato.
+**Scenario**: You want to create your SaaS's official documentation, making sure every new page follows the same tone of voice, structure and format.
 
-1.  **Inicialización**:
+1.  **Initialization**:
     ```bash
     mkdir my-docs && cd my-docs
     rapid init --shortcuts
-    # en tu agente: /rapid-init (o rapid setup next)
+    # in your agent: /rapid-init (or rapid setup next)
     rapid setup set topology doc-site
     rapid setup set stack docs-modern
     ```
-2.  **Definición de Reglas**:
-    - En el onboarding, el documento de reglas de negocio (`docs/BUSINESS_RULES.md`) lo aportas tú o lo redacta el agente como borrador; antes de cerrar lo revisas y lo confirmas con `rapid setup doc business --confirm`. Contenido de ejemplo: _"El tono de voz debe ser amigable pero técnico. Usar diagramas Mermaid para flujos complejos."_
-3.  **Ejecución**:
-    - Abres tu editor con Cursor/Claude.
-    - Prompt: _"Crea una página 'Getting Started' que explique cómo instalar la SDK, incluyendo un diagrama de flujo de autenticación."_
-4.  **Resultado**: La IA generará un archivo `.mdx` guiado por contexto, reglas y criterios verificables, importando componentes de Docusaurus y renderizando el diagrama Mermaid solicitado según tu guía de estilo.
+2.  **Rule Definition**:
+    - During onboarding, the business rules document (`docs/BUSINESS_RULES.md`) is either provided by you or drafted by the agent as a draft; before closing you review it and confirm it with `rapid setup doc business --confirm`. Example content: _"The tone of voice must be friendly but technical. Use Mermaid diagrams for complex flows."_
+3.  **Execution**:
+    - You open your editor with Cursor/Claude.
+    - Prompt: _"Create a 'Getting Started' page that explains how to install the SDK, including an authentication flow diagram."_
+4.  **Result**: The AI will generate an `.mdx` file guided by context, rules and verifiable criteria, importing Docusaurus components and rendering the requested Mermaid diagram according to your style guide.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Run tests <a name="run-tests"></a>
 
-Rapid OS usa `unittest` de la biblioteca estándar de Python. Desde la raíz del repositorio:
+Rapid OS uses the Python standard library's `unittest`. From the repository root:
 
 ```bash
 python -m unittest discover
 ```
 
-Para una verificación rápida de la CLI:
+For a quick CLI check:
 
 ```bash
 python rapid.py --help
 python rapid.py guide
 ```
 
-GitHub Actions ejecuta la suite de `unittest` y estos smoke checks en cada `push` y `pull_request`.
+GitHub Actions runs the `unittest` suite and these smoke checks on every `push` and `pull_request`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Deployment <a name="deployment"></a>
 
-Rapid OS no se despliega a sí mismo (es una CLI local), pero ayuda a documentar y estandarizar el despliegue de tus aplicaciones.
+Rapid OS does not deploy itself (it is a local CLI), but it helps document and standardize the deployment of your applications.
 
-Usa `rapid deploy --target <plataforma>` para imprimir la plantilla de despliegue (`aws`, `azure`, `vercel`, `render`, `railway` o `dokploy`). No escribe archivos: el documento del proyecto es `docs/DEPLOYMENT.md`, que se retoma con `rapid setup doc deployment --reopen`. Una plataforma desconocida es `RAPID1413`.
+Use `rapid deploy --target <platform>` to print the deployment template (`aws`, `azure`, `vercel`, `render`, `railway` or `dokploy`). It writes no files: the project document is `docs/DEPLOYMENT.md`, which you resume with `rapid setup doc deployment --reopen`. An unknown platform is `RAPID1413`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -946,56 +946,56 @@ Usa `rapid deploy --target <plataforma>` para imprimir la plantilla de despliegu
 
 Rapid OS v3.1.0 is complete. These items are optional post-v3.1 enhancements and are not required to use the current CLI:
 
-- [ ] **Soporte para JetBrains**: Integración con IntelliJ/PyCharm AI Assistant.
-- [ ] **Configuración avanzada de Codex**: Soporte para `AGENTS.override.md`, configuración global o instrucciones anidadas si el flujo lo requiere.
-- [ ] **Previews por agente**: Vistas previas específicas por adaptador para inspección seca antes de escribir archivos.
-- [x] **Scanner independiente**: Comando dedicado (`rapid scan`) para inspeccionar hechos e inteligencia del proyecto sin ejecutar `rapid init`.
-- [ ] **Scope no interactivo**: Flags o plantillas más ricas para equipos que quieran automatizar `rapid scope`.
-- [ ] **Diagnósticos enriquecidos**: Categorías machine-readable más detalladas para integraciones futuras.
-- [ ] **Renderers MCP adicionales**: Nuevos destinos además de los editores soportados actualmente.
+- [ ] **JetBrains support**: Integration with IntelliJ/PyCharm AI Assistant.
+- [ ] **Advanced Codex configuration**: Support for `AGENTS.override.md`, global configuration or nested instructions if the workflow requires it.
+- [ ] **Per-agent previews**: Adapter-specific previews for dry inspection before writing files.
+- [x] **Standalone scanner**: Dedicated command (`rapid scan`) to inspect project facts and intelligence without running `rapid init`.
+- [ ] **Non-interactive scope**: Richer flags or templates for teams that want to automate `rapid scope`.
+- [ ] **Enriched diagnostics**: More detailed machine-readable categories for future integrations.
+- [ ] **Additional MCP renderers**: New targets beyond the currently supported editors.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## 🤝 Contributing <a name="contributing"></a>
 
-¡Las contribuciones son bienvenidas!
+Contributions are welcome!
 
-1.  Haz un Fork del proyecto.
-2.  Crea tu rama de funcionalidad (`git checkout -b feature/AmazingFeature`).
-3.  Haz Commit de tus cambios (`git commit -m 'Add some AmazingFeature'`).
-4.  Haz Push a la rama (`git push origin feature/AmazingFeature`).
-5.  Abre un Pull Request.
+1.  Fork the project.
+2.  Create your feature branch (`git checkout -b feature/AmazingFeature`).
+3.  Commit your changes (`git commit -m 'Add some AmazingFeature'`).
+4.  Push to the branch (`git push origin feature/AmazingFeature`).
+5.  Open a Pull Request.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## ⭐ Show your Support <a name="show-your-support"></a>
 
-Si Rapid OS te ha ahorrado tiempo o dolores de cabeza con la IA, ¡dale una estrella ⭐️ al repositorio!
+If Rapid OS has saved you time or headaches with AI, give the repository a star ⭐️!
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## 👏 Acknowledgements <a name="acknowledgements"></a>
 
-- Inspirado en la necesidad de Spec-Driven Development (SDD).
-- Agradecimientos a la comunidad de Cursor y Anthropic por sus avances en Context Windows.
+- Inspired by the need for Spec-Driven Development (SDD).
+- Thanks to the Cursor and Anthropic communities for their advances in Context Windows.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## ❓ FAQ <a name="faq"></a>
 
-**¿Rapid OS sube mi código a la nube?**
-No. Rapid OS funciona 100% localmente. Solo genera archivos de texto (`.md`) en tu carpeta.
+**Does Rapid OS upload my code to the cloud?**
+No. Rapid OS runs 100% locally. It only generates text files (`.md`) in your folder.
 
-**¿Funciona con proyectos existentes?**
-Sí. Puedes ejecutar `rapid init` en un proyecto legacy (clonado de GitHub) para inyectar reglas de refactorización modernas.
+**Does it work with existing projects?**
+Yes. You can run `rapid init` in a legacy project (cloned from GitHub) to inject modern refactoring rules.
 
-**¿Qué pasa si vuelvo a ejecutar `rapid init`?**
-Rapid OS detecta si ya existen archivos de configuración y crea copias de seguridad automáticas (`.bak`) antes de sobrescribir nada.
+**What happens if I run `rapid init` again?**
+Rapid OS detects whether configuration files already exist and creates automatic backups (`.bak`) before overwriting anything.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## 📃 License <a name="license"></a>
 
-Distribuido bajo la licencia MIT. Ver `LICENSE` para más información.
+Distributed under the MIT license. See `LICENSE` for more information.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>

@@ -2,95 +2,95 @@
 id: index
 slug: /
 title: Rapid OS
-description: Documentación oficial de Rapid OS v3, un Contract-Driven Engineering OS para gobernar el trabajo de coding harnesses y agentes de IA.
+description: Official documentation for Rapid OS v3, a Contract-Driven Engineering OS for governing the work of coding harnesses and AI agents.
 ---
 
 # Rapid OS
 
 <div className="hero--rapid">
 
-**Rapid OS v3** es un **Contract-Driven Engineering OS** para equipos que desarrollan software con coding harnesses y asistentes de IA.
+**Rapid OS v3** is a **Contract-Driven Engineering OS** for teams that build software with coding harnesses and AI assistants.
 
-Su objetivo no es reemplazar al agente que escribe código. Su objetivo es convertir el trabajo asistido por IA en un proceso **explícito, trazable, reproducible y verificable**: entender el repositorio, definir qué se debe construir, compilar el contexto correcto, establecer reglas de ejecución, declarar capacidades, registrar evidencia y evaluar el resultado.
+Its goal is not to replace the agent that writes code. Its goal is to turn AI-assisted work into an **explicit, traceable, reproducible, and verifiable** process: understand the repository, define what must be built, compile the right context, set execution rules, declare capabilities, record evidence, and evaluate the result.
 
 </div>
 
-## Qué problema resuelve
+## What problem it solves
 
-Los coding agents pueden trabajar rápido, pero tienden a sufrir tres problemas recurrentes:
+Coding agents can work fast, but they tend to suffer from three recurring problems:
 
-- **Pérdida de contexto**: no siempre conocen las reglas de negocio, arquitectura, seguridad o decisiones previas.
-- **Instrucciones ambiguas**: un prompt no equivale a una especificación versionada y verificable.
-- **Falta de evidencia**: que un agente diga “terminado” no demuestra que se ejecutaron pruebas, revisiones o controles.
+- **Loss of context**: they don't always know the business rules, architecture, security requirements, or prior decisions.
+- **Ambiguous instructions**: a prompt is not the same as a versioned, verifiable specification.
+- **Lack of evidence**: an agent saying "done" does not prove that tests, reviews, or checks were run.
 
-Rapid OS introduce contratos y registros deterministas alrededor de ese flujo.
+Rapid OS introduces deterministic contracts and records around that workflow.
 
 <div className="rapid-grid">
   <div className="rapid-card">
-    <h3>Qué existe</h3>
-    <p><code>rapid scan</code> crea inteligencia del proyecto con evidencia y procedencia.</p>
+    <h3>What exists</h3>
+    <p><code>rapid scan</code> builds project intelligence with evidence and provenance.</p>
   </div>
   <div className="rapid-card">
-    <h3>Qué se debe construir</h3>
-    <p><code>rapid spec</code> administra especificaciones y revisiones inmutables.</p>
+    <h3>What must be built</h3>
+    <p><code>rapid spec</code> manages specifications and immutable revisions.</p>
   </div>
   <div className="rapid-card">
-    <h3>Qué necesita saber el agente</h3>
-    <p><code>rapid context</code> compila contexto relevante, priorizado y limitado por presupuesto.</p>
+    <h3>What the agent needs to know</h3>
+    <p><code>rapid context</code> compiles relevant, prioritized context limited by a budget.</p>
   </div>
   <div className="rapid-card">
-    <h3>Bajo qué reglas puede trabajar</h3>
-    <p><code>rapid policy</code> y <code>rapid run</code> fijan riesgo, workspace, gates y tareas.</p>
+    <h3>Under which rules it can work</h3>
+    <p><code>rapid policy</code> and <code>rapid run</code> set risk, workspace, gates, and tasks.</p>
   </div>
   <div className="rapid-card">
-    <h3>Qué puede hacer el harness</h3>
-    <p><code>rapid harness</code> resuelve capabilities declaradas contra el contrato del run.</p>
+    <h3>What the harness can do</h3>
+    <p><code>rapid harness</code> resolves declared capabilities against the run's contract.</p>
   </div>
   <div className="rapid-card">
-    <h3>Qué ocurrió realmente</h3>
-    <p><code>rapid evidence</code> y <code>rapid eval</code> registran prueba verificable y producen un veredicto determinista.</p>
+    <h3>What actually happened</h3>
+    <p><code>rapid evidence</code> and <code>rapid eval</code> record verifiable proof and produce a deterministic verdict.</p>
   </div>
 </div>
 
-## Empieza en 3 pasos
+## Get started in 3 steps
 
-No necesitas aprender comandos: trabajas con **shortcuts** (`/rapid-…`) dentro de tu agente de código, y en tu terminal solo instalas y apruebas.
+You don't need to learn commands: you work with **shortcuts** (`/rapid-…`) inside your coding agent, and in your terminal you only install and approve.
 
-**1. Instala Rapid OS** ([Instalación](./installation/index.md)). Al final, el instalador pregunta para qué agentes instalar los shortcuts: escribe el tuyo (por ejemplo `claude`). Si te lo saltaste, una sola vez:
+**1. Install Rapid OS** ([Installation](./installation/index.md)). At the end, the installer asks which agents to install the shortcuts for: type yours (for example `claude`). If you skipped it, run this once:
 
 ```bash
 rapid shortcuts install --global --harness claude
 ```
 
-**2. Describe tu proyecto en el agente.** Te propone el stack, el comando de tests y los documentos; tú decides:
+**2. Describe your project in the agent.** It proposes the stack, the test command, and the documents; you decide:
 
 ```text
-/rapid-init una API en Python para validar nombres de usuario
+/rapid-init a Python API to validate usernames
 ```
 
-**3. Pide el trabajo:**
+**3. Ask for the work:**
 
 ```text
-/rapid-feature añadir exportación CSV al informe mensual
+/rapid-feature add CSV export to the monthly report
 ```
 
-Cuando termina, el agente se detiene y te da el comando para aprobar en **tu** terminal (por ejemplo `rapid approve gate.final-verification`). Después escribe `/rapid-next` para cerrar.
+When it finishes, the agent stops and gives you the command to approve in **your** terminal (for example `rapid approve gate.final-verification`). Then type `/rapid-next` to close out.
 
-| Quieres… | Escribe en tu agente |
+| You want to… | Type in your agent |
 | :--- | :--- |
-| Configurar el proyecto | `/rapid-init <descripción>` |
-| Una funcionalidad nueva | `/rapid-feature <objetivo>` |
-| Corregir un bug | `/rapid-bugfix <qué falla>` |
-| Refactorizar sin romper tests | `/rapid-refactor <alcance>` |
-| Endurecer seguridad | `/rapid-hardening <área>` |
-| Investigar una opción | `/rapid-research <pregunta>` |
-| Ver en qué va o seguir | `/rapid-status` · `/rapid-next` |
+| Set up the project | `/rapid-init <description>` |
+| A new feature | `/rapid-feature <goal>` |
+| Fix a bug | `/rapid-bugfix <what fails>` |
+| Refactor without breaking tests | `/rapid-refactor <scope>` |
+| Harden security | `/rapid-hardening <area>` |
+| Research an option | `/rapid-research <question>` |
+| See where things stand or continue | `/rapid-status` · `/rapid-next` |
 
-En Codex se escriben con `$` (`$rapid-init`). En VS Code, y si prefieres versionar los shortcuts con el repositorio, instálalos en el proyecto con `rapid init --shortcuts`. Detalle por agente en la [guía de shortcuts](./guides/shortcuts.md).
+In Codex they are typed with `$` (`$rapid-init`). In VS Code, and if you prefer to version the shortcuts with the repository, install them in the project with `rapid init --shortcuts`. Per-agent details are in the [shortcuts guide](./guides/shortcuts.md).
 
-## Modo avanzado: el ciclo de gobernanza v3
+## Advanced mode: the v3 governance loop
 
-Los comandos v3 (`rapid scan`, `rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) siguen disponibles para CI, depuración y auditoría. El ciclo de gobernanza v3 sigue ocho pasos:
+The v3 commands (`rapid scan`, `rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) remain available for CI, debugging, and auditing. The v3 governance loop follows eight steps:
 
 ```text
 1. scan
@@ -98,29 +98,29 @@ Los comandos v3 (`rapid scan`, `rapid spec`, `rapid run`, `rapid evidence`, `rap
 3. context
 4. policy / run
 5. harness
-6. ejecución externa + actualización del run
+6. external execution + run update
 7. evidence
 8. eval + validate
 ```
 
-Rapid OS **no ejecuta de forma autónoma un LLM**, no aprueba gates humanos, solo crea un worktree con `rapid start --worktree`, ejecuta únicamente el `test_command` configurado o el argv de `rapid check` (el plumbing no ejecuta nada) y no usa un LLM como juez. El coding harness externo realiza el trabajo; Rapid OS gobierna y verifica los artefactos alrededor de ese trabajo.
+Rapid OS **does not autonomously run an LLM**, does not approve human gates, only creates a worktree with `rapid start --worktree`, runs only the configured `test_command` or the argv of `rapid check` (the plumbing runs nothing), and does not use an LLM as a judge. The external coding harness does the work; Rapid OS governs and verifies the artifacts around that work.
 
-## Empieza por aquí
+## Start here
 
-- [Qué es Rapid OS y para quién sirve](./concepts/what-is-rapid-os.md)
-- [Por qué Rapid OS y problemas que resuelve](./concepts/why-rapid-os.md)
-- [Requisitos e instalación](./installation/index.md)
-- [Shortcuts por harness (`/rapid-<modo>`)](./guides/shortcuts.md)
-- [Tu primer proyecto (Quickstart)](./getting-started/first-project.md)
-- [Un proyecto que ya existe](./getting-started/existing-project.md)
-- [Cuando el agente se detiene](./getting-started/when-the-agent-stops.md)
-- [Modos de ingeniería](./guides/modes/index.md)
-- [Cookbooks de Gobernanza y Evidencia](./cookbooks/policies-and-contracts.md)
-- [Catálogo de Diagnósticos RAPIDxxx](./troubleshooting/diagnostics.md)
-- [Integración en CI/CD](./guides/ci-cd-integration.md)
-- [Ciclo de gobernanza v3](./governance-loop.md)
-- [Capabilities y permisos](./guides/permissions-capabilities.md)
-- [Estructura de archivos](./guides/project-layout.md)
-- [Referencia completa de CLI](./cli.md)
-- [Arquitectura técnica v3](./architecture/rapid-os-v3.md)
-- [Arquitectura de orquestación (porcelain sobre plumbing)](./architecture/orchestration.md)
+- [What Rapid OS is and who it is for](./concepts/what-is-rapid-os.md)
+- [Why Rapid OS and the problems it solves](./concepts/why-rapid-os.md)
+- [Requirements and installation](./installation/index.md)
+- [Shortcuts per harness (`/rapid-<mode>`)](./guides/shortcuts.md)
+- [Your first project (Quickstart)](./getting-started/first-project.md)
+- [A project that already exists](./getting-started/existing-project.md)
+- [When the agent stops](./getting-started/when-the-agent-stops.md)
+- [Engineering modes](./guides/modes/index.md)
+- [Governance and Evidence Cookbooks](./cookbooks/policies-and-contracts.md)
+- [RAPIDxxx Diagnostics Catalog](./troubleshooting/diagnostics.md)
+- [CI/CD integration](./guides/ci-cd-integration.md)
+- [v3 governance loop](./governance-loop.md)
+- [Capabilities and permissions](./guides/permissions-capabilities.md)
+- [File structure](./guides/project-layout.md)
+- [Full CLI reference](./cli.md)
+- [v3 technical architecture](./architecture/rapid-os-v3.md)
+- [Orchestration architecture (porcelain over plumbing)](./architecture/orchestration.md)

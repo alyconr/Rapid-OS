@@ -14,8 +14,8 @@ const config: Config = {
   favicon: 'img/rapid-os-social-card.svg',
 
   i18n: {
-    defaultLocale: 'es',
-    locales: ['es'],
+    defaultLocale: 'en',
+    locales: ['en'],
   },
 
   presets: [
@@ -41,25 +41,25 @@ const config: Config = {
   themeConfig: {
     image: 'img/rapid-os-social-card.svg',
     metadata: [
-      {name: 'description', content: 'Documentación oficial de RAPID OS v3: plataforma de gobernanza determinista para procesos de ingeniería asistidos por agentes de IA y coding harnesses.'},
+      {name: 'description', content: 'Official RAPID OS v3 documentation: a deterministic governance platform for engineering processes assisted by AI agents and coding harnesses.'},
       {name: 'keywords', content: 'rapid-os, ai-coding-harness, software-engineering, deterministic-governance, prompt-engineering, specification-driven, qa-automation'},
       {property: 'og:title', content: 'Rapid OS — Contract-Driven Engineering OS for AI Coding Harnesses'},
-      {property: 'og:description', content: 'Gobernanza determinista, contratos de ejecución, evidence engine y evaluaciones conductuales para coding harnesses.'},
+      {property: 'og:description', content: 'Deterministic governance, execution contracts, evidence engine, and behavioral evaluations for coding harnesses.'},
       {property: 'og:type', content: 'website'},
       {name: 'twitter:card', content: 'summary_large_image'},
       {name: 'twitter:title', content: 'Rapid OS — Contract-Driven Engineering OS for AI Coding Harnesses'},
-      {name: 'twitter:description', content: 'Gobernanza determinista, contratos de ejecución, evidence engine y evaluaciones conductuales para coding harnesses.'},
+      {name: 'twitter:description', content: 'Deterministic governance, execution contracts, evidence engine, and behavioral evaluations for coding harnesses.'},
     ],
     navbar: {
       title: 'Rapid OS',
       items: [
-        {to: '/', label: 'Inicio', position: 'left'},
-        {to: '/installation', label: 'Instalación', position: 'left'},
-        {to: '/getting-started', label: 'Primeros pasos', position: 'left'},
+        {to: '/', label: 'Home', position: 'left'},
+        {to: '/installation', label: 'Installation', position: 'left'},
+        {to: '/getting-started', label: 'Getting Started', position: 'left'},
         {to: '/guides/shortcuts', label: 'Shortcuts', position: 'left'},
-        {to: '/guides/modes', label: 'Modos', position: 'left'},
+        {to: '/guides/modes', label: 'Modes', position: 'left'},
         {to: '/cookbooks/policies-and-contracts', label: 'Cookbooks', position: 'left'},
-        {to: '/governance-loop', label: 'Gobernanza v3', position: 'left'},
+        {to: '/governance-loop', label: 'Governance v3', position: 'left'},
         {to: '/cli', label: 'CLI', position: 'left'},
         {
           href: 'https://github.com/alyconr/Rapid-OS',
@@ -72,41 +72,41 @@ const config: Config = {
       style: 'dark',
       links: [
         {
-          title: 'Aprender',
+          title: 'Learn',
           items: [
-            {label: 'Qué es Rapid OS', to: '/concepts/what-is-rapid-os'},
-            {label: 'Por qué Rapid OS', to: '/concepts/why-rapid-os'},
-            {label: 'Instalación', to: '/installation'},
-            {label: 'Primeros pasos', to: '/getting-started'},
+            {label: 'What is Rapid OS', to: '/concepts/what-is-rapid-os'},
+            {label: 'Why Rapid OS', to: '/concepts/why-rapid-os'},
+            {label: 'Installation', to: '/installation'},
+            {label: 'Getting Started', to: '/getting-started'},
             {label: 'Shortcuts', to: '/guides/shortcuts'},
-            {label: 'Modos de ingeniería', to: '/guides/modes'},
-            {label: 'Casos de uso', to: '/guides/use-cases'},
+            {label: 'Engineering Modes', to: '/guides/modes'},
+            {label: 'Use Cases', to: '/guides/use-cases'},
           ],
         },
         {
-          title: 'Gobernanza y Práctica',
+          title: 'Governance and Practice',
           items: [
-            {label: 'Políticas y Contratos', to: '/cookbooks/policies-and-contracts'},
-            {label: 'Capabilities y Perfiles', to: '/cookbooks/harness-profiles'},
+            {label: 'Policies and Contracts', to: '/cookbooks/policies-and-contracts'},
+            {label: 'Capabilities and Profiles', to: '/cookbooks/harness-profiles'},
             {label: 'Evidence Engine', to: '/cookbooks/evidence-engine'},
             {label: 'Behavioral Evals', to: '/cookbooks/behavioral-evaluations'},
-            {label: 'Integración CI/CD', to: '/guides/ci-cd-integration'},
+            {label: 'CI/CD Integration', to: '/guides/ci-cd-integration'},
           ],
         },
         {
-          title: 'Referencia',
+          title: 'Reference',
           items: [
             {label: 'CLI', to: '/cli'},
-            {label: 'Diagnósticos RAPIDxxx', to: '/troubleshooting/diagnostics'},
-            {label: 'Arquitectura v3', to: '/architecture/rapid-os-v3'},
-            {label: 'Arquitectura de orquestación', to: '/architecture/orchestration'},
+            {label: 'RAPIDxxx Diagnostics', to: '/troubleshooting/diagnostics'},
+            {label: 'v3 Architecture', to: '/architecture/rapid-os-v3'},
+            {label: 'Orchestration Architecture', to: '/architecture/orchestration'},
             {label: 'Release v3.1.1', to: '/release-v3.1.1'},
           ],
         },
         {
-          title: 'Proyecto',
+          title: 'Project',
           items: [
-            {label: 'Repositorio', href: 'https://github.com/alyconr/Rapid-OS'},
+            {label: 'Repository', href: 'https://github.com/alyconr/Rapid-OS'},
             {label: 'Issues', href: 'https://github.com/alyconr/Rapid-OS/issues'},
           ],
         },

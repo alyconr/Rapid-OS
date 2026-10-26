@@ -1,40 +1,40 @@
 ---
-title: Mantener la documentación
-description: Arquitectura de la documentación de Rapid OS y reglas para evitar drift entre producto, CLI y sitio.
+title: Maintaining the Documentation
+description: Rapid OS documentation architecture and rules for preventing drift between the product, CLI, and site.
 ---
 
-# Mantener la documentación
+# Maintaining the Documentation
 
-La documentación pública de Rapid OS usa **Docusaurus** como capa de presentación y mantiene el contenido Markdown canónico en `docs/`.
+Rapid OS public documentation uses **Docusaurus** for presentation and keeps canonical Markdown content in `docs/`.
 
-## Estructura
+## Structure
 
 ```text
-docs/                         # contenido canónico
+docs/                         # canonical content
 website/
-├── docusaurus.config.ts      # configuración del sitio
-├── sidebars.ts               # arquitectura de navegación
-├── src/css/custom.css        # tema
-└── package.json              # dependencias y scripts
+├── docusaurus.config.ts       # site configuration
+├── sidebars.ts                # navigation structure
+├── src/css/custom.css         # theme
+└── package.json               # dependencies and scripts
 ```
 
-Docusaurus lee directamente `../docs`, por lo que no debe crearse una segunda copia de los mismos documentos dentro de `website/docs`.
+Docusaurus reads `../docs` directly. Do not create a second copy of the same documents in `website/docs`.
 
-## Regla de Product Truth
+## Product truth rule
 
-La documentación debe describir únicamente comportamiento verificable en el parser, dominio, tests o contratos del release.
+Documentation should describe only behavior that can be verified in the parser, domain, tests, or release contracts.
 
-Antes de documentar una capability nueva:
+Before documenting a new capability:
 
-1. confirmar que existe en código;
-2. confirmar comandos y flags reales;
-3. confirmar si el comando es read-only o state-writing;
-4. documentar archivos que crea o modifica;
-5. documentar exit codes y diagnósticos relevantes;
-6. diferenciar capacidad declarada, evidencia y veredicto;
-7. ejecutar el build de Docusaurus.
+1. Confirm it exists in code.
+2. Confirm the actual commands and flags.
+3. Confirm whether the command is read-only or writes state.
+4. Document the files it creates or modifies.
+5. Document relevant exit codes and diagnostics.
+6. Distinguish declared capability, evidence, and verdict.
+7. Build the Docusaurus site.
 
-## Desarrollo local
+## Local development
 
 ```bash
 cd website
@@ -42,7 +42,7 @@ npm install
 npm run start
 ```
 
-## Build de producción
+## Production build
 
 ```bash
 cd website
@@ -50,4 +50,4 @@ npm install
 npm run build
 ```
 
-Los broken links deben tratarse como errores de build.
+Broken links must be treated as build errors.

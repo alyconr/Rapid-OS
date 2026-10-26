@@ -1,33 +1,33 @@
-# Procedimiento de Rollback de Documentación
+# Documentation Rollback Procedure
 
-Este runbook detalla las acciones operativas a seguir en caso de detección de incidentes en el portal público de documentación tras un despliegue.
-
----
-
-## 1. Criterios de Activación de Rollback
-
-Se debe iniciar un procedimiento de rollback si se presenta cualquiera de las siguientes condiciones en el entorno de producción:
-
-- **P0 - Rotura Crítica:** La página principal (`/Rapid-OS/`) responde con error HTTP 5xx o 404 persistente.
-- **P0 - Bloqueo de Navegación:** Fallos globales de scripts (JavaScript runtime error) que impidan interactuar con la barra de navegación o sidebar.
-- **P0 - Fuga de Información Confidencial:** Publicación accidental de credenciales, secretos, endpoints internos o datos sensibles en la documentación.
-- **P1 - Desalineación Severa de Product Truth:** Publicación de especificaciones erróneas que induzcan a comportamientos destructivos o defectuosos en el CLI de RAPID OS.
+This runbook details the operational actions to follow when incidents are detected in the public documentation portal after a deployment.
 
 ---
 
-## 2. Procedimiento Canónico de Rollback (Git Revert Controlado)
+## 1. Rollback Activation Criteria
 
-Para garantizar la inmutabilidad de la historia de Git, trazabilidad de autoría y gobernanza determinista, el rollback se gestiona mediante reversión explícita en el repositorio:
+A rollback procedure must be started if any of the following conditions occurs in the production environment:
 
-### Paso 1: Identificar el Último Commit Estable
+- **P0 - Critical Breakage:** The home page (`/Rapid-OS/`) responds with an HTTP 5xx error or a persistent 404.
+- **P0 - Navigation Blocked:** Global script failures (JavaScript runtime error) that prevent interacting with the navigation bar or sidebar.
+- **P0 - Confidential Information Leak:** Accidental publication of credentials, secrets, internal endpoints or sensitive data in the documentation.
+- **P1 - Severe Product Truth Misalignment:** Publication of wrong specifications that lead to destructive or defective behavior in the RAPID OS CLI.
 
-Consultar el historial en la rama `main` o en los releases para determinar el SHA estable previo:
+---
+
+## 2. Canonical Rollback Procedure (Controlled Git Revert)
+
+To guarantee the immutability of Git history, authorship traceability and deterministic governance, the rollback is handled through an explicit revert in the repository:
+
+### Step 1: Identify the Last Stable Commit
+
+Review the history on the `main` branch or in the releases to determine the previous stable SHA:
 ```bash
 git log --oneline -n 10
 ```
-Supongamos que el commit introductorio del fallo es `BROKEN_COMMIT_SHA`.
+Assume the commit that introduced the failure is `BROKEN_COMMIT_SHA`.
 
-### Paso 2: Crear Rama de Hotfix / Revert
+### Step 2: Create a Hotfix / Revert Branch
 
 ```bash
 git checkout main
@@ -36,9 +36,9 @@ git checkout -b hotfix/revert-docs-incident
 git revert --no-edit BROKEN_COMMIT_SHA
 ```
 
-### Paso 3: Validación Local de Pre-flight
+### Step 3: Local Pre-flight Validation
 
-Ejecutar las comprobaciones obligatorias para verificar que el árbol revertido es técnicamente íntegro:
+Run the mandatory checks to verify that the reverted tree is technically sound:
 ```bash
 cd website
 npm ci
@@ -48,54 +48,54 @@ cd ..
 python -m unittest tests.test_documentation_deployment.TestDocumentationStaticBuildIntegrity -v
 ```
 
-### Paso 4: Creación, Revisión y Merge del PR de Rollback
+### Step 4: Create, Review and Merge the Rollback PR
 
-1. Publicar la rama de hotfix:
+1. Push the hotfix branch:
    ```bash
    git push origin hotfix/revert-docs-incident
    ```
-2. Crear un Pull Request hacia `main` titulado:
+2. Create a Pull Request to `main` titled:
    `fix(rollback): revert commit <BROKEN_COMMIT_SHA> due to documentation incident`
-3. Tras la revisión y aprobación por parte de los revisores autorizados y verificación de CI verde (`docs.yml`), fusionar el PR en `main`.
+3. After review and approval by the authorized reviewers and green CI verification (`docs.yml`), merge the PR into `main`.
 
-### Paso 5: Despliegue Manual Autorizado
+### Step 5: Authorized Manual Deployment
 
-Dado que `.github/workflows/docs-deploy.yml` no realiza publicaciones automáticas:
+Since `.github/workflows/docs-deploy.yml` does not publish automatically:
 
-1. El operador autorizado debe ingresar a la pestaña **Actions** en GitHub.
-2. Seleccionar el workflow **Deploy Documentation**.
-3. Hacer clic en **Run workflow**, seleccionando la rama `main` (que ya contiene el revert).
-4. El job `build` compilará el sitio, el job `deploy` actualizará GitHub Pages y el job `smoke-test` validará automáticamente las rutas públicas en vivo.
+1. The authorized operator must go to the **Actions** tab in GitHub.
+2. Select the **Deploy Documentation** workflow.
+3. Click **Run workflow**, selecting the `main` branch (which already contains the revert).
+4. The `build` job will compile the site, the `deploy` job will update GitHub Pages and the `smoke-test` job will automatically validate the live public routes.
 
 ---
 
-## 3. Verificación Post-Rollback
+## 3. Post-Rollback Verification
 
-Una vez finalizada la ejecución autorizada de `.github/workflows/docs-deploy.yml`:
+Once the authorized run of `.github/workflows/docs-deploy.yml` has finished:
 
-1. **Verificación Automatizada mediante Smoke Tests:**
-   Ejecutar localmente o verificar la salida exitosa del job `smoke-test`:
+1. **Automated Verification through Smoke Tests:**
+   Run locally or verify the successful output of the `smoke-test` job:
    ```bash
    RAPID_OS_LIVE_DOCS_URL=https://alyconr.github.io/Rapid-OS python -m unittest tests.test_documentation_deployment.TestLiveDocsSmoke -v
    ```
-   Rutas críticas comprobadas con aserciones reales:
-   - Homepage: HTTP 200 y presencia del título.
-   - CLI Reference: HTTP 200 y presencia de la sección CLI.
-   - Tutoriales: HTTP 200 y presencia del índice de laboratorios.
-   - Sitemap: HTTP 200 y formato XML canónico.
-   - Ruta inexistente: HTTP 404 controlado con plantilla de Docusaurus.
+   Critical routes checked with real assertions:
+   - Homepage: HTTP 200 and presence of the title.
+   - CLI Reference: HTTP 200 and presence of the CLI section.
+   - Tutorials: HTTP 200 and presence of the labs index.
+   - Sitemap: HTTP 200 and canonical XML format.
+   - Nonexistent route: controlled HTTP 404 with the Docusaurus template.
 
-2. **Comprobación Manual:**
-   Verificar en navegador en modo incógnito (limpiando caché del navegador) para confirmar que la versión estable está visible para los usuarios finales.
+2. **Manual Check:**
+   Verify in a browser in incognito mode (clearing the browser cache) to confirm that the stable version is visible to end users.
 
 ---
 
-## 4. Post-Mortem y Análisis de Causa Raíz
+## 4. Post-Mortem and Root Cause Analysis
 
-Una vez estabilizado el servicio:
+Once the service is stabilized:
 
-1. Registrar un issue en GitHub con la etiqueta `incident-docs`.
-2. Documentar:
-   - Causa raíz del incidente.
-   - Motivo por el cual las pruebas pre-despliegue no detectaron la falla.
-   - Acciones preventivas a incorporar en la suite automatizada de CI (`docs.yml` o tests unitarios).
+1. File a GitHub issue with the `incident-docs` label.
+2. Document:
+   - Root cause of the incident.
+   - Why the pre-deployment tests did not detect the failure.
+   - Preventive actions to add to the automated CI suite (`docs.yml` or unit tests).

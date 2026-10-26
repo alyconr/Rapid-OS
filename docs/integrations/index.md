@@ -1,50 +1,46 @@
-# Integración con Coding Harnesses
-
-Guías completas de integración técnica y operativa entre **RAPID OS v3** y los principales entornos y asistentes de programación asistida por IA.
-
+---
+title: Coding Harness Integrations
+description: Technical and operational integration guides for Rapid OS v3 and popular AI coding environments.
 ---
 
-## 1. Principio Fundamental: Declaración vs Capacidad Real
+# Coding Harness Integrations
 
-En RAPID OS, un perfil de harness (`HarnessProfile`) modela de forma **declarativa y conservadora** las capacidades estándar asociadas a una herramienta. 
+These guides cover technical and operational integration between **Rapid OS v3** and popular AI-assisted coding environments and agents.
 
-> **Regla de oro de Product Truth:**  
-> Un perfil incorporado (`builtin:cursor`, `builtin:codex`, etc.) **no** otorga permisos mágicos a un modelo ni garantiza que el entorno local pueda realizar una operación. El coding harness solo puede realizar aquellas acciones para las que el desarrollador le haya otorgado permisos en su terminal, sandbox o configuración local.
+## 1. Core principle: declared capabilities versus actual capabilities
 
----
+In Rapid OS, a harness profile (`HarnessProfile`) models the standard capabilities associated with a tool in a **declarative and conservative** way.
 
-## 2. Matriz Canónica de Capabilities
+> **Product truth rule:** A built-in profile (`builtin:cursor`, `builtin:codex`, and others) does **not** grant a model magical permissions or guarantee that the local environment can perform an operation. A coding harness can only perform actions the developer has allowed in the terminal, sandbox, or local configuration.
 
-RAPID OS evalúa exclusivamente los **11 identificadores canónicos de capacidades**:
+## 2. Canonical capability matrix
 
-| ID Canónico | Descripción de la Capacidad | Estado Típico Built-in |
+Rapid OS evaluates exactly **11 canonical capability identifiers**:
+
+| Canonical ID | Capability | Typical built-in status |
 |---|---|---|
-| `context.consume` | Capacidad del harness para leer y consumir el Context Bundle | `supported` |
-| `repository.read` | Lectura de archivos y directorios del repositorio | `supported` |
-| `workspace.current` | Operación dentro del espacio de trabajo activo | `supported` |
-| `repository.write` | Modificación de archivos en disco | `unknown` (requiere permisos locales) |
-| `shell.execute` | Ejecución de comandos en la terminal / shell | `unknown` (sujeto a sandbox y aprobación) |
-| `tests.execute` | Ejecución de suites de prueba automáticas | `unknown` (depende del test runner local) |
-| `git.inspect` | Inspección de ramas, diffs y estados de git | `unknown` |
-| `git.modify` | Creación de commits, ramas o modificaciones en git | `unknown` |
-| `workspace.isolated` | Operación en ramas aisladas o git worktrees | `unknown` |
-| `mcp.invoke` | Invocación de herramientas mediante el protocolo MCP | `unknown` |
-| `subagents.delegate` | Delegación de tareas a subagentes secundarios | `unknown` |
+| `context.consume` | Harness can read and consume the Context Bundle | `supported` |
+| `repository.read` | Read repository files and directories | `supported` |
+| `workspace.current` | Operate in the active workspace | `supported` |
+| `repository.write` | Modify files on disk | `unknown` (requires local permissions) |
+| `shell.execute` | Run commands in the terminal or shell | `unknown` (subject to sandbox and approval) |
+| `tests.execute` | Run automated test suites | `unknown` (depends on the local test runner) |
+| `git.inspect` | Inspect branches, diffs, and Git status | `unknown` |
+| `git.modify` | Create commits or branches, or modify Git state | `unknown` |
+| `workspace.isolated` | Work in isolated branches or Git worktrees | `unknown` |
+| `mcp.invoke` | Invoke tools through the MCP protocol | `unknown` |
+| `subagents.delegate` | Delegate work to subagents | `unknown` |
 
----
+## 3. Main workflow: shortcuts
 
-## 3. Flujo principal: shortcuts
+The main workflow for any of these harnesses uses `/rapid-<mode>` shortcuts (`$rapid-<mode>` in Codex). Run `rapid init --shortcuts` or `rapid shortcuts install --harness <id>` to generate them for your tool. The agent guides the run (`rapid next` → `rapid start` → `rapid check` → `rapid finish`) and stops when a person needs to act. The v3 commands (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`, and others) remain available in **Advanced Mode** for CI, debugging, and auditing. See the [shortcuts guide](../guides/shortcuts.md) for harness locations and invocation details.
 
-El flujo principal con cualquiera de estos harnesses son los **shortcuts** `/rapid-<modo>` (`$rapid-<modo>` en Codex): `rapid init --shortcuts` o `rapid shortcuts install --harness <id>` los genera para tu herramienta y el agente conduce el run (`rapid next` → `rapid start` → `rapid check` → `rapid finish`) hasta que hace falta una persona. Los comandos v3 (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) quedan como **Modo avanzado** para CI, depuración y auditoría. Consulta la [guía de shortcuts](../guides/shortcuts.md) para la tabla de carpetas e invocación por harness.
+## 4. Harness guides
 
----
+Each guide starts with the main shortcut workflow and retains the advanced mode. Choose your tool:
 
-## 4. Catálogo de Guías por Harness
-
-Cada guía abre con el flujo principal (shortcuts) y conserva el modo avanzado. Selecciona la correspondiente a tu herramienta:
-
-1. [**OpenAI Codex / CLI Integration**](codex.md): Flujos de ejecución headless y scripts gobernados.
-2. [**Anthropic Claude Code**](claude-code.md): Integración con la CLI interactiva y permisos de terminal.
-3. [**Cursor IDE**](cursor.md): Integración mediante Composer, reglas de proyecto `.cursorrules` y context injection.
-4. [**Visual Studio Code**](vscode.md): Integración con GitHub Copilot Chat, extensiones y terminales integradas.
-5. [**Google Antigravity**](antigravity.md): Orquestación multi-agente, subagentes autónomos y sandboxing avanzado.
+1. [**OpenAI Codex / CLI**](codex.md): Headless execution workflows and governed scripts.
+2. [**Anthropic Claude Code**](claude-code.md): Interactive CLI integration and terminal permissions.
+3. [**Cursor IDE**](cursor.md): Composer integration, `.cursorrules` project rules, and context injection.
+4. [**Visual Studio Code**](vscode.md): GitHub Copilot Chat, extensions, and integrated terminals.
+5. [**Google Antigravity**](antigravity.md): Multi-agent orchestration, autonomous subagents, and advanced sandboxing.

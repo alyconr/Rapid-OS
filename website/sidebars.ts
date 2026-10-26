@@ -4,7 +4,7 @@ const sidebars: SidebarsConfig = {
   docs: [
     {
       type: 'category',
-      label: 'Introducción y Conceptos',
+      label: 'Introduction and Concepts',
       collapsed: false,
       items: [
         'index',
@@ -22,7 +22,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Instalación',
+      label: 'Installation',
       collapsed: false,
       items: [
         'installation/index',
@@ -38,7 +38,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Primeros pasos',
+      label: 'Getting Started',
       collapsed: false,
       link: {type: 'doc', id: 'getting-started'},
       items: [
@@ -52,21 +52,21 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Shortcuts y orquestación',
+      label: 'Shortcuts and Orchestration',
       collapsed: false,
       items: [
         'guides/shortcuts',
         'architecture/orchestration',
         {
           type: 'link',
-          label: 'Hooks de Claude Code',
-          href: '/integrations/claude-code#6-hooks-de-claude-code-refuerzo-opcional-del-bucle',
+          label: 'Claude Code Hooks',
+          href: '/integrations/claude-code#6-claude-code-hooks-optional-loop-enforcement',
         },
       ],
     },
     {
       type: 'category',
-      label: 'Modos de ingeniería',
+      label: 'Engineering Modes',
       collapsed: false,
       link: {type: 'doc', id: 'guides/modes/index'},
       items: [
@@ -79,7 +79,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Laboratorios Prácticos',
+      label: 'Hands-on Labs',
       collapsed: false,
       link: {type: 'doc', id: 'tutorials/index'},
       items: [
@@ -93,7 +93,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Integraciones con Coding Harnesses',
+      label: 'Coding Harness Integrations',
       collapsed: false,
       link: {type: 'doc', id: 'integrations/index'},
       items: [
@@ -106,7 +106,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Cookbooks de Gobernanza',
+      label: 'Governance Cookbooks',
       collapsed: false,
       items: [
         'cookbooks/policies-and-contracts',
@@ -117,7 +117,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Cómo funciona',
+      label: 'How It Works',
       collapsed: false,
       items: [
         'governance-loop',
@@ -131,7 +131,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Diagnósticos y Referencia',
+      label: 'Diagnostics and Reference',
       items: [
         'troubleshooting/diagnostics',
         'cli',
@@ -140,7 +140,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Operaciones de Documentación',
+      label: 'Documentation Operations',
       items: [
         'operations/documentation-deployment',
         'operations/documentation-rollback',
@@ -149,7 +149,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Operación y release',
+      label: 'Operations and Releases',
       items: [
         'release-v3.0.0',
         'release-v3.1.1',
