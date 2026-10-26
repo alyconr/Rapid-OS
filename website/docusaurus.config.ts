@@ -15,7 +15,11 @@ const config: Config = {
 
   i18n: {
     defaultLocale: 'es',
-    locales: ['es'],
+    locales: ['es', 'en'],
+    localeConfigs: {
+      es: {label: 'Español', htmlLang: 'es-ES'},
+      en: {label: 'English', htmlLang: 'en-US'},
+    },
   },
 
   presets: [
@@ -24,6 +28,7 @@ const config: Config = {
       {
         docs: {
           path: '../docs',
+          // Keep the source documentation in Spanish; English translations live under i18n/en/.
           routeBasePath: '/',
           sidebarPath: './sidebars.ts',
           editUrl: 'https://github.com/alyconr/Rapid-OS/edit/main/docs/',
