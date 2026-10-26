@@ -1,5 +1,5 @@
 ---
-title: Reference Architecture: The Modular Monolith
+title: "Reference Architecture: The Modular Monolith"
 description: The default architecture rule, idiomatic names by language, when to use hexagonal modules, and how Rapid OS verifies each run.
 ---
 
