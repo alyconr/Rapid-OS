@@ -1,6 +1,6 @@
 ---
 title: When the Agent Stops
-description: What to do when the agent pauses to ask for something: approve, reject, check progress, cancel, and read the result.
+description: "What to do when the agent pauses to ask for something: approve, reject, check progress, cancel, and read the result."
 ---
 
 # When the Agent Stops
