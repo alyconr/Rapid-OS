@@ -55,7 +55,7 @@ const config: Config = {
       {name: 'twitter:description', content: 'Deterministic governance, execution contracts, evidence engine, and behavioral evaluations for coding harnesses.'},
     ],
     navbar: {
-      title: 'Rapid OS',
+      title: '⚡ RAPID OS',
       items: [
         {to: '/', label: 'Home', position: 'left'},
         {to: '/installation', label: 'Installation', position: 'left'},
