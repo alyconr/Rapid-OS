@@ -1017,6 +1017,53 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertEqual(self._rapid("abort", "--reason", "changes requested").returncode, 0)
         self.assertFalse((self.project / ".rapid-os" / "session.json").exists())
 
+    def test_rejecting_asks_for_rechazar_and_the_agent_gets_the_reason(self):
+        self._start("hardening", self.SPEC, "--worktree")
+        reject = ["approve", "gate.review", "--reject", "--reason", "falta validar el teléfono"]
+        # The word of the confirmation is the action's: "aprobar" does not reject.
+        wrong = self._rapid_tty(reject, "aprobar gate.review")
+        self.assertEqual(wrong.returncode, 1)
+        self.assertIn("se esperaba 'rechazar gate.review'", wrong.stdout + wrong.stderr)
+        run_id = self._session()["active_run_id"]
+        self.assertEqual([e for e in self._registry().list(run_id) if e.kind == EvidenceKind.REVIEW], [])
+        self.assertEqual(self._rapid_tty(reject, "rechazar gate.review").returncode, 0)
+
+        action = self._next()
+        self.assertEqual(action["kind"], "blocked")
+        self.assertEqual(
+            action["rejection"],
+            {"gate_ids": ["gate.review"], "reviewer": "Lab Dev", "reason": "falta validar el teléfono"},
+        )
+        self.assertIn("falta validar el teléfono", action["instructions"])
+        self.assertIn("Lab Dev", action["instructions"])
+
+    def test_a_decided_gate_explains_how_to_undo_and_the_last_approval_says_what_is_next(self):
+        self._start_and_complete_tasks()
+        first = self._approve("gate.review")
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertNotIn("Siguiente: `rapid finish`", first.stdout)
+        last = self._approve("gate.final-verification")
+        self.assertEqual(last.returncode, 0, last.stderr)
+        self.assertIn(
+            "Siguiente: `rapid finish` (o /rapid-next en tu agente). Tras finish el run ya no se puede cancelar",
+            last.stdout,
+        )
+        again = self._approve("gate.final-verification")
+        self.assertEqual(again.returncode, 1)
+        self.assertIn("RAPID1332", again.stderr)
+        self.assertIn("`rapid abort` antes de `rapid finish`", again.stderr)
+        self.assertIn("`git revert` y un run nuevo", again.stderr)
+
+    def test_the_rejected_gate_also_explains_the_way_out(self):
+        self._start("hardening", self.SPEC, "--worktree")
+        self.assertEqual(
+            self._rapid_tty(["approve", "gate.review", "--reject", "--reason", "no"], "rechazar gate.review").returncode, 0
+        )
+        again = self._approve("gate.review")
+        self.assertEqual(again.returncode, 1)
+        self.assertIn("`rapid abort` antes de `rapid finish`", again.stderr)
+        self.assertIn("docs/guides/undo-approval.md", again.stderr)
+
     def test_reviewer_defaults_to_git_user_then_asks_on_the_terminal(self):
         self._start_and_complete_tasks()
         run_id = self._session()["active_run_id"]

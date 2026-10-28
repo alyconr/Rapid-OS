@@ -195,6 +195,17 @@ def mark_story_done(text: str, bank: SetupDocBank, story_id: str) -> tuple[str, 
     `already_done` or `not_found`, and `new_text` is `text` unless it was marked, in which case
     the frontmatter `sha256` follows the new body (`source` and `status` stay as they are).
     """
+    return _set_story_mark(text, bank, story_id, done=True)
+
+
+def mark_story_open(text: str, bank: SetupDocBank, story_id: str) -> tuple[str, str, str]:
+    """Untick one story of the brief (`- [x] H001: ...` becomes `- [ ] H001: ...`), nothing else.
+
+    Same contract as `mark_story_done`; the outcome is `marked` (reopened), `already_open` or `not_found`."""
+    return _set_story_mark(text, bank, story_id, done=False)
+
+
+def _set_story_mark(text: str, bank: SetupDocBank, story_id: str, *, done: bool) -> tuple[str, str, str]:
     titles = {
         title.strip().lower()
         for section in bank.required_sections
@@ -214,9 +225,10 @@ def mark_story_done(text: str, bank: SetupDocBank, story_id: str) -> tuple[str, 
         match = _STORY_LINE_RE.match(line) if inside else None
         if match is None or match.group(4).lower() != story_id.strip().lower():
             continue
-        if match.group(2) != " ":
-            return text, "already_done", match.group(4)
-        lines[index] = f"{match.group(1)}x{line[match.end(2):]}{raw[len(line):]}"
+        if (match.group(2) != " ") == done:
+            return text, "already_done" if done else "already_open", match.group(4)
+        mark = "x" if done else " "
+        lines[index] = f"{match.group(1)}{mark}{line[match.end(2):]}{raw[len(line):]}"
         body = "".join(lines)
         header = text[:start]
         if frontmatter is not None and frontmatter.group("header") is not None:

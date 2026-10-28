@@ -78,6 +78,7 @@ from rapid_os.domain.project_docs import (
     body_sha256,
     is_managed,
     mark_story_done,
+    mark_story_open,
     render_managed_doc,
     validate_doc_body,
     with_doc_status,
@@ -1151,6 +1152,22 @@ def tick_story(
     the frontmatter `sha256` follows the body, the previous file goes to `.rapid-os/backups`,
     and the agent files are rebuilt. A brief without `rapid-doc` frontmatter is not touched.
     """
+    return _rewrite_story(project_root, rapid_dir, config_file, bank, story_id, done=True)
+
+
+def reopen_story(
+    project_root: Path, rapid_dir: Path, config_file: Path, bank: SetupDocBank, story_id: str
+) -> StoryTick:
+    """Untick `- [x] <ID>:` in the brief (`rapid setup story <ID> --reopen`): the inverse of `tick_story`.
+
+    Used after a `git revert` of a story's code, so the story is offered again. The same one line
+    changes and nothing else; the outcome is `marked`, `already_open`, `not_found` or `unmanaged`."""
+    return _rewrite_story(project_root, rapid_dir, config_file, bank, story_id, done=False)
+
+
+def _rewrite_story(
+    project_root: Path, rapid_dir: Path, config_file: Path, bank: SetupDocBank, story_id: str, *, done: bool
+) -> StoryTick:
     from rapid_os.adapters.agents.base import AGENT_BACKUP_DIR, AGENT_BACKUPS_KEPT
     from rapid_os.adapters.setup_store import load_setup_file, write_setup
 
@@ -1159,7 +1176,8 @@ def tick_story(
     fields, _body = parse_doc_frontmatter(existing or "")
     if not existing or not is_managed(fields, bank.id):
         return StoryTick("unmanaged", story_id, bank.file)
-    new_text, outcome, written_id = mark_story_done(existing, bank, story_id)
+    mark = mark_story_done if done else mark_story_open
+    new_text, outcome, written_id = mark(existing, bank, story_id)
     if outcome != "marked":
         return StoryTick(outcome, written_id, bank.file)
     safe_write_text(

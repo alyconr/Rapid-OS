@@ -127,6 +127,7 @@ const sidebars: SidebarsConfig = {
         'guides/ci-cd-integration',
         'guides/deployment',
         'guides/setup-json-migration',
+        'guides/undo-approval',
       ],
     },
     {

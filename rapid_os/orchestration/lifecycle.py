@@ -688,6 +688,17 @@ def execute_next(
         test_command=test_cmd if isinstance(test_cmd, (list, tuple)) else None,
         workspace_ready=bool(sess.workspace_path),
     )
+    if action.kind == ActionKind.DONE:
+        # The session still points at the run that ended: the next thing is the next open story of
+        # the brief (the same `author_spec` + `seed` a project without a session gets).
+        offered = _author_spec_action("feature", load_playbook("feature", templates_dir=templates_dir),
+                                      project_root, project_rapid_dir, templates_dir)
+        if offered.seed:
+            return 0, replace(
+                offered,
+                notes=(f"El run '{sess.active_run_id}' ya terminó ({action.outcome or 'ended'}); "
+                       "esta es la siguiente historia sin marcar del brief.",),
+            )
     return 0, _decorate_action(action, sess)
 
 
@@ -913,6 +924,15 @@ def stdin_is_windows_nul() -> bool:
         return False
 
 
+UNDO_APPROVAL_HINT = (
+    "Para deshacerlo: `rapid abort` antes de `rapid finish`; después de `rapid finish`, `git revert` y un "
+    "run nuevo (guía: docs/guides/undo-approval.md)."
+)
+AFTER_LAST_APPROVAL = (
+    "Siguiente: `rapid finish` (o /rapid-next en tu agente). Tras finish el run ya no se puede cancelar."
+)
+
+
 def execute_approve(
     project_root: Path,
     project_rapid_dir: Path,
@@ -1013,13 +1033,16 @@ def execute_approve(
         return 1, f"RAPID1332 Gate '{gate_id}' is a machine gate ({gate.kind.value}); manual approval is only for human review gates."
 
     if gate_st.disposition != GateDisposition.PENDING:
-        return 1, f"RAPID1332 Gate '{gate_id}' is already {gate_st.disposition.value}; nothing to do."
+        return (
+            1,
+            f"RAPID1332 Gate '{gate_id}' is already {gate_st.disposition.value}; nothing to do. {UNDO_APPROVAL_HINT}",
+        )
 
     if gate_id in _rejected_human_gate_ids(contract, evidence_reg.list(run_id)):
         return (
             1,
             f"RAPID1332 Gate '{gate_id}' was rejected (changes_requested) and stays FAIL for this run. "
-            "Run 'rapid abort' and start a new run.",
+            f"Run 'rapid abort' and start a new run. {UNDO_APPROVAL_HINT}",
         )
 
     if waive:
@@ -1064,8 +1087,8 @@ def execute_approve(
         expected_confirm = f"dispensar {gate_id}"
         accepted = {expected_confirm}
     elif reject:
-        expected_confirm = f"aprobar {gate_id}"
-        accepted = {expected_confirm, f"rechazar {gate_id}"}
+        expected_confirm = f"rechazar {gate_id}"
+        accepted = {expected_confirm}
     else:
         expected_confirm = f"aprobar {gate_id}"
         accepted = {expected_confirm}
@@ -1108,6 +1131,7 @@ def execute_approve(
                 "review_type": review_type,
                 "outcome": outcome,
                 "reviewer": reviewer_name,
+                **({"reason": str(reason).strip()} if reject else {}),
             },
             "artifacts": [],
         },
@@ -1126,7 +1150,18 @@ def execute_approve(
         )
     except ExecutionError as exc:
         return 1, f"{exc.code} {exc}"
-    return 0, f"Gate '{gate_id}' aprobado y reconocido."
+    message = f"Gate '{gate_id}' aprobado y reconocido."
+    try:
+        after = run_reg.get_state(run_id)
+        kinds = {g.id: g.kind for g in contract.gates}
+        still_pending = [
+            g.id for g in after.gates if kinds.get(g.id) in HUMAN_GATE_KINDS and g.disposition == GateDisposition.PENDING
+        ]
+    except Exception:  # the hint must never turn an approval into an error
+        still_pending = ["?"]
+    if not still_pending:
+        message += f"\n{AFTER_LAST_APPROVAL}"
+    return 0, message
 
 
 def execute_attach(

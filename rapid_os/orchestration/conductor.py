@@ -97,6 +97,23 @@ def _rejected_human_gate_ids(
     return tuple(sorted(rejected))
 
 
+def _rejection_details(evidence: Sequence[RunEvidence], gate_ids: Sequence[str]) -> dict[str, object]:
+    """The latest rejecting review of `gate_ids`: who rejected and the `--reason` they gave.
+
+    `reason` and `reviewer` are None for a review recorded before the reason was kept."""
+    reviewer: str | None = None
+    reason: str | None = None
+    for ev in evidence:
+        if ev.kind != EvidenceKind.REVIEW or str(ev.payload.get("outcome")) not in REJECTING_REVIEW_OUTCOMES:
+            continue
+        if not set(ev.gate_ids) & set(gate_ids):
+            continue
+        reviewer = str(ev.payload.get("reviewer")) or None
+        raw_reason = ev.payload.get("reason")
+        reason = str(raw_reason) if raw_reason else None
+    return {"gate_ids": list(gate_ids), "reviewer": reviewer, "reason": reason}
+
+
 def _refactor_regression(
     contract: ExecutionContract, evidence: Sequence[RunEvidence]
 ) -> tuple[int, int] | None:
@@ -244,16 +261,22 @@ def next_action(
     # b2. Revisión humana rechazada: el gate queda en FAIL para siempre en este run.
     rejected_gate_ids = _rejected_human_gate_ids(contract, raw_evidence)
     if rejected_gate_ids:
+        rejection = _rejection_details(raw_evidence, rejected_gate_ids)
+        why = ""
+        if rejection["reason"]:
+            who = f" by {rejection['reviewer']}" if rejection["reviewer"] else ""
+            why = f" Rejection reason{who}: {rejection['reason']}"
         return NextAction(
             schema_version=1,
             run_id=contract.run_id,
             mode=mode,
             kind=ActionKind.BLOCKED,
             gate_ids=rejected_gate_ids,
+            rejection=rejection,
             instructions=(
                 f"Review rejected (changes_requested) for {', '.join(rejected_gate_ids)}; "
                 "the gate stays FAIL for the rest of this run. Run `rapid abort` and start a new run "
-                f"(`rapid start {mode}`) addressing the requested changes."
+                f"(`rapid start {mode}`) addressing the requested changes.{why}"
             ),
             command=("rapid", "abort"),
             after=None,

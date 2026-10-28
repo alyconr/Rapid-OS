@@ -1272,6 +1272,7 @@ def _current_archetype():
 
 
 def doctor_command(args):
+    not_a_project = in_rapid_home()
     diagnostics = [
         Diagnostic(INFO, "RAPID900", f"Current directory: {CURRENT_DIR}", CURRENT_DIR),
         Diagnostic(INFO, "RAPID901", f"Rapid home: {RAPID_HOME}", RAPID_HOME),
@@ -1286,7 +1287,7 @@ def doctor_command(args):
         Diagnostic(INFO, "RAPID905", f"Config file: {CONFIG_FILE}", CONFIG_FILE),
     ]
 
-    if CONFIG_FILE.exists():
+    if CONFIG_FILE.exists() and not not_a_project:
         loaded_cfg = _load_config_with_warning(CONFIG_FILE)
         def_harness = loaded_cfg.get("default_harness")
         t_cmd = loaded_cfg.get("test_command")
@@ -1300,7 +1301,7 @@ def doctor_command(args):
         )
 
     security_file = PROJECT_RAPID_DIR / "standards" / "security.md"
-    if security_file.is_file():
+    if security_file.is_file() and not not_a_project:
         from rapid_os.domain.security import security_mentions_asvs
 
         try:
@@ -1379,7 +1380,19 @@ def doctor_command(args):
 
     report = ValidationReport(tuple(diagnostics)).merge(validate_templates(TEMPLATES_DIR))
 
-    if PROJECT_RAPID_DIR.exists():
+    if not_a_project:
+        report = report.extend(
+            (
+                Diagnostic(
+                    INFO,
+                    "RAPID907",
+                    "No estás en un proyecto: el .rapid-os de este directorio es la instalación de Rapid OS "
+                    f"({RAPID_HOME}). Entra en la carpeta de tu proyecto para diagnosticarlo.",
+                    PROJECT_RAPID_DIR,
+                ),
+            )
+        )
+    elif PROJECT_RAPID_DIR.exists():
         report = report.merge(
             validate_project_standards(PROJECT_RAPID_DIR),
             validate_project_config(CONFIG_FILE, DEFAULT_AGENT_REGISTRY),
@@ -3434,7 +3447,7 @@ LOCAL_SERVICES_FILES = ("compose.yaml", ".env.example")
 LOCAL_SERVICES_NOTE = "Servicios locales añadidos por Rapid OS: revísalos antes de levantarlos"
 LOCAL_SERVICES_PLANNED_NOTE = "Rapid OS lo va a escribir en `setup finish` (servicios @now)"
 
-SETUP_SUBCOMMANDS = "next, show, set, stack, doc, review, finish"
+SETUP_SUBCOMMANDS = "next, show, set, stack, doc, review, story, finish"
 
 
 def _read_setup_input(source):
@@ -3672,6 +3685,48 @@ def arch_command(args):
     return 0 if ok else 1
 
 
+def _setup_story_command(args):
+    """`rapid setup story <ID> --reopen`: untick one story of the brief, the inverse of what `finish` does."""
+    from rapid_os.orchestration import setup_apply as apply
+
+    as_json = getattr(args, "json", False)
+
+    def fail(message):
+        if as_json:
+            print(json.dumps({"schema_version": 1, "ok": False, "error": message}, indent=2))
+        else:
+            print(message, file=sys.stderr)
+        sys.exit(1)
+
+    if not getattr(args, "reopen", False):
+        fail("RAPID1413 Use 'rapid setup story <ID> --reopen' (the only thing this subcommand does).")
+    _catalog, doc_banks, _questions = _load_setup_inputs()
+    brief = doc_banks.get("brief")
+    if brief is None:
+        fail("RAPID1413 This project has no product brief to reopen a story in.")
+    try:
+        result = apply.reopen_story(CURRENT_DIR, PROJECT_RAPID_DIR, CONFIG_FILE, brief, args.story_id)
+    except (OSError, apply.SetupApplyError) as exc:
+        fail(f"RAPID1413 No pude reabrir {args.story_id.upper()} en {brief.file} ({exc})")
+    shown = result.story_id.upper()
+    if result.outcome == "not_found":
+        fail(f"RAPID1413 {args.story_id.upper()} no existe en las historias de {brief.file}; no cambió nada")
+    if result.outcome == "unmanaged":
+        fail(f"RAPID1413 {brief.file} no tiene frontmatter rapid-doc, no lo toco; desmarca {shown} a mano")
+    for warning in result.warnings:
+        print(f"WARNING {warning}", file=sys.stderr)
+    if result.outcome == "marked":
+        message = f"{shown} reabierta en {brief.file} (solo cambió esa línea)"
+    else:
+        message = f"{shown} ya estaba sin marcar en {brief.file}; no cambió nada"
+    if as_json:
+        print(json.dumps({"schema_version": 1, "ok": True, "story": shown, "outcome": result.outcome,
+                          "file": brief.file}, indent=2))
+    else:
+        print(message)
+    return 0
+
+
 def setup_command(args):
     """Execute rapid setup. next and show are read-only; set, stack, doc and finish write."""
     from dataclasses import replace as dc_replace
@@ -3686,6 +3741,9 @@ def setup_command(args):
     if not action_name:
         print(f"RAPID1413 Subcomando de setup requerido ({SETUP_SUBCOMMANDS}).", file=sys.stderr)
         sys.exit(1)
+
+    if action_name == "story":
+        return _setup_story_command(args)
 
     catalog, doc_banks, stack_questions = _load_setup_inputs()
     try:
@@ -3880,6 +3938,7 @@ def next_command(args):
 
 STORY_TAG_PREFIX = "story:"
 NO_BASELINE_LINE = "Sin baseline: proyecto nuevo"
+NO_COMMIT_LINE = "Rapid OS no hace commit: revisa los cambios y haz commit tú"
 NO_ISOLATION_LINE = "Sin aislamiento: el repositorio aún no tiene commits"
 
 
@@ -4003,6 +4062,7 @@ def finish_command(args):
             print(NO_BASELINE_LINE, file=sys.stderr)
         for line in suggestions:
             print(line, file=sys.stderr)
+        print(NO_COMMIT_LINE, file=sys.stderr)
         sys.exit(code)
 
     # Reports are numbered by their file (0001.json, ...): the stored/latest one is the last.
@@ -4017,6 +4077,7 @@ def finish_command(args):
         print(NO_BASELINE_LINE)
     for line in suggestions:
         print(line)
+    print(NO_COMMIT_LINE)
     sys.exit(code)
 
 
@@ -5203,6 +5264,19 @@ def create_parser():
     _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
 
     _sp = setup_sub.add_parser(
+        "story",
+        help="Reopen a story of the product brief (writes one line of the brief).",
+        description=(
+            "Untick one story of the brief (`- [x] H002:` becomes `- [ ] H002:`), the inverse of the tick "
+            "'rapid finish' does. Only that line changes; the previous file goes to .rapid-os/backups. Use it "
+            "after a 'git revert' of the story's code. RAPID1413 without --reopen or for an unknown story."
+        ),
+    )
+    _sp.add_argument("story_id", help="Story id as the brief writes it, e.g. H002.")
+    _sp.add_argument("--reopen", action="store_true", help="Untick the story.")
+    _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    _sp = setup_sub.add_parser(
         "finish",
         help="Apply the decisions to the project and close the onboarding (writes state).",
         description=(
@@ -5286,10 +5360,40 @@ def create_parser():
     return parser
 
 
+# Commands that write under `.rapid-os/`. From the home folder that directory is the Rapid OS
+# installation (RAPID_HOME), not a project, and they would write state into the installed checkout.
+STATE_WRITING_COMMANDS = frozenset({
+    "init", "start", "finish", "approve", "abort", "attach", "check", "task", "evidence", "spec", "run",
+    "eval", "scope", "refine", "vision", "skill", "setup",
+})
+SETUP_READ_ONLY = frozenset({"next", "show"})
+NOT_A_PROJECT_MESSAGE = (
+    "RAPID1417 No estás en un proyecto: el .rapid-os de este directorio ({rapid_dir}) es la instalación de "
+    "Rapid OS, no un proyecto. Entra en la carpeta de tu proyecto y vuelve a ejecutar el comando; esto no "
+    "escribió nada."
+)
+
+
+def in_rapid_home() -> bool:
+    """True when this directory's `.rapid-os` is the installation (running from the home folder)."""
+    try:
+        return PROJECT_RAPID_DIR.resolve() == Path(RAPID_HOME).resolve()
+    except OSError:
+        return False
+
+
 def main(argv=None):
     ensure_utf8_stdio()
     parser = create_parser()
     args = parser.parse_args(argv)
+
+    if (
+        args.command in STATE_WRITING_COMMANDS
+        and not (args.command == "setup" and getattr(args, "setup_action", None) in SETUP_READ_ONLY)
+        and in_rapid_home()
+    ):
+        print(NOT_A_PROJECT_MESSAGE.format(rapid_dir=PROJECT_RAPID_DIR), file=sys.stderr)
+        sys.exit(1)
 
     if args.command == "init":
         init_project(args)

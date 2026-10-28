@@ -52,6 +52,8 @@ class NextAction:
     seed: dict[str, object] | None = None
     # Facts about this start the person should know (for example a renumbered task list).
     notes: tuple[str, ...] = ()
+    # `blocked` by a rejected human review: who rejected which gates and why (the `--reason` text).
+    rejection: dict[str, object] | None = None
 
     def __post_init__(self):
         coerced_kind = ActionKind.coerce(self.kind)
@@ -85,6 +87,8 @@ class NextAction:
             payload["workspace_path"] = self.workspace_path
         if self.seed is not None:
             payload["seed"] = dict(self.seed)
+        if self.rejection is not None:
+            payload["rejection"] = dict(self.rejection)
         return payload
 
     def to_dict(self) -> dict[str, object]:
