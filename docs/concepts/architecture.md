@@ -83,7 +83,7 @@ The onboarding's `docs/ARCHITECTURE.md` document requires the **Modules**, **Dep
 
 | Language | What it reads |
 | :--- | :--- |
-| Python | `ast` |
+| Python | `ast`; if the file does not parse (syntax newer than the Python running Rapid OS), its `import` and `from ... import` lines, also parenthesized and multi-line |
 | TypeScript and JavaScript | `import`, `export ... from`, `import()`, and `require`; the `<script>` block of `.vue` and `.svelte` and the frontmatter and `<script>` of `.astro` |
 | Go | `import` (`_test.go` files are ignored) |
 | Java and Kotlin | `import` |
@@ -99,6 +99,10 @@ The violations are:
 - `shared` importing a module;
 - the `__init__.py` of a Python module importing anything other than its own `public.py`;
 - the pure layer (`domain`, or `model` in the frontend) importing a forbidden library.
+
+Imports are written from the component's root. When a component lives in a subfolder (`backend/` and `frontend/` in a separated fullstack, rule field `root`), the checker puts that folder in front of absolute Python imports (`app.modules...`), of the `aliases` (`@/` is `src/` inside the component) and of bare `src/...` paths, so `backend/app/modules/talleres/...` importing `app.modules.pagos.infrastructure...` is a `cross_module` violation exactly as it is in a project at the root.
+
+A Python file that does not parse is never treated as invalid code: the project may use a newer Python (for example `except A, B:` from PEP 758 on 3.14) than the one running Rapid OS. It is read by lines, `rapid arch check` prints `WARNING <file>: leído sin AST: sintaxis más nueva que el Python de Rapid OS (3.x)` (`warnings[]` in `--json`), and its imports are judged like any other.
 
 Only the directories under `modules_root` count as modules. It exits with 1 if there are violations, and with 0 if there are none, if there are no modules yet, or (with a warning) if the project has no `architecture.json`.
 
@@ -122,7 +126,7 @@ In `feature`, `bugfix`, and `refactor` runs, if `architecture.json` exists, the 
 rapid check --gate gate.architecture -- rapid arch check
 ```
 
-`rapid finish` does not give `PASS` while that gate is not satisfied. The gate cannot be waived (it is not waivable). Never disable or edit `architecture.json` to make a check pass: change the code or ask the person to change the rule.
+`rapid finish` does not give `PASS` while that gate is not satisfied. The gate cannot be waived (it is not waivable). `finish` also runs the check again over the final state of the code, because a violation can be added after the gate passed: if it fails, `finish` ends with `RAPID1422` and exit 1, lists the violations, and leaves the run open (no verdict is recorded) so the code can be fixed and `rapid finish` run again. Never disable or edit `architecture.json` to make a check pass: change the code or ask the person to change the rule.
 
 ## Existing projects
 

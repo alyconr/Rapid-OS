@@ -171,10 +171,45 @@ class PythonTests(unittest.TestCase):
         self.assertEqual(report.violations, ())
         self.assertEqual(report.checked_files, 1)
 
-    def test_a_file_that_cannot_be_parsed_is_skipped_not_a_violation(self):
+    def test_a_file_that_cannot_be_parsed_is_read_by_lines_not_skipped(self):
         report = self.check({"app/modules/citas/domain/broken.py": "def (:\n"})
         self.assertEqual(report.violations, ())
-        self.assertIn("broken.py", report.skipped[0])
+        self.assertEqual(report.skipped, ())
+        self.assertIn("broken.py: leído sin AST: sintaxis más nueva que el Python de Rapid OS (3.", report.warnings[0])
+
+    def test_newer_syntax_does_not_hide_a_foreign_layer_import(self):
+        # `except A, B:` (PEP 758) is a SyntaxError before Python 3.14; the project may use 3.14.
+        source = (
+            "from app.modules.pagos.infrastructure.repo import Repo\n"
+            "from app.modules.pagos import (\n    public,\n    infrastructure,\n)\n"
+            "import sqlalchemy, httpx as h\n\n\n"
+            "def run():\n    try:\n        pass\n    except ValueError, TypeError:\n        pass\n"
+        )
+        report = self.check({
+            "app/modules/citas/application/svc.py": source,
+            "app/modules/citas/domain/cita.py": source,
+        })
+        self.assertEqual(report.skipped, ())
+        lines = {(v.file.rsplit("/", 1)[1], v.rule, v.line) for v in report.violations}
+        self.assertIn(("svc.py", "cross_module", 1), lines)
+        self.assertIn(("svc.py", "cross_module", 2), lines)
+        self.assertIn(("cita.py", "domain_forbidden_import", 6), lines)
+        if sys.version_info < (3, 14):
+            self.assertEqual(len(report.warnings), 2)
+        else:
+            self.assertEqual(report.warnings, ())
+
+    def test_the_line_reader_ignores_strings_and_comments(self):
+        report = self.check({
+            "app/modules/citas/application/svc.py": (
+                "def (:\n"
+                '"""\nfrom app.modules.pagos.infrastructure.repo import Repo\n"""\n'
+                "# from app.modules.pagos.infrastructure.repo import Repo\n"
+                "from app.modules.pagos.public import charge  # import app.modules.pagos.domain\n"
+            ),
+        })
+        self.assertEqual(report.violations, ())
+        self.assertEqual(len(report.warnings), 1)
 
     def test_a_module_init_that_reexports_an_internal_layer_is_a_back_door(self):
         report = self.check({
@@ -318,6 +353,99 @@ class TypeScriptTests(unittest.TestCase):
     def test_the_ui_outside_the_roots_is_not_judged(self):
         report = self.check({"src/app/page.tsx": "import { x } from '../modules/citas/domain/x';\n"})
         self.assertEqual(report.violations, ())
+
+
+SEPARATED = load_rules(architecture_document({"backend": "python-fastapi", "frontend": "nextjs"}))
+BACKEND = next(c for c in SEPARATED if c.component == "backend")
+FRONTEND = next(c for c in SEPARATED if c.component == "frontend")
+
+
+class ComponentRootTests(unittest.TestCase):
+    """A component in a subfolder (`backend/`, `frontend/`): the files are `backend/app/...` but the
+    imports are written from the component's root (`app....`, `@/...`)."""
+
+    def test_the_rules_have_a_root(self):
+        self.assertEqual((BACKEND.root, FRONTEND.root), ("backend", "frontend"))
+
+    def test_python_cross_module_layer_and_shared_are_reported(self):
+        report = check_architecture(BACKEND, {
+            "backend/app/modules/talleres/application/casos_de_uso.py":
+                "from app.modules.talleres.infrastructure.repositorio import X\n"
+                "from app.modules.pagos.infrastructure.repo import Y\n"
+                "from app.modules.pagos.public import ok\n",
+            "backend/app/modules/talleres/domain/taller.py": "from app.modules.talleres.application import casos_de_uso\n",
+            "backend/app/shared/db.py": "from app.modules.talleres.public import t\n",
+            "backend/app/modules/talleres/public.py": "x = 1\n",
+        })
+        self.assertEqual(
+            rules(report),
+            [("cross_module", "backend/app/modules/talleres/application/casos_de_uso.py", 2),
+             ("layer", "backend/app/modules/talleres/application/casos_de_uso.py", 1),
+             ("layer", "backend/app/modules/talleres/domain/taller.py", 1),
+             ("shared", "backend/app/shared/db.py", 1)],
+        )
+
+    def test_python_relative_imports_and_the_clean_cases_still_pass(self):
+        report = check_architecture(BACKEND, {
+            "backend/app/modules/talleres/public.py": "from app.modules.talleres.application.casos_de_uso import run\n",
+            "backend/app/modules/talleres/application/casos_de_uso.py":
+                "from app.modules.talleres.domain.taller import T\nfrom ..domain import taller\n"
+                "from app.shared.errors import E\nimport fastapi\n",
+            "backend/app/modules/talleres/domain/taller.py": "class T:\n    pass\n",
+            "backend/app/modules/pagos/api/rutas.py": "from app.modules.talleres.public import run\nimport app.modules.talleres.public\n",
+        })
+        self.assertEqual(report.violations, ())
+        self.assertEqual(report.checked_files, 4)
+
+    def test_python_domain_forbidden_imports_and_the_init_reexport(self):
+        report = check_architecture(BACKEND, {
+            "backend/app/modules/talleres/domain/taller.py": "import sqlalchemy\n",
+            "backend/app/modules/talleres/__init__.py": "from app.modules.talleres.public import run\n",
+            "backend/app/modules/pagos/__init__.py": "from app.modules.pagos.infrastructure.repo import R\n",
+        })
+        self.assertEqual(
+            rules(report),
+            [("domain_forbidden_import", "backend/app/modules/talleres/domain/taller.py", 1),
+             ("init_reexport", "backend/app/modules/pagos/__init__.py", 1)],
+        )
+
+    def test_python_newer_syntax_is_read_by_lines_under_a_root(self):
+        report = check_architecture(BACKEND, {
+            "backend/app/modules/talleres/application/svc.py": "def (:\nfrom app.modules.pagos.domain.p import P\n",
+        })
+        self.assertEqual([(v.rule, v.line) for v in report.violations], [("cross_module", 2)])
+        self.assertEqual(len(report.warnings), 1)
+
+    def test_typescript_alias_cross_module_layer_and_shared_are_reported(self):
+        report = check_architecture(FRONTEND, {
+            "frontend/src/features/talleres/ui/Lista.tsx":
+                "import { a } from '@/features/pagos/data-access/api';\n"
+                "import { b } from '@/features/pagos';\n"
+                "import { c } from '@/shared/ui';\n"
+                "import { d } from 'src/features/pagos/model/m';\n",
+            "frontend/src/features/talleres/model/t.ts": "import { u } from '@/features/talleres/ui/Lista';\n",
+            "frontend/src/shared/ui.ts": "import { t } from '@/features/talleres';\n",
+            "frontend/src/features/talleres/index.ts": "export * from './ui/Lista';\n",
+        })
+        self.assertEqual(
+            rules(report),
+            [("cross_module", "frontend/src/features/talleres/ui/Lista.tsx", 1),
+             ("cross_module", "frontend/src/features/talleres/ui/Lista.tsx", 4),
+             ("layer", "frontend/src/features/talleres/model/t.ts", 1),
+             ("shared", "frontend/src/shared/ui.ts", 1)],
+        )
+
+    def test_typescript_relative_imports_keep_working(self):
+        report = check_architecture(FRONTEND, {
+            "frontend/src/features/talleres/ui/Lista.tsx": "import { a } from '../../pagos/data-access/api';\n",
+        })
+        self.assertEqual([v.rule for v in report.violations], ["cross_module"])
+
+    def test_a_project_at_the_root_is_unchanged(self):
+        report = check_architecture(PY, {
+            "app/modules/talleres/application/c.py": "from app.modules.pagos.infrastructure.repo import X\n",
+        })
+        self.assertEqual([v.rule for v in report.violations], ["cross_module"])
 
 
 class CliCase(unittest.TestCase):

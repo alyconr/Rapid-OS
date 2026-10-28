@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- `rapid arch check` now reports `cross_module`, `layer`, `shared` and `init_reexport` violations when a component lives in a subfolder (`root` is `backend/` or `frontend/` in a separated fullstack): absolute Python imports (`app.modules...`), the `@/` alias and bare `src/...` paths are resolved inside the component's root. Before, they never matched `modules_root` and the check reported `Arquitectura OK` over violating code.
+- `rapid finish` runs `gate.architecture` again on the final state of the code before the verdict. A violation added after the gate passed ends with `RAPID1422` (exit 1, the violations listed, the run left open with no verdict) instead of `PASS`.
+- A Python file that does not parse with the Python running Rapid OS (newer syntax, such as `except A, B:` from PEP 758 on 3.14) is no longer skipped: its imports are read line by line (including parenthesized, multi-line lists), `rapid arch check` warns `leído sin AST: sintaxis más nueva que el Python de Rapid OS (3.x)` (`warnings[]` in `--json`) and the file is judged like any other.
+
 ---
 
 ## [3.2.0rc1] - 2026-10-28 (pre-release)

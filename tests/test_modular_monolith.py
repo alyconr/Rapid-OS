@@ -388,6 +388,25 @@ class EndToEndTests(Project):
         gate_assertions = [a for a in report["assertions"] if a["subject_id"] == "gate.architecture"]
         self.assertEqual([a["status"] for a in gate_assertions], ["pass"])
 
+    def test_a_violation_added_after_the_gate_passed_keeps_finish_from_passing(self):
+        self.begin()
+        gate, failed = self.drive()
+        self.assertIsNone(failed, failed)
+        self.assertEqual(approve(self.root, gate, self.env).returncode, 0)
+        # gate.architecture has already passed; the code is now changed behind its back.
+        self.write("app/modules/citas/domain/cita.py", "import sqlalchemy\n\n\nclass Cita:\n    pass\n")
+        finished = self.rapid("finish", "--json")
+        self.assertEqual(finished.returncode, 1, finished.stdout)
+        self.assertNotIn('"verdict": "pass"', finished.stdout)
+        self.assertIn("RAPID1422", finished.stderr)
+        self.assertIn("app/modules/citas/domain/cita.py:1", finished.stderr)
+        self.assertIn("RAPID1420", finished.stderr)
+        # The run is still open: fixing the code lets the same finish pass.
+        self.write("app/modules/citas/domain/cita.py", "class Cita:\n    pass\n")
+        done = self.rapid("finish", "--json")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(json.loads(done.stdout)["verdict"], "pass")
+
     def test_a_violation_keeps_the_run_from_passing(self):
         self.begin()
 

@@ -14,6 +14,7 @@ from __future__ import annotations
 import ast
 import posixpath
 import re
+import sys
 from dataclasses import dataclass, field
 from typing import Iterable, Mapping
 
@@ -290,6 +291,8 @@ class ArchitectureReport:
     violations: tuple[Violation, ...]
     skipped: tuple[str, ...] = ()
     delegate: str = ""
+    # Notices that do not change the verdict, e.g. a file read without an AST.
+    warnings: tuple[str, ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -423,30 +426,32 @@ def _violations_for_target(
     return found
 
 
-def _init_violations(config: ArchitectureConfig, place: _Place, path: str, text: str) -> list[Violation]:
+def _init_violations(
+    config: ArchitectureConfig, place: _Place, path: str, records: Iterable[_PyImport]
+) -> list[Violation]:
     """The `__init__.py` at the root of a Python module may be empty or re-export only the
     module's own public entry. Anything else would let `from app.modules.pagos import Repo`
     reach an internal layer through the package, a back door around the public entry."""
     module_root = tuple(config.modules_root.split("/")) + (place.module or "",)
     public = module_root + (config.public_stem,)
     package = _python_package(path)
+    root = config.root_segments
     message = f"el __init__.py del módulo '{place.module}' solo puede reexportar su {config.public_entry}"
     found: list[Violation] = []
-    for node in ast.walk(ast.parse(text, filename=path)):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                if tuple(alias.name.split("."))[: len(public)] != public:
-                    found.append(Violation(RULE_INIT_REEXPORT, path, node.lineno, alias.name, message))
-        elif isinstance(node, ast.ImportFrom):
-            if node.level == 0 and node.module == "__future__":
-                continue  # a compiler directive, not a re-export
-            base, spelled, _top = _resolve_from(package, node)
-            if base is not None:
-                if tuple(base[: len(public)]) == public:
-                    continue  # from .public import x
-                if tuple(base) == module_root and all(a.name == config.public_stem for a in node.names):
-                    continue  # from . import public
-            found.append(Violation(RULE_INIT_REEXPORT, path, node.lineno, spelled, message))
+    for record in records:
+        if record.plain:
+            if (root + tuple(record.module.split(".")))[: len(public)] != public:
+                found.append(Violation(RULE_INIT_REEXPORT, path, record.line, record.module, message))
+            continue
+        if record.level == 0 and record.module == "__future__":
+            continue  # a compiler directive, not a re-export
+        base, spelled, _top = _resolve_from(package, record.level, record.module, root)
+        if base is not None:
+            if tuple(base[: len(public)]) == public:
+                continue  # from .public import x
+            if tuple(base) == module_root and all(name == config.public_stem for name in record.names):
+                continue  # from . import public
+        found.append(Violation(RULE_INIT_REEXPORT, path, record.line, spelled, message))
     return found
 
 
@@ -468,6 +473,7 @@ def check_architecture(config: ArchitectureConfig, sources: Mapping[str, str]) -
         return ArchitectureReport(config.language, (), 0, (), (), delegate=config.delegate)
     violations: list[Violation] = []
     skipped: list[str] = []
+    warnings: list[str] = []
     modules: set[str] = set()
     checked = 0
     for path in sorted(sources):
@@ -477,23 +483,27 @@ def check_architecture(config: ArchitectureConfig, sources: Mapping[str, str]) -
         if place.kind == "module" and place.module:
             modules.add(place.module)
         checked += 1
-        try:
+        records: list[_PyImport] = []
+        if config.language == "python":
+            records, by_lines = _python_records(path, sources[path])
+            if by_lines:
+                warnings.append(f"{path}: {_NO_AST_WARNING}")
+            refs = list(_python_imports(records, _python_package(path), frozenset(config.layers), config.root_segments))
+        else:
             refs = list(_references(config, path, sources[path]))
-        except SyntaxError as exc:
-            skipped.append(f"{path}: no se pudo leer ({exc.msg}, línea {exc.lineno})")
-            continue
         for line, spelled, target_segments, top_package in refs:
             violations.extend(
                 _violations_for_target(config, place, path, line, spelled, target_segments, top_package)
             )
         if config.language == "python" and place.kind == "module" and place.rest == ("__init__.py",):
-            violations.extend(_init_violations(config, place, path, sources[path]))
+            violations.extend(_init_violations(config, place, path, records))
     return ArchitectureReport(
         language=config.language,
         modules=tuple(sorted(modules)),
         checked_files=checked,
         violations=tuple(_dedupe(violations)),
         skipped=tuple(skipped),
+        warnings=tuple(warnings),
     )
 
 
@@ -504,9 +514,10 @@ _Ref = tuple[int, str, "tuple[str, ...] | None", str]
 def _references(config: ArchitectureConfig, path: str, text: str) -> Iterable[_Ref]:
     language = config.language
     if language == "python":
-        return _python_imports(path, text, frozenset(config.layers))
+        records, _by_lines = _python_records(path, text)
+        return _python_imports(records, _python_package(path), frozenset(config.layers), config.root_segments)
     if language == "typescript":
-        return _typescript_imports(path, _script_text(path, text), config.aliases)
+        return _typescript_imports(path, _script_text(path, text), config.aliases, config.root_segments)
     if language == "go":
         return _go_imports(config, path, text)
     if language in ("java", "kotlin"):
@@ -544,43 +555,104 @@ def _python_package(path: str) -> list[str]:
     return parts[:-1]  # `pkg/__init__.py` and `pkg/mod.py` both live in `pkg`
 
 
-def _resolve_from(package: list[str], node: ast.ImportFrom) -> "tuple[list[str] | None, str, str]":
+@dataclass(frozen=True)
+class _PyImport:
+    """One import statement: `import a.b` (plain) or `from <dots><module> import <names>`."""
+
+    line: int
+    level: int
+    module: str
+    names: tuple[str, ...]
+    plain: bool = False
+
+
+_NO_AST_WARNING = (
+    f"leído sin AST: sintaxis más nueva que el Python de Rapid OS (3.{sys.version_info.minor})"
+)
+_TRIPLE_QUOTED = re.compile(r"(\"\"\"|\'\'\').*?\1", re.DOTALL)
+_PY_FROM = re.compile(
+    r"^[ \t]*from[ \t]+(\.*)([\w.]*)[ \t]*\bimport\b[ \t]*(\([^)]*\)|(?:\\\n|[^\n])*)", re.MULTILINE
+)
+_PY_IMPORT = re.compile(r"^[ \t]*import[ \t]+((?:\\\n|[^\n;])*)", re.MULTILINE)
+
+
+def _python_records(path: str, text: str) -> "tuple[list[_PyImport], bool]":
+    """Every import of a Python file and whether they were read without an AST.
+
+    The project may use a newer Python than the one running Rapid OS (`except A, B:` from PEP 758),
+    so a `SyntaxError` is not invalid code: the imports are then read line by line."""
+    try:
+        tree = ast.parse(text, filename=path)
+    except (SyntaxError, ValueError):
+        return _python_records_by_lines(text), True
+    records: list[_PyImport] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                records.append(_PyImport(node.lineno, 0, alias.name, (), plain=True))
+        elif isinstance(node, ast.ImportFrom):
+            records.append(_PyImport(node.lineno, node.level, node.module or "", tuple(a.name for a in node.names)))
+    return records, False
+
+
+def _python_records_by_lines(text: str) -> list[_PyImport]:
+    """`import` / `from ... import` statements, with parenthesized and backslash-continued lists."""
+    blank = _TRIPLE_QUOTED.sub(lambda m: "\n" * m.group(0).count("\n"), text)
+    records: list[_PyImport] = []
+
+    def names_of(raw: str) -> list[str]:
+        raw = re.sub(r"#[^\n]*", "", raw).replace("\\\n", " ").strip().strip("()")
+        return [item.split()[0] for item in raw.split(",") if item.split() and item.split()[0] != "*"]
+
+    for match in _PY_FROM.finditer(blank):
+        line = _line_of(blank, match.start())
+        records.append(_PyImport(line, len(match.group(1)), match.group(2), tuple(names_of(match.group(3)))))
+    for match in _PY_IMPORT.finditer(blank):
+        line = _line_of(blank, match.start())
+        for name in names_of(match.group(1)):
+            records.append(_PyImport(line, 0, name, (), plain=True))
+    return sorted(records, key=lambda record: record.line)
+
+
+def _resolve_from(
+    package: list[str], level: int, module: str, root: tuple[str, ...] = ()
+) -> "tuple[list[str] | None, str, str]":
     """(dotted parts of the module a `from` imports from, as spelled, top-level library name).
 
-    The parts are None when a relative import climbs out of the project."""
-    if node.level:
-        if node.level - 1 > len(package):
-            return None, "." * node.level + (node.module or ""), ""
-        base = package[: len(package) - (node.level - 1)] + (node.module.split(".") if node.module else [])
+    The parts are None when a relative import climbs out of the project. An absolute import is
+    written from the component's root (`app.modules...`), so `root` is put in front of it."""
+    if level:
+        if level - 1 > len(package):
+            return None, "." * level + module, ""
+        base = package[: len(package) - (level - 1)] + (module.split(".") if module else [])
         # A relative import is never a library.
-        return base, "." * node.level + (node.module or ""), ""
-    base = node.module.split(".") if node.module else []
-    return base, node.module or "", base[0] if base else ""
+        return base, "." * level + module, ""
+    parts = module.split(".") if module else []
+    return list(root) + parts, module, parts[0] if parts else ""
 
 
-def _python_imports(path: str, text: str, layer_names: frozenset[str]) -> Iterable[_Ref]:
+def _python_imports(
+    records: Iterable[_PyImport], package: list[str], layer_names: frozenset[str], root: tuple[str, ...] = ()
+) -> Iterable[_Ref]:
     """Every import of a Python file, absolute or relative, resolved from the project root.
 
     `from pkg import name` may bring an attribute or a submodule: the submodule is looked at
     only when `name` is one of the layers (`from app.modules.pagos import infrastructure`),
     because that is the case the rule is about and an attribute may be a re-export.
     """
-    tree = ast.parse(text, filename=path)
-    package = _python_package(path)
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                parts = alias.name.split(".")
-                yield node.lineno, alias.name, tuple(parts), parts[0]
-        elif isinstance(node, ast.ImportFrom):
-            base, spelled, top = _resolve_from(package, node)
-            if base is None:
-                continue  # climbs out of the project: not ours to judge
-            yield node.lineno, spelled, tuple(base), top
-            for alias in node.names:
-                if alias.name in layer_names:
-                    joined = spelled if spelled.endswith(".") or not spelled else spelled + "."
-                    yield node.lineno, f"{joined}{alias.name}", tuple(base) + (alias.name,), top
+    for record in records:
+        if record.plain:
+            parts = record.module.split(".")
+            yield record.line, record.module, root + tuple(parts), parts[0]
+            continue
+        base, spelled, top = _resolve_from(package, record.level, record.module, root)
+        if base is None:
+            continue  # climbs out of the project: not ours to judge
+        yield record.line, spelled, tuple(base), top
+        for name in record.names:
+            if name in layer_names:
+                joined = spelled if spelled.endswith(".") or not spelled else spelled + "."
+                yield record.line, f"{joined}{name}", tuple(base) + (name,), top
 
 
 # --- TypeScript / JavaScript (and the script of .vue, .svelte and .astro) --------------------
@@ -618,8 +690,12 @@ def _script_text(path: str, text: str) -> str:
     return "".join(out)
 
 
-def _ts_target(path: str, spec: str, aliases: Mapping[str, str]) -> tuple[tuple[str, ...] | None, str]:
-    """(segments of the target inside the project or None, top-level package for the domain rule)."""
+def _ts_target(
+    path: str, spec: str, aliases: Mapping[str, str], root: tuple[str, ...] = ()
+) -> tuple[tuple[str, ...] | None, str]:
+    """(segments of the target inside the project or None, top-level package for the domain rule).
+
+    An alias or a bare `src/...` path is written from the component's root, which is put in front."""
     if spec.startswith("."):
         resolved = posixpath.normpath(posixpath.join(posixpath.dirname(path), spec))
         if resolved.startswith(".."):
@@ -627,10 +703,10 @@ def _ts_target(path: str, spec: str, aliases: Mapping[str, str]) -> tuple[tuple[
         return _ts_segments(resolved), spec
     for prefix, folder in aliases.items():
         if prefix and spec.startswith(prefix):
-            return _ts_segments(folder + spec[len(prefix):]), spec
+            return root + _ts_segments(folder + spec[len(prefix):]), spec
     first = spec.split("/")[0]
     if first in ("src", "app", "server"):
-        return _ts_segments(spec), spec
+        return root + _ts_segments(spec), spec
     return None, spec
 
 
@@ -642,13 +718,15 @@ def _ts_segments(resolved: str) -> tuple[str, ...]:
     return tuple(part for part in resolved.split("/") if part and part != ".")
 
 
-def _typescript_imports(path: str, text: str, aliases: Mapping[str, str]) -> Iterable[_Ref]:
+def _typescript_imports(
+    path: str, text: str, aliases: Mapping[str, str], root: tuple[str, ...] = ()
+) -> Iterable[_Ref]:
     clean = _strip_c_comments(text)
     for pattern in _TS_IMPORT_PATTERNS:
         for match in pattern.finditer(clean):
             spec = match.group(1)
             line = _line_of(clean, match.start(1))
-            segments, top = _ts_target(path, spec, aliases)
+            segments, top = _ts_target(path, spec, aliases, root)
             yield line, spec, segments, top
 
 

@@ -83,7 +83,7 @@ El documento `docs/ARCHITECTURE.md` del onboarding exige las secciones **Módulo
 
 | Lenguaje | Qué lee |
 | :--- | :--- |
-| Python | `ast` |
+| Python | `ast`; si el archivo no se puede parsear (sintaxis más nueva que el Python que ejecuta Rapid OS), sus líneas `import` y `from ... import`, también entre paréntesis y en varias líneas |
 | TypeScript y JavaScript | `import`, `export ... from`, `import()` y `require`; el bloque `<script>` de `.vue` y `.svelte` y el frontmatter y los `<script>` de `.astro` |
 | Go | `import` (se ignoran los `_test.go`) |
 | Java y Kotlin | `import` |
@@ -99,6 +99,10 @@ Las violaciones son:
 - `shared` que importa un módulo;
 - el `__init__.py` de un módulo de Python que importa algo distinto de su propio `public.py`;
 - la capa pura (`domain`, o `model` en el frontend) que importa una librería prohibida.
+
+Los imports se escriben desde la raíz del componente. Cuando un componente vive en una subcarpeta (`backend/` y `frontend/` en un fullstack separado, campo `root` de la regla), el verificador antepone esa carpeta a los imports absolutos de Python (`app.modules...`), a los `aliases` (`@/` es `src/` dentro del componente) y a las rutas `src/...`, de modo que `backend/app/modules/talleres/...` que importa `app.modules.pagos.infrastructure...` es una violación `cross_module`, igual que en un proyecto en la raíz.
+
+Un archivo Python que no se puede parsear nunca se trata como código inválido: el proyecto puede usar un Python más nuevo (por ejemplo `except A, B:` de la PEP 758 en 3.14) que el que ejecuta Rapid OS. Se lee por líneas, `rapid arch check` imprime `WARNING <archivo>: leído sin AST: sintaxis más nueva que el Python de Rapid OS (3.x)` (`warnings[]` en `--json`) y sus imports se juzgan como los de cualquier otro.
 
 Solo cuentan como módulos los directorios de `modules_root`. Sale con 1 si hay violaciones, con 0 si no las hay, si todavía no hay módulos o (con un aviso) si el proyecto no tiene `architecture.json`.
 
