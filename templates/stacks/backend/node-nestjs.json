@@ -25,6 +25,24 @@
     "pnpm",
     "test"
   ],
+  "test_commands": {
+    "root": [
+      "pnpm",
+      "test"
+    ],
+    "subdir": [
+      "pnpm",
+      "--dir",
+      "{root}",
+      "test"
+    ]
+  },
+  "gitignore": [
+    "node_modules/",
+    "dist/",
+    "coverage/",
+    ".env"
+  ],
   "architecture": "node-nestjs",
   "factors": {
     "performance": "medio a alto en E/S: Node.js (V8) con Express por defecto o Fastify opcional",

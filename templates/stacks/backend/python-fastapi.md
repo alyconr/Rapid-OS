@@ -1,5 +1,5 @@
 # 🐍 TECH STACK: PYTHON FASTAPI
-- **Runtime:** Python 3.14.
+- **Runtime:** Python {python_version}.
 - **Framework:** FastAPI (Async).
 - **Validation:** Pydantic V2 (Strict).
 - **ORM:** SQLAlchemy 2 (async) + Alembic (migrations).

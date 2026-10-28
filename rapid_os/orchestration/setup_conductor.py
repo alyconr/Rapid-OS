@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from typing import Sequence
 
+from rapid_os.domain.architecture import architecture_standard
 from rapid_os.domain.catalog import (
     DOC_SITE_TOPOLOGY,
     SERVICE_ROLES,
@@ -74,6 +75,11 @@ SERVICES_INSTRUCTION = (
     "(p. ej. webhooks de pago con reintentos -> cola; notificaciones masivas por WhatsApp -> cola), y márcalos "
     "@later si no hacen falta para la primera historia. La persona decide; no fijes nada sin su respuesta."
 )
+STANDARD_INSTRUCTION = (
+    "`standard` es la estructura que fijará .rapid-os/standards/architecture.md al terminar (aún no existe). "
+    "Cita sus carpetas, su punto público (`public_entry`), sus capas y sus reglas de dependencia tal cual; "
+    "no inventes otro punto público ni otras capas. Las reglas propias del producto se añaden, no sustituyen."
+)
 AI_QUESTION = (
     "¿El producto usará modelos de IA o agentes (por ejemplo, un asistente que responda por WhatsApp)?"
 )
@@ -133,10 +139,20 @@ def next_setup_action(
             command=list(AGENTS_COMMAND),
         )
     if state.test_command is None:
+        # What the repository already has (a `package.json` with a test script, pytest) wins; in an empty
+        # repository the stacks decided say how each component is tested, from the folder it lives in.
+        per_component = catalog_test_commands(state, catalog)
+        extra = {}
+        recommended = list(proposed_test_command) if proposed_test_command else None
+        if recommended is None and per_component:
+            recommended = combine_test_commands([item["command"] for item in per_component])
+        if per_component:
+            extra["components"] = per_component
         return _action(
             SetupActionKind.SET_TEST_COMMAND,
-            recommended=list(proposed_test_command) if proposed_test_command else None,
+            recommended=recommended,
             command=list(TEST_COMMAND_COMMAND),
+            **extra,
         )
     for doc_id in SETUP_DOC_ORDER:
         # A document that did not exist when the onboarding closed (`deployment`) reads as skipped: it can
@@ -348,6 +364,39 @@ def _choose_services(state: SetupState, catalog: Catalog) -> SetupAction:
     )
 
 
+def catalog_test_commands(state: SetupState, catalog: Catalog) -> list[dict]:
+    """`{component, stack, root, command}` for each component that has tests, from the stack catalog.
+
+    Two components in their own folders (`backend/`, `frontend/`) run from the project root with the
+    folder in the command (`uv run --directory backend pytest`), so they work outside the agent's shell."""
+    chosen = {c: choice.id for c, choice in state.stacks.items() if c in ("backend", "frontend")}
+    separate = len(chosen) == 2 and len(set(chosen.values())) == 2
+    items: list[dict] = []
+    seen: set[str] = set()
+    for component in ("backend", "frontend"):
+        stack_id = chosen.get(component)
+        entry = catalog.stacks.get(stack_id or "")
+        if entry is None or stack_id in seen:
+            continue
+        seen.add(stack_id)
+        root = component if separate else ""
+        command = entry.test_command(root)
+        if command:  # `generic` knows no test command
+            items.append({"component": component, "stack": stack_id, "root": root, "command": command})
+    return items
+
+
+def combine_test_commands(commands: Sequence[Sequence[str]]) -> list[str]:
+    """One argv for several test commands: it runs them all and fails when any fails (no shell needed)."""
+    if len(commands) == 1:
+        return list(commands[0])
+    code = (
+        "import subprocess, sys; "
+        f"sys.exit(max(subprocess.call(c) for c in {[list(c) for c in commands]!r}))"
+    )
+    return ["python", "-c", code]
+
+
 def _resolve_doc(
     doc_id: str,
     bank: SetupDocBank,
@@ -366,6 +415,12 @@ def _resolve_doc(
                 for s in bank.conditional_sections
                 if s.when in active_conditions(state.services)
             ]
+    if doc_id == "architecture" and state is not None:
+        standard = architecture_standard({component: choice.id for component, choice in state.stacks.items()})
+        if standard:
+            # `standards/architecture.md` is only written by `finish`: the draft cites this, not an invention.
+            extra["standard"] = standard
+            extra["standard_instruction"] = STANDARD_INSTRUCTION
     return _action(
         SetupActionKind.RESOLVE_DOC,
         doc=doc_id,

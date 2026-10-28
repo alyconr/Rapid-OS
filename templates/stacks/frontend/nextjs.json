@@ -28,6 +28,30 @@
     "vitest",
     "run"
   ],
+  "test_commands": {
+    "root": [
+      "pnpm",
+      "exec",
+      "vitest",
+      "run"
+    ],
+    "subdir": [
+      "pnpm",
+      "--dir",
+      "{root}",
+      "exec",
+      "vitest",
+      "run"
+    ]
+  },
+  "gitignore": [
+    "node_modules/",
+    ".next/",
+    "out/",
+    "coverage/",
+    "next-env.d.ts",
+    ".env"
+  ],
   "architecture": "nextjs",
   "factors": {
     "performance": "alto: Turbopack es el bundler por defecto; renderizado en servidor, estático o híbrido",

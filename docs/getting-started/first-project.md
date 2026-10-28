@@ -36,7 +36,7 @@ Open your agent in that folder and enter (in Codex, use `$rapid-init`):
 
 ### 3. Respond to its proposals
 
-The agent asks you to decide on the stack, topology, archetype (MVP or Corporate), test command, and four project documents (brief, business rules, data model, and architecture). For each decision it recommends an option and an alternative. For each document, you can provide your own, have the agent draft it (you review the complete draft before it is saved), or skip it.
+The agent asks you to decide on the stack, topology, archetype (MVP or Corporate), test command, and four project documents (brief, business rules, data model, and architecture). For each decision it recommends an option and an alternative. If your product is an API or a service without an interface, choose the `backend-only` topology (a single backend component, no frontend). The test command it proposes for an empty repository comes from the stack catalog and runs from the project root (pointed at the `backend/` or `frontend/` folder when the components live in their own). For each document, you can provide your own, have the agent draft it (you review the complete draft before it is saved), or skip it.
 
 Agent-written content remains a **draft**. Before finishing, the agent summarizes each document and asks you to confirm it. Only explicit confirmation makes it a project rule; otherwise it remains an assumption the agent can question.
 

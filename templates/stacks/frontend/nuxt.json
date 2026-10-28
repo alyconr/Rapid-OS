@@ -28,6 +28,29 @@
     "vitest",
     "run"
   ],
+  "test_commands": {
+    "root": [
+      "pnpm",
+      "exec",
+      "vitest",
+      "run"
+    ],
+    "subdir": [
+      "pnpm",
+      "--dir",
+      "{root}",
+      "exec",
+      "vitest",
+      "run"
+    ]
+  },
+  "gitignore": [
+    "node_modules/",
+    ".nuxt/",
+    ".output/",
+    "dist/",
+    ".env"
+  ],
   "architecture": "nuxt",
   "factors": {
     "performance": "medio a alto: renderizado universal por defecto, con reglas por ruta (prerender, SWR, ISR) y renderizado en el borde",

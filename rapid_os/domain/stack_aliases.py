@@ -32,13 +32,16 @@ class LegacyStack:
 
 LEGACY_STACKS: Mapping[str, LegacyStack] = {
     "python-api": LegacyStack(
-        {"backend": "python-fastapi"}, topologies=("fullstack-baas", "fullstack-separated")
+        {"backend": "python-fastapi"},
+        topologies=("backend-only", "fullstack-baas", "fullstack-separated"),
     ),
     "python-ai": LegacyStack(
-        {"backend": "python-fastapi"}, ai=True, topologies=("fullstack-baas", "fullstack-separated")
+        {"backend": "python-fastapi"}, ai=True,
+        topologies=("backend-only", "fullstack-baas", "fullstack-separated"),
     ),
     "nodejs-ai": LegacyStack(
-        {"backend": "node-fastify"}, ai=True, topologies=("fullstack-baas", "fullstack-separated")
+        {"backend": "node-fastify"}, ai=True,
+        topologies=("backend-only", "fullstack-baas", "fullstack-separated"),
     ),
     "web-modern": LegacyStack(
         {"frontend": "nextjs", "backend": "nextjs"},

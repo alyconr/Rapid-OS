@@ -89,7 +89,7 @@
     },
     {
       "id": "dependency_rules",
-      "text": "¿Qué reglas de dependencia siguen las capas y los módulos (cita las del estándar de arquitectura y añade las propias)?",
+      "text": "¿Qué reglas de dependencia siguen las capas y los módulos (cita tal cual las de `standard` de esta acción y añade las propias; no inventes otro punto público ni otras capas)?",
       "required": true
     },
     {

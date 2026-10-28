@@ -192,4 +192,4 @@ The hook also detects `python -m rapid_os …`, `python rapid.py …`, absolute 
 
 - Project resolution walks up from the payload's `cwd` to the first `.rapid-os/`. If the `cwd` is the worktree created by `rapid start --worktree`, the main repository's ledger is used (the one stored as `workspace_path` in `session.json`).
 - No project: no output and exit 0.
-- Any internal error, a stdin that is not JSON, or a corrupt `.rapid-os/`: no output, exit 0, and a line in `.rapid-os/scratch/hooks.log`. A hook must never break the agent.
+- Any internal error, a stdin that is not JSON, or a corrupt `.rapid-os/`: no output, exit 0, and a line in `.rapid-os/scratch/hooks.log` (for invalid JSON it records how many bytes arrived and how they start; a UTF-8 BOM is accepted). To try a hook by hand from Windows, redirect a file instead of piping from PowerShell 5.1: `cmd /c "rapid hook pre-tool < payload.json"`. A hook must never break the agent.

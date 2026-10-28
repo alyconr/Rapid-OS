@@ -26,6 +26,24 @@
     "bin/rails",
     "test"
   ],
+  "test_commands": {
+    "root": [
+      "bin/rails",
+      "test"
+    ],
+    "subdir": [
+      "{root}/bin/rails",
+      "test"
+    ]
+  },
+  "gitignore": [
+    "log/",
+    "tmp/",
+    "storage/",
+    ".bundle/",
+    "public/assets/",
+    ".env"
+  ],
   "architecture": "ruby-rails",
   "factors": {
     "performance": "bajo a medio: CRuby con GVL; un proceso nunca usa más de un núcleo de CPU y se escala con procesos",

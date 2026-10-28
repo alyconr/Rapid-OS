@@ -25,6 +25,24 @@
     "dotnet",
     "test"
   ],
+  "test_commands": {
+    "root": [
+      "dotnet",
+      "test"
+    ],
+    "subdir": [
+      "dotnet",
+      "test",
+      "{root}"
+    ]
+  },
+  "gitignore": [
+    "bin/",
+    "obj/",
+    ".vs/",
+    "*.user",
+    ".env"
+  ],
   "architecture": "dotnet-aspnetcore",
   "factors": {
     "performance": "alto: la documentación lo describe como framework de alto rendimiento con servidor Kestrel",

@@ -199,7 +199,18 @@ def _handle_pre_tool(payload, project: HookProject) -> str:
     return json.dumps(pre_tool_output(decision)) if decision else ""
 
 
-def run_hook(event: str, raw_stdin: str, env: Mapping[str, str], templates_dir=None) -> tuple[int, str]:
+def describe_stdin(raw_bytes: bytes) -> str:
+    """How many bytes arrived and how they start, for the log when the JSON is not valid.
+
+    Windows PowerShell 5.1 pipes text to a native program re-encoded (UTF-16 or with a BOM), so what
+    `rapid hook` receives is not the file that was piped: the start of the bytes shows it."""
+    head = raw_bytes[:24]
+    return f"{len(raw_bytes)} bytes, starting with {head!r} (hex {head.hex(' ')})"
+
+
+def run_hook(
+    event: str, raw_stdin: str, env: Mapping[str, str], templates_dir=None, raw_bytes: bytes | None = None
+) -> tuple[int, str]:
     """Run one hook invocation. Always exits 0; returns (exit_code, stdout_text)."""
     project: HookProject | None = None
     try:
@@ -207,7 +218,8 @@ def run_hook(event: str, raw_stdin: str, env: Mapping[str, str], templates_dir=N
             data = json.loads(raw_stdin)
         except ValueError:
             project = find_project(env.get("CLAUDE_PROJECT_DIR") or os.getcwd())
-            log_event(project, event, "stdin is not valid JSON; ignored")
+            received = raw_bytes if raw_bytes is not None else raw_stdin.encode("utf-8", errors="replace")
+            log_event(project, event, f"stdin is not valid JSON ({describe_stdin(received)}); ignored")
             return 0, ""
         payload = parse_payload(data)
         project = find_project(payload.cwd or env.get("CLAUDE_PROJECT_DIR"))

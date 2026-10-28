@@ -27,6 +27,25 @@
     "artisan",
     "test"
   ],
+  "test_commands": {
+    "root": [
+      "php",
+      "artisan",
+      "test"
+    ],
+    "subdir": [
+      "php",
+      "{root}/artisan",
+      "test"
+    ]
+  },
+  "gitignore": [
+    "vendor/",
+    "node_modules/",
+    "storage/logs/",
+    "bootstrap/cache/",
+    ".env"
+  ],
   "architecture": "php-laravel",
   "factors": {
     "performance": "medio: PHP-FPM atiende cada petición; Octane mantiene la aplicación en memoria entre peticiones",

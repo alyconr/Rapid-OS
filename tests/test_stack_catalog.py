@@ -155,7 +155,7 @@ class ConductorTests(unittest.TestCase):
         self.assertTrue({"go", "react-vite", "generic"} <= ids)
         after = next_action(SetupState(stacks={"backend": StackChoice("go", "catalog")})).to_dict()
         self.assertEqual(after["kind"], "choose_topology")
-        self.assertEqual([o["id"] for o in after["options"]], ["fullstack-separated"])
+        self.assertEqual([o["id"] for o in after["options"]], ["backend-only", "fullstack-separated"])
 
 
 class LegacyStateTests(unittest.TestCase):

@@ -43,8 +43,8 @@ LEGACY_CONTENT = {
 
 # Diagnostics (non-informational codes) of each stack with each topology.
 _NO = []
-_BACKEND = {"doc-site": ["RAPID403"], "front-end-only": ["RAPID404"], "fullstack-baas": ["RAPID404"], "fullstack-separated": _NO}
-_FRONTEND = {"doc-site": ["RAPID403"], "front-end-only": _NO, "fullstack-baas": _NO, "fullstack-separated": _NO}
+_BACKEND = {"backend-only": _NO, "doc-site": ["RAPID403"], "front-end-only": ["RAPID404"], "fullstack-baas": ["RAPID404"], "fullstack-separated": _NO}
+_FRONTEND = {"backend-only": ["RAPID404"], "doc-site": ["RAPID403"], "front-end-only": _NO, "fullstack-baas": _NO, "fullstack-separated": _NO}
 EXPECTED_STACK_TOPOLOGY = {}
 for _stack in ("python-fastapi", "python-django", "node-nestjs", "node-fastify", "go", "rust-axum", "ruby-rails",
                "dotnet-aspnetcore", "java-spring-boot", "kotlin-spring-boot", "php-laravel"):
@@ -55,6 +55,7 @@ for _stack in ("react-vite", "nextjs", "angular", "vue-vite", "nuxt", "svelte-vi
         EXPECTED_STACK_TOPOLOGY[(_stack, _topology)] = _codes
 EXPECTED_STACK_TOPOLOGY.update(
     {
+        ("docs-modern", "backend-only"): ["RAPID402"],
         ("docs-modern", "doc-site"): [],
         ("docs-modern", "front-end-only"): ["RAPID402"],
         ("docs-modern", "fullstack-baas"): ["RAPID402"],
@@ -64,22 +65,27 @@ EXPECTED_STACK_TOPOLOGY.update(
 # The ids of before the component catalog keep validating an existing project as they always did
 # (python-ai with fullstack-baas is only a warning, RAPID405).
 EXPECTED_LEGACY_STACK_TOPOLOGY = {
+    ("frontend-creative", "backend-only"): ["RAPID404"],
     ("frontend-creative", "doc-site"): ["RAPID403"],
     ("frontend-creative", "front-end-only"): [],
     ("frontend-creative", "fullstack-baas"): [],
     ("frontend-creative", "fullstack-separated"): [],
+    ("nodejs-ai", "backend-only"): [],
     ("nodejs-ai", "doc-site"): ["RAPID403"],
     ("nodejs-ai", "front-end-only"): ["RAPID404"],
     ("nodejs-ai", "fullstack-baas"): [],
     ("nodejs-ai", "fullstack-separated"): [],
+    ("python-ai", "backend-only"): [],
     ("python-ai", "doc-site"): ["RAPID403"],
     ("python-ai", "front-end-only"): ["RAPID404"],
     ("python-ai", "fullstack-baas"): ["RAPID405"],
     ("python-ai", "fullstack-separated"): [],
+    ("python-api", "backend-only"): [],
     ("python-api", "doc-site"): ["RAPID403"],
     ("python-api", "front-end-only"): ["RAPID404"],
     ("python-api", "fullstack-baas"): [],
     ("python-api", "fullstack-separated"): [],
+    ("web-modern", "backend-only"): ["RAPID404"],
     ("web-modern", "doc-site"): ["RAPID403"],
     ("web-modern", "front-end-only"): [],
     ("web-modern", "fullstack-baas"): [],
@@ -183,8 +189,8 @@ def _legacy_default_topology(stack_name, suggested_topology, topologies):
 class DefaultTopologyTests(unittest.TestCase):
     def test_matches_legacy_function_for_every_stack_and_suggestion(self):
         catalog = load_catalog(TEMPLATES)
-        topologies = sorted(catalog.topologies)
-        # The oracle knows the stacks that existed in 7cf4878; later stacks have their own test.
+        # The oracle knows the stacks and topologies that existed in 7cf4878; later ones have their own test.
+        topologies = [name for name in sorted(catalog.topologies) if name != "backend-only"]
         for stack in sorted(LEGACY_DEFAULT_TOPOLOGY_BY_STACK):
             for suggestion in [None, *topologies]:
                 with self.subTest(stack=stack, suggestion=suggestion):
@@ -201,10 +207,10 @@ class DefaultTopologyTests(unittest.TestCase):
                 # Only a backend topology fits; a suggestion it does not fit is not followed.
                 self.assertEqual(
                     catalog.default_topology_for_stack("python-fastapi", suggestion, topologies),
-                    "fullstack-separated",
+                    "backend-only" if suggestion == "backend-only" else "fullstack-separated",
                 )
         entry = catalog.stacks["python-fastapi"]
-        self.assertEqual(entry.compatible_topologies, ("fullstack-separated",))
+        self.assertEqual(entry.compatible_topologies, ("backend-only", "fullstack-separated"))
         self.assertEqual(entry.default_topology, "fullstack-separated")
         text = (TEMPLATES / "stacks" / "backend" / "python-fastapi.md").read_text(encoding="utf-8")
         for name in ("FastAPI", "Pydantic V2", "SQLAlchemy 2", "Alembic", "PostgreSQL", "pytest", "httpx"):
@@ -341,7 +347,7 @@ class CatalogSidecarTests(unittest.TestCase):
         self.assertIn("requires backend/database capabilities", message("go", "front-end-only"))
         generic = message("go", "fullstack-baas")
         self.assertNotIn("requires backend/database capabilities", generic)
-        self.assertEqual(generic, "go is not compatible with fullstack-baas (compatible: fullstack-separated).")
+        self.assertEqual(generic, "go is not compatible with fullstack-baas (compatible: backend-only, fullstack-separated).")
 
     def test_broken_sidecars_raise_rapid1401(self):
         cases = {

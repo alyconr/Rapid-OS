@@ -1,1 +1,1 @@
-- **Orchestration:** LangChain / LangGraph.
+- **Orchestration:** to decide, not imposed. Options: LangGraph, LangChain or the model provider's own SDK. Record the choice and why in docs/ARCHITECTURE.md before adding a dependency.

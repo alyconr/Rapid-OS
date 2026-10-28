@@ -8,7 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Topology `backend-only` (one backend component, no frontend and no `backend/` folder), with its template, catalog entry, architecture (the rule lives at the project root) and tests. `/rapid-init` offers it when the brief describes an API or a service without an interface.
+- `rapid setup next` for the `architecture` document carries `standard[]` (and `standard_instruction`): per component, the folders, public entry point, layers and dependency rules `standards/architecture.md` will state, from the same catalog, so the draft cites them instead of inventing others.
+- `set_test_command` recommends the command of the decided stacks from the catalog when the repository is empty (`test_commands.root` / `subdir` in each stack sidecar), run from the project root: `uv run --directory backend pytest`, `pnpm --dir frontend exec vitest run`; with two components it is one argv that runs both, and `components[]` lists each.
+- Stack sidecars list what the stack generates (`gitignore`), and `rapid setup finish` appends it to the project's `.gitignore` (an existing file only; Rapid OS still never creates one on its own).
+
 ### Fixed
+- Onboarding (3.2.0rc1 e2e): `rapid setup finish` installs the Claude Code hooks in the project when `claude` is among the agents, without copying the skills; `rapid shortcuts install --global --harness claude --hooks` inside a project installs user skills and project hooks (outside a project it is `RAPID1413` with the way out); `RAPID1321` also reports a `/rapid-*` installed both for the user and in the project (`install`, and `doctor`).
+- Stack templates: a frontend next to a separate backend no longer declares `Database: PostgreSQL + pg`; with `ai` on the orchestration library (`LangChain / CrewAI / LangGraph`) is a decision to make, not an imposition; the Python version in `tech-stack.md` comes from `.python-version`, `requires-python` or the environment and says where from.
+- `rapid setup doc <id> --confirm` and `--reopen` (a status change) keep the previous copy in `.rapid-os/backups/` instead of leaving `docs/<name>.md.<n>.bak` in the repository.
+- `rapid setup show` says whether a drafted document is a draft or confirmed; `rapid doctor`/`validate` no longer warn `RAPID203` for `standards/business.md` when `docs/BUSINESS_RULES.md` exists, and `RAPID908` explains how the harness is resolved instead of saying "fallback: cursor" when agents were chosen.
+- The local services notice no longer says the harness sandbox cannot run Docker: the person starts the services, and with them up the agent uses them (`DATABASE_URL`) for migrations and integration tests.
+- `rapid hook` decodes stdin as UTF-8 with an optional BOM and, when the JSON is not valid, logs how many bytes arrived and how they start in `hooks.log`; the manual test with a file (`cmd /c "rapid hook pre-tool < payload.json"`) is documented.
 - Run closure and gates (3.2.0rc1 e2e): `rapid approve --reject` asks for `rechazar <gate>` (and only accepts that); `RAPID1332` on a decided or rejected gate explains the way out (`rapid abort` before `rapid finish`; after it, `git revert` and a new run) and links the new guide "Undo an approval"; the last approval prints `Siguiente: rapid finish ...`.
 - A rejection keeps its `--reason` in the evidence (`review.payload.reason`, optional) and `rapid next` hands it to the agent: the `blocked` action has a new `rejection` field (`gate_ids`, `reviewer`, `reason`) and the text in `instructions`; `/rapid-next` and the mode shortcuts use it when they open the new run.
 - After `rapid finish`, `rapid next` offers the next open story of the brief (`author_spec` with `seed`) instead of `done`; `rapid finish` ends with "Rapid OS no hace commit: revisa los cambios y haz commit tú" and the shortcuts no longer suggest otherwise.

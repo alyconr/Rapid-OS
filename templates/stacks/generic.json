@@ -11,6 +11,7 @@
     "a documentation site is the goal"
   ],
   "compatible_topologies": [
+    "backend-only",
     "front-end-only",
     "fullstack-baas",
     "fullstack-separated"

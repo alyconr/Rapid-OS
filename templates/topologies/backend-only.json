@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "backend-only",
+  "summary": "A backend service or API with no frontend of its own.",
+  "fits": [
+    "APIs consumed by other teams, mobile apps or integrations",
+    "webhooks, workers and services without an interface"
+  ],
+  "avoid_if": [
+    "the product has a web or mobile interface that this repository must also build"
+  ],
+  "components": [
+    "backend"
+  ]
+}

@@ -184,9 +184,9 @@ class ConductorTests(unittest.TestCase):
     def test_choose_topology_lists_only_compatible_ones(self):
         cases = {
             "docs-modern": {"doc-site"},
-            "python-ai": {"fullstack-separated"},
+            "python-ai": {"backend-only", "fullstack-separated"},
             "web-modern": {"front-end-only", "fullstack-baas", "fullstack-separated"},
-            "generic": {"front-end-only", "fullstack-baas", "fullstack-separated"},
+            "generic": {"backend-only", "front-end-only", "fullstack-baas", "fullstack-separated"},
         }
         for stack, topologies in cases.items():
             with self.subTest(stack=stack):

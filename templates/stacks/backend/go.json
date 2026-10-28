@@ -26,6 +26,26 @@
     "test",
     "./..."
   ],
+  "test_commands": {
+    "root": [
+      "go",
+      "test",
+      "./..."
+    ],
+    "subdir": [
+      "go",
+      "-C",
+      "{root}",
+      "test",
+      "./..."
+    ]
+  },
+  "gitignore": [
+    "bin/",
+    "*.test",
+    "coverage.out",
+    ".env"
+  ],
   "architecture": "go",
   "factors": {
     "performance": "alto: lenguaje compilado a código nativo con servidor HTTP en la biblioteca estándar",

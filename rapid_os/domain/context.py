@@ -1130,6 +1130,13 @@ _DATABASE_TOKEN_MAP = (
 
 _TOPOLOGY_TOKEN_MAP = (
     (
+        "backend-only",
+        re.compile(
+            r"(?:\bbackend-only\b|\bbackend only\b|\bfrontend:\s*none\b)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
         "front-end-only",
         re.compile(
             r"(?:\bfront-end-only\b|\bfrontend only\b|\bbackend:\s*none\b)",

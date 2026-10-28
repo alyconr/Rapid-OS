@@ -105,6 +105,49 @@ def architecture_document(stacks: Mapping[str, str]) -> dict:
     return document
 
 
+def architecture_standard(stacks: Mapping[str, str]) -> list[dict]:
+    """What `standards/architecture.md` will state, per component, before that file exists.
+
+    The architecture document is drafted during the onboarding and the standard is only written by
+    `rapid setup finish`, so the draft has to start from this, taken from the same catalog: the
+    modules folder, the public entry point, the layers and what each may import."""
+    standard: list[dict] = []
+    for component, stack_id, spec, root in rules_for(stacks):
+        prefix = f"{root}/" if root else ""
+        layers = spec.layers or BACKEND_LAYERS
+        modules_root = prefix + spec.modules_root
+        shared_root = prefix + spec.shared_root
+        rules = [
+            f"Cada módulo vive en {modules_root}/<módulo>/ con las capas: {', '.join(layers)}.",
+            *(
+                f"{layer} puede importar: {', '.join(allowed) if allowed else 'ninguna otra capa'}."
+                for layer, allowed in layers.items()
+            ),
+            f"Un módulo solo importa de otro su punto público ({spec.public_contract}), nunca una de sus capas.",
+            f"{shared_root} no importa ningún módulo.",
+        ]
+        if spec.forbidden:
+            rules.append(f"{spec.pure_layer} no importa: {', '.join(spec.forbidden)}.")
+        standard.append(
+            {
+                "component": component,
+                "stack": stack_id,
+                "root": root,
+                "modules_root": modules_root,
+                "shared_root": shared_root,
+                "module_pattern": spec.module_pattern,
+                "public_entry": spec.public_entry,
+                "public_contract": spec.public_contract,
+                "layers": [
+                    {"layer": layer, "dirs": list(spec.roles.get(layer, (layer,))), "may_import": list(allowed)}
+                    for layer, allowed in layers.items()
+                ],
+                "dependency_rules": rules,
+            }
+        )
+    return standard
+
+
 def default_config(stack_id: str) -> dict:
     """The machine-readable rule for one stack id (legacy ids included), or `{}`."""
     return architecture_document(stacks_of_legacy(stack_id))
