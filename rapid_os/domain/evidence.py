@@ -297,6 +297,8 @@ PAYLOAD_REQUIRED_KEYS: Mapping[EvidenceKind, frozenset[str]] = {
 PAYLOAD_OPTIONAL_KEYS: Mapping[EvidenceKind, frozenset[str]] = {
     EvidenceKind.COMMAND_RESULT: frozenset({"expectation"}),
     EvidenceKind.TEST_RESULT: frozenset({"expectation"}),
+    # Why a person rejected a gate: `rapid next` hands it to the agent that opens the new run.
+    EvidenceKind.REVIEW: frozenset({"reason"}),
 }
 
 
@@ -483,11 +485,17 @@ def validate_evidence_payload(
             error_cls=InvalidEvidencePayloadError,
             forbid_slashes=True,
         )
-        return {
+        review = {
             "review_type": raw_type.strip(),
             "outcome": raw_outcome.strip(),
             "reviewer": reviewer,
         }
+        if "reason" in payload:
+            raw_reason = payload["reason"]
+            if not isinstance(raw_reason, str) or not raw_reason.strip() or "\x00" in raw_reason:
+                raise InvalidEvidencePayloadError("review.reason must be a non-empty string without null bytes.")
+            review["reason"] = raw_reason.strip()
+        return review
 
     if coerced_kind == EvidenceKind.TOOL_INVOCATION:
         tool_id = _validate_portable_text(
@@ -545,6 +553,9 @@ def validate_evidence_payload(
 
 
 CANONICAL_EVIDENCE_ARTIFACT_KEYS = frozenset({"path", "sha256", "size_bytes"})
+# `source`: the project path the file was copied from. The stored name is short (`artifacts/E002/1.log`)
+# so a deep project root does not push the evidence past the 260 characters of a Windows path.
+OPTIONAL_EVIDENCE_ARTIFACT_KEYS = frozenset({"source"})
 
 
 def validate_evidence_artifact_path(
@@ -599,8 +610,17 @@ class EvidenceArtifact:
     path: str
     sha256: str
     size_bytes: int
+    source: str | None = None
 
     def __post_init__(self):
+        if self.source is not None:
+            object.__setattr__(
+                self,
+                "source",
+                validate_relative_posix_path(
+                    self.source, "EvidenceArtifact.source", error_cls=UnsafeEvidencePathError
+                ),
+            )
         object.__setattr__(
             self,
             "path",
@@ -625,11 +645,14 @@ class EvidenceArtifact:
             )
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        data: dict[str, object] = {
             "path": self.path,
             "sha256": self.sha256,
             "size_bytes": self.size_bytes,
         }
+        if self.source is not None:
+            data["source"] = self.source
+        return data
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, object]) -> "EvidenceArtifact":
@@ -637,7 +660,7 @@ class EvidenceArtifact:
             raise InvalidRunEvidenceError(
                 "EvidenceArtifact payload must be a JSON object."
             )
-        unknown = set(payload.keys()) - CANONICAL_EVIDENCE_ARTIFACT_KEYS
+        unknown = set(payload.keys()) - CANONICAL_EVIDENCE_ARTIFACT_KEYS - OPTIONAL_EVIDENCE_ARTIFACT_KEYS
         if unknown:
             raise InvalidRunEvidenceError(
                 f"Unexpected fields in EvidenceArtifact: {sorted(unknown)}."
@@ -651,6 +674,7 @@ class EvidenceArtifact:
             path=payload["path"],  # type: ignore[arg-type]
             sha256=payload["sha256"],  # type: ignore[arg-type]
             size_bytes=payload["size_bytes"],  # type: ignore[arg-type]
+            source=payload.get("source"),  # type: ignore[arg-type]
         )
 
 

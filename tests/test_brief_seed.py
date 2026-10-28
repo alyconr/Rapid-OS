@@ -215,6 +215,76 @@ class FinishStoryHintTests(unittest.TestCase):
         self.assertEqual(json.loads(as_json.stdout)["verdict"], "pass")
         self.assertIn("H002", as_json.stderr)
 
+    def test_after_a_finished_run_next_offers_the_next_open_story(self):
+        write_doc(self.root, "docs/PRODUCT_BRIEF.md", "brief", BRIEF_BODY)
+        self.run_to_the_end(["story:H002"])
+        finished = rapid(self.root, "finish")
+        self.assertEqual(finished.returncode, 0, finished.stderr)
+        self.assertIn("Rapid OS no hace commit: revisa los cambios y haz commit tú", finished.stdout)
+        # The session still points at the closed run, yet `next` moves on to the open story (H003).
+        action = json.loads(rapid(self.root, "next", "--json").stdout)
+        self.assertEqual(action["action"]["kind"], "author_spec")
+        self.assertEqual([story["id"] for story in action["action"]["seed"]["stories"]], ["H003"])
+        self.assertIn("ya terminó", action["notes"][0])
+
+    def test_with_every_story_done_next_still_says_done(self):
+        self.run_to_the_end(["story:H002"])  # no brief: nothing to offer
+        self.assertEqual(rapid(self.root, "finish").returncode, 0)
+        self.assertEqual(json.loads(rapid(self.root, "next", "--json").stdout)["action"]["kind"], "done")
+
+    def test_finish_json_keeps_the_no_commit_line_on_stderr(self):
+        self.run_to_the_end(["backend"])
+        as_json = rapid(self.root, "finish", "--json")
+        self.assertEqual(json.loads(as_json.stdout)["verdict"], "pass")
+        self.assertIn("Rapid OS no hace commit", as_json.stderr)
+
+    def test_setup_story_reopen_changes_only_that_line(self):
+        write_doc(self.root, "docs/PRODUCT_BRIEF.md", "brief", BRIEF_BODY)
+        self.run_to_the_end(["story:H002"])
+        self.assertEqual(rapid(self.root, "finish").returncode, 0)
+        brief = self.root / "docs" / "PRODUCT_BRIEF.md"
+        done = brief.read_text(encoding="utf-8")
+        self.assertIn("- [x] H002: Listar talleres", done)
+        reopened = rapid(self.root, "setup", "story", "h002", "--reopen")
+        self.assertEqual(reopened.returncode, 0, reopened.stderr)
+        self.assertIn("H002 reabierta", reopened.stdout)
+        text = brief.read_text(encoding="utf-8")
+        self.assertEqual(
+            # the frontmatter sha256 follows the body, as it does when `finish` ticks the line
+            [line for line in done.splitlines() if line not in text.splitlines() and not line.startswith("sha256:")],
+            ["- [x] H002: Listar talleres"],
+        )
+        self.assertIn("- [ ] H002: Listar talleres", text)
+        self.assertIn("- [x] H001: Crear taller", text)  # a done story that was not named stays done
+        self.assertIn("rapid-doc: brief", text)
+        self.assertIn("status: draft", text)  # a draft stays a draft
+        # Reopening twice is harmless; an unknown story and a missing flag are RAPID1413.
+        again = rapid(self.root, "setup", "story", "H002", "--reopen")
+        self.assertEqual(again.returncode, 0)
+        self.assertIn("ya estaba sin marcar", again.stdout)
+        unknown = rapid(self.root, "setup", "story", "H077", "--reopen")
+        self.assertEqual(unknown.returncode, 1)
+        self.assertIn("RAPID1413", unknown.stderr)
+        self.assertEqual(rapid(self.root, "setup", "story", "H002").returncode, 1)
+        # And the story is offered again.
+        next_action = json.loads(rapid(self.root, "next", "--json").stdout)["action"]
+        self.assertEqual([s["id"] for s in next_action["seed"]["stories"]], ["H002", "H003"])
+
+    def test_evidence_artifacts_are_stored_with_a_short_name_and_keep_their_source(self):
+        self.run_to_the_end(["backend"])
+        records = sorted((self.root / ".rapid-os" / "evidence").glob("*/records/E*.json"))
+        artifacts = [a for record in records for a in json.loads(record.read_text("utf-8"))["artifacts"]]
+        self.assertTrue(artifacts)
+        for artifact in artifacts:
+            parts = artifact["path"].split("/")
+            self.assertEqual(len(parts), 6, artifact["path"])  # .rapid-os/evidence/<run>/artifacts/<E>/<name>
+            self.assertRegex(parts[-1], r"^\d+\.log$")
+            self.assertRegex(artifact["source"], r"^\.rapid-os/scratch/checks/[^/]+/\d+\.log$")
+            self.assertTrue((self.root / artifact["path"]).is_file())
+        evidence_dir = self.root / ".rapid-os" / "evidence"
+        longest = max(len(path.relative_to(self.root).as_posix()) for path in evidence_dir.rglob("*") if path.is_file())
+        self.assertLess(longest, 120)  # it was ~191 characters with the source path copied inside
+
     def test_a_spec_without_a_story_tag_gets_no_hint(self):
         self.run_to_the_end(["backend"])
         finished = rapid(self.root, "finish")

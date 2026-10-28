@@ -1,6 +1,7 @@
 import hashlib
 import json
 import re
+import unicodedata
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -251,8 +252,11 @@ def derive_spec_id(title: str) -> str:
         raise DuplicateSpecIdentityError(
             "Cannot derive spec ID from an invalid title."
         )
-    lowered = title.strip().lower()
-    slug = SPEC_SLUG_TOKEN_RE.sub("-", lowered).strip("-")
+    # `teléfono` is `telefono`, not `tel-fono`: accents and `ñ` lose their mark before the slug is cut.
+    plain = "".join(
+        char for char in unicodedata.normalize("NFKD", title.strip().lower()) if not unicodedata.combining(char)
+    )
+    slug = SPEC_SLUG_TOKEN_RE.sub("-", plain).strip("-")
     if len(slug) > 63:
         slug = slug[:63].rstrip("-")
     if not slug:

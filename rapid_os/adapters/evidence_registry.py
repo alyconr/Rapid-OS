@@ -106,6 +106,21 @@ def resolve_evidence_root_dir(
     return root, contained_rapid, evidence_dir
 
 
+def _short_artifact_names(sources: list[str]) -> list[str]:
+    """The name each artifact is stored under: its file name, `N-name` when two share it.
+
+    The source path is kept in the record (`source`), not in the stored path: copying
+    `.rapid-os/scratch/checks/<run>/1.log` under `artifacts/E002/` added ~190 characters to the
+    project root and passed the 260 of a Windows path."""
+    names: list[str] = []
+    for index, source in enumerate(sources, start=1):
+        name = source.rsplit("/", 1)[-1]
+        if name in names:
+            name = f"{index}-{name}"
+        names.append(name)
+    return names
+
+
 class EvidenceRegistry:
     """Append-only filesystem Evidence Registry under `.rapid-os/evidence/<run-id>/`."""
 
@@ -827,6 +842,7 @@ class EvidenceRegistry:
         evidence_id: str,
         rel_posix: str,
         content_bytes: bytes,
+        source: str | None = None,
     ) -> EvidenceArtifact:
         run_ev_dir = self._resolve_run_evidence_dir(run_id)
         ev_art_dir = self._resolve_evidence_artifact_dir(run_ev_dir, evidence_id)
@@ -880,6 +896,7 @@ class EvidenceRegistry:
             path=canonical_rel_path,
             sha256=sha256_bytes(content_bytes),
             size_bytes=len(content_bytes),
+            source=source,
         )
 
     def _write_record_file(
@@ -989,13 +1006,15 @@ class EvidenceRegistry:
             seen_rel_paths.add(rel_posix)
             prepared_artifacts.append((rel_posix, raw_bytes))
 
+        stored_names = _short_artifact_names([rel for rel, _data in prepared_artifacts])
         provisional_artifacts = tuple(
             EvidenceArtifact(
-                path=f".rapid-os/evidence/{record.id}/artifacts/{evidence_id}/{rel_pos}",
+                path=f".rapid-os/evidence/{record.id}/artifacts/{evidence_id}/{stored}",
                 sha256=sha256_bytes(data_bytes),
                 size_bytes=len(data_bytes),
+                source=rel_pos,
             )
-            for rel_pos, data_bytes in prepared_artifacts
+            for stored, (rel_pos, data_bytes) in zip(stored_names, prepared_artifacts)
         )
 
         provisional_evidence = RunEvidence(
@@ -1032,13 +1051,14 @@ class EvidenceRegistry:
         written_artifacts: list[EvidenceArtifact] = []
         if prepared_artifacts:
             ev_art_dir.mkdir(parents=True, exist_ok=False)
-            for rel_pos, data_bytes in prepared_artifacts:
+            for stored, (rel_pos, data_bytes) in zip(stored_names, prepared_artifacts):
                 written_artifacts.append(
                     self._write_artifact_file(
                         record.id,
                         evidence_id,
-                        rel_pos,
+                        stored,
                         data_bytes,
+                        source=rel_pos,
                     )
                 )
 
