@@ -46,9 +46,10 @@ from rapid_os.domain.execution import (
     enforce_gate_transition_preconditions,
     validate_gate_transition,
 )
-from rapid_os.domain.policy import ExecutionError
+from rapid_os.domain.policy import ARCHITECTURE_GATE_ID, ExecutionError
 from rapid_os.domain.scanner import build_project_model
 from rapid_os.orchestration.actions import ActionKind, NextAction
+from rapid_os.orchestration.architecture_rule import final_architecture_failure
 from rapid_os.orchestration.check import run_check
 from rapid_os.orchestration.conductor import (
     HUMAN_GATE_KINDS,
@@ -810,7 +811,14 @@ def execute_finish(
     if action.kind != ActionKind.FINISH:
         return 0, _decorate_action(action, sess)
 
-    # 3.d Transition to finished and evaluate
+    # 3.d The architecture gate may have passed earlier and a violation been added since: it is
+    # judged again on the final state, and a failure leaves the run open with no verdict.
+    if any(gate.id == ARCHITECTURE_GATE_ID for gate in contract.gates):
+        failure = final_architecture_failure(diff_cwd, project_rapid_dir)
+        if failure:
+            return 1, failure
+
+    # 3.e Transition to finished and evaluate
     finished_state = run_reg.transition_status(
         run_id,
         RunStatus.FINISHED,

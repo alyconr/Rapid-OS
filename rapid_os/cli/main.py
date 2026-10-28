@@ -3626,6 +3626,7 @@ def arch_command(args):
         reports.append((config, check_architecture(config, collect_sources(CURRENT_DIR, config))))
     violations = [v for _c, r in reports for v in r.violations]
     skipped = [line for _c, r in reports for line in r.skipped]
+    warnings = [line for _c, r in reports for line in r.warnings]
     delegate_failed = [(c, d) for c, d in delegated if not d.ok]
     ok = not violations and not delegate_failed
     checked = sum(r.checked_files for _c, r in reports)
@@ -3639,6 +3640,7 @@ def arch_command(args):
             "checked_files": checked,
             "violations": [v.to_dict() for v in violations],
             "skipped": skipped,
+            "warnings": warnings,
         }
         if delegated:
             payload["delegated"] = [
@@ -3650,7 +3652,7 @@ def arch_command(args):
             ]
         print(json.dumps(payload, indent=2, ensure_ascii=False))
     else:
-        for line in skipped:
+        for line in skipped + warnings:
             print(f"WARNING {line}")
         for violation in violations:
             print(violation.to_line())

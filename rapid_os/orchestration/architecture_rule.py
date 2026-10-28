@@ -19,6 +19,7 @@ from rapid_os.orchestration.git import run_git
 from rapid_os.orchestration.session import load_session
 
 RUN_DEMANDS_RULE_MESSAGE = "RAPID1420 el run exige gate.architecture y no hay architecture.json"
+FINAL_CHECK_CODE = "RAPID1422"
 
 
 @dataclass(frozen=True)
@@ -73,3 +74,38 @@ def resolve_architecture_rule(current_dir: Path, project_rapid_dir: Path) -> Arc
         if candidate is not None and config_path(candidate).is_file():
             return ArchitectureRule(tuple(load_config(candidate) or ()), config_path(candidate), demands)
     return ArchitectureRule((), None, demands)
+
+
+def final_architecture_failure(current_dir: Path, project_rapid_dir: Path) -> str | None:
+    """Runs the architecture check again over the code as it is now; None when it holds.
+
+    `rapid finish` calls it before the verdict: `gate.architecture` may have passed earlier in the
+    run and a violation been added afterwards. The message lists every violation (RAPID1422)."""
+    # Late imports: the check itself is a use case of its own and this module is imported by the CLI.
+    from rapid_os.adapters.architecture_files import collect_sources
+    from rapid_os.domain.architecture import ArchitectureConfigError, check_architecture
+    from rapid_os.orchestration.arch_delegate import run_delegate
+
+    try:
+        rule = resolve_architecture_rule(current_dir, project_rapid_dir)
+    except ArchitectureConfigError as exc:
+        return f"{FINAL_CHECK_CODE} rapid finish no da PASS: {exc}"
+    if not rule.configs:
+        return f"{FINAL_CHECK_CODE} rapid finish no da PASS: {RUN_DEMANDS_RULE_MESSAGE}"
+    lines: list[str] = []
+    for config in rule.configs:
+        if config.delegate:
+            result = run_delegate(config.delegate, current_dir)
+            if not result.ok:
+                lines.append(result.output or f"{config.delegate} no pasó")
+            continue
+        report = check_architecture(config, collect_sources(current_dir, config))
+        lines.extend(violation.to_line() for violation in report.violations)
+    if not lines:
+        return None
+    return (
+        f"{FINAL_CHECK_CODE} rapid finish no da PASS: gate.architecture falla sobre el estado final del run "
+        f"({len(lines)} problema(s)); el run sigue abierto.\n"
+        + "\n".join(lines)
+        + "\nCorrige las violaciones y vuelve a ejecutar `rapid finish`."
+    )
