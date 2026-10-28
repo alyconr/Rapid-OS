@@ -18,7 +18,8 @@ from rapid_os.core.paths import resolve_paths
 from rapid_os.domain.validation import validate_project
 
 VERSION = "3.1.1"  # latest stable release: installers, README, release notes
-PACKAGE_VERSION = "3.2.0.dev0"  # rapid_os.__version__ on main (development)
+PACKAGE_VERSION = "3.2.0rc1"  # rapid_os.__version__ on the release candidate
+INSTALLER_TAG = "v3.2.0-rc.1"  # tag the installers pin; README and docs keep the stable VERSION until the final release
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -671,13 +672,18 @@ class V3ReleaseReadinessTests(unittest.TestCase):
         install_sh = (REPO_ROOT / "install.sh").read_text(encoding="utf-8")
         install_ps1 = (REPO_ROOT / "install.ps1").read_text(encoding="utf-8")
 
-        self.assertIn(f'RAPID_VERSION="v{VERSION}"', install_sh)
+        self.assertIn(f'RAPID_VERSION="{INSTALLER_TAG}"', install_sh)
         self.assertIn('checkout --detach "$RAPID_VERSION"', install_sh)
         self.assertNotIn("origin main", install_sh)
 
-        self.assertIn(f'$RapidVersion = "v{VERSION}"', install_ps1)
+        self.assertIn(f'$RapidVersion = "{INSTALLER_TAG}"', install_ps1)
         self.assertIn("checkout --detach $RapidVersion", install_ps1)
         self.assertNotIn("origin main", install_ps1)
+
+        # A release-candidate tag must not be announced as a stable release; the label comes from the tag.
+        for script in (install_sh, install_ps1):
+            self.assertIn("release candidate", script)
+            self.assertNotIn("(stable release)", script)
 
         # 4. README and getting-started distinguish stable vs development main
         readme_text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")

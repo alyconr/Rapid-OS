@@ -82,19 +82,19 @@ jobs:
         run: |
           python -m pip install --upgrade pip build
           python -m build
-          test -f dist/rapid_os-3.2.0.dev0-py3-none-any.whl
-          test -f dist/rapid_os-3.2.0.dev0.tar.gz
+          test -f dist/rapid_os-3.2.0rc1-py3-none-any.whl
+          test -f dist/rapid_os-3.2.0rc1.tar.gz
 
       - name: Verify clean wheel and sdist installation outside checkout
         run: |
           python -m venv /tmp/rapid-wheel-env
-          /tmp/rapid-wheel-env/bin/pip install "$GITHUB_WORKSPACE/dist/rapid_os-3.2.0.dev0-py3-none-any.whl"
+          /tmp/rapid-wheel-env/bin/pip install "$GITHUB_WORKSPACE/dist/rapid_os-3.2.0rc1-py3-none-any.whl"
           mkdir -p /tmp/rapid-clean-project/src /tmp/rapid-clean-project/.rapid-os/standards
           printf 'print("ok")\n' > /tmp/rapid-clean-project/src/app.py
           printf '# Tech Stack\nPython 3.12\n' > /tmp/rapid-clean-project/.rapid-os/standards/tech-stack.md
           printf '# Topology\nModular service\n' > /tmp/rapid-clean-project/.rapid-os/standards/topology.md
           cd /tmp/rapid-clean-project
-          test "$(/tmp/rapid-wheel-env/bin/rapid --version)" = "Rapid OS 3.2.0.dev0"
+          test "$(/tmp/rapid-wheel-env/bin/rapid --version)" = "Rapid OS 3.2.0rc1"
           /tmp/rapid-wheel-env/bin/rapid --help > /dev/null
           /tmp/rapid-wheel-env/bin/rapid guide > /dev/null
           /tmp/rapid-wheel-env/bin/rapid doctor
@@ -102,5 +102,5 @@ jobs:
           python -m json.tool /tmp/wheel-scan.json > /dev/null
           /tmp/rapid-wheel-env/bin/rapid validate
           python -m venv /tmp/rapid-sdist-env
-          /tmp/rapid-sdist-env/bin/pip install "$GITHUB_WORKSPACE/dist/rapid_os-3.2.0.dev0.tar.gz"
-          test "$(/tmp/rapid-sdist-env/bin/rapid --version)" = "Rapid OS 3.2.0.dev0"
+          /tmp/rapid-sdist-env/bin/pip install "$GITHUB_WORKSPACE/dist/rapid_os-3.2.0rc1.tar.gz"
+          test "$(/tmp/rapid-sdist-env/bin/rapid --version)" = "Rapid OS 3.2.0rc1"

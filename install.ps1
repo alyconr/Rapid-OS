@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $RepoUrl = "https://github.com/alyconr/Rapid-OS.git"
-$RapidVersion = "v3.1.1"
+$RapidVersion = "v3.2.0-rc.1"
 $InstallDir = Join-Path $HOME ".rapid-os"
 $VenvDir = Join-Path $InstallDir ".venv"
 $BinDir = Join-Path $InstallDir "bin"
@@ -12,7 +12,8 @@ function Assert-LastExit([string]$What) {
     }
 }
 
-Write-Host "🚀 Installing Rapid OS $RapidVersion (stable release) for Windows..." -ForegroundColor Cyan
+$ReleaseKind = if ($RapidVersion -like "*-rc*") { "release candidate" } else { "stable release" }
+Write-Host "🚀 Installing Rapid OS $RapidVersion ($ReleaseKind) for Windows..." -ForegroundColor Cyan
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     Write-Error "Git is not installed. Please install Git first."
