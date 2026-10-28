@@ -8,6 +8,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+---
+
+## [3.2.0rc1] - 2026-10-28 (pre-release)
+
+Release candidate for 3.2.0 (git tag `v3.2.0-rc.1`, PEP 440 version `3.2.0rc1`). The latest stable release is still `v3.1.1`: the README and the installation docs keep documenting it until the final 3.2.0 release, while the installers pin the release candidate tag. The installer start message says "release candidate" when the tag contains `-rc`.
+
+### What enters 3.2
+- Setup and onboarding: `rapid setup` conductor and user-level `/rapid-init`.
+- Per-component stack catalog and topologies.
+- Infrastructure services with `compose.yaml`.
+- Security baseline and security CI.
+- Modular monolith with `rapid arch check`.
+- `review_drafts` and `rapid setup doc <id> --confirm`.
+- Seed stories.
+- T001 scaffold task in an empty repository.
+- `rapid deploy`.
+- `rapid shortcuts install --global`.
+
+### Known issues
+- H-04: `--confirm` leaves a `.bak` copy.
+- H-07: there is no API-only topology.
+- H-09: `--global` does not install the hooks.
+- H-10: messages mix Spanish and English.
+
+The detail of each change is listed below, under the former `[Unreleased]` heading.
+
+### Detailed changes
+
 ### Added
 - Per-component stack catalog: `templates/stacks/<component>/<id>.json` and `.md`. Backend: `python-fastapi`, `python-django`, `node-nestjs`, `node-fastify`, `go`, `rust-axum`, `ruby-rails`, `dotnet-aspnetcore`, `java-spring-boot`, `kotlin-spring-boot` and `php-laravel`. Frontend: `react-vite`, `nextjs`, `angular`, `vue-vite`, `nuxt`, `svelte-vite`, `sveltekit` and `astro`. Each entry carries the eleven qualitative `factors` (performance, memory, cold start, concurrency, typing, productivity, learning curve, maintainability, ecosystem maturity, job market and hosting), each with its official `sources`, plus `fits`, `avoid_if`, `default_test_command`, `package_manager` and `supported_services` (service engines with their driver). An incomplete entry is `RAPID1401`. Page `docs/concepts/stacks.md`.
 - Topologies declare their `components` (`front-end-only`: `frontend`; `fullstack-separated`: `frontend` and `backend`; `fullstack-baas`: `frontend` and `baas`; `doc-site`: `docs`) and `SetupState.stacks` stores one stack per component. `choose_stack` is emitted per component (with `factors`, `factor_sources`, `questions` and the `instruction` on how to recommend) and `rapid setup set stack <id> [--component frontend|backend]` fills one or, if the framework covers several (`nextjs`, `nuxt`, `sveltekit`, `ruby-rails`, `python-django`, `php-laravel`), all of them. The questions in `stack-questions.json` are now: team languages, load and latency, infrastructure budget, real time, compute-intensive or AI/ML, maintenance horizon and organizational constraints.

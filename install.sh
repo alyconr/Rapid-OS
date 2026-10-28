@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_URL="https://github.com/alyconr/Rapid-OS.git"
-RAPID_VERSION="v3.1.1"
+RAPID_VERSION="v3.2.0-rc.1"
 INSTALL_DIR="$HOME/.rapid-os"
 VENV_DIR="$INSTALL_DIR/.venv"
 BIN_DIR="$HOME/.local/bin"
@@ -24,7 +24,12 @@ if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)';
     exit 1
 fi
 
-echo "🚀 Installing Rapid OS ${RAPID_VERSION} (stable release)..."
+case "$RAPID_VERSION" in
+    *-rc*) RELEASE_KIND="release candidate" ;;
+    *) RELEASE_KIND="stable release" ;;
+esac
+
+echo "🚀 Installing Rapid OS ${RAPID_VERSION} (${RELEASE_KIND})..."
 
 if [ -d "$INSTALL_DIR/.git" ]; then
     echo "🔄 Fetching tags and checking out Rapid OS ${RAPID_VERSION} in $INSTALL_DIR..."
