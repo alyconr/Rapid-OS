@@ -28,6 +28,28 @@
     "vitest",
     "run"
   ],
+  "test_commands": {
+    "root": [
+      "pnpm",
+      "exec",
+      "vitest",
+      "run"
+    ],
+    "subdir": [
+      "pnpm",
+      "--dir",
+      "{root}",
+      "exec",
+      "vitest",
+      "run"
+    ]
+  },
+  "gitignore": [
+    "node_modules/",
+    ".svelte-kit/",
+    "build/",
+    ".env"
+  ],
   "architecture": "sveltekit",
   "factors": {
     "performance": "alto: Svelte compila a JavaScript ajustado y SvelteKit carga solo el código mínimo necesario",

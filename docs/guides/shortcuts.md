@@ -52,7 +52,7 @@ rapid shortcuts remove --harness codex                  # removes only what was 
 
 ### User-level installation (`--global`)
 
-`rapid shortcuts install --global --harness <id> [--only rapid-init]` writes the shortcuts to the skills folder of **your user** (under your home folder), so `/rapid-init` works in any project without installing it in each one. It needs `--harness` (it does not read any project's config), does not accept `--hooks`, and `list` and `remove` accept the same `--global`. It is only available where the harness's official documentation gives the folder:
+`rapid shortcuts install --global --harness <id> [--only rapid-init]` writes the shortcuts to the skills folder of **your user** (under your home folder), so `/rapid-init` works in any project without installing it in each one. It needs `--harness` (it does not read any project's config), and `list` and `remove` accept the same `--global`. `--hooks` (Claude Code) is accepted only inside a project: it installs the skills for the user and the hooks in the project's `.claude/settings.json`, without copying the skills there; outside a project it is `RAPID1413`. It is only available where the harness's official documentation gives the folder:
 
 | Harness | User folder | Source |
 | :--- | :--- | :--- |
@@ -62,7 +62,7 @@ rapid shortcuts remove --harness codex                  # removes only what was 
 | `antigravity` | `~/.gemini/config/skills/<name>/SKILL.md` (Antigravity App and IDE; the Antigravity CLI reads `~/.gemini/antigravity-cli/skills/`, which `--global` does not write) | [Antigravity skills](https://antigravity.google/docs/skills) |
 | `vscode` | **Not supported**: the prompt files documentation only says "Your user data (specific to your VS Code profile)", with no path. | [VS Code prompt files](https://code.visualstudio.com/docs/copilot/customization/prompt-files) |
 
-Requesting `--global` for `vscode` (alone or together with others) gives `RAPID1413` and writes nothing. `install.sh` and `install.ps1` offer this step at the end (only if there is an interactive terminal, and never by default).
+Requesting `--global` for `vscode` (alone or together with others) gives `RAPID1413` and writes nothing. `rapid setup finish` does the project half by itself when `claude` is among the agents: it installs the hooks in the project and no skills, so each `/rapid-*` shows once. If the same `/rapid-*` ends up both in your user folder and in the project, `rapid shortcuts install` and `rapid doctor` warn with `RAPID1321` and say which side to remove (`rapid shortcuts remove --harness claude` or `rapid shortcuts remove --global --harness claude`). `install.sh` and `install.ps1` offer this step at the end (only if there is an interactive terminal, and never by default).
 
 ### Reinstall after updating Rapid OS
 
@@ -193,11 +193,11 @@ The full catalog of codes is in [diagnostics](../troubleshooting/diagnostics.md)
 | `RAPID1308` | There is already an unfinished active run. | Continue with `/rapid-next`, or cancel it yourself with `rapid abort` in your terminal. |
 | `RAPID1310` | `rapid approve` without a TTY, from Claude Code's `!` mode or with `claude` as an ancestor. | Run it in your own terminal (section 5). |
 | `RAPID1312` | No harness selected to install. | `--harness <id>` or `rapid init --agents <list>`. |
-| `RAPID1413` | `--global` for a harness with no documented user folder (`vscode`), without `--harness` or with `--hooks`; or an `--only` with a nonexistent shortcut. Nothing is written. | Install in the project (without `--global`), or pass `--harness` and a name from the table in section 3. |
+| `RAPID1413` | `--global` for a harness with no documented user folder (`vscode`), without `--harness` or with `--hooks` outside a project; or an `--only` with a nonexistent shortcut. Nothing is written. | Install in the project (without `--global`), or pass `--harness` and a name from the table in section 3. |
 | `RAPID1414` | Warning: `rapid` is not on the `PATH` and shortcuts or hooks are installed. | Install Rapid OS with the installer or with `pipx install git+https://github.com/alyconr/Rapid-OS.git`. |
 | `RAPID1315` | A mode shortcut was skipped because that mode has no playbook. | Informational; run `rapid shortcuts install` again once it exists. |
 | `RAPID1320` | `rapid check --expect fail` without a task (or tied to a gate). | Pass `--task T001` or leave exactly one task in progress. |
-| `RAPID1321` | Warning: the selection leaves the same `/rapid-*` in two folders that Cursor or VS Code read. | Install only the combination recommended in the warning (see "If you combine harnesses"); it blocks nothing. |
+| `RAPID1321` | Warning: the selection leaves the same `/rapid-*` in two folders that Cursor or VS Code read, or a `/rapid-*` is installed both for the user and in the project. | Install only the combination recommended in the warning (see "If you combine harnesses"); it blocks nothing. |
 | `RAPID1337` | `--hooks` without the `claude` harness. | Select `--harness claude` or remove `--hooks`. |
 | `RAPID1339` | `rapid doctor`: hooks are installed but `rapid` is not on the `PATH`. | Install Rapid OS where Claude Code can see it or add its scripts directory to the `PATH`. |
 

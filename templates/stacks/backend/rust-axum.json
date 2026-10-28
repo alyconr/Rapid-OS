@@ -25,6 +25,22 @@
     "cargo",
     "test"
   ],
+  "test_commands": {
+    "root": [
+      "cargo",
+      "test"
+    ],
+    "subdir": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "{root}/Cargo.toml"
+    ]
+  },
+  "gitignore": [
+    "target/",
+    ".env"
+  ],
   "architecture": "rust-axum",
   "factors": {
     "performance": "alto: compilado a código nativo, sin recolector de basura",

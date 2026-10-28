@@ -25,6 +25,25 @@
     "./gradlew",
     "test"
   ],
+  "test_commands": {
+    "root": [
+      "./gradlew",
+      "test"
+    ],
+    "subdir": [
+      "./gradlew",
+      "-p",
+      "{root}",
+      "test"
+    ]
+  },
+  "gitignore": [
+    "build/",
+    ".gradle/",
+    ".idea/",
+    "*.iml",
+    ".env"
+  ],
   "architecture": "kotlin-spring-boot",
   "factors": {
     "performance": "alto en estado estable: JVM con optimización en ejecución",

@@ -1,5 +1,5 @@
 # 🐍 TECH STACK: PYTHON DJANGO
-- **Runtime:** Python 3.14.
+- **Runtime:** Python {python_version}.
 - **Framework:** Django 5.2 LTS (or 6.2 LTS once released).
 - **Validation:** Django forms / serializers.
 - **ORM:** Django ORM (migrations with `manage.py makemigrations`).

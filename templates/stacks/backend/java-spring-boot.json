@@ -25,6 +25,24 @@
     "./mvnw",
     "test"
   ],
+  "test_commands": {
+    "root": [
+      "./mvnw",
+      "test"
+    ],
+    "subdir": [
+      "./mvnw",
+      "-f",
+      "{root}/pom.xml",
+      "test"
+    ]
+  },
+  "gitignore": [
+    "target/",
+    ".idea/",
+    "*.iml",
+    ".env"
+  ],
   "architecture": "java-spring-boot",
   "factors": {
     "performance": "alto en estado estable: JVM con optimización en ejecución",

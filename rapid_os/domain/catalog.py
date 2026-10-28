@@ -60,6 +60,12 @@ class StackEntry:
     factors: dict[str, str] = field(default_factory=dict)
     factor_sources: dict[str, tuple[str, ...]] = field(default_factory=dict)
     default_test_command: tuple[str, ...] = ()
+    # The test command by place: at the project root, and when the component lives in `<root>/`
+    # (`{root}` is the folder). Empty: `default_test_command` serves for the root.
+    test_command_root: tuple[str, ...] = ()
+    test_command_subdir: tuple[str, ...] = ()
+    # What the stack generates or installs and the repository should not track (`node_modules/`, `.next/`...).
+    gitignore: tuple[str, ...] = ()
     package_manager: str = ""
     # engine -> {"driver": ..., "url": ...}; None means every engine of the catalog.
     supported_services: dict[str, dict[str, str]] | None = None
@@ -67,6 +73,12 @@ class StackEntry:
     architecture: str = ""
     # Directory of the Markdown template below `templates/stacks`.
     template: str = ""
+
+    def test_command(self, root: str = "") -> list[str]:
+        """The test command for this stack, run from the project root: `root` is the component's folder."""
+        if root and self.test_command_subdir:
+            return [token.replace("{root}", root) for token in self.test_command_subdir]
+        return list(self.test_command_root or self.default_test_command)
 
     @property
     def monolith(self) -> bool:
@@ -241,6 +253,7 @@ def _text_list(path: Path, data: dict, field: str, *, non_empty: bool = False) -
 
 
 DEFAULT_TOPOLOGY_COMPONENTS = {
+    "backend-only": ("backend",),
     "front-end-only": ("frontend",),
     "fullstack-separated": ("frontend", "backend"),
     "fullstack-baas": ("frontend", "baas"),
@@ -354,6 +367,17 @@ def _load_component_stack(
         raise _fail(path, "field 'sources' must give the sources of every factor.")
     sources = {key: _url_list(path, raw_sources[key], f"sources.{key}") for key in FACTOR_KEYS}
     command = _text_list(path, data, "default_test_command", non_empty=True)
+    gitignore = _text_list(path, data, "gitignore") if "gitignore" in data else ()
+    test_commands = data.get("test_commands")
+    command_root: tuple[str, ...] = ()
+    command_subdir: tuple[str, ...] = ()
+    if test_commands is not None:
+        if not isinstance(test_commands, dict) or set(test_commands) != {"root", "subdir"}:
+            raise _fail(path, "field 'test_commands' must have exactly: root, subdir.")
+        command_root = _text_list(path, test_commands, "root", non_empty=True)
+        command_subdir = _text_list(path, test_commands, "subdir", non_empty=True)
+        if not any("{root}" in token for token in command_subdir):
+            raise _fail(path, "test_commands.subdir must name the component folder with {root}.")
     supported = data.get("supported_services")
     if not isinstance(supported, dict) or not all(
         isinstance(engine, str)
@@ -392,6 +416,9 @@ def _load_component_stack(
         factors=factors,
         factor_sources=sources,
         default_test_command=tuple(command),
+        test_command_root=tuple(command_root),
+        test_command_subdir=tuple(command_subdir),
+        gitignore=tuple(gitignore),
         package_manager=_text(path, data, "package_manager"),
         supported_services={engine: dict(item) for engine, item in supported.items()},
         architecture=_text(path, data, "architecture"),

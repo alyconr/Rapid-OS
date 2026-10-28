@@ -11,6 +11,7 @@ Each topology component selects its technology from a broad catalog. The agent m
 
 | Topology | Components | What is selected |
 |---|---|---|
+| `backend-only` | `backend` | One backend stack; no frontend and no `backend/` folder (an API or a service consumed by other systems) |
 | `front-end-only` | `frontend` | One frontend stack |
 | `fullstack-separated` | `frontend`, `backend` | One stack for each |
 | `fullstack-baas` | `frontend`, `baas` | Frontend stack only; the catalog has no stack for a backend-as-a-service |

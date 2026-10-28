@@ -25,6 +25,28 @@
     "vitest",
     "run"
   ],
+  "test_commands": {
+    "root": [
+      "pnpm",
+      "exec",
+      "vitest",
+      "run"
+    ],
+    "subdir": [
+      "pnpm",
+      "--dir",
+      "{root}",
+      "exec",
+      "vitest",
+      "run"
+    ]
+  },
+  "gitignore": [
+    "node_modules/",
+    "dist/",
+    ".astro/",
+    ".env"
+  ],
   "architecture": "astro",
   "factors": {
     "performance": "alto en contenido: cero JavaScript por defecto y páginas prerenderizadas en la compilación",

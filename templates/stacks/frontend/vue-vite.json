@@ -25,6 +25,28 @@
     "vitest",
     "run"
   ],
+  "test_commands": {
+    "root": [
+      "pnpm",
+      "exec",
+      "vitest",
+      "run"
+    ],
+    "subdir": [
+      "pnpm",
+      "--dir",
+      "{root}",
+      "exec",
+      "vitest",
+      "run"
+    ]
+  },
+  "gitignore": [
+    "node_modules/",
+    "dist/",
+    "coverage/",
+    ".env"
+  ],
   "architecture": "vue-vite",
   "factors": {
     "performance": "medio a alto: aplicación de una sola página con Vite; SSR y SSG son opcionales",

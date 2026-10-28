@@ -1968,6 +1968,11 @@ def validate_project_standards(project_rapid_dir: Path):
 
     for filename in OPTIONAL_STANDARD_FILES:
         path = standards_dir / filename
+        # The business rules live in docs/BUSINESS_RULES.md once the onboarding wrote them there.
+        if filename == "business.md" and (standards_dir.parent.parent / "docs" / "BUSINESS_RULES.md").is_file():
+            if path.exists():
+                diagnostics.extend(_validate_markdown_context_file(path, required=False))
+            continue
         if not path.exists():
             diagnostics.append(
                 Diagnostic(
@@ -2447,6 +2452,8 @@ def infer_topology(content: str):
     normalized = content.lower()
     if "documentation site" in normalized or "docusaurus.config" in normalized:
         return "doc-site"
+    if "backend only" in normalized or "frontend:** none" in normalized:
+        return "backend-only"
     if "frontend only" in normalized or "backend:** none" in normalized:
         return "front-end-only"
     if "serverless" in normalized or "baas" in normalized:

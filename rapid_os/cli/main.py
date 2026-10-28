@@ -552,7 +552,12 @@ def init_project(args):
     topologies_path = TEMPLATES_DIR / "topologies"
     if not topologies_path.exists():
         topologies_path.mkdir(parents=True, exist_ok=True)
-    topos = sorted([f.stem for f in topologies_path.glob("*.md")])
+    # The numbered menu keeps its historical order (option 1 is doc-site); later topologies follow it.
+    menu_order = ("doc-site", "front-end-only", "fullstack-baas", "fullstack-separated")
+    topos = sorted(
+        (f.stem for f in topologies_path.glob("*.md")),
+        key=lambda name: (menu_order.index(name) if name in menu_order else len(menu_order), name),
+    )
     topo_name = None
     explicit_topology = getattr(args, "topology", None)
 
@@ -1291,7 +1296,7 @@ def doctor_command(args):
         loaded_cfg = _load_config_with_warning(CONFIG_FILE)
         def_harness = loaded_cfg.get("default_harness")
         t_cmd = loaded_cfg.get("test_command")
-        harness_str = def_harness if def_harness else "(not set; fallback: cursor)"
+        harness_str = def_harness if def_harness else f"(not set) {_harness_resolution_text(loaded_cfg)}"
         test_cmd_str = json.dumps(t_cmd) if t_cmd else "(not set)"
         diagnostics.append(
             Diagnostic(INFO, "RAPID908", f"Default harness: {harness_str}", CONFIG_FILE)
@@ -1357,6 +1362,12 @@ def doctor_command(args):
                 hint="Install Rapid OS where Claude Code can find it (for example 'pipx install git+https://github.com/alyconr/Rapid-OS.git') or add its scripts directory to PATH.",
             )
         )
+
+    if not not_a_project:
+        from rapid_os.adapters.shortcut_installer import detect_scope_duplicates
+
+        for duplicate in detect_scope_duplicates(Path.home(), CURRENT_DIR, DEFAULT_AGENT_REGISTRY.ids(), TEMPLATES_DIR):
+            diagnostics.append(Diagnostic(WARNING, "RAPID1321", duplicate.message.removeprefix("RAPID1321 ")))
 
     if shutil.which("rapid") is None and _agent_shortcuts_or_hooks_installed():
         diagnostics.append(
@@ -3685,6 +3696,24 @@ def arch_command(args):
     return 0 if ok else 1
 
 
+def _doc_summary(doc_id, doc):
+    """`brief=drafted (draft)`: a drafted document says whether a person confirmed it."""
+    if doc["status"] != "drafted":
+        return f"{doc_id}={doc['status']}"
+    return f"{doc_id}=drafted ({'confirmed' if doc['confirmed'] else 'draft'})"
+
+
+def _harness_resolution_text(loaded_cfg):
+    """How the harness is resolved for this project, so `doctor` explains it instead of guessing."""
+    tools = loaded_cfg.get("tools") or []
+    chosen = f"Agents chosen in 'tools': {', '.join(tools)}. " if tools else ""
+    return (
+        f"{chosen}The harness of a command is resolved in this order: --harness, RAPID_HARNESS, the Claude Code "
+        "marker (CLAUDE_CODE_CHILD_SESSION), default_harness, a single entry in 'tools'; only when none applies "
+        "does it fall back to cursor"
+    )
+
+
 def _setup_story_command(args):
     """`rapid setup story <ID> --reopen`: untick one story of the brief, the inverse of what `finish` does."""
     from rapid_os.orchestration import setup_apply as apply
@@ -3768,7 +3797,7 @@ def setup_command(args):
             print(json.dumps({"origin": snapshot.origin, "state": state}, indent=2))
             return 0
         stack = ", ".join(f"{c}={choice['id']}" for c, choice in state["stacks"].items()) or "-"
-        docs = ", ".join(f"{k}={v['status']}" for k, v in state["docs"].items()) or "-"
+        docs = ", ".join(_doc_summary(k, v) for k, v in state["docs"].items()) or "-"
         test_command = " ".join(state["test_command"]) if state["test_command"] else "-"
         print(f"Setup state ({snapshot.origin}): finished={str(state['finished']).lower()}")
         print(f"Stack: {stack}  Topology: {state['topology'] or '-'}  Archetype: {state['archetype'] or '-'}")
@@ -3802,6 +3831,25 @@ def setup_command(args):
                 added_files.append({"file": name, "note": LOCAL_SERVICES_NOTE})
                 print(f"{LOCAL_SERVICES_NOTE}: {name}")
 
+    def install_claude_hooks(final_state):
+        """Claude Code: the project gets the hooks (the run enforcement) but not a copy of the skills.
+
+        The skills are installed once for the user (`rapid shortcuts install --global`); copying
+        them here too would show every /rapid-* twice."""
+        if "claude" not in final_state.agents:
+            return
+        from rapid_os.adapters import claude_hooks
+        from rapid_os.adapters.shortcut_installer import ShortcutError
+
+        try:
+            plan = claude_hooks.plan_install(CURRENT_DIR)
+            claude_hooks.apply_plan(CURRENT_DIR, plan)
+        except ShortcutError as exc:
+            print(f"WARNING {exc}", file=sys.stderr)
+            return
+        added_files.append({"file": ".claude/settings.json", "note": HOOKS_ADDED_NOTE})
+        print(f"{HOOKS_ADDED_NOTE}: .claude/settings.json")
+
     def write_section():
         """The writing subcommands. Returns `(state, summary)`."""
         if action_name == "finish":
@@ -3825,9 +3873,10 @@ def setup_command(args):
                 for warning in result.warnings:
                     print(f"WARNING {warning}", file=sys.stderr)
                 report_added(result)
-                apply.update_gitignore(CURRENT_DIR)
+                apply.update_gitignore(CURRENT_DIR, apply.stack_gitignore_entries(state, catalog))
                 state = dc_replace(state, finished=True)
                 write_setup(PROJECT_RAPID_DIR, state)
+                install_claude_hooks(state)
             return state, "Setup finished.", ()
         state, summary, notes, touched_docs = _setup_write(
             args, action_name, snapshot.state, catalog, doc_banks
@@ -3852,7 +3901,7 @@ def setup_command(args):
                 for warning in result.warnings:
                     print(f"WARNING {warning}", file=sys.stderr)
                 report_added(result)
-                apply.update_gitignore(CURRENT_DIR)
+                apply.update_gitignore(CURRENT_DIR, apply.stack_gitignore_entries(state, catalog))
                 state = dc_replace(state, finished=True)
                 write_setup(PROJECT_RAPID_DIR, state)
         if touched_docs and apply.project_has_standards(PROJECT_RAPID_DIR, CONFIG_FILE):
@@ -3938,6 +3987,10 @@ def next_command(args):
 
 STORY_TAG_PREFIX = "story:"
 NO_BASELINE_LINE = "Sin baseline: proyecto nuevo"
+HOOKS_ADDED_NOTE = (
+    "Rapid OS instaló los hooks de Claude Code (Stop, PreToolUse) en el proyecto; los /rapid-* no se copiaron "
+    "aquí (instálalos una vez para tu usuario con `rapid shortcuts install --global --harness claude`)"
+)
 NO_COMMIT_LINE = "Rapid OS no hace commit: revisa los cambios y haz commit tú"
 NO_ISOLATION_LINE = "Sin aislamiento: el repositorio aún no tiene commits"
 
@@ -4389,6 +4442,16 @@ def _warn_folder_overlaps(harness_ids):
     return overlaps
 
 
+def _warn_scope_duplicates(harness_ids):
+    """RAPID1321: warn (stderr) when a /rapid-* is installed both for the user and in this project."""
+    from rapid_os.adapters.shortcut_installer import detect_scope_duplicates
+
+    duplicates = detect_scope_duplicates(Path.home(), CURRENT_DIR, harness_ids, TEMPLATES_DIR)
+    for duplicate in duplicates:
+        print(f"WARNING {duplicate.message}", file=sys.stderr)
+    return duplicates
+
+
 def _install_shortcuts(harness_ids, *, dry_run, scope="project", only=None):
     """Plan and (unless dry_run) write shortcuts. Returns (plan, written paths).
 
@@ -4431,10 +4494,11 @@ def hook_command(args):
         print("Usage: rapid hook {stop,pre-tool}  (reads the Claude Code hook JSON from stdin)", file=sys.stderr)
         return 0
     try:
-        raw_stdin = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+        raw_bytes = sys.stdin.buffer.read()
+        raw_stdin = raw_bytes.decode("utf-8-sig", errors="replace")
     except Exception:
-        raw_stdin = ""
-    code, output = run_hook(event, raw_stdin, os.environ, templates_dir=TEMPLATES_DIR)
+        raw_bytes, raw_stdin = b"", ""
+    code, output = run_hook(event, raw_stdin, os.environ, templates_dir=TEMPLATES_DIR, raw_bytes=raw_bytes)
     if output:
         sys.stdout.write(output + "\n")
         sys.stdout.flush()
@@ -4463,8 +4527,12 @@ def shortcuts_command(args):
     root = Path.home() if scope == "global" else CURRENT_DIR
 
     try:
-        if scope == "global" and getattr(args, "hooks", False):
-            raise ShortcutError("RAPID1413", "--hooks writes the project's .claude/settings.json and cannot be combined with --global.")
+        if scope == "global" and getattr(args, "hooks", False) and not (PROJECT_RAPID_DIR.is_dir() and not in_rapid_home()):
+            raise ShortcutError(
+                "RAPID1413",
+                "--hooks escribe el .claude/settings.json del proyecto: ejecuta este comando dentro de un proyecto "
+                "Rapid OS (la carpeta con .rapid-os/), o quita --hooks para instalar solo los skills globales.",
+            )
         if scope == "global" and not getattr(args, "harness", None):
             raise ShortcutError("RAPID1413", "--global needs --harness <id>: there is no project config to choose the harnesses from.")
         # A missing config would otherwise yield the generic default tools; only an explicit
@@ -4484,6 +4552,7 @@ def shortcuts_command(args):
             overlaps = _warn_folder_overlaps(harness_ids) if scope == "project" else []
             if hooks_plan is not None and not dry_run:
                 claude_hooks.apply_plan(CURRENT_DIR, hooks_plan)
+            duplicates = [] if dry_run else _warn_scope_duplicates(harness_ids)
             if as_json:
                 payload = {
                     "schema_version": 1,
@@ -4493,7 +4562,11 @@ def shortcuts_command(args):
                     "harnesses": list(plan.harnesses),
                     "files": [_shortcut_entry_json(f) for f in plan.files],
                     "skipped": _skipped_json(plan.skipped),
-                    "warnings": [*plan.warning_objects, *(o.to_dict() for o in overlaps)],
+                    "warnings": [
+                        *plan.warning_objects,
+                        *(o.to_dict() for o in overlaps),
+                        *(d.to_dict() for d in duplicates),
+                    ],
                 }
                 if hooks_plan is not None:
                     payload["hooks"] = hooks_plan.to_dict()

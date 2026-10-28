@@ -450,6 +450,22 @@ def import_legacy_business(
     return write_doc(project_root, state, bank, source="provided", text=text, replace_existing=True)
 
 
+def _write_doc_text(project_root: Path, path: Path, text: str) -> None:
+    """Change the status of a managed document; the previous copy goes to `.rapid-os/backups/` (ignored by
+    git), not to `docs/<name>.md.<n>.bak`, which would reach the first commit. (Writing new content keeps its
+    copy beside the document: it can be what a person wrote.)"""
+    from rapid_os.adapters.agents.base import AGENT_BACKUP_DIR, AGENT_BACKUPS_KEPT
+
+    safe_write_text(
+        path,
+        text,
+        encoding="utf-8",
+        backup=True,
+        backup_dir=Path(project_root) / AGENT_BACKUP_DIR,
+        keep_backups=AGENT_BACKUPS_KEPT,
+    )
+
+
 def confirm_doc(project_root: Path, state: SetupState, bank: SetupDocBank) -> SetupState:
     """A person confirms a draft: only `status` changes, the body is not touched."""
     path = _doc_path(project_root, bank)
@@ -458,7 +474,7 @@ def confirm_doc(project_root: Path, state: SetupState, bank: SetupDocBank) -> Se
     if not is_managed(fields, bank.id):
         raise _fail("RAPID1413", f"There is no document written by rapid in {bank.file} to confirm.")
     if fields.get("status") != "confirmed":
-        safe_write_text(path, with_doc_status(existing, "confirmed"), encoding="utf-8", backup=True)
+        _write_doc_text(project_root, path, with_doc_status(existing, "confirmed"))
     return _with_doc(state, bank.id, DocState(fields["source"], True, fields.get("sha256", "")))
 
 
@@ -488,7 +504,7 @@ def reopen_doc(project_root: Path, state: SetupState, bank: SetupDocBank) -> Set
                 f"{bank.file} was provided by a person; write it again with 'rapid setup doc {bank.id} --source provided'.",
             )
         if fields.get("status") == "confirmed":
-            safe_write_text(path, with_doc_status(existing, "draft"), encoding="utf-8", backup=True)
+            _write_doc_text(project_root, path, with_doc_status(existing, "draft"))
         reopened = _with_doc(state, bank.id, DocState("drafted", False, fields.get("sha256", "")))
         return replace(reopened, drafts_reviewed=False)
     return state  # pending already: nothing to reopen
@@ -576,20 +592,37 @@ def ensure_git_repository(project_root: Path) -> GitSetup:
     )
 
 
-def update_gitignore(project_root: Path) -> list[str]:
-    """Append the session and scratch entries to an existing .gitignore. Returns what was added."""
+def stack_gitignore_entries(state: SetupState, catalog: Catalog) -> list[str]:
+    """What the decided stacks generate or install (`node_modules/`, `.next/`, `.venv/`...), without repeats."""
+    entries: list[str] = []
+    for stack_id in state.stack_ids:
+        entry = catalog.stacks.get(stack_id)
+        for item in entry.gitignore if entry is not None else ():
+            if item not in entries:
+                entries.append(item)
+    return entries
+
+
+def update_gitignore(project_root: Path, extra: Sequence[str] = (), *, create: bool = False) -> list[str]:
+    """Append the session, scratch and stack entries to `.gitignore`. Returns what was added.
+
+    An existing file only gets what is missing. A missing file is not created (that is the person's call;
+    the services of an empty repository do write one for `.env`, and then this adds the stack's entries)."""
     path = Path(project_root) / ".gitignore"
-    if not path.exists():
+    if not path.exists() and not create:
         return []
+    wanted = [*GITIGNORE_ENTRIES, *(item for item in extra if item not in GITIGNORE_ENTRIES)]
     try:
-        lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines()]
+        text = path.read_text(encoding="utf-8") if path.exists() else ""
+        lines = [line.strip() for line in text.splitlines()]
         missing = [
             entry
-            for entry in GITIGNORE_ENTRIES
+            for entry in wanted
             if entry not in lines and entry.rstrip("/") not in lines
         ]
         if missing:
-            safe_append_text(path, "\n" + "\n".join(missing) + "\n", encoding="utf-8")
+            body = ("\n" if text and not text.endswith("\n") else "") + ("\n" if text else "")
+            safe_append_text(path, body + "\n".join(missing) + "\n", encoding="utf-8")
         return missing
     except (OSError, UnicodeDecodeError):
         return []
@@ -628,6 +661,46 @@ def _services_text(text: str, stack_id: str, state: SetupState, catalog: Catalog
     return render_tech_stack(text, stack_language(catalog, stack_id), state.services, catalog, entry)
 
 
+def choice_component(state: SetupState, stack_id: str) -> str | None:
+    """The first component the stack was chosen for."""
+    return next((c for c in ("backend", "frontend", "baas", "docs") if (s := state.stacks.get(c)) and s.id == stack_id), None)
+
+
+def _has_separate_backend(state: SetupState, stack_id: str) -> bool:
+    backend = state.stacks.get("backend")
+    return backend is not None and backend.id != stack_id
+
+
+def detect_python_version(project_root: Path) -> tuple[str, str]:
+    """`(major.minor, where it came from)`: `.python-version`, `requires-python`, else this interpreter."""
+    import re
+    import sys
+
+    root = Path(project_root)
+    for relative in ("backend/.python-version", ".python-version"):
+        try:
+            match = re.match(r"\s*(\d+\.\d+)", (root / relative).read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError):
+            match = None
+        if match:
+            return match.group(1), relative
+    for relative in ("backend/pyproject.toml", "pyproject.toml"):
+        try:
+            text = (root / relative).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        match = re.search(r"requires-python\s*=\s*[\"']\s*(?:>=|==|~=|\^)?\s*(\d+\.\d+)", text)
+        if match:
+            return match.group(1), f"{relative} (requires-python)"
+    return f"{sys.version_info.major}.{sys.version_info.minor}", "the Python that runs Rapid OS"
+
+
+def python_runtime(project_root: Path) -> str:
+    """The text after `Python ` in `tech-stack.md`: the version and where it was taken from, explicit."""
+    version, source = detect_python_version(project_root)
+    return f"{version} (taken from {source}; edit this line if the project targets another version)"
+
+
 def render_tech_stack_file(
     state: SetupState,
     catalog: Catalog,
@@ -635,6 +708,7 @@ def render_tech_stack_file(
     *,
     model: ProjectModel,
     scanned: bool,
+    project_root: Path | None = None,
 ) -> str | None:
     """The whole `tech-stack.md` of the decided stacks (one block each, the backend's first), or None
     when a stack the person wrote is among them (its file is the person's)."""
@@ -657,6 +731,11 @@ def render_tech_stack_file(
             if not template.is_file():
                 raise _fail("RAPID1413", f"Template de stack no encontrado: {stack_id} ({template})")
             block = template.read_text(encoding="utf-8").rstrip("\n")
+            if "{python_version}" in block:
+                block = block.replace("{python_version}", python_runtime(project_root if project_root is not None else Path.cwd()))
+            if choice_component(state, stack_id) == "frontend" and _has_separate_backend(state, stack_id):
+                # The topology forbids the frontend from touching the database: it is the backend's.
+                block = "\n".join(line for line in block.split("\n") if not line.startswith("- **Database:**"))
             fragments = []
             if state.ai:
                 fragments.append(template.with_name(f"{template.stem}.ai.md"))
@@ -1011,7 +1090,9 @@ def apply_setup(
                 "The custom stack has no tech-stack.md: run 'rapid setup stack --custom --file -'.",
             )
         model = scan_model if scan_model is not None else ProjectModel(root=project_root)
-        text = render_tech_stack_file(state, catalog, templates_dir, model=model, scanned=scanned)
+        text = render_tech_stack_file(
+            state, catalog, templates_dir, model=model, scanned=scanned, project_root=project_root
+        )
         if text is not None:
             if target.is_file() and text == target.read_text(encoding="utf-8"):
                 pass  # nothing to rewrite

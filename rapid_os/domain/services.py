@@ -23,8 +23,8 @@ ENV_EXAMPLE_FILE = ".env.example"
 LOCAL_SERVICES_ACTION = {
     "id": "local-services",
     "why": (
-        "El sandbox del harness no ejecuta Docker: los servicios los levantas tú para probar el modelo "
-        "de datos y las integraciones"
+        "La persona levanta los servicios (docker compose up -d); con ellos arriba, úsalos (DATABASE_URL de "
+        ".env) para las migraciones y las pruebas de integración"
     ),
     "command": "docker compose up -d",
 }

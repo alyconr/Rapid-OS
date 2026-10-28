@@ -25,6 +25,33 @@
     "--no-watch",
     "--no-progress"
   ],
+  "test_commands": {
+    "root": [
+      "pnpm",
+      "exec",
+      "ng",
+      "test",
+      "--no-watch",
+      "--no-progress"
+    ],
+    "subdir": [
+      "pnpm",
+      "--dir",
+      "{root}",
+      "exec",
+      "ng",
+      "test",
+      "--no-watch",
+      "--no-progress"
+    ]
+  },
+  "gitignore": [
+    "node_modules/",
+    "dist/",
+    ".angular/",
+    "coverage/",
+    ".env"
+  ],
   "architecture": "angular",
   "factors": {
     "performance": "medio a alto: compilación anticipada, signals, vistas diferidas e hidratación",

@@ -27,6 +27,26 @@
     "manage.py",
     "test"
   ],
+  "test_commands": {
+    "root": [
+      "python",
+      "manage.py",
+      "test"
+    ],
+    "subdir": [
+      "python",
+      "{root}/manage.py",
+      "test"
+    ]
+  },
+  "gitignore": [
+    ".venv/",
+    ".ruff_cache/",
+    ".mypy_cache/",
+    "*.egg-info/",
+    "staticfiles/",
+    ".env"
+  ],
   "architecture": "python-django",
   "factors": {
     "performance": "medio: CPython interpretado; WSGI por defecto y ASGI disponible",

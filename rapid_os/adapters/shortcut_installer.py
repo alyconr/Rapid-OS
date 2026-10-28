@@ -250,6 +250,75 @@ def _shortcut_of(relative: Path, by_name: Mapping[str, ShortcutTemplate]) -> str
     return relative.stem
 
 
+@dataclass(frozen=True)
+class ScopeDuplicate:
+    """The same /rapid-* installed both for the user (home) and in the project, for one harness."""
+
+    harness: str
+    shortcuts: tuple[str, ...]
+    user_folder: str
+    project_folder: str
+
+    @property
+    def message(self) -> str:
+        return (
+            f"RAPID1321 {self.harness}: {len(self.shortcuts)} shortcut(s) /rapid-* están a la vez en tu usuario "
+            f"(~/{self.user_folder}) y en este proyecto ({self.project_folder}) y se verán duplicados "
+            f"({', '.join(self.shortcuts)}). Deja uno solo: `rapid shortcuts remove --harness {self.harness}` "
+            f"quita los del proyecto; `rapid shortcuts remove --global --harness {self.harness}` quita los del usuario."
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "code": "RAPID1321",
+            "message": self.message,
+            "harness": self.harness,
+            "shortcuts": list(self.shortcuts),
+            "user_folder": self.user_folder,
+            "project_folder": self.project_folder,
+        }
+
+
+def detect_scope_duplicates(
+    home: Path,
+    project_root: Path,
+    harness_ids: Sequence[str],
+    templates_dir: Path,
+    registry: AgentRegistry = DEFAULT_AGENT_REGISTRY,
+) -> list[ScopeDuplicate]:
+    """/rapid-* files that exist in `home` and in `project_root` for the same harness (read-only)."""
+    home, project_root = Path(home), Path(project_root)
+    try:
+        if home.resolve() == project_root.resolve():
+            return []
+    except OSError:
+        return []
+    templates = load_templates(templates_dir)
+    by_name = {t.name: t for t in templates}
+    found: list[ScopeDuplicate] = []
+    for harness_id in dict.fromkeys(harness_ids):
+        try:
+            user_outputs = _adapter_outputs(registry, harness_id, templates, "global")
+            project_outputs = _adapter_outputs(registry, harness_id, templates, "project")
+        except (ShortcutError, NotImplementedError, AttributeError):
+            continue  # the harness has no user-level shortcuts
+        project_by_shortcut = {_shortcut_of(rel, by_name): rel for rel in project_outputs}
+        shortcuts: list[str] = []
+        user_folder = project_folder = ""
+        for relative in user_outputs:
+            name = _shortcut_of(relative, by_name)
+            counterpart = project_by_shortcut.get(name)
+            if counterpart is None:
+                continue
+            if (home / relative).is_file() and (project_root / counterpart).is_file():
+                shortcuts.append(name)
+                user_folder = user_folder or relative.parent.parent.as_posix()
+                project_folder = project_folder or counterpart.parent.parent.as_posix()
+        if shortcuts:
+            found.append(ScopeDuplicate(harness_id, tuple(sorted(set(shortcuts))), user_folder, project_folder))
+    return found
+
+
 def build_plan(
     project_root: Path,
     harness_ids: Sequence[str],

@@ -25,6 +25,24 @@
     "pnpm",
     "test"
   ],
+  "test_commands": {
+    "root": [
+      "pnpm",
+      "test"
+    ],
+    "subdir": [
+      "pnpm",
+      "--dir",
+      "{root}",
+      "test"
+    ]
+  },
+  "gitignore": [
+    "node_modules/",
+    "dist/",
+    "coverage/",
+    ".env"
+  ],
   "architecture": "node-fastify",
   "factors": {
     "performance": "medio a alto en E/S: Node.js (V8); la documentación destaca una serialización 2-3 veces más rápida con JSON Schema",
