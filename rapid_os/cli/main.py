@@ -70,7 +70,16 @@ from rapid_os.adapters.project_snapshot import write_project_snapshot
 from rapid_os.adapters.run_registry import RunRegistry
 from rapid_os.adapters.spec_registry import SpecRegistry
 from rapid_os.core.process import run_npx_skills_add
-from rapid_os.core.text import read_text_best_effort
+from rapid_os.core.text import (
+    INPUT_ENCODING_CODE,
+    MOJIBAKE_CODE,
+    InputEncodingError,
+    decode_utf8_input,
+    display_command,
+    find_mojibake,
+    read_stdin_text,
+    read_text_best_effort,
+)
 from rapid_os.domain.agents import generate_agent_contexts
 from rapid_os.adapters.project_commands import propose_test_command
 from rapid_os.domain.catalog import (
@@ -1261,6 +1270,112 @@ def _agent_shortcuts_or_hooks_installed():
     return any(entry.state in ("installed", "outdated") for entry in entries)
 
 
+TEST_COMMAND_MISSING_CODE = "RAPID1426"
+
+
+def _test_command_found(command) -> bool:
+    """Whether `command[0]` can be run: on the PATH (Windows tries `.cmd` and `.exe` too) or relative to the project."""
+    first = str(command[0])
+    return bool(shutil.which(first)) or (CURRENT_DIR / first).exists()
+
+
+def _quote_for_shell(text: str) -> str:
+    return subprocess.list2cmdline([text]) if sys.platform == "win32" else shlex.quote(text)
+
+
+def _missing_test_command_message():
+    """RAPID1426 text when the project's `test_command` cannot be run, with the catalog's proposal; else None."""
+    config = _load_config_with_warning(CONFIG_FILE) if Path(CONFIG_FILE).exists() else {}
+    command = config.get("test_command")
+    if not isinstance(command, list) or not command or _test_command_found(command):
+        return None
+    message = (
+        f"{TEST_COMMAND_MISSING_CODE} test_command ('{display_command(command)}') no se puede ejecutar: "
+        f"'{command[0]}' no se encuentra en el PATH, así que `rapid task done` y la baseline fallarán con "
+        "«comando no encontrado»."
+    )
+    proposal = _catalog_test_command_proposal()
+    if proposal:
+        message += (
+            f" El catálogo propone para los stacks de este proyecto: {display_command(proposal)}. Aplícalo con "
+            f"`rapid setup set test-command {_quote_for_shell(display_command(proposal))}` y después `rapid setup finish`."
+        )
+    else:
+        message += " Corrígelo con `rapid setup set test-command '<comando>'` y después `rapid setup finish`."
+    return message
+
+
+def _catalog_test_command_proposal():
+    """The catalog's test command for the decided stacks (combined when there are two components), or None."""
+    from rapid_os.adapters.setup_store import read_setup_file
+    from rapid_os.orchestration.setup_conductor import catalog_test_commands, combine_test_commands
+
+    state, _error = read_setup_file(PROJECT_RAPID_DIR)
+    if state is None or not state.stacks:
+        return None
+    try:
+        catalog = _load_setup_inputs()[0]
+    except SystemExit:
+        return None
+    items = catalog_test_commands(state, catalog)
+    return combine_test_commands([item["command"] for item in items]) if items else None
+
+
+def _mojibake_diagnostics():
+    """RAPID1425: specs and onboarding documents that hold UTF-8 text read as cp1252 (`Ã³` for `ó`)."""
+    found = []
+
+    def strings(value):
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, dict):
+            for item in value.values():
+                yield from strings(item)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                yield from strings(item)
+
+    try:
+        registry = SpecRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+        for record in registry.list_specs():
+            revision = registry.get_revision(record.id, revision=record.current_revision)
+            sample = next((s for s in (find_mojibake(t) for t in strings(revision.to_dict())) if s), None)
+            if sample:
+                found.append(
+                    Diagnostic(
+                        WARNING,
+                        MOJIBAKE_CODE,
+                        f"La spec '{record.id}' (r{record.current_revision}) contiene «{sample}»: UTF-8 leído como cp1252. "
+                        "Las specs guardadas no se reescriben (el registro tiene huellas): crea una revisión nueva con el "
+                        "texto correcto (`rapid spec revise` o `rapid start ... --spec-file` con el mismo id).",
+                        PROJECT_RAPID_DIR / "specs" / record.id,
+                    )
+                )
+    except Exception:  # a broken registry is reported by its own validation
+        pass
+    docs_dir = CURRENT_DIR / "docs"
+    if docs_dir.is_dir():
+        for path in sorted(docs_dir.glob("*.md")):
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            if "rapid-doc:" not in text[:400]:
+                continue  # only the documents of the onboarding
+            sample = find_mojibake(text)
+            if sample:
+                found.append(
+                    Diagnostic(
+                        WARNING,
+                        MOJIBAKE_CODE,
+                        f"{path.name} contiene «{sample}»: UTF-8 leído como cp1252. Reescríbelo con "
+                        "`rapid setup doc <id> --source drafted --replace --file <ruta>` desde un archivo UTF-8.",
+                        path,
+                    )
+                )
+    return found
+
+
 def _current_archetype():
     """The archetype of the project: the one in `.rapid-os/setup.json`, else read from its coding rules."""
     from rapid_os.adapters.setup_store import read_setup_file
@@ -1364,6 +1479,12 @@ def doctor_command(args):
         )
 
     if not not_a_project:
+        missing_test_command = _missing_test_command_message()
+        if missing_test_command:
+            diagnostics.append(
+                Diagnostic(WARNING, TEST_COMMAND_MISSING_CODE, missing_test_command.removeprefix(TEST_COMMAND_MISSING_CODE + " "), CONFIG_FILE)
+            )
+        diagnostics.extend(_mojibake_diagnostics())
         from rapid_os.adapters.shortcut_installer import detect_scope_duplicates
 
         for duplicate in detect_scope_duplicates(Path.home(), CURRENT_DIR, DEFAULT_AGENT_REGISTRY.ids(), TEMPLATES_DIR):
@@ -3364,6 +3485,12 @@ def start_command(args):
     spec_file = getattr(args, "spec_file", None)
     harness = getattr(args, "harness", None)
 
+    if not resume:
+        # Before the baseline: a test command that does not exist would only show up as "command not found" later.
+        missing_test_command = _missing_test_command_message()
+        if missing_test_command:
+            print(f"WARNING {missing_test_command}", file=sys.stderr)
+
     code, res = execute_start(
         CURRENT_DIR,
         PROJECT_RAPID_DIR,
@@ -3438,7 +3565,7 @@ def _format_setup_action(action) -> list[str]:
             f"Command: {' '.join(data['command'])}",
         ]
     elif kind == "set_test_command":
-        proposed = " ".join(data["recommended"]) if data["recommended"] else "none detected"
+        proposed = display_command(data["recommended"]) if data["recommended"] else "none detected"
         lines.append(f"Suggested test command: {proposed}")
     elif kind == "resolve_doc":
         if data.get("legacy_source"):
@@ -3478,15 +3605,14 @@ def _read_setup_input(source):
         raise SetupApplyError("RAPID1413", "Missing --file (use '-' to read the text from stdin).")
     try:
         if source == "-":
-            stream = getattr(sys.stdin, "buffer", None)
-            raw = stream.read() if stream is not None else sys.stdin.read()
-        else:
-            path = Path(source)
-            if not path.is_file():
-                raise SetupApplyError("RAPID1413", f"'{source}' is not a file.")
-            raw = path.read_bytes()
-        return raw.decode("utf-8-sig") if isinstance(raw, bytes) else raw
-    except (OSError, UnicodeDecodeError) as exc:
+            return read_stdin_text()
+        path = Path(source)
+        if not path.is_file():
+            raise SetupApplyError("RAPID1413", f"'{source}' is not a file.")
+        return decode_utf8_input(path.read_bytes(), f"'{source}'")
+    except InputEncodingError as exc:
+        raise SetupApplyError(INPUT_ENCODING_CODE, str(exc).removeprefix(f"{INPUT_ENCODING_CODE} ")) from exc
+    except OSError as exc:
         raise SetupApplyError("RAPID1413", f"Cannot read the text from '{source}': {exc}") from exc
 
 

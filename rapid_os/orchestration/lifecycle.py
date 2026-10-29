@@ -23,6 +23,7 @@ from rapid_os.adapters.run_registry import RunRegistry
 from rapid_os.adapters.spec_registry import SpecRegistry
 from rapid_os.core.ancestry import AncestryResult, find_agent_ancestor, read_ancestry
 from rapid_os.core.config import load_project_config
+from rapid_os.core.text import InputEncodingError, decode_utf8_input, read_stdin_text
 from rapid_os.core.harness_detect import detect_harness
 from rapid_os.domain.evals import (
     BehavioralEvaluator,
@@ -371,13 +372,16 @@ def execute_start(
                     baseline_waived = BASELINE_WAIVER_EMPTY_REPOSITORY
         elif spec_file:
             raw_json: str
-            if spec_file == "-":
-                raw_json = stdin_content if stdin_content is not None else sys.stdin.read()
-            else:
-                p = Path(spec_file)
-                if not p.is_absolute():
-                    p = project_root / p
-                raw_json = p.read_text(encoding="utf-8")
+            try:
+                if spec_file == "-":
+                    raw_json = stdin_content if stdin_content is not None else read_stdin_text()
+                else:
+                    p = Path(spec_file)
+                    if not p.is_absolute():
+                        p = project_root / p
+                    raw_json = decode_utf8_input(p.read_bytes(), f"'{spec_file}'")
+            except InputEncodingError as exc:
+                return 1, str(exc)
 
             payload = json.loads(raw_json)
             if not isinstance(payload, dict):

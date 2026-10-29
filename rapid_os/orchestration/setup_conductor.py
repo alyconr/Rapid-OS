@@ -7,6 +7,8 @@ touches the filesystem. Reading the state is the adapter's job (`adapters/setup_
 from __future__ import annotations
 
 import re
+import shutil
+import sys
 from typing import Sequence
 
 from rapid_os.domain.architecture import architecture_standard
@@ -386,15 +388,29 @@ def catalog_test_commands(state: SetupState, catalog: Catalog) -> list[dict]:
     return items
 
 
+COMBINED_TEST_RUNNER = (
+    "import shutil, subprocess, sys; "
+    "codes = [subprocess.call([shutil.which(c[0]) or c[0], *c[1:]]) for c in {commands!r}]; "
+    "sys.exit(1 if any(code != 0 for code in codes) else 0)"
+)
+
+
+def _interpreter() -> str:
+    """The Python that runs the combined command: `python` or `python3` when the PATH has one, else this one."""
+    for name in ("python", "python3"):
+        if shutil.which(name):
+            return name
+    return sys.executable
+
+
 def combine_test_commands(commands: Sequence[Sequence[str]]) -> list[str]:
-    """One argv for several test commands: it runs them all and fails when any fails (no shell needed)."""
+    """One argv for several test commands: it runs them all and fails when any fails (no shell needed).
+
+    Each executable is resolved with the PATH (`pnpm` is `pnpm.cmd` on Windows) and the result is 0 or 1: a
+    process killed by a signal returns a negative code on POSIX, which `max()` would have hidden."""
     if len(commands) == 1:
         return list(commands[0])
-    code = (
-        "import subprocess, sys; "
-        f"sys.exit(max(subprocess.call(c) for c in {[list(c) for c in commands]!r}))"
-    )
-    return ["python", "-c", code]
+    return [_interpreter(), "-c", COMBINED_TEST_RUNNER.format(commands=[list(c) for c in commands])]
 
 
 def _resolve_doc(
