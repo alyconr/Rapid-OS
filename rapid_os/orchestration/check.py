@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -60,6 +61,18 @@ class CheckResult:
     tests_expected: bool = False
     # ...and its output had a test summary that could be counted.
     counted: bool = False
+
+
+def resolve_executable(argv: Sequence[str]) -> list[str]:
+    """`argv` with its first element replaced by the path `shutil.which` finds (`pnpm` -> `...\\pnpm.cmd`).
+
+    Left as typed when it cannot be found: running it then fails with the usual "command not found"."""
+    resolved = list(argv)
+    if resolved:
+        found = shutil.which(resolved[0])
+        if found:
+            resolved[0] = found
+    return resolved
 
 
 def parse_test_summary(output: str) -> dict[str, int] | None:
@@ -203,6 +216,11 @@ def run_check(
         bool(task_ids) and str(getattr(contract, "mode", "") or "") not in MODES_WITHOUT_TESTS
     )
     explicit_command = kind in ("command", "command_result", EvidenceKind.COMMAND_RESULT.value)
+
+    # Windows: `subprocess` with shell=False does not find `pnpm`, `npm` or `yarn` (they are `.cmd` shims). The
+    # executable is resolved with the PATH and PATHEXT; the argv that is compared with `test_command` and recorded
+    # in the evidence stays the one that was typed.
+    exec_argv = resolve_executable(exec_argv)
 
     # Determine kind: test_result or command_result
     if kind in ("test", "test_result", EvidenceKind.TEST_RESULT.value):

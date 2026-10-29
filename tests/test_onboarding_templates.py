@@ -192,8 +192,9 @@ class TestCommandTests(Project):
 
         ok, bad = [sys.executable, "-c", "pass"], [sys.executable, "-c", "raise SystemExit(3)"]
         self.assertEqual(subprocess.run(combine_test_commands([ok, ok])).returncode, 0)
-        self.assertEqual(subprocess.run(combine_test_commands([ok, bad])).returncode, 3)
-        self.assertEqual(subprocess.run(combine_test_commands([bad, ok])).returncode, 3)
+        # 1, not the exit code of the failing command: a process killed by a signal is negative on POSIX
+        self.assertEqual(subprocess.run(combine_test_commands([ok, bad])).returncode, 1)
+        self.assertEqual(subprocess.run(combine_test_commands([bad, ok])).returncode, 1)
         self.assertEqual(combine_test_commands([ok]), ok)
 
     def test_every_catalog_stack_with_a_subdir_command_names_the_folder(self):
