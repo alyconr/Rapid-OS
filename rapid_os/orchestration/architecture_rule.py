@@ -108,7 +108,9 @@ def final_architecture_failure(current_dir: Path, project_rapid_dir: Path) -> st
             continue
         report = check_architecture(config, collect_sources(current_dir, config))
         # Only what the run added counts: the violations the project already had are debt, not a verdict.
-        new, _previous = classify(report.violations, baseline) if baseline is not None else (report.violations, [])
+        new, _previous = (
+            classify(report.violations, baseline, Path(current_dir)) if baseline is not None else (report.violations, [])
+        )
         lines.extend(violation.to_line() for violation in new)
     if not lines:
         return None

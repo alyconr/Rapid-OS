@@ -8,10 +8,14 @@ for violations that are not in it. The previous ones are reported as debt and do
 - No active run, or a run that started before this existed (no photo): every violation counts as previous.
 - Refactor runs: a previous violation in a file the run touched counts as new. A file cannot be touched and
   left violating.
+- The photo counts occurrences: a second identical import in a file that already had one is new.
+- A previous violation whose file no longer exists (the run moved it) stays previous in the other modes: the
+  debt did not grow. In a refactor run moving the file is touching it, so it counts.
 """
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -31,7 +35,8 @@ ViolationKey = tuple[str, str, str]
 class RunBaseline:
     run_id: str
     mode: str
-    keys: frozenset[ViolationKey]
+    # One key per violation the project had (a repeated key is a repeated violation: it is counted).
+    keys: Iterable[ViolationKey]
     # Files the run changed; only filled in refactor mode, where touching a file makes its debt count.
     touched: frozenset[str] = frozenset()
 
@@ -63,7 +68,7 @@ def capture_snapshot(project_root: Path, project_rapid_dir: Path) -> tuple[Viola
     violations = current_violations(project_root, project_rapid_dir)
     if violations is None:
         return None
-    return tuple(sorted({violation_key(v) for v in violations}))
+    return tuple(sorted(violation_key(v) for v in violations))
 
 
 def active_baseline(current_dir: Path, project_rapid_dir: Path) -> RunBaseline | None:
@@ -87,23 +92,45 @@ def active_baseline(current_dir: Path, project_rapid_dir: Path) -> RunBaseline |
         if session.mode == REFACTOR_MODE:
             workspace = Path(session.workspace_path) if session.workspace_path else rapid_dir.parent
             touched = frozenset(observed_changes(workspace, session.start_head, session.start_untracked or ()))
-        return RunBaseline(session.active_run_id, session.mode, frozenset(session.start_architecture), touched)
+        return RunBaseline(session.active_run_id, session.mode, tuple(session.start_architecture), touched)
     return None
 
 
 def classify(
-    violations: Iterable[Violation], baseline: RunBaseline | None
+    violations: Iterable[Violation], baseline: RunBaseline | None, root: Path | None = None
 ) -> tuple[list[Violation], list[Violation]]:
-    """`(new, previous)`. Without a photo nothing is new."""
+    """`(new, previous)`. Without a photo nothing is new.
+
+    Each key of the photo covers one violation: a repeated import in the same file is new. With `root`, a
+    violation the photo had in a file that is gone is matched with a new one of the same rule and import
+    (the file was moved): the debt moved, it did not grow. A refactor does not get that pass."""
     if baseline is None:
         return [], list(violations)
+    remaining = Counter(baseline.keys)
     new: list[Violation] = []
     previous: list[Violation] = []
-    for violation in violations:
-        if violation_key(violation) in baseline.keys and violation.file not in baseline.touched:
+    for violation in sorted(violations, key=lambda v: (v.file, v.line, v.rule)):
+        key = violation_key(violation)
+        if remaining[key] > 0 and violation.file not in baseline.touched:
+            remaining[key] -= 1
             previous.append(violation)
         else:
             new.append(violation)
+    if root is not None and new and baseline.mode != REFACTOR_MODE:
+        # What the photo had in files that no longer exist, by (rule, import).
+        moved = Counter()
+        for (file, rule, imported), count in remaining.items():
+            if count > 0 and not (Path(root) / file).exists():
+                moved[(rule, imported)] += count
+        still_new: list[Violation] = []
+        for violation in new:
+            pair = (violation.rule, violation.imported)
+            if moved[pair] > 0:
+                moved[pair] -= 1
+                previous.append(violation)
+            else:
+                still_new.append(violation)
+        new = still_new
     return new, previous
 
 

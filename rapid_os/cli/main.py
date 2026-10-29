@@ -3656,7 +3656,7 @@ def arch_command(args):
     delegate_failed = [(c, d) for c, d in delegated if not d.ok]
     # What the project had when the run started is debt; only `--new-only` lets it through (the gate uses it).
     baseline = active_baseline(CURRENT_DIR, PROJECT_RAPID_DIR)
-    new_violations, previous_violations = classify(violations, baseline)
+    new_violations, previous_violations = classify(violations, baseline, CURRENT_DIR)
     blocking = new_violations if new_only else violations
     ok = not blocking and not delegate_failed
     checked = sum(r.checked_files for _c, r in reports)

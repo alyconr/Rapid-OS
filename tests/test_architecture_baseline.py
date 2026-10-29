@@ -294,6 +294,39 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual([v.file for v in new], ["app/modules/a/api/r.py"])
         self.assertEqual([v.file for v in previous], ["app/modules/a/api/s.py"])
 
+    def test_a_second_identical_import_in_the_same_file_is_new(self):
+        before = list(check_architecture(self.CONFIG, {"app/modules/a/api/r.py": VIOLATING.replace("citas", "a")}).violations)
+        baseline = RunBaseline("run", "feature", [violation_key(v) for v in before])
+        imp = VIOLATING.replace("citas", "a")
+        after = list(check_architecture(self.CONFIG, {"app/modules/a/api/r.py": imp + "import os\n" + imp}).violations)
+        new, previous = classify(after, baseline)
+        self.assertEqual((len(new), len(previous)), (1, 1))
+        self.assertEqual(new[0].line, 3)  # the later one is the one the run added
+
+    def test_a_moved_file_keeps_its_violation_previous_unless_it_is_a_refactor(self):
+        imp = VIOLATING.replace("citas", "a")
+        before = list(check_architecture(self.CONFIG, {"app/modules/a/api/r.py": imp}).violations)
+        moved = list(check_architecture(self.CONFIG, {"app/modules/a/api/routes.py": imp}).violations)
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "app/modules/a/api").mkdir(parents=True)
+            (Path(tmp) / "app/modules/a/api/routes.py").write_text(imp, encoding="utf-8")  # r.py is gone
+            for mode, expected in (("feature", (0, 1)), ("refactor", (1, 0))):
+                with self.subTest(mode=mode):
+                    baseline = RunBaseline("run", mode, [violation_key(v) for v in before])
+                    new, previous = classify(moved, baseline, Path(tmp))
+                    self.assertEqual((len(new), len(previous)), expected)
+            # r.py is still there: the new file is a second violation, not a move.
+            (Path(tmp) / "app/modules/a/api/r.py").write_text(imp, encoding="utf-8")
+            new, previous = classify(moved, RunBaseline("run", "feature", [violation_key(v) for v in before]), Path(tmp))
+            self.assertEqual((len(new), len(previous)), (1, 0))
+
+    def test_without_the_root_a_moved_file_is_new(self):
+        imp = VIOLATING.replace("citas", "a")
+        before = list(check_architecture(self.CONFIG, {"app/modules/a/api/r.py": imp}).violations)
+        moved = list(check_architecture(self.CONFIG, {"app/modules/a/api/routes.py": imp}).violations)
+        new, previous = classify(moved, RunBaseline("run", "feature", [violation_key(v) for v in before]))
+        self.assertEqual((len(new), len(previous)), (1, 0))
+
     def test_the_debt_line_names_the_count_and_refactor(self):
         found = self.violations()
         self.assertIn("2 violaciones previas; no bloquean este run", previous_debt_line(found, None))
@@ -302,7 +335,62 @@ class ClassifyTests(unittest.TestCase):
         self.assertIn("no deja un archivo tocado violando", previous_debt_line(found, refactor))
 
 
+class MovedFileAndRepeatedImportCliTests(Project):
+    def test_moving_a_file_with_a_previous_violation_in_a_feature_run_does_not_block(self):
+        self.start()
+        (self.root / "app/modules/citas/api/router.py").rename(self.root / "app/modules/citas/api/rutas.py")
+        result = self.check("--new-only", "--json")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(json.loads(result.stdout)["counts"], {"new": 0, "previous": 2})
+
+    def test_moving_it_in_a_refactor_run_counts(self):
+        self.start("refactor", REFACTOR_SPEC)
+        (self.root / "app/modules/citas/api/router.py").rename(self.root / "app/modules/citas/api/rutas.py")
+        result = self.check("--new-only", "--json")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertEqual(json.loads(result.stdout)["counts"], {"new": 1, "previous": 1})
+
+    def test_repeating_the_import_in_a_file_that_had_it_is_new(self):
+        self.start()
+        self.write("app/modules/citas/api/router.py", VIOLATING + VIOLATING.replace("Repo", "Repo as Other"))
+        result = self.check("--new-only", "--json")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertEqual(json.loads(result.stdout)["counts"], {"new": 1, "previous": 2})
+
+
 class CompositionMessageTests(unittest.TestCase):
+    def test_the_typescript_and_python_stacks_say_where_the_composition_goes(self):
+        python_sample = ("app/modules/a/api/r.py", "from app.modules.a.infrastructure.repo import R\n")
+        ts = lambda root: (f"{root}/a/api/r.ts", "import { R } from '../infrastructure/repo';\n")  # noqa: E731
+        samples = {
+            "python-fastapi": python_sample,
+            "node-fastify": ts("src/modules"),
+            "node-nestjs": ts("src/modules"),
+            "nextjs": ts("src/modules"),
+            "nuxt": ts("server/modules"),
+            "sveltekit": ts("src/lib/server/modules"),
+        }
+        from rapid_os.domain.architecture_profiles import BACKEND_RULES
+
+        for stack, (path, source) in samples.items():
+            with self.subTest(stack=stack):
+                config = ArchitectureConfig.from_dict(default_config(stack))
+                violations = check_architecture(config, {path: source}).violations
+                self.assertEqual(len(violations), 1, (stack, violations))
+                self.assertIn(f"Dónde va la composición: {BACKEND_RULES[stack].composition}", violations[0].message)
+
+    def test_the_other_languages_carry_the_note_in_their_rule_but_are_not_exercised_here(self):
+        # Go, Rust, Java/Kotlin, C#, PHP, Django and Rails notes are conventions of each framework, written by hand
+        # and not run against a sample project: this only checks that the note reaches the rule.
+        from rapid_os.domain.architecture_profiles import BACKEND_RULES
+
+        for stack in ("go", "rust-axum", "java-spring-boot", "kotlin-spring-boot", "dotnet-aspnetcore",
+                      "php-laravel", "python-django", "ruby-rails"):
+            with self.subTest(stack=stack):
+                self.assertEqual(default_config(stack)["composition"], BACKEND_RULES[stack].composition)
+                self.assertTrue(default_config(stack)["composition"])
+
+
     def test_every_stack_says_where_the_composition_goes_when_the_entry_layer_reaches_infrastructure(self):
         cases = {
             "python-fastapi": ("app/modules/citas/api/router.py", "from app.modules.citas.infrastructure.repo import R\n",
