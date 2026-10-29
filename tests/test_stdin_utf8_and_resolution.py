@@ -309,8 +309,54 @@ class MissingTestCommandTests(Project):
         self.assertIn("RAPID1426", out)
         self.assertIn("pytest-que-no-existe", out)
         self.assertIn("uv run pytest", out)
-        self.assertIn("rapid setup set test-command", out)
-        self.assertIn("rapid setup finish", out)
+        self.assertIn("rapid setup set test-command --recommended", out)
+        self.assertNotIn("rapid setup finish", out)  # with the onboarding finished `set` already writes config.json
+        self.assertNotIn("python -c", out)  # nothing to copy by hand, nothing escaped inside quotes
+
+    def test_with_two_components_the_message_lists_each_and_proposes_the_flag(self):
+        self.onboard(test_command="pytest-que-no-existe")
+        for step in (("topology", "fullstack-separated"), ("stack", "nextjs", "--component", "frontend")):
+            self.ok("setup", "set", *step)
+        out = self.ok("doctor")
+        message = next(l for l in out.splitlines() if "RAPID1426" in l)
+        self.assertIn("backend: uv run --directory backend pytest", message)
+        self.assertIn("frontend: pnpm --dir frontend exec vitest run", message)
+        self.assertIn("rapid setup set test-command --recommended", message)
+        self.assertNotIn("python -c", message)
+
+    def test_without_a_catalog_proposal_the_message_asks_for_a_command(self):
+        self.onboard(test_command="pytest-que-no-existe", stack="generic", topology="fullstack-baas")
+        message = next(l for l in self.ok("doctor").splitlines() if "RAPID1426" in l)
+        self.assertIn("rapid setup set test-command '<comando>'", message)
+        self.assertNotIn("--recommended", message)
+
+    def test_recommended_applies_the_catalog_command_for_one_component(self):
+        self.onboard(test_command="pytest-que-no-existe")
+        out = self.ok("setup", "set", "test-command", "--recommended")
+        self.assertIn("test-command = uv run pytest", out)
+        config = json.loads((self.root / ".rapid-os" / "config.json").read_text("utf-8"))
+        self.assertEqual(config["test_command"], ["uv", "run", "pytest"])
+
+    def test_recommended_applies_the_combined_command_for_two_components(self):
+        self.onboard(test_command="pytest-que-no-existe")
+        for step in (("topology", "fullstack-separated"), ("stack", "nextjs", "--component", "frontend")):
+            self.ok("setup", "set", *step)
+        self.ok("setup", "set", "test-command", "--recommended")
+        # the topology change reopened the onboarding: the decision is in setup.json until `setup finish`
+        command = json.loads((self.root / ".rapid-os" / "setup.json").read_text("utf-8"))["test_command"]
+        self.assertEqual(command[1], "-c")
+        self.assertIn("'uv', 'run', '--directory', 'backend', 'pytest'", command[2])
+        self.assertIn("'pnpm', '--dir', 'frontend', 'exec', 'vitest', 'run'", command[2])
+
+    def test_recommended_is_refused_without_a_catalog_command_or_with_a_value_or_another_key(self):
+        self.onboard(test_command="none", stack="generic", topology="fullstack-baas")
+        no_command = self.rapid("setup", "set", "test-command", "--recommended")
+        self.assertEqual(no_command.returncode, 1)
+        self.assertIn("RAPID1413", no_command.stderr.decode("utf-8", "replace"))
+        with_value = self.rapid("setup", "set", "test-command", "pytest", "--recommended")
+        self.assertEqual(with_value.returncode, 1)
+        other_key = self.rapid("setup", "set", "archetype", "--recommended")
+        self.assertEqual(other_key.returncode, 1)
 
     def test_doctor_is_quiet_when_the_command_exists(self):
         self.onboard(test_command=f'"{sys.executable}" -m unittest')
@@ -363,13 +409,33 @@ class HandEditedAgentFilesTests(Project):
         third = self.rapid("setup", "set", "archetype", "corporate", "--refresh")
         self.assertNotIn("RAPID1427", third.stderr.decode("utf-8", "replace"))
 
-    def test_a_project_without_a_manifest_is_not_accused(self):
+    def to_crlf(self, name):
+        path = self.root / name
+        path.write_bytes(path.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+
+    def test_only_the_line_endings_changing_is_not_a_hand_edit(self):
         self.env["PYTHONIOENCODING"] = "utf-8"
         self.onboard()
-        (self.root / ".rapid-os" / "generated.json").unlink()
-        (self.root / "CLAUDE.md").write_text("otro contenido\n", encoding="utf-8")
-        result = self.rapid("setup", "set", "archetype", "corporate", "--refresh")
-        self.assertNotIn("RAPID1427", result.stderr.decode("utf-8", "replace"))
+        self.to_crlf("CLAUDE.md")  # git core.autocrlf or an editor
+        self.assertIn(b"\r\n", (self.root / "CLAUDE.md").read_bytes())
+        changed = self.rapid("setup", "set", "archetype", "corporate", "--refresh")  # the standards change
+        self.assertEqual(changed.returncode, 0)
+        self.assertNotIn("RAPID1427", changed.stderr.decode("utf-8", "replace"))
+
+    def test_crlf_plus_an_added_line_is_a_hand_edit(self):
+        self.env["PYTHONIOENCODING"] = "utf-8"
+        self.onboard()
+        self.to_crlf("CLAUDE.md")
+        with open(self.root / "CLAUDE.md", "ab") as handle:
+            handle.write(b"# nota a mano\r\n")
+        changed = self.rapid("setup", "set", "archetype", "corporate", "--refresh")
+        self.assertIn("RAPID1427 CLAUDE.md", changed.stderr.decode("utf-8", "replace"))
+
+    def test_the_manifest_hash_ignores_line_endings(self):
+        from rapid_os.adapters.agents.base import _sha256
+
+        self.assertEqual(_sha256(b"a\r\nb\r\n"), _sha256(b"a\nb\n"))
+        self.assertNotEqual(_sha256(b"a\nb\n"), _sha256(b"a\nc\n"))
 
 
 if __name__ == "__main__":

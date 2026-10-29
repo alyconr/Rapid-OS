@@ -28,7 +28,8 @@ HAND_EDITED_CODE = "RAPID1427"
 
 
 def _sha256(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
+    """SHA-256 with CRLF read as LF: `core.autocrlf` or an editor changing the line endings is not an edit."""
+    return hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()
 
 
 def read_generated_manifest(current_dir: Path) -> dict[str, str]:

@@ -1279,10 +1279,6 @@ def _test_command_found(command) -> bool:
     return bool(shutil.which(first)) or (CURRENT_DIR / first).exists()
 
 
-def _quote_for_shell(text: str) -> str:
-    return subprocess.list2cmdline([text]) if sys.platform == "win32" else shlex.quote(text)
-
-
 def _missing_test_command_message():
     """RAPID1426 text when the project's `test_command` cannot be run, with the catalog's proposal; else None."""
     config = _load_config_with_warning(CONFIG_FILE) if Path(CONFIG_FILE).exists() else {}
@@ -1294,31 +1290,33 @@ def _missing_test_command_message():
         f"'{command[0]}' no se encuentra en el PATH, así que `rapid task done` y la baseline fallarán con "
         "«comando no encontrado»."
     )
-    proposal = _catalog_test_command_proposal()
-    if proposal:
+    items = _catalog_test_command_items()
+    if items:
+        per_component = "; ".join(f"{item['component']}: {display_command(item['command'])}" for item in items)
         message += (
-            f" El catálogo propone para los stacks de este proyecto: {display_command(proposal)}. Aplícalo con "
-            f"`rapid setup set test-command {_quote_for_shell(display_command(proposal))}` y después `rapid setup finish`."
+            f" El catálogo propone, para los stacks de este proyecto, {per_component}. "
+            "Aplícalo con `rapid setup set test-command --recommended`."
         )
     else:
-        message += " Corrígelo con `rapid setup set test-command '<comando>'` y después `rapid setup finish`."
+        message += " Corrígelo con `rapid setup set test-command '<comando>'`."
     return message
 
 
-def _catalog_test_command_proposal():
-    """The catalog's test command for the decided stacks (combined when there are two components), or None."""
+def _catalog_test_command_items(state=None, catalog=None):
+    """`{component, stack, root, command}` the catalog proposes for the decided stacks (empty when it has none)."""
     from rapid_os.adapters.setup_store import read_setup_file
-    from rapid_os.orchestration.setup_conductor import catalog_test_commands, combine_test_commands
+    from rapid_os.orchestration.setup_conductor import catalog_test_commands
 
-    state, _error = read_setup_file(PROJECT_RAPID_DIR)
+    if state is None:
+        state, _error = read_setup_file(PROJECT_RAPID_DIR)
     if state is None or not state.stacks:
-        return None
-    try:
-        catalog = _load_setup_inputs()[0]
-    except SystemExit:
-        return None
-    items = catalog_test_commands(state, catalog)
-    return combine_test_commands([item["command"] for item in items]) if items else None
+        return []
+    if catalog is None:
+        try:
+            catalog = _load_setup_inputs()[0]
+        except SystemExit:
+            return []
+    return catalog_test_commands(state, catalog)
 
 
 def _mojibake_diagnostics():
@@ -1347,7 +1345,8 @@ def _mojibake_diagnostics():
                         MOJIBAKE_CODE,
                         f"La spec '{record.id}' (r{record.current_revision}) contiene «{sample}»: UTF-8 leído como cp1252. "
                         "Las specs guardadas no se reescriben (el registro tiene huellas): crea una revisión nueva con el "
-                        "texto correcto (`rapid spec revise` o `rapid start ... --spec-file` con el mismo id).",
+                        "texto correcto (`rapid spec revise`). Una revisión corrige el texto pero no el id; si el id también "
+                        "salió alterado, hace falta una spec nueva.",
                         PROJECT_RAPID_DIR / "specs" / record.id,
                     )
                 )
@@ -3650,16 +3649,34 @@ def _setup_write(args, action_name, state, catalog, doc_banks):
         refresh = getattr(args, "refresh", False)
         if refresh and key != "archetype":
             raise apply.SetupApplyError("RAPID1413", "--refresh only goes with 'rapid setup set archetype <id>'.")
+        value = getattr(args, "value", None)
+        shown = value.strip() if value else value
+        if getattr(args, "recommended", False):
+            if key != "test-command" or value:
+                raise apply.SetupApplyError(
+                    "RAPID1413", "--recommended only goes with 'rapid setup set test-command' and takes no value."
+                )
+            from rapid_os.orchestration.setup_conductor import combine_test_commands
+
+            items = _catalog_test_command_items(state, catalog)
+            if not items:
+                raise apply.SetupApplyError(
+                    "RAPID1413",
+                    "The catalog has no test command for the stacks decided so far; use "
+                    "'rapid setup set test-command <cmd>'.",
+                )
+            command = combine_test_commands([item["command"] for item in items])
+            value, shown = shlex.join(command), display_command(command)
         new_state, notes = apply.set_decision(
             state,
             key,
-            getattr(args, "value", None),
+            value,
             catalog,
             DEFAULT_AGENT_REGISTRY.ids(),
             component=getattr(args, "component", None),
         )
         write_setup(PROJECT_RAPID_DIR, new_state)
-        summary = f"Setup: {key} = {args.value.strip()}"
+        summary = f"Setup: {key} = {shown}"
         if refresh:
             for warning in apply.refresh_archetype_files(
                 CURRENT_DIR, PROJECT_RAPID_DIR, CONFIG_FILE, TEMPLATES_DIR, new_state
@@ -5435,6 +5452,11 @@ def create_parser():
     )
     _sp.add_argument("key", nargs="?", help="stack, topology, archetype, ai, agents or test-command.")
     _sp.add_argument("value", nargs="?", help="Value of the decision.")
+    _sp.add_argument(
+        "--recommended",
+        action="store_true",
+        help="With 'test-command': apply the command the stack catalog proposes for the decided stacks.",
+    )
     _sp.add_argument(
         "--component",
         choices=["frontend", "backend", "baas", "docs"],
