@@ -622,7 +622,8 @@ def next_action(
                     f"{playbook.get_instruction(ActionKind.VERIFY)} {NO_TEST_COMMAND_NOTICE}"
                 )
         elif gate_kind == GateKind.ARCHITECTURE_CHECK:
-            cmd = ("rapid", "check", "--gate", first_mg.id, "--", "rapid", "arch", "check")
+            # `--new-only`: the violations the project had when the run started are debt, not this run's failure.
+            cmd = ("rapid", "check", "--gate", first_mg.id, "--", "rapid", "arch", "check", "--new-only")
             instr = playbook.get_instruction(ActionKind.VERIFY)
         else:
             cmd = ("rapid", "check", "--gate", first_mg.id)

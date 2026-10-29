@@ -123,12 +123,20 @@ El worktree de un run no tiene `.rapid-os/`: el ledger y la regla viven en el pr
 En los runs de `feature`, `bugfix` y `refactor`, si existe `architecture.json`, el contrato incluye el gate de máquina `gate.architecture`. `rapid next` lo propone como una verificación más, igual que `gate.tests`:
 
 ```bash
-rapid check --gate gate.architecture -- rapid arch check
+rapid check --gate gate.architecture -- rapid arch check --new-only
 ```
 
 `rapid finish` no da `PASS` mientras ese gate no esté satisfecho. El gate no se puede dispensar (no es waivable). Nunca desactives ni edites `architecture.json` para que un check pase: cambia el código o pide a la persona que cambie la regla.
 
 ## Proyectos existentes
+
+La regla aplica al **código nuevo**, y Rapid OS juzga un run por lo que el run añade. `rapid start` toma una foto de las violaciones que el proyecto ya tiene (archivo, regla e import, sin el número de línea, que cambia al editar) junto a la baseline de tests y la guarda en `session.json` (`start_architecture`). Desde entonces:
+
+- `gate.architecture` (`rapid arch check --new-only`) y la recomprobación final de `rapid finish` fallan solo por violaciones que **no** están en la foto. Las previas se informan como deuda (`N violaciones previas; no bloquean este run`) y se propone `/rapid-refactor`.
+- `rapid arch check` a secas sigue listando y fallando por todas. `--json` marca cada violación `new` o `previous` y añade `counts`, `new_only` y `baseline`.
+- En un run de **refactor**, una violación previa en un archivo que el run tocó cuenta como nueva: no se puede tocar un archivo y dejarlo violando.
+- La foto cuenta ocurrencias: un segundo import idéntico en un archivo que ya tenía uno es nuevo. Fuera de refactor, una violación cuyo archivo el run movió o renombró sigue siendo previa (la deuda se movió, no creció); se empareja por regla e import, así que es neta: borrar un archivo que violaba y añadir otro con el mismo import no cambia nada. En un refactor, mover el archivo es tocarlo, así que cuenta.
+- Sin run activo, con un run cerrado o con un run anterior a la foto, todas cuentan como previas y nada bloquea.
 
 La regla aplica al **código nuevo**. En un repositorio con capas globales, `rapid arch check` informa violaciones solo dentro de `modules_root`; no exige migrar. La migración a módulos se hace con `/rapid-refactor`, y en un proyecto nuevo la tarea de scaffold pide un módulo de ejemplo con sus capas y su contrato público.
 

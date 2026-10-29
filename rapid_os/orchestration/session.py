@@ -35,6 +35,9 @@ class Session:
     start_untracked: tuple[str, ...] | None = None
     # Isolated git worktree of the run (absolute path); the ledger stays in the main repo.
     workspace_path: str | None = None
+    # The architecture violations the project had when the run started, as (file, rule, import); None = no photo
+    # (no architecture rule, or a run that started before the photo existed).
+    start_architecture: tuple[tuple[str, str, str], ...] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -48,6 +51,10 @@ class Session:
             payload["start_untracked"] = list(self.start_untracked)
         if self.workspace_path is not None:
             payload["workspace_path"] = self.workspace_path
+        if self.start_architecture is not None:
+            payload["start_architecture"] = [
+                {"file": file, "rule": rule, "import": imported} for file, rule, imported in self.start_architecture
+            ]
         return payload
 
     @classmethod
@@ -78,6 +85,16 @@ class Session:
         workspace_path = data.get("workspace_path")
         if workspace_path is not None and not isinstance(workspace_path, str):
             raise ValueError("Session 'workspace_path' must be a string or None.")
+        raw_architecture = data.get("start_architecture")
+        start_architecture: tuple[tuple[str, str, str], ...] | None = None
+        if raw_architecture is not None:
+            if not isinstance(raw_architecture, list) or not all(
+                isinstance(item, dict)
+                and all(isinstance(item.get(key), str) for key in ("file", "rule", "import"))
+                for item in raw_architecture
+            ):
+                raise ValueError("Session 'start_architecture' must be a list of {file, rule, import} or None.")
+            start_architecture = tuple((item["file"], item["rule"], item["import"]) for item in raw_architecture)
         return cls(
             schema_version=schema_version,
             active_run_id=active_run_id,
@@ -86,6 +103,7 @@ class Session:
             start_head=start_head,
             start_untracked=start_untracked,
             workspace_path=workspace_path,
+            start_architecture=start_architecture,
         )
 
 

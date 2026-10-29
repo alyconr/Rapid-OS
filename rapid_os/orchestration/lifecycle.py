@@ -49,6 +49,7 @@ from rapid_os.domain.execution import (
 from rapid_os.domain.policy import ARCHITECTURE_GATE_ID, ExecutionError
 from rapid_os.domain.scanner import build_project_model
 from rapid_os.orchestration.actions import ActionKind, NextAction
+from rapid_os.orchestration.architecture_baseline import capture_snapshot
 from rapid_os.orchestration.architecture_rule import final_architecture_failure
 from rapid_os.orchestration.check import run_check
 from rapid_os.orchestration.conductor import (
@@ -425,6 +426,13 @@ def execute_start(
         start_untracked = resolve_git_untracked(project_root)
         workspace_path = None
 
+    # The photo of the violations the project already has, next to the test baseline: the run is judged on
+    # what it adds. A resumed run keeps the photo it started with.
+    if resume and existing_session:
+        start_architecture = existing_session.start_architecture
+    else:
+        start_architecture = capture_snapshot(project_root, project_rapid_dir)
+
     sess = Session(
         active_run_id=active_run_id,
         mode=mode,
@@ -432,6 +440,7 @@ def execute_start(
         start_head=start_head,
         start_untracked=start_untracked,
         workspace_path=workspace_path,
+        start_architecture=start_architecture,
     )
     save_session(project_rapid_dir, sess)
 

@@ -29,6 +29,9 @@ from rapid_os.domain.architecture_profiles import (
 from rapid_os.domain.stack_aliases import LEGACY_STACKS
 
 ARCHITECTURE_SCHEMA_VERSION = 1
+# The layers whose construction belongs to the composition root: reaching for them from the entry layer
+# (or from the ones above) earns the stack's note on where the dependencies are assembled.
+COMPOSITION_TARGET_LAYERS = ("infrastructure", "data-access")
 ARCHITECTURE_CODE = "RAPID1420"
 LANGUAGES = ("python", "typescript", "go", "java", "kotlin", "csharp", "rust", "php", "ruby")
 LAYER_NAMES = ("api", "application", "domain", "infrastructure")
@@ -175,6 +178,8 @@ class ArchitectureConfig:
     root: str = ""
     # The test of the stack's own ecosystem (Spring Modulith, Deptrac, NetArchTest, packwerk) the scaffold adds.
     complementary: str = ""
+    # Where this stack assembles a module's dependencies (said when the entry layer imports infrastructure).
+    composition: str = ""
 
     @property
     def public_stem(self) -> str:
@@ -275,6 +280,9 @@ class ArchitectureConfig:
         complementary = data.get("complementary", "")
         if not isinstance(complementary, str):
             raise fail("complementary debe ser un texto.")
+        composition = data.get("composition", "")
+        if not isinstance(composition, str):
+            raise fail("composition debe ser un texto.")
         prefix = f"{root}/" if root else ""
         return cls(
             language=language,
@@ -293,6 +301,7 @@ class ArchitectureConfig:
             component=component,
             root=root,
             complementary=complementary,
+            composition=composition,
         )
 
 
@@ -459,13 +468,13 @@ def _violations_for_target(
         elif source.layer in config.layers and target.layer in config.layers and target.layer != source.layer:
             if target.layer not in config.layers[source.layer]:
                 allowed = ", ".join(config.layers[source.layer]) or "ninguna"
-                found.append(
-                    Violation(
-                        RULE_LAYER, file, line, spelled,
-                        f"la capa '{source.layer}' no puede importar la capa '{target.layer}' "
-                        f"(permitidas: {allowed})",
-                    )
+                message = (
+                    f"la capa '{source.layer}' no puede importar la capa '{target.layer}' "
+                    f"(permitidas: {allowed})"
                 )
+                if config.composition and target.layer in COMPOSITION_TARGET_LAYERS:
+                    message += f". Dónde va la composición: {config.composition}"
+                found.append(Violation(RULE_LAYER, file, line, spelled, message))
     return found
 
 

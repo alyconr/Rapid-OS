@@ -49,6 +49,9 @@ def _main_project_rapid_dir(current_dir: Path) -> Path | None:
     return common.parent / ".rapid-os"
 
 
+main_project_rapid_dir = _main_project_rapid_dir
+
+
 def _run_demands_gate(rapid_dir: Path) -> bool:
     """True when the active run of `rapid_dir`'s session has `gate.architecture` in its contract."""
     try:
@@ -92,6 +95,10 @@ def final_architecture_failure(current_dir: Path, project_rapid_dir: Path) -> st
         return f"{FINAL_CHECK_CODE} rapid finish no da PASS: {exc}"
     if not rule.configs:
         return f"{FINAL_CHECK_CODE} rapid finish no da PASS: {RUN_DEMANDS_RULE_MESSAGE}"
+    # Late import: the baseline module imports this one.
+    from rapid_os.orchestration.architecture_baseline import active_baseline, classify
+
+    baseline = active_baseline(current_dir, project_rapid_dir)
     lines: list[str] = []
     for config in rule.configs:
         if config.delegate:
@@ -100,12 +107,16 @@ def final_architecture_failure(current_dir: Path, project_rapid_dir: Path) -> st
                 lines.append(result.output or f"{config.delegate} no pasó")
             continue
         report = check_architecture(config, collect_sources(current_dir, config))
-        lines.extend(violation.to_line() for violation in report.violations)
+        # Only what the run added counts: the violations the project already had are debt, not a verdict.
+        new, _previous = (
+            classify(report.violations, baseline, Path(current_dir)) if baseline is not None else (report.violations, [])
+        )
+        lines.extend(violation.to_line() for violation in new)
     if not lines:
         return None
     return (
         f"{FINAL_CHECK_CODE} rapid finish no da PASS: gate.architecture falla sobre el estado final del run "
-        f"({len(lines)} problema(s)); el run sigue abierto.\n"
+        f"({len(lines)} problema(s) nuevo(s)); el run sigue abierto.\n"
         + "\n".join(lines)
         + "\nCorrige las violaciones y vuelve a ejecutar `rapid finish`."
     )

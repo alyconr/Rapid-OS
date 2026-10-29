@@ -123,12 +123,20 @@ A run's worktree has no `.rapid-os/`: the ledger and the rule live in the main p
 In `feature`, `bugfix`, and `refactor` runs, if `architecture.json` exists, the contract includes the machine gate `gate.architecture`. `rapid next` proposes it as one more verification, just like `gate.tests`:
 
 ```bash
-rapid check --gate gate.architecture -- rapid arch check
+rapid check --gate gate.architecture -- rapid arch check --new-only
 ```
 
 `rapid finish` does not give `PASS` while that gate is not satisfied. The gate cannot be waived (it is not waivable). `finish` also runs the check again over the final state of the code, because a violation can be added after the gate passed: if it fails, `finish` ends with `RAPID1422` and exit 1, lists the violations, and leaves the run open (no verdict is recorded) so the code can be fixed and `rapid finish` run again. Never disable or edit `architecture.json` to make a check pass: change the code or ask the person to change the rule.
 
 ## Existing projects
+
+The rule applies to **new code**, and Rapid OS judges a run on what the run adds. `rapid start` takes a photo of the violations the project already has (file, rule and import, not the line number, which moves when a file is edited) next to the test baseline and keeps it in `session.json` (`start_architecture`). From then on:
+
+- `gate.architecture` (`rapid arch check --new-only`) and the final check of `rapid finish` fail only for violations that are **not** in the photo. The previous ones are reported as debt (`N violaciones previas; no bloquean este run`) and `/rapid-refactor` is proposed.
+- `rapid arch check` with no flag still lists and fails on all of them. `--json` marks each violation `new` or `previous` and adds `counts` (`new`, `previous`), `new_only` and `baseline` (the run id, or `null`).
+- In a **refactor** run a previous violation in a file the run touched counts as new: a file cannot be touched and left violating.
+- The photo counts occurrences: a second identical import in a file that already had one is new. Outside refactor, a violation whose file the run moved or renamed stays previous (the debt moved, it did not grow); the match is by rule and import, so it is net: deleting a violating file and adding another with the same import changes nothing. In a refactor, moving the file is touching it, so it counts.
+- With no active run, with a closed run or with a run that started before the photo existed, every violation counts as previous and nothing blocks.
 
 The rule applies to **new code**. In a repository with global layers, `rapid arch check` reports violations only inside `modules_root`; it does not require migrating. The migration to modules is done with `/rapid-refactor`, and in a new project the scaffold task asks for an example module with its layers and its public contract.
 
