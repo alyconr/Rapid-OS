@@ -3609,9 +3609,11 @@ def arch_command(args):
     from rapid_os.adapters.architecture_files import collect_sources, config_path
     from rapid_os.domain.architecture import ArchitectureConfigError, check_architecture
     from rapid_os.orchestration.arch_delegate import run_delegate
+    from rapid_os.orchestration.architecture_baseline import active_baseline, classify, previous_debt_line
     from rapid_os.orchestration.architecture_rule import RUN_DEMANDS_RULE_MESSAGE, resolve_architecture_rule
 
     as_json = getattr(args, "json", False)
+    new_only = getattr(args, "new_only", False)
 
     def fail(message):
         if as_json:
@@ -3652,7 +3654,11 @@ def arch_command(args):
     skipped = [line for _c, r in reports for line in r.skipped]
     warnings = [line for _c, r in reports for line in r.warnings]
     delegate_failed = [(c, d) for c, d in delegated if not d.ok]
-    ok = not violations and not delegate_failed
+    # What the project had when the run started is debt; only `--new-only` lets it through (the gate uses it).
+    baseline = active_baseline(CURRENT_DIR, PROJECT_RAPID_DIR)
+    new_violations, previous_violations = classify(violations, baseline)
+    blocking = new_violations if new_only else violations
+    ok = not blocking and not delegate_failed
     checked = sum(r.checked_files for _c, r in reports)
     modules = sorted({m for _c, r in reports for m in r.modules})
     if as_json:
@@ -3662,7 +3668,12 @@ def arch_command(args):
             "language": configs[0].language,
             "modules": modules,
             "checked_files": checked,
-            "violations": [v.to_dict() for v in violations],
+            "violations": [
+                {**v.to_dict(), "status": "new" if v in new_violations else "previous"} for v in violations
+            ],
+            "new_only": new_only,
+            "counts": {"new": len(new_violations), "previous": len(previous_violations)},
+            "baseline": baseline.run_id if baseline is not None else None,
             "skipped": skipped,
             "warnings": warnings,
         }
@@ -3678,21 +3689,27 @@ def arch_command(args):
     else:
         for line in skipped + warnings:
             print(f"WARNING {line}")
-        for violation in violations:
+        for violation in blocking:
             print(violation.to_line())
+        if new_only and previous_violations:
+            for violation in previous_violations:
+                print(f"(previa) {violation.to_line()}")
+            print(previous_debt_line(previous_violations, baseline))
         for config, result in delegated:
             if result.output:
                 print(result.output, file=sys.stderr if not result.ok else sys.stdout)
             if result.ok:
                 print(f"Arquitectura OK según {config.delegate}.")
-        if not violations and not delegate_failed:
-            if checked:
+        if not blocking and not delegate_failed:
+            if checked and new_only and previous_violations:
+                print(f"Sin violaciones nuevas: {checked} archivo(s) en {len(modules)} módulo(s).")
+            elif checked:
                 print(f"Arquitectura OK: {checked} archivo(s) en {len(modules)} módulo(s).")
             elif not delegated:
                 roots = ", ".join(c.modules_root for c in configs)
                 print(f"Sin módulos todavía en {roots}/: nada que verificar.")
-        elif violations:
-            print(f"{len(violations)} violación(es) de la arquitectura (regla en .rapid-os/standards/architecture.md).")
+        elif blocking:
+            print(f"{len(blocking)} violación(es) de la arquitectura (regla en .rapid-os/standards/architecture.md).")
     return 0 if ok else 1
 
 
@@ -5374,10 +5391,18 @@ def create_parser():
             "TypeScript/JavaScript with regular expressions; nothing is executed) and report a violation "
             "(RAPID1420) for a layer importing a layer it may not, a module importing anything but another "
             "module's public entry, shared importing a module, or the domain importing a forbidden library. "
-            "Exit 1 with violations; 0 without them, without modules yet, or without architecture.json (warning)."
+            "Exit 1 with violations; 0 without them, without modules yet, or without architecture.json (warning). "
+            "With --new-only the violations the project already had when the active run started are reported "
+            "as debt and do not fail the check (gate.architecture uses it)."
         ),
     )
     _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
+    _sp.add_argument(
+        "--new-only",
+        dest="new_only",
+        action="store_true",
+        help="Fail only for violations the active run added; list the earlier ones as debt.",
+    )
 
     # rapid shortcuts
     shortcuts_p = subparsers.add_parser(

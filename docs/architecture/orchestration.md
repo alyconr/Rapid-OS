@@ -157,7 +157,7 @@ Every verb that records evidence does so with an identifiable producer:
 
 The evaluator applies ruleset v2 by default (`rapid eval run --ruleset {1,2}`):
 
-- **`gate.architecture`:** in `feature`, `bugfix`, and `refactor`, if `architecture.json` exists, the contract adds this machine gate (`architecture_check`, post-execution, mandatory, non-waivable). `rapid next` proposes `rapid check --gate gate.architecture -- rapid arch check` and violations are `RAPID1420`. See [Architecture by stack](../concepts/architecture.md#the-gatearchitecture-gate).
+- **`gate.architecture`:** in `feature`, `bugfix`, and `refactor`, if `architecture.json` exists, the contract adds this machine gate (`architecture_check`, post-execution, mandatory, non-waivable). `rapid next` proposes `rapid check --gate gate.architecture -- rapid arch check --new-only` and violations are `RAPID1420`. See [Architecture by stack](../concepts/architecture.md#the-gatearchitecture-gate).
 - **`expectation: "fail"`:** `rapid check --expect fail --task <id>` records an expected failure. It produces the `reproduction.<task>` assertion as `PASS` if the command really failed (and `FAIL` if not), and that evidence does **not** count as a task failure nor serve as `gate.baseline` or `gate.tests` evidence. It is only accepted linked to a task (`RAPID1320`).
 - **`harness:*` does not close human gates:** review evidence produced by a `harness:<id>` stays `UNVERIFIED` for human review gates. Only a `rapid approve` review (producer `user`) can back them.
 

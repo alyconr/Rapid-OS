@@ -9,7 +9,7 @@ machine-readable rule (`architecture.json`) and the text the agent reads (`archi
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Mapping
 
 BACKEND_LAYERS: Mapping[str, list[str]] = {
@@ -88,6 +88,8 @@ class RuleSpec:
     delegate: str = ""
     complementary: str = ""
     notes: str = ""
+    # Where the dependencies are assembled in this stack, said when the entry layer reaches for infrastructure.
+    composition: str = ""
 
     def to_dict(self, root: str = "") -> dict:
         data: dict = {
@@ -115,6 +117,8 @@ class RuleSpec:
             data["delegate"] = self.delegate
         if self.complementary:
             data["complementary"] = self.complementary
+        if self.composition:
+            data["composition"] = self.composition
         if root:
             data["root"] = root
         return data
@@ -378,5 +382,54 @@ FRONTEND_RULES: Mapping[str, RuleSpec] = {
     "sveltekit": _feature_rule("src/lib/features", "src/lib/shared", {"$lib/": "src/lib/"}),
     "astro": _feature_rule("src/features", "src/shared", {"@/": "src/"}),
 }
+
+# Where the dependencies of a module are put together, per stack. The entry layer (`api/`, `web/`, `Http/`...)
+# receives what was built; it does not import `infrastructure/` to build it.
+BACKEND_COMPOSITION = {
+    "python-fastapi": (
+        "ensambla las dependencias en app/main.py o en el public.py del módulo, y deja que api/ las reciba "
+        "(por ejemplo con Depends) en lugar de construir infrastructure/ él mismo"
+    ),
+    "python-django": (
+        "ensambla en config/urls.py (o en el public.py de la app) y pasa a las vistas servicios ya construidos; "
+        "api/ no importa models ni infrastructure"
+    ),
+    "node-nestjs": (
+        "declara los providers en <m>.module.ts (la composición) y deja que los controllers reciban la dependencia "
+        "por inyección, sin importar infrastructure/"
+    ),
+    "node-fastify": (
+        "arma las dependencias en el index.ts del módulo o en la composición de la app (app.ts) y pásalas a routes/ "
+        "como argumentos"
+    ),
+    "go": (
+        "construye los adaptadores en cmd/<app>/main.go (o en el paquete raíz del módulo) y pásalos a http/ como "
+        "interfaces"
+    ),
+    "rust-axum": "construye el estado (AppState) con los adaptadores en main.rs y pásalo a api/ con State",
+    "ruby-rails": "inyecta las dependencias desde un initializer o desde el servicio de app/, no desde el controlador",
+    "dotnet-aspnetcore": (
+        "registra la infraestructura en una extensión AddInfrastructure del proyecto Infrastructure y llámala desde "
+        "Program.cs; <M>.Api solo conoce las interfaces de Application"
+    ),
+    "java-spring-boot": (
+        "declara los beans en una clase @Configuration del paquete raíz del módulo; web/ recibe las dependencias por "
+        "inyección"
+    ),
+    "kotlin-spring-boot": (
+        "declara los beans en una clase @Configuration del paquete raíz del módulo; web/ recibe las dependencias por "
+        "inyección"
+    ),
+    "php-laravel": "enlaza las implementaciones en el ServiceProvider del módulo; Http/ recibe las interfaces",
+    "nextjs": "arma las dependencias en el index.ts del módulo (o en el cableado de app/) y pásalas a api/",
+    "nuxt": "arma las dependencias en el index.ts del módulo (o en un plugin de Nitro) y pásalas a api/",
+    "sveltekit": "arma las dependencias en el index.ts del módulo (o en hooks.server.ts) y pásalas a api/",
+}
+FRONTEND_COMPOSITION = (
+    "ui/ no importa data-access/: conecta el acceso a datos desde state/ (hooks, stores o servicios de la "
+    "funcionalidad) y deja que ui/ consuma ese estado"
+)
+BACKEND_RULES = {k: replace(v, composition=BACKEND_COMPOSITION.get(k, "")) for k, v in BACKEND_RULES.items()}
+FRONTEND_RULES = {k: replace(v, composition=FRONTEND_COMPOSITION) for k, v in FRONTEND_RULES.items()}
 
 # Stacks that get no rule: `generic`, `docs-modern` and a stack the person wrote themselves.
