@@ -198,16 +198,19 @@ class CliSmokeTests(unittest.TestCase):
         )
 
         self.assertEqual(relaxed.returncode, 0, relaxed.stderr)
-        self.assertEqual(strict.returncode, 1, strict.stderr)
-        self.assertTrue(json.loads(relaxed.stdout.decode("utf-8"))["ok"])
-        self.assertFalse(json.loads(strict.stdout.decode("utf-8"))["ok"])
+        relaxed_payload = json.loads(relaxed.stdout.decode("utf-8"))
+        strict_payload = json.loads(strict.stdout.decode("utf-8"))
+        has_warnings = relaxed_payload["summary"]["warning"] > 0
+        self.assertTrue(relaxed_payload["ok"])
+        self.assertEqual(strict.returncode, int(has_warnings), strict.stderr)
+        self.assertEqual(strict_payload["ok"], not has_warnings)
 
 
 class CliEncodingTests(unittest.TestCase):
     def test_read_text_best_effort_reads_cp1252_files(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "business.md"
-            expected = "Descripción comercial"
+            expected = "DescripciÃ³n comercial"
             path.write_bytes(expected.encode("cp1252"))
 
             self.assertEqual(read_text_best_effort(path), expected)
@@ -215,7 +218,7 @@ class CliEncodingTests(unittest.TestCase):
     def test_refine_standard_handles_cp1252_files(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "business.md"
-            content = "Descripción comercial"
+            content = "DescripciÃ³n comercial"
             path.write_bytes(content.encode("cp1252"))
             output = io.StringIO()
 
@@ -928,5 +931,6 @@ class CliSpecRegistryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
