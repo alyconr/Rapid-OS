@@ -210,7 +210,7 @@ class CliEncodingTests(unittest.TestCase):
     def test_read_text_best_effort_reads_cp1252_files(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "business.md"
-            expected = "DescripciÃ³n comercial"
+            expected = "DescripciÃ³n comercial â‚¬"
             path.write_bytes(expected.encode("cp1252"))
 
             self.assertEqual(read_text_best_effort(path), expected)
@@ -218,7 +218,7 @@ class CliEncodingTests(unittest.TestCase):
     def test_refine_standard_handles_cp1252_files(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "business.md"
-            content = "DescripciÃ³n comercial"
+            content = "DescripciÃ³n comercial â‚¬"
             path.write_bytes(content.encode("cp1252"))
             output = io.StringIO()
 
