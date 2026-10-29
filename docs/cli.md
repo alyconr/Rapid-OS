@@ -415,12 +415,14 @@ With no active run, `rapid next` (and `rapid start feature` without a spec) retu
 Collect repository changes, evaluate machine gates, and close the run.
 
 ```bash
-rapid finish [--json] [--no-tick]
+rapid finish [--json] [--no-tick] [--merge]
 ```
 
-The `file_change` evidence it records (capability `repository.write`) lists the files the run changed in the project: tracked changes since the run started plus new untracked files, without `.rapid-os/` and without tool artifacts (`__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `.tox`, `.nox`, `node_modules`, `.venv`, `venv`, `*.pyc`, `*.pyo`, `.coverage*`), even in a project with no `.gitignore`; with no real change no `file_change` is recorded and the verdict is not `pass`.
+By default `rapid finish` does not commit. If the run has a worktree with uncommitted changes, it prints the real worktree and project paths and the exact `add`, `commit`, `merge rapid/<run-id>`, and `worktree remove` commands. Never use the **--force** option while changes remain; it deletes them. A pending human gate makes `rapid finish` exit nonzero.
 
-`rapid finish` ends with `Rapid OS no hace commit: revisa los cambios y haz commit tú` (to stderr with `--json`): Rapid OS never commits, and neither do the shortcuts.
+`--merge` asks the person to type `integrar <run-id>`. After a passing verdict it commits on the run branch with a message derived from the spec and merges `rapid/<run-id>` into the current checkout. It leaves worktree removal to the person; the source checkout must be clean.
+
+The `file_change` evidence it records (capability `repository.write`) lists the files the run changed in the project: tracked changes since the run started plus new untracked files, without `.rapid-os/` and without tool artifacts (`__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `.tox`, `.nox`, `node_modules`, `.venv`, `venv`, `*.pyc`, `*.pyo`, `.coverage*`), even in a project with no `.gitignore`; with no real change no `file_change` is recorded and the verdict is not `pass`.
 
 In text mode it prints the report revision and verdict (`Evaluation report 0001 for run '<run-id>': verdict PASS`). When the verdict is `unverified` and `capability.repository.write.observed` did not pass, it adds one line explaining why: `No file changes were observed: the folder is not a Git repository` or `... Git works but the run did not change project files (outside .rapid-os/ and tool artifacts)`. With `--json`, the same text is the optional report field `unverified_reason` (also sent to stderr). When the run spec cites a story with the tag `story:<ID>` (for example, `story:H002`; the `/rapid-feature` shortcut asks the agent to add it), `finish` also updates the story in `docs/PRODUCT_BRIEF.md`:
 

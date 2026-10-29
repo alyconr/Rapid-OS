@@ -2511,7 +2511,9 @@ def _validate_template_file(path: Path):
                 )
             )
 
-    placeholders = detect_placeholders(content)
+    # Shipped templates may intentionally carry substitution tokens such as [PASSWORD].
+    # RAPID110 is for templates authored in a project, not Rapid's own source templates.
+    placeholders = detect_placeholders(content) if not path.is_relative_to(TEMPLATES_DIR) else ()
     if placeholders:
         diagnostics.append(
             Diagnostic(
