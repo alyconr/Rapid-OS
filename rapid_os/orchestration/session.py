@@ -315,6 +315,10 @@ def validate_session(
             RunStatus.CANCELLED,
         }
         if run_state.status in terminal_statuses:
+            from rapid_os.adapters.eval_registry import EvalRegistry
+            has_verdict = bool(EvalRegistry(root, project_rapid_dir).list_reports(session.active_run_id))
+            if run_state.status == RunStatus.FINISHED and has_verdict:
+                return ValidationReport(())
             diagnostics.append(
                 Diagnostic(
                     WARNING,

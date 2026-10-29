@@ -1489,6 +1489,37 @@ def doctor_command(args):
         for duplicate in detect_scope_duplicates(Path.home(), CURRENT_DIR, DEFAULT_AGENT_REGISTRY.ids(), TEMPLATES_DIR):
             diagnostics.append(Diagnostic(WARNING, "RAPID1321", duplicate.message.removeprefix("RAPID1321 ")))
 
+        if sys.platform == "win32":
+            from rapid_os.orchestration.git import run_git
+            from rapid_os.adapters.evidence_registry import EvidenceRegistry
+
+            try:
+                enabled = run_git(CURRENT_DIR, "config", "--get", "core.longpaths")
+                longpaths = enabled.returncode == 0 and enabled.stdout.strip().lower() in ("true", "yes", "on", "1")
+                evidence_registry = EvidenceRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+                runs_dir = PROJECT_RAPID_DIR / "runs"
+                evidence = (
+                    entry
+                    for run_dir in runs_dir.iterdir() if run_dir.is_dir()
+                    for entry in evidence_registry.list(run_dir.name)
+                ) if runs_dir.is_dir() else ()
+                long_paths = [
+                    CURRENT_DIR / artifact
+                    for entry in evidence
+                    for artifact in entry.artifacts
+                    if len(Path(artifact).as_posix()) > 200
+                ]
+                if long_paths and not longpaths:
+                    diagnostics.append(Diagnostic(
+                        WARNING,
+                        "RAPID1340",
+                        f"Evidence paths exceed 200 characters from the repository root ({len(long_paths)} path(s)); Windows git long paths are not enabled.",
+                        long_paths[0],
+                        hint="Run 'git config core.longpaths true' in this repository and retry worktree operations.",
+                    ))
+            except Exception:
+                pass
+
     if shutil.which("rapid") is None and _agent_shortcuts_or_hooks_installed():
         diagnostics.append(
             Diagnostic(
@@ -2974,6 +3005,28 @@ def render_evaluation_report_text(
     ]
     if stale:
         lines.append("Stale: YES (RAPID1227)")
+        try:
+            evidence = EvidenceRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).list(report.run_id)
+            reported_ids = [
+                eid for assertion in report.assertions for eid in assertion.evidence_ids
+            ]
+            reported_numbers = [
+                int(eid[1:]) for eid in reported_ids
+                if len(eid) > 1 and eid[1:].isdigit()
+            ]
+            latest_reported = max(reported_numbers, default=0)
+            added = [
+                item.id for item in evidence
+                if len(item.id) > 1 and item.id[1:].isdigit()
+                and int(item.id[1:]) > latest_reported
+            ]
+            if added:
+                lines.append("Changed since report: evidence added " + ", ".join(added) + ".")
+            else:
+                lines.append("Changed since report: the evidence set digest no longer matches.")
+        except Exception:
+            lines.append("Changed since report: the evidence set digest no longer matches.")
+        lines.append(f"Resolve by running 'rapid eval run --run {report.run_id} --write' for a fresh report.")
 
     lines.append("")
     lines.append("Assertions:")
@@ -3136,6 +3189,14 @@ def check_command(args):
         contract = registry.get_contract(run_id)
     except Exception as exc:
         print(f"RAPID1304 Run '{run_id}' not found: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if current_state.status.is_terminal:
+        print(
+            f"RAPID1342 El run {run_id} ya terminó ({current_state.status.value}); "
+            "empieza uno nuevo con rapid start.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     task_arg = getattr(args, "task", None)
@@ -3936,6 +3997,9 @@ def setup_command(args):
     from rapid_os.orchestration.setup_conductor import next_setup_action
 
     action_name = getattr(args, "setup_action", None)
+    if action_name == "next" and in_rapid_home():
+        print(NOT_A_PROJECT_MESSAGE.format(rapid_dir=PROJECT_RAPID_DIR), file=sys.stderr)
+        sys.exit(1)
     if not action_name:
         print(f"RAPID1413 Subcomando de setup requerido ({SETUP_SUBCOMMANDS}).", file=sys.stderr)
         sys.exit(1)
@@ -4149,8 +4213,12 @@ def next_command(args):
         print(json.dumps(action.to_dict(), indent=2))
         return 0
 
-    cmd_str = f" -> {' '.join(action.command)}" if action.command else ""
-    print(f"Next: {action.kind.value}{cmd_str}")
+    if action.kind.value == "await_human_approval":
+        for gate_id in action.gate_ids or action.awaiting_human:
+            print(f"Next: await_human_approval -> rapid approve {gate_id}")
+    else:
+        cmd_str = f" -> {' '.join(action.command)}" if action.command else ""
+        print(f"Next: {action.kind.value}{cmd_str}")
     return 0
 
 
@@ -4237,6 +4305,62 @@ def finish_command(args):
     from rapid_os.orchestration.actions import NextAction
     from rapid_os.orchestration.lifecycle import execute_finish, unverified_reason, verification_warning
 
+    from rapid_os.orchestration.session import load_session
+    from rapid_os.orchestration.git import run_git
+    sess = load_session(PROJECT_RAPID_DIR)
+    merge_confirmed = False
+    if getattr(args, "merge", False):
+        if not sess or not sess.active_run_id or not sess.workspace_path:
+            print("RAPID1341 --merge requiere un run activo con worktree.", file=sys.stderr)
+            sys.exit(1)
+        if not sys.stdin.isatty():
+            print("RAPID1341 --merge requiere confirmación escrita en una terminal interactiva.", file=sys.stderr)
+            sys.exit(1)
+        phrase = f"integrar {sess.active_run_id}"
+        print("Escribe la frase siguiente para confirmar el commit y merge:")
+        print(phrase)
+        try:
+            answer = input("> ").strip().strip("'\"“”‘’").strip()
+        except EOFError:
+            print("RAPID1341 No se recibió la confirmación; no se creó commit ni merge.", file=sys.stderr)
+            sys.exit(1)
+        if answer != phrase:
+            print("Confirmación abortada; no se creó commit ni merge.", file=sys.stderr)
+            sys.exit(1)
+        merge_confirmed = True
+    merge_message = f"Complete run {sess.active_run_id}" if merge_confirmed else ""
+    if merge_confirmed:
+        try:
+            contract = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_contract(sess.active_run_id)
+            revision = SpecRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_revision(
+                contract.spec_id, revision=contract.spec_revision
+            )
+            merge_message = revision.title
+        except Exception:
+            pass
+    if sess and sess.active_run_id and sess.workspace_path:
+        workspace = Path(sess.workspace_path)
+        if workspace.is_dir():
+            status = run_git(workspace, "status", "--porcelain")
+            if status.returncode == 0 and status.stdout.strip() and not merge_confirmed:
+                run_id = sess.active_run_id
+                try:
+                    contract = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_contract(run_id)
+                    revision = SpecRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_revision(
+                        contract.spec_id, revision=contract.spec_revision
+                    )
+                    message = revision.title
+                except Exception:
+                    message = f"Complete run {run_id}"
+                output = sys.stderr if getattr(args, "json", False) else sys.stdout
+                print(f"Worktree con cambios sin commit: {workspace}", file=output)
+                print("Cierre manual del worktree:", file=output)
+                print(f'  git -C "{workspace}" add -A', file=output)
+                print(f'  git -C "{workspace}" commit -m "{message}"', file=output)
+                print(f'  git -C "{CURRENT_DIR}" merge rapid/{run_id}', file=output)
+                print(f'  git worktree remove "{workspace}"', file=output)
+                print("No uses --force mientras haya cambios: borrarías el trabajo del run.", file=output)
+
     code, result = execute_finish(
         CURRENT_DIR,
         PROJECT_RAPID_DIR,
@@ -4247,10 +4371,48 @@ def finish_command(args):
         print(result, file=sys.stderr)
         sys.exit(code)
 
+    if merge_confirmed and not isinstance(result, NextAction) and code == 0:
+        workspace = Path(sess.workspace_path)
+        run_id = sess.active_run_id
+        source = CURRENT_DIR
+        from rapid_os.orchestration.git import run_git
+        try:
+            branch = run_git(workspace, "branch", "--show-current")
+            source_status = run_git(source, "status", "--porcelain")
+            if branch.returncode or branch.stdout.strip() != f"rapid/{run_id}":
+                raise RuntimeError(f"El worktree no está en la rama rapid/{run_id}.")
+            source_changes = [
+                line for line in source_status.stdout.splitlines()
+                if not (line.startswith("?? ") and line[3:].replace("\\", "/").startswith(".rapid-os/"))
+            ]
+            if source_status.returncode or source_changes:
+                dirty = ", ".join(source_changes)
+                raise RuntimeError(
+                    "El checkout de origen tiene cambios sin commit; no se hizo merge. "
+                    f"Resuélvelos primero: {dirty or source_status.stderr.strip()}"
+                )
+            work_status = run_git(workspace, "status", "--porcelain")
+            if work_status.returncode:
+                raise RuntimeError(work_status.stderr.strip() or "No se pudo leer el estado del worktree.")
+            if work_status.stdout.strip():
+                added = run_git(workspace, "add", "-A")
+                if added.returncode:
+                    raise RuntimeError(added.stderr.strip())
+                committed = run_git(workspace, "commit", "-m", merge_message)
+                if committed.returncode:
+                    raise RuntimeError(committed.stderr.strip() or committed.stdout.strip())
+            merged = run_git(source, "merge", f"rapid/{run_id}")
+            if merged.returncode:
+                raise RuntimeError(merged.stderr.strip() or merged.stdout.strip())
+            print(f"Commit y merge completados en {source}; worktree conservado en {workspace}.", file=sys.stderr if getattr(args, "json", False) else sys.stdout)
+        except Exception as exc:
+            print(f"RAPID1341 El run terminó, pero no se completó commit/merge: {exc}", file=sys.stderr)
+            sys.exit(1)
+
     if isinstance(result, NextAction):
         if getattr(args, "json", False):
             print(json.dumps(result.to_dict(), indent=2))
-            sys.exit(code)
+            sys.exit(1 if result.kind.value == "await_human_approval" else code)
         if result.kind.value == "done":
             outcome = result.outcome or "ended"
             print(
@@ -4258,6 +4420,11 @@ def finish_command(args):
                 file=sys.stderr if code else sys.stdout,
             )
             sys.exit(code)
+        if result.kind.value == "await_human_approval":
+            print("Cannot finish yet. Human approval is pending:")
+            for gate_id in result.gate_ids or result.awaiting_human:
+                print(f"Next: await_human_approval -> rapid approve {gate_id}")
+            sys.exit(1)
         cmd_str = f" -> {' '.join(result.command)}" if result.command else ""
         print(f"Cannot finish yet. Next: {result.kind.value}{cmd_str}")
         return 0
@@ -5380,6 +5547,7 @@ def create_parser():
         description="Collect git diff file changes, acknowledge satisfied machine gates, evaluate ruleset, and finish run.",
     )
     finish_p.add_argument("--json", action="store_true", help="Emit EvaluationReport or NextAction JSON output.")
+    finish_p.add_argument("--merge", action="store_true", help="After a passing verdict, confirm, commit the run worktree, and merge its branch into the current checkout; the worktree remains for you to remove.")
     finish_p.add_argument(
         "--no-tick",
         action="store_true",

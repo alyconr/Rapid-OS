@@ -24,6 +24,19 @@ What its playbook does (`templates/modes/hardening.json` and the Conductor's rul
 - `rapid start hardening --spec-file - --worktree` creates a git worktree at `../<repo>-<run-id>` (branch `rapid/<run-id>`); the ledger stays in the main repository, `rapid check` runs in the worktree, and `rapid finish` takes the changes from there. Without the flag, `rapid next` proposes `rapid start --resume --worktree`.
 - The worktree starts from `HEAD` (uncommitted changes in the main checkout do not come along) and `rapid abort` does not remove it.
 
+### Close and integrate the worktree
+
+At `await_human_approval`, the agent should show the actual worktree path and branch `rapid/<run-id>`. `rapid finish` checks for uncommitted worktree changes and prints the exact closure commands. Commit on the run branch before merging it into the source checkout, then remove the worktree:
+
+```bash
+git -C <worktree> add -A
+git -C <worktree> commit -m "<spec title>"
+git -C <project> merge rapid/<run-id>
+git worktree remove <worktree>
+```
+
+Never use `git worktree remove` with the **--force** option while the worktree has uncommitted changes; it deletes the changes. On Windows, if checkout reports `Filename too long`, run `git config core.longpaths true` in the repository and retry.
+
 The rest of this guide describes the same cycle with v3 commands (**Advanced mode**), useful for CI, debugging, and auditing.
 
 ---

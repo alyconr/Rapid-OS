@@ -28,7 +28,7 @@ def worktree_path_for(project_root: Path, run_id: str) -> Path:
 
 
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
-    return run_git(cwd, *args)
+    return run_git(cwd, "-c", "core.longpaths=true", *args)
 
 
 def _registered_worktrees(project_root: Path) -> set[str]:
@@ -70,7 +70,12 @@ def create_run_worktree(project_root: Path, run_id: str) -> Path:
         detail = (proc.stderr or proc.stdout).strip().splitlines()
         raise WorkspaceError(
             "RAPID1334",
-            f"git worktree add failed for branch '{branch}': {detail[-1] if detail else 'unknown error'}",
+            f"git worktree add failed for branch '{branch}': {detail[-1] if detail else 'unknown error'}"
+            + (
+                " Enable long paths for your Windows checkout with 'git config core.longpaths true' and retry."
+                if "filename too long" in "\n".join(detail).lower()
+                else ""
+            ),
         )
     return target
 

@@ -40,6 +40,8 @@ rapid approve gate.final-verification
 
 Return to the agent and enter `/rapid-next` to close the run.
 
+The run's code remains in `../<repo>-<run-id>` on `rapid/<run-id>`. Commit in that worktree before merging the branch into your project, then remove the worktree. `rapid finish` prints the exact paths and commands when uncommitted changes remain. Do not use `git worktree remove` with the **--force** option; it deletes uncommitted work.
+
 **Result:** `register_user` rejects usernames, emails, and bios outside the limits, with tests for each; the run ends with a `pass` verdict (or `pass_with_waivers` if you waived the review).
 
 No shortcuts yet? Install them once with `rapid shortcuts install --global --harness claude`, or run `rapid init --shortcuts` inside the folder. Replace `claude` with your agent. See the [shortcuts guide](../guides/shortcuts.md).

@@ -1100,7 +1100,15 @@ def execute_approve(
 
     gate = next((g for g in contract.gates if g.id == gate_id), None)
     if not gate:
-        return 1, f"RAPID1332 Gate '{gate_id}' not found in contract."
+        pending = [
+            g.id for g in current_state.gates
+            if g.disposition == GateDisposition.PENDING
+            and any(c.id == g.id and c.kind in HUMAN_GATE_KINDS for c in contract.gates)
+        ]
+        return 1, (
+            f"RAPID1332 Gate '{gate_id}' not found in contract. Pending gates for run '{run_id}': "
+            + (", ".join(pending) if pending else "none")
+        )
 
     gate_st = next((g for g in current_state.gates if g.id == gate_id), None)
     if not gate_st:
@@ -1178,10 +1186,10 @@ def execute_approve(
     else:
         expected_confirm = f"aprobar {gate_id}"
         accepted = {expected_confirm}
-    answer = ask_input(f"Escribe '{expected_confirm}' para confirmar la acción sobre el gate: ")
+    answer = ask_input(f"Escribe la frase siguiente para confirmar la acción sobre el gate:\n{expected_confirm}\n> ")
     if answer is None:
         return 1, no_terminal
-    typed = answer.strip()
+    typed = answer.strip().strip("'\"“”‘’").strip()
     if typed not in accepted:
         return 1, f"Confirmación abortada (se esperaba '{expected_confirm}')."
 

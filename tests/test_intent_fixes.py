@@ -282,6 +282,21 @@ class FinishScenarioTests(LabScenarioBase):
         self.assertNotIn("Traceback", res.stderr)
         self.assertNotIn("AttributeError", res.stderr)
         self.assertIn(f"Evaluation report 0001 for run '{run_id}': verdict PASS", res.stdout)
+        closed_check = self._rapid("check", "--", sys.executable, "-c", "pass")
+        self.assertEqual(closed_check.returncode, 1)
+        self.assertIn(
+            f"RAPID1342 El run {run_id} ya terminó (finished); empieza uno nuevo con rapid start.",
+            closed_check.stderr,
+        )
+        business_doc = self.project / "business-rules.md"
+        business_doc.write_text(
+            "# Reglas de negocio\n\n## Objetivo\nObjetivo.\n\n## Reglas no negociables\nReglas.\n\n## Restricciones\nNinguna.\n\n## Supuestos\nSupuestos.\n\n## Glosario\nTérminos.\n",
+            encoding="utf-8",
+        )
+        onboarded = self._rapid("setup", "doc", "business", "--source", "provided", "--file", str(business_doc))
+        self.assertEqual(onboarded.returncode, 0, onboarded.stdout + onboarded.stderr)
+        strict = self._rapid("validate", "--strict")
+        self.assertEqual(strict.returncode, 0, strict.stdout + strict.stderr)
 
     def test_finish_on_a_finished_run_is_idempotent(self):
         run_id = self._run_to_approval()

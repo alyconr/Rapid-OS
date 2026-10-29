@@ -64,6 +64,18 @@ class BrokenAdapter(AgentAdapter):
 
 
 class ValidationTests(unittest.TestCase):
+    def test_shipped_templates_may_contain_intentional_substitution_tokens(self):
+        shipped = validate_templates(REPO_ROOT / "templates")
+        self.assertNotIn("RAPID110", [d.code for d in shipped.diagnostics])
+
+        with workspace_tempdir() as tmp:
+            project_templates = create_minimal_templates(Path(tmp))
+            (project_templates / "mcp" / "postgres.json").write_text(
+                '{"password": "[PASSWORD]"}', encoding="utf-8"
+            )
+            report = validate_templates(project_templates)
+            self.assertIn("RAPID110", [d.code for d in report.diagnostics])
+
     def test_missing_required_template_directory_is_error(self):
         with workspace_tempdir() as tmp:
             root = Path(tmp)

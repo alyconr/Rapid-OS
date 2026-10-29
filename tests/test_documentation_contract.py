@@ -180,6 +180,8 @@ class DocumentationContractTests(unittest.TestCase):
         quickstart_text = (DOCS / "getting-started" / "first-project.md").read_text(encoding="utf-8")
 
         raw_flags = set(re.findall(r"--[a-z0-9-]+", cli_text + "\n" + quickstart_text))
+        # Mentioning Git's destructive worktree option in a warning does not advertise a Rapid flag.
+        raw_flags.discard("--force")
         documented_flags = {f for f in raw_flags if not f.startswith("---")}
 
         parser = create_parser()

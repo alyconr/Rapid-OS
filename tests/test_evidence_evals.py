@@ -1030,6 +1030,15 @@ class BehavioralEvaluatorAndRegistryTests(unittest.TestCase):
             self.assertFalse(val_stale_ev.has_errors)
             self.assertTrue(val_stale_ev.has_warnings)
             self.assertIn("RAPID1227", [d.code for d in val_stale_ev.diagnostics])
+            import rapid_os.cli.main as cli_main
+            old_root, old_rapid_dir = cli_main.CURRENT_DIR, cli_main.PROJECT_RAPID_DIR
+            try:
+                cli_main.CURRENT_DIR, cli_main.PROJECT_RAPID_DIR = root, rapid_dir
+                shown = cli_main.render_evaluation_report_text(rep_a, stale=True)
+            finally:
+                cli_main.CURRENT_DIR, cli_main.PROJECT_RAPID_DIR = old_root, old_rapid_dir
+            self.assertIn("Changed since report: evidence added E002", shown)
+            self.assertIn(f"rapid eval run --run {run_id} --write", shown)
 
             # Write a new report 0003.json -> no longer stale
             eval_reg.evaluate_run(run_id, write=True)
