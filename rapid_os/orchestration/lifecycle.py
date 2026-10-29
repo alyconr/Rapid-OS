@@ -52,12 +52,14 @@ from rapid_os.orchestration.actions import ActionKind, NextAction
 from rapid_os.orchestration.architecture_baseline import capture_snapshot
 from rapid_os.orchestration.architecture_rule import final_architecture_failure
 from rapid_os.orchestration.check import run_check
+from rapid_os.orchestration import tree_fingerprint
 from rapid_os.orchestration.conductor import (
     HUMAN_GATE_KINDS,
     _rejected_human_gate_ids,
     gate_satisfied,
     next_action,
     next_action_without_run,
+    test_command_mismatch,
 )
 from rapid_os.orchestration.playbooks import load_playbook
 from rapid_os.orchestration.git import run_git
@@ -198,6 +200,46 @@ def _author_spec_action(
 
         seed = build_brief_seed(project_root, project_rapid_dir, templates_dir)
     return next_action_without_run(mode, playbook, seed)
+
+
+def _test_gate_ids(contract) -> list[str]:
+    return [g.id for g in contract.gates if g.kind == GateKind.IMPLEMENTATION_TESTS]
+
+
+def _stale_verification(project_root, project_rapid_dir, sess, contract, evidence, test_cmd):
+    """Code that changed after the last `gate.tests` check (None when nothing did, or it cannot be told)."""
+    gate_ids = _test_gate_ids(contract)
+    if not gate_ids:
+        return None
+    cwd = Path(sess.workspace_path) if sess.workspace_path else Path(project_root)
+    command = tuple(test_cmd) if isinstance(test_cmd, (list, tuple)) else None
+    return tree_fingerprint.stale_verification(
+        project_rapid_dir, cwd, sess.active_run_id, gate_ids, evidence, command
+    )
+
+
+def mismatch_warning(contract, evidence) -> str | None:
+    """A sentence when the baseline and the latest test run used different commands (their counts differ)."""
+    mismatch = test_command_mismatch(contract, evidence)
+    if mismatch is None:
+        return None
+    baseline, latest = mismatch
+    return (
+        f"La baseline se grabó con `{baseline}` y el último check de tests usó `{latest}`: sus conteos no son "
+        "comparables. Repite la baseline o el check con el mismo comando de test."
+    )
+
+
+def verification_warning(project_root: Path, project_rapid_dir: Path) -> str | None:
+    """The command-mismatch warning of the active run, for `rapid finish` to print."""
+    try:
+        sess = load_session(project_rapid_dir)
+        if not sess or not sess.active_run_id:
+            return None
+        contract = RunRegistry(project_root, project_rapid_dir).get_contract(sess.active_run_id)
+        return mismatch_warning(contract, EvidenceRegistry(project_root, project_rapid_dir).list(sess.active_run_id))
+    except Exception:  # a warning must never break `rapid finish`
+        return None
 
 
 def _decorate_action(action: NextAction, sess: Session | None) -> NextAction:
@@ -697,6 +739,20 @@ def execute_next(
         test_command=test_cmd if isinstance(test_cmd, (list, tuple)) else None,
         workspace_ready=bool(sess.workspace_path),
     )
+    if action.kind == ActionKind.AWAIT_HUMAN_APPROVAL:
+        stale = _stale_verification(project_root, project_rapid_dir, sess, contract, ev_records, test_cmd)
+        if stale is not None:
+            action = replace(
+                action,
+                kind=ActionKind.VERIFY,
+                gate_ids=(stale.gate_id,),
+                instructions=stale.message(),
+                command=("rapid", "check", "--gate", stale.gate_id, "--", *stale.command) if stale.command else None,
+            )
+    if sess.mode == "refactor" and action.kind != ActionKind.DONE:
+        warning = mismatch_warning(contract, ev_records)
+        if warning:
+            action = replace(action, notes=(*action.notes, warning))
     if action.kind == ActionKind.DONE:
         # The session still points at the run that ended: the next thing is the next open story of
         # the brief (the same `author_spec` + `seed` a project without a session gets).
@@ -832,13 +888,21 @@ def execute_finish(
         return 0, _decorate_action(action, sess)
 
     # 3.d The architecture gate may have passed earlier and a violation been added since: it is
-    # judged again on the final state, and a failure leaves the run open with no verdict.
+    # judged again on the final state, and a failure leaves the run open with no verdict. It goes first:
+    # its message names the violation, which is more specific than "the code changed".
     if any(gate.id == ARCHITECTURE_GATE_ID for gate in contract.gates):
         failure = final_architecture_failure(diff_cwd, project_rapid_dir)
         if failure:
             return 1, failure
 
-    # 3.e Transition to finished and evaluate
+    # 3.e Between the last gate.tests check and now nothing may have changed the code unverified.
+    stale = _stale_verification(
+        project_root, project_rapid_dir, sess, contract, evidence_reg.list(run_id), test_cmd
+    )
+    if stale is not None:
+        return 1, stale.message()
+
+    # 3.f Transition to finished and evaluate
     finished_state = run_reg.transition_status(
         run_id,
         RunStatus.FINISHED,
@@ -1080,6 +1144,15 @@ def execute_approve(
                         f"`rapid task done {task.id}`."
                     )
             return 1, message
+
+    if not reject:
+        # An approval vouches for the code as it is: if it changed after the last test check, run it again.
+        approve_cfg = load_project_config(Path(project_rapid_dir) / "config.json")
+        stale = _stale_verification(
+            project_root, project_rapid_dir, sess, contract, evidence_reg.list(run_id), approve_cfg.get("test_command")
+        )
+        if stale is not None:
+            return 1, stale.message()
 
     reviewer_name = reviewer.strip() if reviewer and reviewer.strip() else None
     if reviewer_name is None:

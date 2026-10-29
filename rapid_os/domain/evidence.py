@@ -187,6 +187,10 @@ def _validate_portable_text(
     return cleaned
 
 
+def _validate_tree_digest(value: object) -> str:
+    return _validate_sha256(value, "check.tree", InvalidEvidencePayloadError)
+
+
 def validate_relative_posix_path(
     raw_path: object,
     label: str = "relative path",
@@ -295,8 +299,10 @@ PAYLOAD_REQUIRED_KEYS: Mapping[EvidenceKind, frozenset[str]] = {
 }
 
 PAYLOAD_OPTIONAL_KEYS: Mapping[EvidenceKind, frozenset[str]] = {
-    EvidenceKind.COMMAND_RESULT: frozenset({"expectation"}),
-    EvidenceKind.TEST_RESULT: frozenset({"expectation"}),
+    # `tree`: digest of the working tree when the check ended (what a later `approve`/`finish` compares);
+    # `command`: the argv of a test run, so a baseline and a later check can be compared.
+    EvidenceKind.COMMAND_RESULT: frozenset({"expectation", "tree"}),
+    EvidenceKind.TEST_RESULT: frozenset({"expectation", "command", "tree"}),
     # Why a person rejected a gate: `rapid next` hands it to the agent that opens the new run.
     EvidenceKind.REVIEW: frozenset({"reason"}),
 }
@@ -372,6 +378,8 @@ def validate_evidence_payload(
         }
         if expectation is not None:
             res_payload["expectation"] = expectation
+        if "tree" in actual_keys:
+            res_payload["tree"] = _validate_tree_digest(payload["tree"])
         return res_payload
 
     if coerced_kind == EvidenceKind.TEST_RESULT:
@@ -408,6 +416,12 @@ def validate_evidence_payload(
         }
         if expectation is not None:
             test_payload["expectation"] = expectation
+        if "command" in actual_keys:
+            test_payload["command"] = _validate_portable_text(
+                payload["command"], "test_result.command", error_cls=InvalidEvidencePayloadError
+            )
+        if "tree" in actual_keys:
+            test_payload["tree"] = _validate_tree_digest(payload["tree"])
         return test_payload
 
     if coerced_kind == EvidenceKind.FILE_CHANGE:

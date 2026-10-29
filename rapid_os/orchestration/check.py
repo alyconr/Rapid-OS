@@ -20,6 +20,8 @@ from rapid_os.adapters.evidence_registry import EvidenceRegistry
 from rapid_os.adapters.run_registry import RunRegistry
 from rapid_os.core.filesystem import safe_write_text
 from rapid_os.domain.evidence import EvidenceKind, RunEvidence
+from rapid_os.domain.policy import GateKind
+from rapid_os.orchestration import tree_fingerprint
 
 
 PYTEST_SUMMARY_RE = re.compile(
@@ -34,6 +36,12 @@ PYTEST_SKIPPED_RE = re.compile(r"(\d+)\s+skipped", re.IGNORECASE)
 UNITTEST_RAN_RE = re.compile(r"Ran\s+(\d+)\s+tests?\s+in\s+[\d\.]+s", re.IGNORECASE)
 UNITTEST_FAILED_RE = re.compile(r"FAILED\s*\((?:failures=(\d+))?(?:[,\s]*errors=(\d+))?(?:[,\s]*skipped=(\d+))?\)", re.IGNORECASE)
 UNITTEST_OK_RE = re.compile(r"\bOK\b")
+# `cargo test`: one `test result: ok. 12 passed; 0 failed; 1 ignored; ...` line per test binary.
+CARGO_RESULT_RE = re.compile(r"test result:\s*\w+\.\s*(\d+)\s+passed;\s*(\d+)\s+failed;\s*(\d+)\s+ignored", re.IGNORECASE)
+# `go test -v`: one `--- PASS|FAIL|SKIP: Name` line per test.
+GO_RESULT_RE = re.compile(r"^\s*--- (PASS|FAIL|SKIP):", re.MULTILINE)
+# Modes whose tasks are verified with tests; a research spike is not.
+MODES_WITHOUT_TESTS = frozenset({"research"})
 
 
 @dataclass(frozen=True)
@@ -48,6 +56,53 @@ class CheckResult:
     failed: int = 0
     skipped: int = 0
     evidence: RunEvidence | None = None
+    # The check was bound to a test gate or to a task of a mode that needs tests...
+    tests_expected: bool = False
+    # ...and its output had a test summary that could be counted.
+    counted: bool = False
+
+
+def parse_test_summary(output: str) -> dict[str, int] | None:
+    """Test counts from the summary of pytest, unittest, vitest, jest, `cargo test` or `go test -v`.
+
+    None when the output has no summary that can be read (a command that is not a test runner, or a
+    runner whose output has no counts, such as `go test` without `-v`): the caller must say so."""
+    cargo = CARGO_RESULT_RE.findall(output)
+    if cargo:
+        return {
+            "passed": sum(int(p) for p, _f, _i in cargo),
+            "failed": sum(int(f) for _p, f, _i in cargo),
+            "skipped": sum(int(i) for _p, _f, i in cargo),
+        }
+    go = GO_RESULT_RE.findall(output)
+    if go:
+        return {
+            "passed": go.count("PASS"),
+            "failed": go.count("FAIL"),
+            "skipped": go.count("SKIP"),
+        }
+    for line in reversed(output.splitlines()):
+        m_p = PYTEST_PASSED_RE.search(line)
+        m_f = PYTEST_FAILED_RE.search(line)
+        m_s = PYTEST_SKIPPED_RE.search(line)
+        if m_p or m_f or m_s:  # pytest, vitest and jest all end with a line like this
+            return {
+                "passed": int(m_p.group(1)) if m_p else 0,
+                "failed": int(m_f.group(1)) if m_f else 0,
+                "skipped": int(m_s.group(1)) if m_s else 0,
+            }
+    m_ran = UNITTEST_RAN_RE.search(output)
+    if m_ran:
+        total = int(m_ran.group(1))
+        m_fail = UNITTEST_FAILED_RE.search(output)
+        if m_fail:
+            failed = int(m_fail.group(1) or 0) + int(m_fail.group(2) or 0)
+            skipped = int(m_fail.group(3) or 0)
+            return {"passed": max(0, total - failed - skipped), "failed": failed, "skipped": skipped}
+        skipped_ok = re.search(r"OK \(skipped=(\d+)\)", output)
+        skipped = int(skipped_ok.group(1)) if skipped_ok else 0
+        return {"passed": max(0, total - skipped), "failed": 0, "skipped": skipped}
+    return None
 
 
 def parse_test_output(output: str, exit_code: int) -> dict[str, int]:
@@ -139,6 +194,16 @@ def run_check(
         child_env = dict(os.environ)
         child_env["PYTHONPATH"] = os.pathsep.join(filter(None, [package_root, child_env.get("PYTHONPATH")]))
 
+    run_reg = RunRegistry(project_root, project_rapid_dir)
+    # A check bound to a test gate, or to a task of a mode that needs tests, is a test run even when its argv is
+    # not exactly `test_command` (`uv run --directory backend pytest -q` is `pytest`): the output decides.
+    contract = run_reg.get_contract(run_id)
+    test_gate_ids = {g.id for g in contract.gates if g.kind in (GateKind.BASELINE_CHECK, GateKind.IMPLEMENTATION_TESTS)}
+    tests_expected = bool(set(gate_ids) & test_gate_ids) or (
+        bool(task_ids) and str(getattr(contract, "mode", "") or "") not in MODES_WITHOUT_TESTS
+    )
+    explicit_command = kind in ("command", "command_result", EvidenceKind.COMMAND_RESULT.value)
+
     # Determine kind: test_result or command_result
     if kind in ("test", "test_result", EvidenceKind.TEST_RESULT.value):
         effective_kind = EvidenceKind.TEST_RESULT.value
@@ -182,8 +247,13 @@ def run_check(
     )
 
     counts = {"passed": 0, "failed": 0, "skipped": 0}
+    summary = parse_test_summary(output)
+    counted = False
+    if effective_kind == EvidenceKind.COMMAND_RESULT.value and tests_expected and not explicit_command and summary:
+        effective_kind = EvidenceKind.TEST_RESULT.value  # same run, recognised by its output
     if effective_kind == EvidenceKind.TEST_RESULT.value:
-        counts = parse_test_output(output, exit_code)
+        counts = summary if summary is not None else parse_test_output(output, exit_code)
+        counted = summary is not None
 
     reproduced_failure = False
     if expect == "fail":
@@ -224,7 +294,6 @@ def run_check(
 
     # Success: record evidence in EvidenceRegistry
     evidence_reg = EvidenceRegistry(project_root, project_rapid_dir)
-    run_reg = RunRegistry(project_root, project_rapid_dir)
     run_state = run_reg.get_state(run_id)
 
     # Calculate relative log path from project_root
@@ -245,6 +314,7 @@ def run_check(
     if len(safe_cmd_summary) > 60:
         safe_cmd_summary = safe_cmd_summary[:57] + "..."
 
+    full_command = " ".join(clean_tokens)
     authoring_payload: dict[str, object]
     if effective_kind == EvidenceKind.TEST_RESULT.value:
         authoring_payload = {
@@ -256,6 +326,9 @@ def run_check(
         }
         if expect == "fail":
             authoring_payload["expectation"] = "fail"
+        # So a baseline and a later check can be compared (they must be the same command).
+        if len(full_command) <= 200 and ".." not in full_command and "\\" not in full_command:
+            authoring_payload["command"] = full_command
         capability_ids = ["tests.execute"]
     else:
         authoring_payload = {
@@ -265,6 +338,10 @@ def run_check(
         if expect == "fail":
             authoring_payload["expectation"] = "fail"
         capability_ids = ["shell.execute"]
+    # The working tree this check saw: `approve` and `finish` compare against it.
+    snapshot = tree_fingerprint.working_tree_snapshot(cwd if cwd is not None else project_root)
+    if snapshot is not None:
+        authoring_payload["tree"] = tree_fingerprint.save_snapshot(project_rapid_dir, run_id, snapshot)
 
     if expect == "fail":
         summary = f"Reproduction check '{safe_cmd_summary}' confirmed expected failure (exit {exit_code})"
@@ -302,4 +379,6 @@ def run_check(
         failed=counts["failed"],
         skipped=counts["skipped"],
         evidence=evidence,
+        tests_expected=tests_expected,
+        counted=counted,
     )
