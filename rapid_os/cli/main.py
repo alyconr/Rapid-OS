@@ -3148,6 +3148,15 @@ def check_command(args):
         sys.exit(res.exit_code)
 
     print_success(f"Check passed (evidence {res.evidence.id if res.evidence else 'recorded'})")
+    if res.kind == "test_result":
+        print(f"Tests: {res.passed} passed, {res.failed} failed, {res.skipped} skipped"
+              + ("" if res.counted else " (sin resumen de tests en la salida; el conteo sale del código de salida)"))
+    elif res.tests_expected:
+        print(
+            "WARNING No se pudo leer un conteo de tests en la salida: se guardó como command_result, sin conteo. "
+            "Un refactor compara ese conteo con la baseline; usa el comando de test (`rapid check -- <test_command>`).",
+            file=sys.stderr,
+        )
     return 0
 
 
@@ -4083,7 +4092,7 @@ def _story_lines(run_id, verdict, tick=True):
 def finish_command(args):
     """Execute rapid finish command."""
     from rapid_os.orchestration.actions import NextAction
-    from rapid_os.orchestration.lifecycle import execute_finish, unverified_reason
+    from rapid_os.orchestration.lifecycle import execute_finish, unverified_reason, verification_warning
 
     code, result = execute_finish(
         CURRENT_DIR,
@@ -4119,6 +4128,9 @@ def finish_command(args):
             result.run_id, result.verdict.value, tick=not getattr(args, "no_tick", False)
         )
     no_baseline = _baseline_waived(result.run_id)
+    command_warning = verification_warning(CURRENT_DIR, PROJECT_RAPID_DIR)
+    if command_warning:
+        print(f"WARNING {command_warning}", file=sys.stderr)
     reason = unverified_reason(result, CURRENT_DIR)
     if getattr(args, "json", False):
         payload = result.to_dict()

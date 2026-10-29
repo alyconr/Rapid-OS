@@ -114,21 +114,29 @@ def _rejection_details(evidence: Sequence[RunEvidence], gate_ids: Sequence[str])
     return {"gate_ids": list(gate_ids), "reviewer": reviewer, "reason": reason}
 
 
-def _refactor_regression(
-    contract: ExecutionContract, evidence: Sequence[RunEvidence]
-) -> tuple[int, int] | None:
-    """Return (baseline_passed, latest_passed) when the latest tests pass fewer than the baseline."""
-    baseline_gate = next(
+def _baseline_gate(contract: ExecutionContract):
+    return next(
         (g for g in contract.gates if g.kind == GateKind.BASELINE_CHECK or g.id == "gate.baseline"),
         None,
     )
-    if baseline_gate is None:
-        return None
-    real_tests = [
+
+
+def _real_test_results(evidence: Sequence[RunEvidence]) -> list[RunEvidence]:
+    return [
         ev
         for ev in evidence
         if ev.kind == EvidenceKind.TEST_RESULT and ev.payload.get("expectation") != "fail"
     ]
+
+
+def _refactor_regression(
+    contract: ExecutionContract, evidence: Sequence[RunEvidence]
+) -> tuple[int, int] | None:
+    """Return (baseline_passed, latest_passed) when the latest tests pass fewer than the baseline."""
+    baseline_gate = _baseline_gate(contract)
+    if baseline_gate is None:
+        return None
+    real_tests = _real_test_results(evidence)
     baselines = [ev for ev in real_tests if baseline_gate.id in ev.gate_ids]
     if not baselines or not real_tests:
         return None
@@ -136,6 +144,91 @@ def _refactor_regression(
     latest_passed = int(real_tests[-1].payload["passed"])
     if latest_passed < baseline_passed:
         return baseline_passed, latest_passed
+    return None
+
+
+def refactor_baseline_missing(contract: ExecutionContract, evidence: Sequence[RunEvidence]) -> bool:
+    """A refactor run whose `gate.baseline` has no test run with a count to compare against.
+
+    That happens when the baseline was recorded as a plain command (no readable test summary): the protection
+    of the refactor mode would be off without anyone knowing, so the run is blocked until it is repeated.
+    A run with the baseline waived (an empty repository) has nothing to compare and is not blocked."""
+    baseline_gate = _baseline_gate(contract)
+    if baseline_gate is None or getattr(contract, "baseline_waived", None) is not None:
+        return False
+    return not any(baseline_gate.id in ev.gate_ids for ev in _real_test_results(evidence))
+
+
+def test_command_mismatch(contract: ExecutionContract, evidence: Sequence[RunEvidence]) -> tuple[str, str] | None:
+    """`(baseline command, latest command)` when the latest test run used another command than the baseline.
+
+    Their counts are not comparable then (the other command may run fewer tests). Needs both commands
+    recorded; evidence from before the command was kept says nothing."""
+    baseline_gate = _baseline_gate(contract)
+    if baseline_gate is None:
+        return None
+    real_tests = _real_test_results(evidence)
+    baselines = [ev for ev in real_tests if baseline_gate.id in ev.gate_ids]
+    if not baselines or not real_tests:
+        return None
+    base, latest = baselines[0].payload.get("command"), real_tests[-1].payload.get("command")
+    if base and latest and base != latest:
+        return str(base), str(latest)
+    return None
+
+
+def _refactor_block(
+    contract, evidence, test_command, pending_human_ids, missing, tasks_done, tasks_total, mode
+) -> NextAction | None:
+    """`blocked` when a refactor lost test coverage or has no baseline with a count; otherwise None."""
+    if refactor_baseline_missing(contract, evidence):
+        baseline_gate = _baseline_gate(contract)
+        again = (
+            f"Repeat the baseline with the test command: `rapid check --gate {baseline_gate.id} -- "
+            f"{' '.join(test_command)}`."
+            if test_command
+            else "Repeat the baseline with the project's test command (set it with `rapid setup set test-command`)."
+        )
+        return NextAction(
+            schema_version=1,
+            run_id=contract.run_id,
+            mode=mode,
+            kind=ActionKind.BLOCKED,
+            gate_ids=(baseline_gate.id,),
+            instructions=(
+                "Refactor has no baseline with a test count: the baseline was recorded without a test summary "
+                "Rapid OS can read, so the comparison that keeps a refactor from losing tests cannot run. " + again
+            ),
+            command=("rapid", "check", "--gate", baseline_gate.id, "--", *test_command) if test_command else None,
+            after=None,
+            awaiting_human=pending_human_ids,
+            missing=missing,
+            tasks_done=tasks_done,
+            tasks_total=tasks_total,
+            outcome=None,
+        )
+    regression = _refactor_regression(contract, evidence)
+    if regression is not None:
+        baseline_passed, latest_passed = regression
+        return NextAction(
+            schema_version=1,
+            run_id=contract.run_id,
+            mode=mode,
+            kind=ActionKind.BLOCKED,
+            instructions=(
+                f"Refactor lost test coverage: baseline had {baseline_passed} passed, "
+                f"the latest test run has {latest_passed} passed "
+                f"({baseline_passed - latest_passed} fewer). "
+                "A refactor must not reduce passing tests; restore them and re-run `rapid check`."
+            ),
+            command=None,
+            after=None,
+            awaiting_human=pending_human_ids,
+            missing=missing,
+            tasks_done=tasks_done,
+            tasks_total=tasks_total,
+            outcome=None,
+        )
     return None
 
 
@@ -307,6 +400,14 @@ def next_action(
             tasks_total=tasks_total,
             outcome=None,
         )
+
+    # b4. refactor: the baseline's test count is the floor. Checked from the moment the run is active, so
+    # a run without a countable baseline or with fewer passing tests than it never goes on unverified.
+    if mode == "refactor" and state.status == RunStatus.ACTIVE:
+        blocked = _refactor_block(contract, raw_evidence, test_command, pending_human_ids, missing,
+                                  tasks_done, tasks_total, mode)
+        if blocked is not None:
+            return blocked
 
     # c. prepared con gate.baseline
     if state.status == RunStatus.PREPARED:
@@ -494,30 +595,12 @@ def next_action(
             )
 
     # e. Todas las tareas terminales:
-    # 0) refactor: los tests pasados no pueden bajar respecto a la baseline (regla del Conductor).
+    # 0) refactor: the same guard (it is also checked as soon as the run is active, above).
     if mode == "refactor":
-        regression = _refactor_regression(contract, raw_evidence)
-        if regression is not None:
-            baseline_passed, latest_passed = regression
-            return NextAction(
-                schema_version=1,
-                run_id=contract.run_id,
-                mode=mode,
-                kind=ActionKind.BLOCKED,
-                instructions=(
-                    f"Refactor lost test coverage: baseline had {baseline_passed} passed, "
-                    f"the latest test run has {latest_passed} passed "
-                    f"({baseline_passed - latest_passed} fewer). "
-                    "A refactor must not reduce passing tests; restore them and re-run `rapid check`."
-                ),
-                command=None,
-                after=None,
-                awaiting_human=pending_human_ids,
-                missing=missing,
-                tasks_done=tasks_done,
-                tasks_total=tasks_total,
-                outcome=None,
-            )
+        blocked = _refactor_block(contract, raw_evidence, test_command, pending_human_ids, missing,
+                                  tasks_done, tasks_total, mode)
+        if blocked is not None:
+            return blocked
 
     # 1) Aserción FAIL -> blocked con la razón
     fail_assertion = next(

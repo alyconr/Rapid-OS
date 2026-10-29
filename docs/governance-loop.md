@@ -49,6 +49,8 @@ Each layer binds cryptographically (via canonical SHA-256 digests) to its upstre
 
 **Machine gate `gate.architecture`.** In `feature`, `bugfix` and `refactor` runs, when `.rapid-os/standards/architecture.json` exists the contract includes `gate.architecture` (required, not waivable). `rapid next` proposes `rapid check --gate gate.architecture -- rapid arch check --new-only`; a violation is `RAPID1420` and `rapid finish` does not return `PASS` until it is satisfied. See [Architecture by stack](./concepts/architecture.md).
 
+**Verification integrity.** A check bound to a test gate, or to a task of a mode that needs tests, is a `test_result` with a count whenever its output has a test summary, whatever its argv; one without a readable count is reported as such and a refactor refuses to go on without a baseline that has one. Every check also records a digest of the working tree (`tree`), and `rapid next` (before asking for approval), `rapid approve` and `rapid finish` require the tree to be the one the last `gate.tests` check saw: if it changed, they ask for a new check and name the files (`RAPID1423`). See the [CLI reference](./cli.md#check--verification-rapid-check).
+
 ## 3. Declarations vs. Capabilities vs. Evidence vs. Verdicts
 
 Rapid OS v3 enforces a strict separation between four concepts that are frequently conflated in AI tooling:
