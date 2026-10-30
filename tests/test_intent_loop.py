@@ -419,7 +419,8 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
 
         # rapid finish
         finish_res = self._rapid("finish", "--json")
-        self.assertEqual(finish_res.returncode, 0, f"rapid finish failed: {finish_res.stderr}")
+        self.assertEqual(finish_res.returncode, 1, "finish must stay nonzero while verification is pending")
+        self.assertTrue(json.loads(finish_res.stdout))
 
         ev_reg = EvidenceRegistry(self.tmp_path, self.tmp_path / ".rapid-os")
         evs = ev_reg.list(sess_before.active_run_id)
