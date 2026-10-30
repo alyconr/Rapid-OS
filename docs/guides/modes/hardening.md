@@ -26,7 +26,7 @@ What its playbook does (`templates/modes/hardening.json` and the Conductor's rul
 
 ### Close and integrate the worktree
 
-At `await_human_approval`, the agent should show the actual worktree path and branch `rapid/<run-id>`. `rapid finish` checks for uncommitted worktree changes and prints the exact closure commands. Commit on the run branch before merging it into the source checkout, then remove the worktree:
+At `await_human_approval`, the agent should show the actual worktree path and branch `rapid/<run-id>` and explain that merging requires a commit on that run branch. Do not merge while approval, tasks, or verification are pending. After a `PASS`, `rapid finish` prints the exact manual closure commands only when the worktree is dirty. With `--merge`, it lists the short-format Git status and warns about likely build/cache artifacts before asking for written confirmation; after confirmation it commits and merges, then reports the commit and leaves removal to you:
 
 ```bash
 git -C <worktree> add -A

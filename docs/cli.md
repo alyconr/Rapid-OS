@@ -418,9 +418,13 @@ Collect repository changes, evaluate machine gates, and close the run.
 rapid finish [--json] [--no-tick] [--merge]
 ```
 
-By default `rapid finish` does not commit. If the run has a worktree with uncommitted changes, it prints the real worktree and project paths and the exact `add`, `commit`, `merge rapid/<run-id>`, and `worktree remove` commands. Never use the **--force** option while changes remain; it deletes them. A pending human gate makes `rapid finish` exit nonzero.
+By default `rapid finish` does not commit. It prints the exact `add`, `commit`, `merge rapid/<run-id>`, and `worktree remove` commands for a dirty run worktree only after a `PASS` verdict. While a human gate, task, or verification is pending, it prints at most the worktree path and run branch; it never suggests merging unfinished work. Never use the **--force** option while changes remain; it deletes them. Every `Cannot finish yet` response exits nonzero.
 
-`--merge` asks the person to type `integrar <run-id>`. After a passing verdict it commits on the run branch with a message derived from the spec and merges `rapid/<run-id>` into the current checkout. It leaves worktree removal to the person; the source checkout must be clean.
+`--merge` is offered only after a `PASS` verdict. Before asking the person to type `integrar <run-id>`, it prints the worktree's short-format `git status` list. If that list includes likely generated artifacts (`__pycache__/`, `*.pyc`, `node_modules/`, `.venv/`, `dist/`, `build/`), it warns the person to add them to `.gitignore` before confirming. After written confirmation, Rapid OS commits on `rapid/<run-id>` with a message derived from the spec and merges that branch into the current source branch, which must be clean. It reports the commit hash and message, the target branch, and the exact `git worktree remove <worktree>` command; removal remains the person's step.
+
+
+
+If the person declines the `integrar <run-id>` phrase, or the commit or merge fails after `PASS`, `rapid finish` still prints the evaluation report and `No se integró` with the reason, then gives manual worktree closure commands and story suggestions. Declining alone exits 0 because the run is already finished; a commit or merge failure exits 1 and says the run finished. Resolve the reported cause, then follow the printed `add`, `commit`, `merge`, and `worktree remove` steps without `--force`.
 
 The `file_change` evidence it records (capability `repository.write`) lists the files the run changed in the project: tracked changes since the run started plus new untracked files, without `.rapid-os/` and without tool artifacts (`__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `.tox`, `.nox`, `node_modules`, `.venv`, `venv`, `*.pyc`, `*.pyo`, `.coverage*`), even in a project with no `.gitignore`; with no real change no `file_change` is recorded and the verdict is not `pass`.
 
