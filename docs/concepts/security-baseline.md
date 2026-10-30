@@ -62,4 +62,4 @@ This regenerates `security.md` and `coding-rules.md` from the current archetype 
 
 ## Hardening mode
 
-The `rapid start hardening` spec template includes `findings` (`cwe`, `cvss_v4_vector`, `severity`, `standard_ref`) and asks the agent to classify each finding and cite the corresponding `security.md` rule. The spec retains only schema-defined fields, so the agent repeats each finding as an `acceptance_criteria` item containing its CWE, vector, and rule.
+The `rapid start hardening` spec stores a structured `findings[]` list (`id`, `title`, `cwe`, `cvss_v4_vector`, `severity`, `standard_ref`) in each revision. Start validates each CWE and complete CVSS v4.0 base vector, requires the severity to be the rating of the vector's CVSS v4.0 base score, and requires `standard_ref` to match, ignoring case, one full citation in `security.md` (one comma-separated item inside the square brackets, not a substring). Each finding also needs an acceptance criterion naming its id or CWE and task evidence.

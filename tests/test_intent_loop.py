@@ -873,7 +873,12 @@ class HardeningLabScenarioTests(LabScenarioBase):
         "title": "Validate profile inputs",
         "business_objective": "Reject hostile input",
         "problem_statement": "register_user accepts anything",
-        "acceptance_criteria": ["invalid usernames are rejected"],
+        "acceptance_criteria": ["H001: invalid usernames are rejected (CWE-20)"],
+        "findings": [{
+            "id": "H001", "title": "Reject hostile usernames", "cwe": "CWE-20",
+            "cvss_v4_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:P/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N",
+            "severity": "medium", "standard_ref": "CVSS v4.0",
+        }],
         "tasks": ["T001: Add defensive validation", "T002: Verify in the isolated workspace"],
     }
 
@@ -1075,6 +1080,7 @@ class HardeningLabScenarioTests(LabScenarioBase):
         action, _ = self._drive(implement)
         self.assertEqual(action["kind"], "await_human_approval", action)
         self.assertEqual(action["gate_ids"], ["gate.final-verification", "gate.review"])
+        self.assertEqual(action["findings"][0]["id"], "H001")
 
         main_text = (self.project / "profile_mgr.py").read_text(encoding="utf-8")
         solution_text = (EXAMPLES / "hardening-lab" / "solution" / "profile_mgr.py").read_text(encoding="utf-8")
@@ -1099,6 +1105,8 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertEqual(self._approve("gate.final-verification").returncode, 0)
         report = self._finish()
         self.assertEqual(report["verdict"], "pass")
+        finding_assertion = next(a for a in report["assertions"] if a["id"] == "hardening.findings")
+        self.assertEqual(finding_assertion["status"], "pass")
         self.assertIn("profile_mgr.py", self._file_change_paths(run_id))
 
     def test_waive_only_waivable_gates_with_a_reason(self):

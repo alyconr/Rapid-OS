@@ -125,6 +125,13 @@ class GateInTheContractTests(Project):
         # A spec is identified by its title: every start needs its own.
         self.started_runs += 1
         spec = {**SPEC, "mode": mode, "title": f"Agendar citas {mode} {self.started_runs}"}
+        if mode == "hardening":
+            spec["acceptance_criteria"] = ["H001: se corrige CWE-20 en el módulo citas"]
+            spec["findings"] = [{
+                "id": "H001", "title": "Validar datos de citas", "cwe": "CWE-20",
+                "cvss_v4_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:P/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N",
+                "severity": "medium", "standard_ref": "CVSS v4.0",
+            }]
         return self.rapid("start", mode, "--spec-file", "-", "--json", stdin=json.dumps(spec))
 
     def gates(self, mode):

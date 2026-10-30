@@ -390,7 +390,12 @@ class FinishWithWaiversTests(LabScenarioBase):
         "title": "Validate profile inputs",
         "business_objective": "Reject hostile input",
         "problem_statement": "register_user accepts anything",
-        "acceptance_criteria": ["invalid usernames are rejected"],
+        "acceptance_criteria": ["H001: invalid usernames are rejected (CWE-20)"],
+        "findings": [{
+            "id": "H001", "title": "Reject hostile usernames", "cwe": "CWE-20",
+            "cvss_v4_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:P/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N",
+            "severity": "medium", "standard_ref": "CVSS v4.0",
+        }],
         "tasks": ["T001: Add defensive validation"],
     }
 

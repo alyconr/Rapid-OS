@@ -98,6 +98,17 @@ class EvalRegistry:
         self.evidence_registry = EvidenceRegistry(self.root, self.rapid_dir)
         self.evaluator = evaluator or BehavioralEvaluator()
 
+    def _hardening_inputs(self, contract: ExecutionContract):
+        from rapid_os.adapters.spec_registry import SpecRegistry
+
+        revision = SpecRegistry(self.root, self.rapid_dir).get_revision(contract.spec_id)
+        if getattr(revision.mode, "value", revision.mode) != "hardening":
+            return (), ()
+        return (
+            tuple(finding.to_dict() for finding in revision.findings),
+            revision.acceptance_criteria,
+        )
+
     def _validate_run_id(self, run_id: str) -> str:
         try:
             return validate_run_id(run_id)
@@ -267,11 +278,14 @@ class EvalRegistry:
                 if self.evaluator.ruleset_version == report.ruleset_version
                 else BehavioralEvaluator(ruleset_version=report.ruleset_version)
             )
+            findings, acceptance = self._hardening_inputs(contract)
             replayed = evaluator.evaluate(
                 contract,
                 bound_state,
                 matched_prefix,
                 extra_capability_requirements=report.extra_capability_ids,
+                hardening_findings=findings,
+                acceptance_criteria=acceptance,
             )
         except (EvaluationError, EvidenceError) as exc:
             raise EvaluationBindingMismatchError(
@@ -582,11 +596,14 @@ class EvalRegistry:
             if self.evaluator.ruleset_version == ruleset_version
             else BehavioralEvaluator(ruleset_version=ruleset_version)
         )
+        findings, acceptance = self._hardening_inputs(contract)
         report = evaluator.evaluate(
             contract,
             current_state,
             evidence_records,
             extra_capability_requirements=extra_capability_requirements,
+            hardening_findings=findings,
+            acceptance_criteria=acceptance,
         )
         if write:
             self.write_report_file(report)

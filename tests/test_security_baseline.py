@@ -519,11 +519,18 @@ class TemplatesTests(unittest.TestCase):
     def test_hardening_template_asks_for_classified_findings(self):
         data = json.loads((TEMPLATES / "modes" / "hardening.json").read_text("utf-8"))
         (finding,) = data["spec_template"]["findings"]
-        self.assertEqual(set(finding), {"cwe", "cvss_v4_vector", "severity", "standard_ref"})
+        self.assertEqual(set(finding), {"id", "title", "cwe", "cvss_v4_vector", "severity", "standard_ref"})
         self.assertTrue(finding["cvss_v4_vector"].startswith("CVSS:4.0/"))
         instruction = data["instructions"]["author_spec"]
         for expected in ("CWE", "CVSS v4.0", "security.md", "acceptance_criteria"):
             self.assertIn(expected, instruction)
+
+    def test_spec_cli_accepts_structured_finding_json(self):
+        from rapid_os.cli.main import _extract_non_interactive_spec_fields, create_parser
+
+        raw = '{"id":"H001","title":"Reject input","cwe":"CWE-20","cvss_v4_vector":"CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:P/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N","severity":"medium","standard_ref":"CVSS v4.0"}'
+        args = create_parser().parse_args(["spec", "create", "--finding-json", raw])
+        self.assertEqual(_extract_non_interactive_spec_fields(args)["findings"][0]["id"], "H001")
 
     def test_a_hardening_spec_with_findings_is_accepted(self):
         import tempfile

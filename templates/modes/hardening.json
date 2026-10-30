@@ -22,21 +22,23 @@
     ],
     "findings": [
       {
+        "id": "SEC-001",
+        "title": "Salida HTML no escapada",
         "cwe": "CWE-79",
         "cvss_v4_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:P/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N",
         "severity": "medium",
-        "standard_ref": "security.md, A05 Injection: escapa la salida según su contexto"
+        "standard_ref": "OWASP A05:2025"
       }
     ]
   },
   "instructions": {
-    "author_spec": "Redacta la especificación de endurecimiento siguiendo spec_template. El modo hardening eleva el riesgo a high: el contrato exigirá un workspace aislado y revisión humana. Añade tags (security, auth, migration...) si aplican. Clasifica cada hallazgo en findings con su CWE y su vector CVSS v4.0 (CVSS:4.0/...), la severidad que resulta y la regla de .rapid-os/standards/security.md que lo cubre (standard_ref). Repite cada hallazgo como un criterio en acceptance_criteria (CWE, vector CVSS y regla): findings guía la redacción, y la spec conserva solo los campos de su esquema.",
+    "author_spec": "Redacta la especificación de endurecimiento siguiendo spec_template. El modo hardening eleva el riesgo a high: el contrato exigirá un workspace aislado y revisión humana. Añade tags (security, auth, migration...) si aplican. findings es un campo persistente de la spec: registra cada hallazgo con id, title, cwe (CWE-<n>), cvss_v4_vector completo (CVSS v4.0, CVSS:4.0/ y todas las métricas base), severity coherente con ese vector y standard_ref que coincida con una cita de .rapid-os/standards/security.md. Cada hallazgo debe tener un criterio de aceptación en acceptance_criteria que cite su id o CWE y luego evidencia de tarea. No aceptes una spec sin findings.",
     "run_baseline": "Ejecuta la verificación de baseline en el workspace aislado. Si el comando sale en rojo, el repositorio no está sano antes de empezar; arregla la causa o ejecuta rapid abort. Si el repo tiene código pero no tests, crea un test que pase en una tarea, o usa el modo research.",
     "activate": "El baseline fue verificado satisfactoriamente. Activa el run para comenzar la ejecución de tareas.",
     "implement_task": "Implementa solo la tarea indicada, editando los archivos en el workspace aislado del run. Corre los tests con rapid check.",
     "verify": "Ejecuta las verificaciones automáticas de machine gates o capacidades requeridas.",
-    "await_human_approval": "Compuertas de revisión humana pendientes. Espera la aprobación del revisor.",
-    "finish": "Todas las tareas y compuertas han sido completadas satisfactoriamente. Finaliza el run.",
+    "await_human_approval": "Compuertas de revisión humana pendientes. Espera la aprobación del revisor. Incluye la tabla de findings con id, CWE, vector CVSS v4.0, severidad y standard_ref.",
+    "finish": "Todas las tareas y compuertas han sido completadas satisfactoriamente. Finaliza el run y muestra la tabla de findings con id, CWE, vector CVSS v4.0, severidad y regla standard_ref.",
     "done": "El ciclo de ejecución ha concluido; la rama rapid/<run-id> del worktree queda lista para integrar.",
     "blocked": "La ejecución está bloqueada. Revisa la razón o tarea bloqueada y resuelve el impedimento. Si falta el workspace aislado, ejecuta rapid start --resume --worktree."
   }
