@@ -130,9 +130,12 @@ class OverlapCliTests(unittest.TestCase):
     def tearDown(self):
         self._tmp.cleanup()
 
-    def rapid(self, *args, cwd=None):
+    def rapid(self, *args, cwd=None, home=None):
         env = {k: v for k, v in os.environ.items() if k not in ("CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION")}
         env["PYTHONPATH"] = str(ROOT)
+        if home is not None:
+            env["HOME"] = str(home)
+            env["USERPROFILE"] = str(home)
         return subprocess.run(
             [sys.executable, "-m", "rapid_os.cli.main", *args],
             cwd=str(cwd or self.root), capture_output=True, text=True, encoding="utf-8", env=env,
@@ -176,6 +179,49 @@ class OverlapCliTests(unittest.TestCase):
         self.assertEqual([w for w in payload.get("warnings", []) if isinstance(w, dict)], [])
         self.assertNotIn("RAPID1321", res.stdout)
         self.assertNotIn("RAPID1321", res.stderr)
+
+    def test_cursor_install_warns_for_rapid_skills_in_project_claude_compatibility_folder(self):
+        folder = self.root / ".claude" / "skills" / "rapid-feature"
+        folder.mkdir(parents=True)
+        (folder / "SKILL.md").write_text("project skill\n", encoding="utf-8")
+        res = self.rapid("shortcuts", "install", "--harness", "cursor", "--dry-run", "--json")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        payload = json.loads(res.stdout)
+        self.assertEqual([w["code"] for w in payload["warnings"]], ["RAPID1321"])
+        self.assertEqual(payload["warnings"][0]["reader"], "cursor")
+
+    def test_global_claude_skill_is_not_counted_as_a_project_overlap(self):
+        home = self.root / "home"
+        folder = home / ".claude" / "skills" / "rapid-feature"
+        folder.mkdir(parents=True)
+        (folder / "SKILL.md").write_text("user skill\n", encoding="utf-8")
+        res = self.rapid("shortcuts", "install", "--harness", "cursor", "--dry-run", "--json", home=home)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(json.loads(res.stdout)["warnings"], [])
+
+    def test_global_install_and_remove_show_home_relative_paths(self):
+        home = self.root / "home"
+        preview = self.rapid("shortcuts", "install", "--harness", "claude", "--global", "--dry-run", home=home)
+        self.assertEqual(preview.returncode, 0, preview.stderr)
+        self.assertIn("~/.claude/skills/", preview.stdout)
+        installed = self.rapid("shortcuts", "install", "--harness", "claude", "--global", "--json", home=home)
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        self.assertTrue(all(item["path"].startswith("~/.claude/skills/") for item in json.loads(installed.stdout)["files"]))
+        remove_preview = self.rapid("shortcuts", "remove", "--harness", "claude", "--global", "--dry-run", home=home)
+        self.assertEqual(remove_preview.returncode, 0, remove_preview.stderr)
+        self.assertIn("~/.claude/skills/", remove_preview.stdout)
+        removed = self.rapid("shortcuts", "remove", "--harness", "claude", "--global", "--json", home=home)
+        self.assertEqual(removed.returncode, 0, removed.stderr)
+        self.assertTrue(all(item["path"].startswith("~/.claude/skills/") for item in json.loads(removed.stdout)["files"]))
+
+    def test_doctor_warns_for_project_reader_compatibility_folders(self):
+        self.assertEqual(self.rapid("init", "--yes", "--no-scan").returncode, 0)
+        folder = self.root / ".claude" / "skills" / "rapid-feature"
+        folder.mkdir(parents=True)
+        (folder / "SKILL.md").write_text("project skill\n", encoding="utf-8")
+        res = self.rapid("doctor")
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertIn("RAPID1321", res.stdout + res.stderr)
 
     def test_install_without_overlap_keeps_the_existing_json_shape(self):
         res = self.rapid("shortcuts", "install", "--harness", "claude", "--dry-run", "--json")
@@ -231,3 +277,4 @@ class OverlapCliTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

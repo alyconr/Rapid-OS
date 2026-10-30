@@ -29,6 +29,7 @@ from rapid_os.domain.specs import (
     InvalidRevisionManifestError,
     InvalidSpecRecordError,
     SpecArtifactDriftError,
+    HardeningFinding,
     SpecLifecycleError,
     SpecMode,
     SpecNotFoundError,
@@ -207,6 +208,21 @@ class SpecDomainModelTests(unittest.TestCase):
 
         # Round-trip serialization
         self.assertEqual(SpecRevision.from_json(rev_a.to_json()), rev_a)
+
+    def test_hardening_findings_round_trip_in_revision_manifest(self):
+        finding = HardeningFinding(
+            id="H001", title="Reject unsafe input", cwe="CWE-20",
+            cvss_v4_vector="CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:P/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N",
+            severity="medium", standard_ref="CWE, CVSS v4.0",
+        )
+        revision = SpecRevision(**_sample_spec_kwargs(mode="hardening", findings=(finding,)))
+        reconstructed = SpecRevision.from_json(revision.to_json())
+        self.assertEqual(reconstructed.findings, (finding,))
+        self.assertEqual(reconstructed.to_dict()["findings"], [finding.to_dict()])
+        record = SpecRecord(id=revision.spec_id, status=SpecStatus.DRAFT, current_revision=1)
+        rendered = cli_main.render_spec_show_text(record, reconstructed, {})
+        for expected in ("H001", "CWE-20", "CVSS:4.0/", "medium", "CWE, CVSS v4.0"):
+            self.assertIn(expected, rendered)
 
     def test_affected_paths_enforces_relative_posix_and_rejects_traversal_or_absolute(self):
         rev = SpecRevision(
@@ -1394,4 +1410,5 @@ class SpecRegistryContextAndE2ETests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 

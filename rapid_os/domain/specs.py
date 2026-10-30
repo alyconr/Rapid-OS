@@ -48,6 +48,7 @@ CANONICAL_SPEC_REVISION_KEYS = frozenset(
         "affected_paths",
         "data_impact",
         "acceptance_criteria",
+        "findings",
         "testing_strategy",
         "implementation_tasks",
         "tags",
@@ -453,6 +454,40 @@ class SpecRecord:
 
 
 @dataclass(frozen=True)
+class HardeningFinding:
+    id: str
+    title: str
+    cwe: str
+    cvss_v4_vector: str
+    severity: str
+    standard_ref: str
+
+    def __post_init__(self):
+        for name in ("id", "title", "cwe", "cvss_v4_vector", "severity", "standard_ref"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"finding.{name} must be a non-empty string")
+            object.__setattr__(self, name, value.strip())
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "id": self.id,
+            "title": self.title,
+            "cwe": self.cwe,
+            "cvss_v4_vector": self.cvss_v4_vector,
+            "severity": self.severity,
+            "standard_ref": self.standard_ref,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, object]) -> "HardeningFinding":
+        expected = {"id", "title", "cwe", "cvss_v4_vector", "severity", "standard_ref"}
+        if not isinstance(payload, Mapping) or set(payload) != expected:
+            raise ValueError(f"finding must contain exactly {sorted(expected)}")
+        return cls(**{key: payload[key] for key in expected})  # type: ignore[arg-type]
+
+
+@dataclass(frozen=True)
 class SpecRevision:
     schema_version: int = SPEC_REVISION_SCHEMA_VERSION
     spec_id: str = ""
@@ -483,6 +518,7 @@ class SpecRevision:
     implementation_tasks: tuple[str, ...] = ()
 
     tags: tuple[str, ...] = ()
+    findings: tuple[HardeningFinding, ...] = ()
 
     def __post_init__(self):
         if (
@@ -544,6 +580,15 @@ class SpecRevision:
                 self.implementation_tasks, "implementation_tasks"
             )
             cleaned_tags = _clean_tags(self.tags)
+            if isinstance(self.findings, (str, bytes)) or not isinstance(self.findings, Iterable):
+                raise ValueError("findings must be a sequence of finding objects")
+            cleaned_findings = tuple(
+                item if isinstance(item, HardeningFinding) else HardeningFinding.from_dict(item)
+                for item in self.findings
+            )
+            finding_ids = [item.id.casefold() for item in cleaned_findings]
+            if len(finding_ids) != len(set(finding_ids)):
+                raise ValueError("findings must have unique ids")
         except ValueError as exc:
             raise InvalidRevisionManifestError(str(exc)) from exc
 
@@ -564,6 +609,7 @@ class SpecRevision:
         object.__setattr__(self, "testing_strategy", cleaned_testing)
         object.__setattr__(self, "implementation_tasks", cleaned_tasks)
         object.__setattr__(self, "tags", cleaned_tags)
+        object.__setattr__(self, "findings", cleaned_findings)
 
     @property
     def actors(self) -> tuple[str, ...]:
@@ -618,6 +664,7 @@ class SpecRevision:
             "testing_strategy": list(self.testing_strategy),
             "implementation_tasks": list(self.implementation_tasks),
             "tags": list(self.tags),
+            "findings": [finding.to_dict() for finding in self.findings],
             "artifact_digests": self.artifact_digests,
         }
 
@@ -704,6 +751,7 @@ class SpecRevision:
             testing_strategy=payload.get("testing_strategy", ()),  # type: ignore[arg-type]
             implementation_tasks=payload.get("implementation_tasks", ()),  # type: ignore[arg-type]
             tags=payload.get("tags", ()),  # type: ignore[arg-type]
+            findings=payload.get("findings", ()),  # type: ignore[arg-type]
         )
 
         if verify_digests:
@@ -718,7 +766,14 @@ class SpecRevision:
                     f"SpecRevision artifact_digests in revision.json do not match canonical derived artifacts for '{instance.spec_id}' r{instance.revision}."
                 )
             raw_content_digest = str(payload["content_digest"])
-            if raw_content_digest != instance.content_digest:
+            legacy_content_payload = instance._canonical_content_payload()
+            legacy_content_payload.pop("findings", None)
+            legacy_content_digest = sha256_text(
+                json.dumps(legacy_content_payload, sort_keys=True, separators=(",", ":"))
+            )
+            if raw_content_digest != instance.content_digest and not (
+                "findings" not in payload and raw_content_digest == legacy_content_digest
+            ):
                 raise SpecArtifactDriftError(
                     f"SpecRevision content_digest mismatch for '{instance.spec_id}' r{instance.revision}."
                 )
@@ -857,3 +912,4 @@ def scope_spec_from_revision(revision: SpecRevision) -> ScopeSpec:
         testing_strategy=list(revision.testing_strategy),
         implementation_tasks=list(revision.implementation_tasks),
     )
+

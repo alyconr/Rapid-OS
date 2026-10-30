@@ -20,7 +20,8 @@ description: Workflow for security hardening, vulnerability mitigation, and revi
 What its playbook does (`templates/modes/hardening.json` and the Conductor's rules):
 
 - `high` risk: the contract requires an isolated workspace and the `gate.review` gate (waivable) in addition to the baseline, the tests, and the final verification.
-- Each finding is reported with its **CWE** and its **CVSS v4.0** vector (`CVSS:4.0/...`), the resulting severity, and the rule in `.rapid-os/standards/security.md` that covers it (the "Findings: CWE and CVSS" section of the security baseline). Critical and high are fixed before publishing. See [Security baseline](../../concepts/security-baseline.md).
+- Every hardening spec persists `findings[]`: `{id, title, cwe, cvss_v4_vector, severity, standard_ref}`. `rapid start hardening` requires at least one finding, validates CWE/vector/severity, and checks that `standard_ref` is cited in `.rapid-os/standards/security.md`. Each finding needs an acceptance criterion that names its id or CWE and is backed by task evidence; the evaluator reports `hardening.findings`.
+- At human approval and in the final summary, show a findings table with **id, title, CWE, CVSS v4.0 vector**, resulting **severity**, and the cited security rule (`standard_ref`). Critical and high are fixed before publishing. See [Security baseline](../../concepts/security-baseline.md).
 - `rapid start hardening --spec-file - --worktree` creates a git worktree at `../<repo>-<run-id>` (branch `rapid/<run-id>`); the ledger stays in the main repository, `rapid check` runs in the worktree, and `rapid finish` takes the changes from there. Without the flag, `rapid next` proposes `rapid start --resume --worktree`.
 - The worktree starts from `HEAD` (uncommitted changes in the main checkout do not come along) and `rapid abort` does not remove it.
 
@@ -172,3 +173,4 @@ rapid eval run \
 ```
 
 The final verdict will certify that the security requirements and the linked evidence satisfy the execution policy before any deployment.
+

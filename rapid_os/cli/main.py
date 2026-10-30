@@ -1485,6 +1485,10 @@ def doctor_command(args):
             )
         diagnostics.extend(_mojibake_diagnostics())
         from rapid_os.adapters.shortcut_installer import detect_scope_duplicates
+        from rapid_os.domain.shortcuts import detect_folder_overlaps
+
+        for overlap in detect_folder_overlaps(DEFAULT_AGENT_REGISTRY.ids(), CURRENT_DIR):
+            diagnostics.append(Diagnostic(WARNING, "RAPID1321", overlap.message.removeprefix("RAPID1321 ")))
 
         for duplicate in detect_scope_duplicates(Path.home(), CURRENT_DIR, DEFAULT_AGENT_REGISTRY.ids(), TEMPLATES_DIR):
             diagnostics.append(Diagnostic(WARNING, "RAPID1321", duplicate.message.removeprefix("RAPID1321 ")))
@@ -1883,6 +1887,9 @@ def _extract_non_interactive_spec_fields(args) -> dict[str, object]:
         val = getattr(args, list_name, None)
         if val is not None:
             fields[list_name] = tuple(val)
+    raw_findings = getattr(args, "finding_json", None)
+    if raw_findings is not None:
+        fields["findings"] = tuple(json.loads(item) for item in raw_findings)
     return fields
 
 
@@ -1890,6 +1897,8 @@ def _has_non_interactive_spec_flags(args, *, is_create: bool = False) -> bool:
     for name in SPEC_AUTHORING_SCALAR_FIELDS + SPEC_AUTHORING_LIST_FIELDS:
         if getattr(args, name, None) is not None:
             return True
+    if getattr(args, "finding_json", None) is not None:
+        return True
     if is_create:
         if getattr(args, "status", None) is not None:
             return True
@@ -2035,8 +2044,16 @@ def render_spec_show_text(
         f"Scope:            {scope_summary}",
         f"Affected Paths:   {paths_summary}",
         f"Tags:             {tags_summary}",
-        "Artifacts:",
+        "Findings:",
     ]
+    if revision.findings:
+        lines.extend(
+            f"  - {item.id}: {item.title} | {item.cwe} | {item.cvss_v4_vector} | {item.severity} | {item.standard_ref}"
+            for item in revision.findings
+        )
+    else:
+        lines.append("  none")
+    lines.append("Artifacts:")
     for name in ("requirements.md", "tasks.md", "acceptance.md"):
         if name in artifact_paths:
             lines.append(f"  - {artifact_paths[name]}")
@@ -4209,13 +4226,27 @@ def next_command(args):
     if code != 0:
         sys.exit(code)
 
+    findings = ()
+    if action.kind.value == "await_human_approval" and action.mode == "hardening" and action.run_id:
+        try:
+            contract = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_contract(action.run_id)
+            findings = SpecRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_revision(contract.spec_id).findings
+        except Exception:
+            findings = ()
     if getattr(args, "json", False):
-        print(json.dumps(action.to_dict(), indent=2))
+        payload = action.to_dict()
+        if findings:
+            payload["action"]["findings"] = [item.to_dict() for item in findings]
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
 
     if action.kind.value == "await_human_approval":
         for gate_id in action.gate_ids or action.awaiting_human:
             print(f"Next: await_human_approval -> rapid approve {gate_id}")
+        if findings:
+            print("Hallazgos de hardening:")
+            for item in findings:
+                print(f"  {item.id}: {item.title} | {item.cwe} | {item.cvss_v4_vector} | {item.severity} | {item.standard_ref}")
     else:
         cmd_str = f" -> {' '.join(action.command)}" if action.command else ""
         print(f"Next: {action.kind.value}{cmd_str}")
@@ -4824,6 +4855,10 @@ def _add_spec_authoring_arguments(subparser, *, is_create: bool = False):
         help="Implementation task (repeatable; becomes T001, T002, ... in Run contracts).",
     )
     subparser.add_argument("--tag", dest="tags", action="append", help="Spec classification tag (repeatable).")
+    subparser.add_argument(
+        "--finding-json", dest="finding_json", action="append",
+        help="Structured hardening finding as a JSON object (repeatable).",
+    )
     if is_create:
         subparser.add_argument(
             "--status",
@@ -4839,9 +4874,20 @@ def _add_spec_authoring_arguments(subparser, *, is_create: bool = False):
     subparser.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
 
 
-def _shortcut_entry_json(planned):
+def _display_shortcut_path(root, relative, scope):
+    if scope != "global":
+        return relative.as_posix()
+    try:
+        user_path = (Path(root) / relative).resolve()
+        home = Path.home().resolve()
+        return "~/" + user_path.relative_to(home).as_posix()
+    except (OSError, ValueError):
+        return (Path(root) / relative).resolve().as_posix()
+
+
+def _shortcut_entry_json(planned, *, root=None, scope="project"):
     return {
-        "path": planned.path.as_posix(),
+        "path": _display_shortcut_path(root or CURRENT_DIR, planned.path, scope),
         "shortcut": planned.shortcut,
         "harnesses": list(planned.harnesses),
         "action": planned.action,
@@ -4855,14 +4901,14 @@ def _skipped_json(skipped):
     ]
 
 
-def _warn_folder_overlaps(harness_ids):
+def _warn_folder_overlaps(harness_ids, shortcut_names=()):
     """RAPID1321: warn (stderr) when the selection leaves a /rapid-* in two folders a tool reads.
 
     Informational only: it never changes the exit code or what is written.
     """
     from rapid_os.domain.shortcuts import detect_folder_overlaps
 
-    overlaps = detect_folder_overlaps(harness_ids)
+    overlaps = detect_folder_overlaps(harness_ids, CURRENT_DIR, shortcut_names=shortcut_names)
     for overlap in overlaps:
         print(f"WARNING {overlap.message}", file=sys.stderr)
     return overlaps
@@ -4975,7 +5021,9 @@ def shortcuts_command(args):
 
             hooks_plan = _plan_claude_hooks("install", harness_ids) if getattr(args, "hooks", False) else None
             plan, written = _install_shortcuts(harness_ids, dry_run=dry_run, scope=scope, only=only)
-            overlaps = _warn_folder_overlaps(harness_ids) if scope == "project" else []
+            overlaps = _warn_folder_overlaps(
+                harness_ids, (item.shortcut for item in plan.files)
+            ) if scope == "project" else []
             if hooks_plan is not None and not dry_run:
                 claude_hooks.apply_plan(CURRENT_DIR, hooks_plan)
             duplicates = [] if dry_run else _warn_scope_duplicates(harness_ids)
@@ -4986,7 +5034,7 @@ def shortcuts_command(args):
                     "dry_run": dry_run,
                     **({"scope": "global"} if scope == "global" else {}),
                     "harnesses": list(plan.harnesses),
-                    "files": [_shortcut_entry_json(f) for f in plan.files],
+                    "files": [_shortcut_entry_json(f, root=root, scope=scope) for f in plan.files],
                     "skipped": _skipped_json(plan.skipped),
                     "warnings": [
                         *plan.warning_objects,
@@ -5001,7 +5049,8 @@ def shortcuts_command(args):
             prefix = "[dry-run] " if dry_run else ""
             for planned in plan.files:
                 owners = ",".join(planned.harnesses)
-                print(f"{prefix}{planned.action:<9} {planned.path.as_posix()} [{owners}]")
+                path_text = _display_shortcut_path(root, planned.path, scope)
+                print(f"{prefix}{planned.action:<9} {path_text} [{owners}]")
             if hooks_plan is not None:
                 print(f"{prefix}{hooks_plan.action:<9} {hooks_plan.path.as_posix()} [hooks: Stop, PreToolUse]")
             changed = sum(1 for f in plan.files if f.action != "unchanged")
@@ -5020,7 +5069,7 @@ def shortcuts_command(args):
                     "harnesses": list(harness_ids),
                     "shortcuts": [
                         {"harness": e.harness, "shortcut": e.shortcut,
-                         "path": e.path.as_posix(), "state": e.state}
+                         "path": _display_shortcut_path(root, e.path, scope), "state": e.state}
                         for e in entries
                     ],
                     "skipped": _skipped_json(skipped),
@@ -5030,7 +5079,7 @@ def shortcuts_command(args):
                 print(json.dumps(payload, indent=2, ensure_ascii=False))
                 return 0
             for e in entries:
-                print(f"{e.state:<10} {e.harness:<12} {e.path.as_posix()}")
+                print(f"{e.state:<10} {e.harness:<12} {_display_shortcut_path(root, e.path, scope)}")
             for s in skipped:
                 print(f"omitido    {s.shortcut}: {s.code} {s.reason}")
             return 0
@@ -5044,7 +5093,7 @@ def shortcuts_command(args):
         if hooks_plan is not None and not dry_run:
             claude_hooks.apply_plan(CURRENT_DIR, hooks_plan)
         warnings = [
-            f"RAPID1317 {e.path.as_posix()} has no generated marker; left untouched."
+            f"RAPID1317 {_display_shortcut_path(root, e.path, scope)} has no generated marker; left untouched."
             for e in entries if e.action == "skip_unmarked"
         ]
         if as_json:
@@ -5054,7 +5103,7 @@ def shortcuts_command(args):
                 "dry_run": dry_run,
                 "harnesses": list(harness_ids),
                 "files": [
-                    {"path": e.path.as_posix(), "shortcut": e.shortcut,
+                    {"path": _display_shortcut_path(root, e.path, scope), "shortcut": e.shortcut,
                      "harnesses": list(e.harnesses), "action": e.action}
                     for e in entries
                 ],
@@ -5067,7 +5116,7 @@ def shortcuts_command(args):
         prefix = "[dry-run] " if dry_run else ""
         for e in entries:
             if e.action != "absent":
-                print(f"{prefix}{e.action:<13} {e.path.as_posix()}")
+                print(f"{prefix}{e.action:<13} {_display_shortcut_path(root, e.path, scope)}")
         if hooks_plan is not None and hooks_plan.action != "absent":
             print(f"{prefix}{hooks_plan.action:<13} {hooks_plan.path.as_posix()} [hooks: Stop, PreToolUse]")
         print(f"{prefix}{sum(1 for e in entries if e.action == 'remove')} archivo(s) a eliminar.")

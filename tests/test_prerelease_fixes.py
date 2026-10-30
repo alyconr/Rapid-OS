@@ -15,7 +15,12 @@ SPEC = {
     "title": "Harden register",
     "business_objective": "Reject unsafe input",
     "problem_statement": "register_user trusts its input",
-    "acceptance_criteria": ["unsafe input is rejected"],
+    "acceptance_criteria": ["H001: unsafe input is rejected (CWE-20)"],
+    "findings": [{
+        "id": "H001", "title": "Reject unsafe input", "cwe": "CWE-20",
+        "cvss_v4_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:P/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N",
+        "severity": "medium", "standard_ref": "CWE, CVSS v4.0",
+    }],
     "tasks": ["T001: Validate input"],
 }
 STACKS = ("docs-modern", "frontend-creative", "nodejs-ai", "python-ai", "python-api", "web-modern")
@@ -119,7 +124,8 @@ class HardeningSecurityStandardTests(ProjectCase):
         res = self.start()
         self.assertEqual(res.returncode, 1)
         out = res.stdout + res.stderr
-        self.assertIn("RAPID1004", out)
+        self.assertIn("RAPID1343", out)
+        self.assertIn("H001", out)
         self.assertIn(".rapid-os/standards/security.md", out)
         self.assertIn("rapid init", out)
         self.assertNotIn("Traceback", out)
@@ -136,7 +142,8 @@ class SpecReuseTests(ProjectCase):
     def test_repeating_start_after_a_failure_reuses_the_identical_spec(self):
         first = self.start()
         self.assertEqual(first.returncode, 1)
-        self.assertTrue((self.root / ".rapid-os" / "specs" / "harden-register").is_dir())
+        self.assertIn("RAPID1343", first.stdout + first.stderr)
+        self.assertFalse((self.root / ".rapid-os" / "specs" / "harden-register").exists())
         self.security.write_text(self.saved, encoding="utf-8")
         second = self.start()
         self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
@@ -145,8 +152,13 @@ class SpecReuseTests(ProjectCase):
         self.assertEqual(listed.count("harden-register"), 1)
 
     def test_a_different_content_under_the_same_identity_is_a_clear_error(self):
-        self.assertEqual(self.start().returncode, 1)
         self.security.write_text(self.saved, encoding="utf-8")
+        from rapid_os.adapters.spec_registry import SpecRegistry
+
+        fields = {key: value for key, value in SPEC.items() if key != "title"}
+        registry = SpecRegistry(self.root, self.root / ".rapid-os")
+        registry.create(title=SPEC["title"], mode="hardening", **fields)
+        registry.set_status("harden-register", "ready")
         changed = dict(SPEC, business_objective="A different objective")
         res = self.start("hardening", changed)
         self.assertEqual(res.returncode, 1)
@@ -196,3 +208,4 @@ class PlaybookInstructionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

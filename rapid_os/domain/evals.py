@@ -922,6 +922,8 @@ class BehavioralEvaluator:
         evidence: Iterable[RunEvidence] = (),
         *,
         extra_capability_requirements: Iterable[CapabilityRequirement | Mapping[str, object] | str] = (),
+        hardening_findings: Iterable[Mapping[str, object]] = (),
+        acceptance_criteria: Iterable[str] = (),
     ) -> EvaluationReport:
         if not isinstance(contract, ExecutionContract):
             raise EvaluationBindingMismatchError(
@@ -1087,6 +1089,14 @@ class BehavioralEvaluator:
                 self._evaluate_capability(cap_req, ordered_evidence)
             )
 
+        findings = tuple(hardening_findings)
+        if findings:
+            assertions.append(
+                self._evaluate_hardening_findings(
+                    contract, findings, tuple(acceptance_criteria), ordered_evidence
+                )
+            )
+
         verdict = compute_evaluation_verdict(assertions)
 
         return EvaluationReport(
@@ -1101,6 +1111,48 @@ class BehavioralEvaluator:
             assertions=tuple(assertions),
             verdict=verdict,
             extra_capability_ids=normalized_extra_ids,
+        )
+
+    def _evaluate_hardening_findings(
+        self,
+        contract: ExecutionContract,
+        findings: tuple[Mapping[str, object], ...],
+        acceptance_criteria: tuple[str, ...],
+        evidence: tuple[RunEvidence, ...],
+    ) -> EvalAssertion:
+        missing_criteria = []
+        for finding in findings:
+            finding_id = str(finding.get("id", ""))
+            cwe = str(finding.get("cwe", ""))
+            if not any(
+                marker and marker.casefold() in criterion.casefold()
+                for criterion in acceptance_criteria
+                for marker in (finding_id, cwe)
+            ):
+                missing_criteria.append(f"{finding_id or cwe or 'hallazgo sin id'} ({cwe})")
+        task_ids = {task.id for task in contract.tasks}
+        linked_evidence = tuple(
+            item.id for item in evidence
+            if item.task_ids and any(task_id in task_ids for task_id in item.task_ids)
+            and item.kind in TASK_EVIDENCE_KINDS
+        )
+        if missing_criteria:
+            status = EvalAssertionStatus.FAIL
+            reason = "No hay criterio de aceptación que cite cada hallazgo: " + ", ".join(missing_criteria)
+        elif not linked_evidence:
+            status = EvalAssertionStatus.UNVERIFIED
+            reason = "Los criterios citan todos los hallazgos, pero no hay evidencia vinculada a tareas que los respalde."
+        else:
+            status = EvalAssertionStatus.PASS
+            reason = f"Cada uno de los {len(findings)} hallazgos está citado por un criterio de aceptación con evidencia de tarea."
+        return EvalAssertion(
+            id="hardening.findings",
+            category="task",
+            subject_id=contract.run_id,
+            required=True,
+            status=status,
+            reason=reason,
+            evidence_ids=linked_evidence,
         )
 
     def _evaluate_lifecycle(
@@ -1590,3 +1642,4 @@ class BehavioralEvaluator:
             return EvalAssertionStatus.FAIL
 
         return None
+

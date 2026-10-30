@@ -551,6 +551,7 @@ class SpecRegistry:
                     spec_or_scope.implementation_tasks,
                 ),  # type: ignore[arg-type]
                 tags=raw_tags if raw_tags is not None else spec_or_scope.tags,  # type: ignore[arg-type]
+                findings=extra.get("findings", spec_or_scope.findings),  # type: ignore[arg-type]
             )
 
         if isinstance(spec_or_scope, ScopeSpec):
@@ -620,6 +621,7 @@ class SpecRegistry:
                 "implementation_tasks", ()
             ),  # type: ignore[arg-type]
             tags=raw_tags if raw_tags is not None else (),  # type: ignore[arg-type]
+            findings=extra.get("findings", ()),  # type: ignore[arg-type]
         )
 
     def _write_immutable_revision_and_commit_record(
@@ -851,3 +853,4 @@ class SpecRegistry:
         from rapid_os.domain.validation import validate_spec_registry
 
         return validate_spec_registry(self.rapid_dir, self.root)
+

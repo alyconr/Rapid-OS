@@ -367,6 +367,15 @@ def execute_start(
                     f"Spec '{spec_id}' is in status '{rec.status.value}', expected 'ready'.",
                 )
             resolved_spec_id = rec.id
+            if mode == "hardening":
+                from rapid_os.domain.hardening import validate_hardening_findings
+
+                finding_error = validate_hardening_findings(
+                    spec_reg.get_revision(rec.id).findings,
+                    project_rapid_dir / "standards" / "security.md",
+                )
+                if finding_error:
+                    return 1, finding_error
             if empty_repository and mode == "feature":
                 if has_scaffold_task(spec_reg.get_revision(rec.id).implementation_tasks):
                     baseline_waived = BASELINE_WAIVER_EMPTY_REPOSITORY
@@ -415,6 +424,16 @@ def execute_start(
                 if not has_scaffold_task(written_tasks):
                     run_notes = scaffold_notes(written_tasks, spec_fields["implementation_tasks"])
                 baseline_waived = BASELINE_WAIVER_EMPTY_REPOSITORY
+
+            if mode == "hardening":
+                from rapid_os.domain.hardening import validate_hardening_findings
+
+                finding_error = validate_hardening_findings(
+                    spec_fields.get("findings", ()),
+                    project_rapid_dir / "standards" / "security.md",
+                )
+                if finding_error:
+                    return 1, finding_error
 
             existing = spec_reg.compare_existing(**spec_fields)
             if existing is None:
@@ -1361,3 +1380,4 @@ def execute_abort(
             "elimínalo con 'git worktree remove' cuando ya no lo necesites."
         )
     return 0, message
+
