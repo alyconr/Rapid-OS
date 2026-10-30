@@ -4314,7 +4314,7 @@ def finish_command(args):
             print("RAPID1341 --merge requiere un run activo con worktree.", file=sys.stderr)
             sys.exit(1)
         if not sys.stdin.isatty():
-            print("RAPID1341 --merge requiere confirmacion escrita en una terminal interactiva.", file=sys.stderr)
+            print("RAPID1341 --merge requiere confirmación escrita en una terminal interactiva.", file=sys.stderr)
             sys.exit(1)
 
     run_id = sess.active_run_id if sess else None
@@ -4343,7 +4343,7 @@ def finish_command(args):
     if isinstance(result, NextAction):
         if workspace:
             output = sys.stderr if getattr(args, "json", False) else sys.stdout
-            print(f"El trabajo esta en {workspace}, rama rapid/{run_id}.", file=output)
+            print(f"El trabajo está en {workspace}, rama rapid/{run_id}.", file=output)
         if getattr(args, "json", False):
             print(json.dumps(result.to_dict(), indent=2))
             sys.exit(1 if result.kind.value != "done" else code)
@@ -4367,101 +4367,131 @@ def finish_command(args):
     merge_succeeded = False
     output = sys.stderr if getattr(args, "json", False) else sys.stdout
 
+    merge_declined_reason = None
+    merge_failure_reason = None
+    merge_status_lines = None
+    merge_commit_created = False
+    merge_commit_description = None
+    merge_closure_steps = []
+
     if workspace and workspace.is_dir() and merge_requested and report_passes:
         work_status = run_git(workspace, "status", "--short")
         if work_status.returncode:
-            print(f"RAPID1341 No se pudo leer el estado del worktree: {work_status.stderr.strip()}", file=sys.stderr)
-            sys.exit(1)
-        status_lines = work_status.stdout.splitlines()
-        print(f'Cambios que entraran al commit (git -C "{workspace}" status --short):', file=output)
-        if status_lines:
-            for line in status_lines:
-                print(f"  {line}", file=output)
-        else:
-            print("  (sin cambios)", file=output)
-
-        artifact_names = {"__pycache__", "node_modules", ".venv", "dist", "build"}
-        has_artifacts = False
-        for line in status_lines:
-            path = line[3:].strip().strip('"').replace("\\", "/")
-            if any(part in artifact_names or part.endswith(".pyc") for part in path.split("/")):
-                has_artifacts = True
-                break
-        if has_artifacts:
-            print(
-                "WARNING: Hay posibles artefactos de build/cache; anadelos a .gitignore antes de confirmar.",
-                file=output,
+            merge_failure_reason = (
+                "no se pudo leer el estado del worktree: " + work_status.stderr.strip()
             )
-
-        phrase = f"integrar {run_id}"
-        print("Escribe la frase siguiente para confirmar el commit y merge:", file=output)
-        print(phrase, file=output)
-        try:
-            answer = input("> ").strip().strip("'\"" + "\u201c\u201d\u2018\u2019").strip()
-        except EOFError:
-            print("RAPID1341 No se recibio la confirmacion; no se creo commit ni merge.", file=sys.stderr)
-            sys.exit(1)
-        if answer != phrase:
-            print("Confirmacion abortada; no se creo commit ni merge.", file=sys.stderr)
-            sys.exit(1)
-
-        source = CURRENT_DIR
-        try:
-            branch = run_git(workspace, "branch", "--show-current")
-            source_branch = run_git(source, "branch", "--show-current")
-            source_status = run_git(source, "status", "--porcelain")
-            if branch.returncode or branch.stdout.strip() != f"rapid/{run_id}":
-                raise RuntimeError(f"El worktree no esta en la rama rapid/{run_id}.")
-            source_changes = [
-                line for line in source_status.stdout.splitlines()
-                if not (line.startswith("?? ") and line[3:].replace("\\", "/").startswith(".rapid-os/"))
-            ]
-            if source_status.returncode or source_changes:
-                dirty = ", ".join(source_changes)
-                raise RuntimeError(
-                    "El checkout de origen tiene cambios sin commit; no se hizo merge. "
-                    f"Resuelvelos primero: {dirty or source_status.stderr.strip()}"
-                )
-
-            if status_lines:
-                added = run_git(workspace, "add", "-A")
-                if added.returncode:
-                    raise RuntimeError(added.stderr.strip())
-                committed = run_git(workspace, "commit", "-m", merge_message)
-                if committed.returncode:
-                    raise RuntimeError(committed.stderr.strip() or committed.stdout.strip())
-
-            commit_info = run_git(workspace, "log", "-1", "--format=%h%x09%s")
-            if commit_info.returncode:
-                raise RuntimeError(commit_info.stderr.strip() or "No se pudo leer el commit del run.")
-            merged = run_git(source, "merge", f"rapid/{run_id}")
-            if merged.returncode:
-                raise RuntimeError(merged.stderr.strip() or merged.stdout.strip())
-
-            short_hash, _, subject = commit_info.stdout.strip().partition("\t")
-            if status_lines:
-                print(
-                    f"Commit {short_hash} ({subject}) creado en rapid/{run_id} y mergeado en {source_branch.stdout.strip()}.",
-                    file=output,
-                )
+        else:
+            merge_status_lines = work_status.stdout.splitlines()
+            print(f'Cambios que entrarán al commit (git -C "{workspace}" status --short):', file=output)
+            if merge_status_lines:
+                for line in merge_status_lines:
+                    print(f"  {line}", file=output)
             else:
+                print("  (sin cambios)", file=output)
+
+            artifact_names = {"__pycache__", "node_modules", ".venv", "dist", "build"}
+            has_artifacts = False
+            for line in merge_status_lines:
+                path = line[3:].strip().strip('"').replace("\\", "/")
+                if any(part in artifact_names or part.endswith(".pyc") for part in path.split("/")):
+                    has_artifacts = True
+                    break
+            if has_artifacts:
                 print(
-                    f"No se creo un commit nuevo; se mergeo {short_hash} ({subject}) desde rapid/{run_id} en {source_branch.stdout.strip()}.",
+                    "WARNING: Hay posibles artefactos de build/cache; añádelos a .gitignore antes de confirmar.",
                     file=output,
                 )
-            print(f'Worktree conservado; retiralo con git worktree remove "{workspace}".', file=output)
-            merge_succeeded = True
-        except Exception as exc:
-            print(f"RAPID1341 El run termino, pero no se completo commit/merge: {exc}", file=sys.stderr)
-            sys.exit(1)
+
+            phrase = f"integrar {run_id}"
+            print("Escribe la frase siguiente para confirmar el commit y merge:", file=output)
+            print(phrase, file=output)
+            try:
+                answer = input("> ").strip().strip("'\"" + "\u201c\u201d\u2018\u2019").strip()
+            except EOFError:
+                merge_declined_reason = "no se recibió la frase de confirmación"
+            else:
+                if answer != phrase:
+                    merge_declined_reason = f"se rechazó la frase de confirmación «{phrase}»"
+
+            if merge_declined_reason is None:
+                source = CURRENT_DIR
+                try:
+                    branch = run_git(workspace, "branch", "--show-current")
+                    source_branch = run_git(source, "branch", "--show-current")
+                    source_status = run_git(source, "status", "--porcelain")
+                    if branch.returncode or branch.stdout.strip() != f"rapid/{run_id}":
+                        raise RuntimeError(f"El worktree no está en la rama rapid/{run_id}.")
+                    source_changes = [
+                        line for line in source_status.stdout.splitlines()
+                        if not (line.startswith("?? ") and line[3:].replace("\\", "/").startswith(".rapid-os/"))
+                    ]
+                    if source_status.returncode or source_changes:
+                        dirty = ", ".join(source_changes)
+                        raise RuntimeError(
+                            "El checkout de origen tiene cambios sin commit; no se hizo merge. "
+                            f"Resuélvelos primero: {dirty or source_status.stderr.strip()}"
+                        )
+
+                    if merge_status_lines:
+                        added = run_git(workspace, "add", "-A")
+                        if added.returncode:
+                            raise RuntimeError(added.stderr.strip())
+                        committed = run_git(workspace, "commit", "-m", merge_message)
+                        if committed.returncode:
+                            raise RuntimeError(committed.stderr.strip() or committed.stdout.strip())
+                        merge_commit_created = True
+
+                    commit_info = run_git(workspace, "log", "-1", "--format=%h%x09%s")
+                    if commit_info.returncode:
+                        raise RuntimeError(commit_info.stderr.strip() or "No se pudo leer el commit del run.")
+                    merge_commit_description = commit_info.stdout.strip()
+                    merged = run_git(source, "merge", f"rapid/{run_id}")
+                    if merged.returncode:
+                        raise RuntimeError(merged.stderr.strip() or merged.stdout.strip())
+
+                    short_hash, _, subject = merge_commit_description.partition("\t")
+                    if merge_commit_created:
+                        print(
+                            f"Commit {short_hash} ({subject}) creado en rapid/{run_id} y mergeado en {source_branch.stdout.strip()}.",
+                            file=output,
+                        )
+                    else:
+                        print(
+                            f"No se creó un commit nuevo; se mergeó {short_hash} ({subject}) desde rapid/{run_id} en {source_branch.stdout.strip()}.",
+                            file=output,
+                        )
+                    print(f'Worktree conservado; retíralo con git worktree remove "{workspace}".', file=output)
+                    merge_succeeded = True
+                except Exception as exc:
+                    merge_failure_reason = str(exc) or "falló el commit o el merge"
+
+        if not merge_succeeded:
+            if merge_commit_created:
+                merge_closure_steps = [
+                    f'git -C "{CURRENT_DIR}" merge rapid/{run_id}',
+                    f'git worktree remove "{workspace}"',
+                ]
+            elif merge_status_lines == []:
+                merge_closure_steps = [
+                    "No hay cambios sin commit en el worktree; no hace falta add ni commit.",
+                    f'git -C "{CURRENT_DIR}" merge rapid/{run_id}',
+                    f'git worktree remove "{workspace}"',
+                ]
+            else:
+                merge_closure_steps = [
+                    f'git -C "{workspace}" add -A',
+                    f'git -C "{workspace}" commit -m "{merge_message}"',
+                    f'git -C "{CURRENT_DIR}" merge rapid/{run_id}',
+                    f'git worktree remove "{workspace}"',
+                ]
+            merge_closure_steps.append("No uses --force mientras haya cambios: borrarías el trabajo del run.")
     elif workspace and workspace.is_dir():
         if merge_requested and code == 0 and result.verdict.value != "pass":
             print(
-                f"--merge no integro el worktree: el veredicto fue {result.verdict.value.upper()}.",
+                f"--merge no integró el worktree: el veredicto fue {result.verdict.value.upper()}.",
                 file=output,
             )
-        print(f"El trabajo esta en {workspace}, rama rapid/{run_id}.", file=output)
-
+        print(f"El trabajo está en {workspace}, rama rapid/{run_id}.", file=output)
     if workspace and workspace.is_dir() and report_passes and not merge_requested:
         status = run_git(workspace, "status", "--porcelain")
         if status.returncode == 0 and status.stdout.strip():
@@ -4472,7 +4502,7 @@ def finish_command(args):
             print(f'  git -C "{workspace}" commit -m "{manual_message}"', file=output)
             print(f'  git -C "{CURRENT_DIR}" merge rapid/{run_id}', file=output)
             print(f'  git worktree remove "{workspace}"', file=output)
-            print("No uses --force mientras haya cambios: borrarias el trabajo del run.", file=output)
+            print("No uses --force mientras haya cambios: borrarías el trabajo del run.", file=output)
 
     quiet = contextlib.redirect_stdout(sys.stderr) if getattr(args, "json", False) else contextlib.nullcontext()
     with quiet:
@@ -4484,6 +4514,7 @@ def finish_command(args):
     if command_warning:
         print(f"WARNING {command_warning}", file=sys.stderr)
     reason = unverified_reason(result, CURRENT_DIR)
+    revision = len(EvalRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).list_reports(result.run_id))
     if getattr(args, "json", False):
         payload = result.to_dict()
         if reason:
@@ -4491,15 +4522,24 @@ def finish_command(args):
         print(json.dumps(payload, indent=2))
         if reason:
             print(reason, file=sys.stderr)
+        if merge_requested and report_passes and not merge_succeeded:
+            print(
+                f"Evaluation report {revision:04d} for run '{result.run_id}': verdict {result.verdict.value.upper()}",
+                file=sys.stderr,
+            )
+            merge_reason = merge_declined_reason or merge_failure_reason or "no se completó el merge"
+            print(f"No se integró: {merge_reason}. El run sí quedó terminado.", file=sys.stderr)
+            print("Cierre manual del worktree:", file=sys.stderr)
+            for line in merge_closure_steps:
+                print(f"  {line}" if line.startswith("git ") else line, file=sys.stderr)
         if no_baseline:
             print(NO_BASELINE_LINE, file=sys.stderr)
         for line in suggestions:
             print(line, file=sys.stderr)
         if not merge_succeeded and not merge_requested:
             print(NO_COMMIT_LINE, file=sys.stderr)
-        sys.exit(code)
+        sys.exit(1 if merge_failure_reason else code)
 
-    revision = len(EvalRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).list_reports(result.run_id))
     print(
         f"Evaluation report {revision:04d} for run '{result.run_id}': "
         f"verdict {result.verdict.value.upper()}"
@@ -4508,11 +4548,17 @@ def finish_command(args):
         print(reason)
     if no_baseline:
         print(NO_BASELINE_LINE)
+    if merge_requested and report_passes and not merge_succeeded:
+        merge_reason = merge_declined_reason or merge_failure_reason or "no se completó el merge"
+        print(f"No se integró: {merge_reason}. El run sí quedó terminado.")
+        print("Cierre manual del worktree:")
+        for line in merge_closure_steps:
+            print(f"  {line}" if line.startswith("git ") else line)
     for line in suggestions:
         print(line)
     if not merge_succeeded and not merge_requested:
         print(NO_COMMIT_LINE)
-    sys.exit(code)
+    sys.exit(1 if merge_failure_reason else code)
 
 def approve_command(args):
     """Execute rapid approve command."""
