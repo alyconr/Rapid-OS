@@ -63,4 +63,3 @@ This regenerates `security.md` and `coding-rules.md` from the current archetype 
 ## Hardening mode
 
 The `rapid start hardening` spec stores a structured `findings[]` list (`id`, `title`, `cwe`, `cvss_v4_vector`, `severity`, `standard_ref`) in each revision. Start validates each CWE and complete CVSS v4.0 base vector, checks that the severity is compatible with the vector's impact class, and requires `standard_ref` to match a citation in `security.md`. Each finding also needs an acceptance criterion naming its id or CWE and task evidence.
-

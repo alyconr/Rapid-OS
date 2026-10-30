@@ -87,4 +87,3 @@ def validate_hardening_findings(
         if not any(reference in cited for cited in references):
             return invalid(f"standard_ref {finding['standard_ref']!r} no aparece en {security_file}")
     return None
-

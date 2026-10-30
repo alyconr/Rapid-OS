@@ -253,4 +253,3 @@ def detect_folder_overlaps(
                 if not any(item.reader == overlap.reader and item.folders == overlap.folders for item in overlaps):
                     overlaps.append(overlap)
     return overlaps
-

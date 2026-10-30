@@ -618,4 +618,3 @@ class EvalRegistry:
             self.root,
             run_id=run_id,
         )
-

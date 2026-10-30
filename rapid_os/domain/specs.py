@@ -912,4 +912,3 @@ def scope_spec_from_revision(revision: SpecRevision) -> ScopeSpec:
         testing_strategy=list(revision.testing_strategy),
         implementation_tasks=list(revision.implementation_tasks),
     )
-

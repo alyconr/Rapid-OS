@@ -961,4 +961,3 @@ class HardeningWorktreeHookTests(LabScenarioBase):
 
 if __name__ == "__main__":
     unittest.main()
-

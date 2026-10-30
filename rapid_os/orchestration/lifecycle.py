@@ -1380,4 +1380,3 @@ def execute_abort(
             "elimínalo con 'git worktree remove' cuando ya no lo necesites."
         )
     return 0, message
-

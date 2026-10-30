@@ -1642,4 +1642,3 @@ class BehavioralEvaluator:
             return EvalAssertionStatus.FAIL
 
         return None
-

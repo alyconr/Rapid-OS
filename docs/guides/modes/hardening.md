@@ -173,4 +173,3 @@ rapid eval run \
 ```
 
 The final verdict will certify that the security requirements and the linked evidence satisfy the execution policy before any deployment.
-

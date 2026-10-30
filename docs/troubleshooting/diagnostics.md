@@ -276,4 +276,3 @@ Emitted by `rapid validate` and `rapid doctor` over `.rapid-os/`.
 | `RAPID907` | INFO | There is no Rapid OS project in the current directory. | Run `rapid init` or enter the project root. |
 | `RAPID908` | INFO | Default harness from `config.json`. | Informational. |
 | `RAPID909` | INFO | Test command from `config.json`. | Informational; change it with `rapid setup set test-command <cmd>`. |
-

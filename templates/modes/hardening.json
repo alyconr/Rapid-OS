@@ -43,4 +43,3 @@
     "blocked": "La ejecución está bloqueada. Revisa la razón o tarea bloqueada y resuelve el impedimento. Si falta el workspace aislado, ejecuta rapid start --resume --worktree."
   }
 }
-

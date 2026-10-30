@@ -853,4 +853,3 @@ class SpecRegistry:
         from rapid_os.domain.validation import validate_spec_registry
 
         return validate_spec_registry(self.rapid_dir, self.root)
-
