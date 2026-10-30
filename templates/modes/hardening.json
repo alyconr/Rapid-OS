@@ -22,7 +22,7 @@
     ],
     "findings": [
       {
-        "id": "H001",
+        "id": "SEC-001",
         "title": "Salida HTML no escapada",
         "cwe": "CWE-79",
         "cvss_v4_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:P/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N",

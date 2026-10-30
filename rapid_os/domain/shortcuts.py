@@ -155,15 +155,25 @@ class FolderOverlap:
     reader: str  # cursor | vscode
     harnesses: tuple[str, ...]  # the reader's own harness first, then the overlapping ones
     folders: tuple[str, ...]
+    existing: bool = False  # found already installed in the project, not just implied by the selection
 
     @property
     def message(self) -> str:
         label = TOOL_LABELS[self.reader]
         others = tuple(h for h in self.harnesses if h != self.reader)
         recommended = " ".join(f"--harness {h}" for h in _dedupe_by_folder(others))
+        if self.existing:
+            cause = (
+                f"this project already has /rapid-* of {', '.join(others)} in {', '.join(self.folders[1:])}, "
+                f"the same shortcuts as {self.folders[0]}, so they sit in more than one of them."
+            )
+        else:
+            cause = (
+                f"selecting {', '.join(self.harnesses)} "
+                f"leaves the same /rapid-* shortcuts in more than one of them."
+            )
         return (
-            f"{OVERLAP_CODE} {label} reads {', '.join(self.folders)}: selecting {', '.join(self.harnesses)} "
-            f"leaves the same /rapid-* shortcuts in more than one of them. Its documentation does not say "
+            f"{OVERLAP_CODE} {label} reads {', '.join(self.folders)}: {cause} Its documentation does not say "
             f"how it shows same-named skills in different folders. Recommended: install only "
             f"{recommended} (without {self.reader}), since {label} already reads those folders. "
             f"See {OVERLAP_DOC_URL}"
@@ -249,7 +259,7 @@ def detect_folder_overlaps(
                     (h for h, output in HARNESS_FOLDERS.items() if output == folder and h != reader),
                     folder,
                 )
-                overlap = FolderOverlap(reader, (reader, owner), (reader_folder, folder))
+                overlap = FolderOverlap(reader, (reader, owner), (reader_folder, folder), existing=True)
                 if not any(item.reader == overlap.reader and item.folders == overlap.folders for item in overlaps):
                     overlaps.append(overlap)
     return overlaps

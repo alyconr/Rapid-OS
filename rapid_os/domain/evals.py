@@ -1125,7 +1125,7 @@ class BehavioralEvaluator:
             finding_id = str(finding.get("id", ""))
             cwe = str(finding.get("cwe", ""))
             if not any(
-                marker and marker.casefold() in criterion.casefold()
+                marker and re.search(rf"(?<![\w-]){re.escape(marker)}(?![\w-])", criterion, re.IGNORECASE)
                 for criterion in acceptance_criteria
                 for marker in (finding_id, cwe)
             ):

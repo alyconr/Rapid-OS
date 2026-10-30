@@ -877,7 +877,7 @@ class HardeningLabScenarioTests(LabScenarioBase):
         "findings": [{
             "id": "H001", "title": "Reject hostile usernames", "cwe": "CWE-20",
             "cvss_v4_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:P/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N",
-            "severity": "medium", "standard_ref": "CWE, CVSS v4.0",
+            "severity": "medium", "standard_ref": "CVSS v4.0",
         }],
         "tasks": ["T001: Add defensive validation", "T002: Verify in the isolated workspace"],
     }

@@ -528,7 +528,7 @@ class TemplatesTests(unittest.TestCase):
     def test_spec_cli_accepts_structured_finding_json(self):
         from rapid_os.cli.main import _extract_non_interactive_spec_fields, create_parser
 
-        raw = '{"id":"H001","title":"Reject input","cwe":"CWE-20","cvss_v4_vector":"CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:P/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N","severity":"medium","standard_ref":"CWE, CVSS v4.0"}'
+        raw = '{"id":"H001","title":"Reject input","cwe":"CWE-20","cvss_v4_vector":"CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:P/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N","severity":"medium","standard_ref":"CVSS v4.0"}'
         args = create_parser().parse_args(["spec", "create", "--finding-json", raw])
         self.assertEqual(_extract_non_interactive_spec_fields(args)["findings"][0]["id"], "H001")
 

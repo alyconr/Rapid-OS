@@ -130,7 +130,7 @@ class GateInTheContractTests(Project):
             spec["findings"] = [{
                 "id": "H001", "title": "Validar datos de citas", "cwe": "CWE-20",
                 "cvss_v4_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:P/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N",
-                "severity": "medium", "standard_ref": "CWE, CVSS v4.0",
+                "severity": "medium", "standard_ref": "CVSS v4.0",
             }]
         return self.rapid("start", mode, "--spec-file", "-", "--json", stdin=json.dumps(spec))
 

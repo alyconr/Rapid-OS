@@ -19,7 +19,7 @@ SPEC = {
     "findings": [{
         "id": "H001", "title": "Reject unsafe input", "cwe": "CWE-20",
         "cvss_v4_vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:P/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N",
-        "severity": "medium", "standard_ref": "CWE, CVSS v4.0",
+        "severity": "medium", "standard_ref": "CVSS v4.0",
     }],
     "tasks": ["T001: Validate input"],
 }

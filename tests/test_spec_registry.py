@@ -213,7 +213,7 @@ class SpecDomainModelTests(unittest.TestCase):
         finding = HardeningFinding(
             id="H001", title="Reject unsafe input", cwe="CWE-20",
             cvss_v4_vector="CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:P/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N",
-            severity="medium", standard_ref="CWE, CVSS v4.0",
+            severity="medium", standard_ref="CVSS v4.0",
         )
         revision = SpecRevision(**_sample_spec_kwargs(mode="hardening", findings=(finding,)))
         reconstructed = SpecRevision.from_json(revision.to_json())
@@ -221,7 +221,7 @@ class SpecDomainModelTests(unittest.TestCase):
         self.assertEqual(reconstructed.to_dict()["findings"], [finding.to_dict()])
         record = SpecRecord(id=revision.spec_id, status=SpecStatus.DRAFT, current_revision=1)
         rendered = cli_main.render_spec_show_text(record, reconstructed, {})
-        for expected in ("H001", "CWE-20", "CVSS:4.0/", "medium", "CWE, CVSS v4.0"):
+        for expected in ("H001", "CWE-20", "CVSS:4.0/", "medium", "CVSS v4.0"):
             self.assertIn(expected, rendered)
 
     def test_affected_paths_enforces_relative_posix_and_rejects_traversal_or_absolute(self):
