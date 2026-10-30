@@ -94,6 +94,10 @@ class ApprovalWordingTests(unittest.TestCase):
                     self.assertIn("solo cuando action.kind sea await_human_approval", body)
                     self.assertIn("ignora awaiting_human", body)
                     self.assertIn("rapid approve gate.final-verification", body)
+                if name == "rapid-hardening":
+                    for word in ("aprobación", "acción", "Después", "tú", "confirmación"):
+                        with self.subTest(word=word):
+                            self.assertIn(word, body)
 
     def test_no_rendered_shortcut_suggests_the_bang_prefix(self):
         for harness in HARNESSES:
