@@ -12,7 +12,7 @@ La decisión sobre un gate queda registrada como evidencia en el ledger del run,
 | El gate está aprobado (o rechazado) y `rapid finish` **no** se ha ejecutado | [Caso A](#caso-a-antes-de-rapid-finish): `rapid abort` |
 | `rapid finish` ya se ejecutó (el run está cerrado) | [Caso B](#caso-b-después-de-rapid-finish): `git revert`, reabrir la historia, run nuevo |
 
-Rapid OS nunca hace commit por ti (`rapid finish` termina con «Rapid OS no hace commit: revisa los cambios y haz commit tú»), así que mientras no hagas commit, el código solo está en tu directorio de trabajo.
+Por defecto Rapid OS no hace commit por ti. `rapid finish --merge` puede crear el commit e integrar el worktree aprobado despues de que escribas la frase de confirmacion; de lo contrario, el codigo queda en tu directorio de trabajo hasta que hagas commit.
 
 ## Caso A: antes de `rapid finish` {#caso-a-antes-de-rapid-finish}
 
@@ -24,7 +24,7 @@ El run sigue abierto, así que aún se puede cancelar. Tras aprobar el último g
    rapid abort --reason "aprobado demasiado pronto"
    ```
 
-   Termina el run como `aborted` y limpia la sesión. Un worktree aislado se queda en disco.
+   Termina el run como `cancelled` y limpia la sesión. Un worktree aislado se queda en disco.
 
 2. Aparta el código si quieres conservarlo. Guarda en el stash todo lo que produjo el run, también los archivos nuevos, pero deja en paz la carpeta de Rapid OS:
 
