@@ -905,23 +905,41 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertTrue(workspace.is_dir())
         self.assertEqual(json.loads(resumed.stdout)["action"]["workspace_path"], str(workspace))
 
-    def test_finish_prints_exact_closure_steps_for_a_dirty_worktree(self):
+    def test_finish_does_not_print_merge_steps_while_human_approval_is_pending(self):
         data = self._start_and_complete_tasks()
         run_id = data["run_id"]
         workspace = Path(self._session()["workspace_path"])
         res = self._rapid("finish")
         self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn(f"El trabajo esta en {workspace}, rama rapid/{run_id}", res.stdout)
+        self.assertIn("Cannot finish yet", res.stdout)
+        self.assertNotIn("Cierre manual del worktree", res.stdout)
+        self.assertNotIn("git -C", res.stdout)
+        self.assertNotIn("git worktree remove", res.stdout)
+
+    def test_finish_prints_exact_closure_steps_for_a_dirty_worktree_after_pass(self):
+        data = self._start_and_complete_tasks()
+        run_id = data["run_id"]
+        workspace = Path(self._session()["workspace_path"])
+        self.assertEqual(self._approve("gate.review").returncode, 0)
+        self.assertEqual(self._approve("gate.final-verification").returncode, 0)
+        res = self._rapid("finish")
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
         self.assertIn(str(workspace), res.stdout)
         self.assertIn(f'git -C "{workspace}" add -A', res.stdout)
         self.assertIn(f'git -C "{workspace}" commit -m "{self.SPEC["title"]}"', res.stdout)
         self.assertIn(f'git -C "{self.project}" merge rapid/{run_id}', res.stdout)
         self.assertIn(f'git worktree remove "{workspace}"', res.stdout)
         self.assertIn("No uses --force", res.stdout)
-        self.assertIn("await_human_approval -> rapid approve gate.final-verification", res.stdout)
-        next_text = self._rapid("next")
-        self.assertEqual(next_text.returncode, 0, next_text.stderr)
-        self.assertIn("Next: await_human_approval -> rapid approve gate.review", next_text.stdout)
-        self.assertIn("Next: await_human_approval -> rapid approve gate.final-verification", next_text.stdout)
+
+    def test_finish_with_open_task_exits_nonzero(self):
+        data = self._start("hardening", self.SPEC, "--worktree")
+        workspace = Path(self._session()["workspace_path"])
+        res = self._rapid("finish")
+        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn("Cannot finish yet", res.stdout)
+        self.assertIn(str(workspace), res.stdout)
+        self.assertNotIn("Cierre manual del worktree", res.stdout)
 
     def test_finish_has_no_worktree_closure_noise_when_the_worktree_is_clean(self):
         self._start_and_complete_tasks()
@@ -946,20 +964,37 @@ class HardeningLabScenarioTests(LabScenarioBase):
     def test_finish_merge_commits_the_run_branch_and_merges_after_written_confirmation(self):
         self._git("add", "-A")
         self._git("commit", "-qm", "onboarding")
-        data = self._start_and_complete_tasks()
+        source_branch = self._git("branch", "--show-current").stdout.strip()
+        data = self._start("hardening", self.SPEC, "--worktree")
         run_id = data["run_id"]
         workspace = Path(self._session()["workspace_path"])
+        (workspace / "dist").mkdir()
+        (workspace / "dist" / "bundle.js").write_text("generated", encoding="utf-8")
+
+        def implement(action):
+            if action["task_id"] == "T001":
+                self._copy_solution("profile_mgr.py", "tests/test_profile_mgr.py", dest_root=workspace)
+
+        action, _ = self._drive(implement)
+        self.assertEqual(action["kind"], "await_human_approval", action)
         self.assertEqual(self._approve("gate.review").returncode, 0)
         self.assertEqual(self._approve("gate.final-verification").returncode, 0)
         res = self._rapid_tty(["finish", "--merge"], f"integrar {run_id}")
         self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
         self.assertTrue(workspace.is_dir())
+        self.assertIn('status --short)', res.stdout)
+        self.assertIn("dist/", res.stdout)
+        self.assertIn("anadelos a .gitignore", res.stdout)
+        self.assertIn("Commit ", res.stdout)
+        self.assertIn(self.SPEC["title"], res.stdout)
+        self.assertIn(f"mergeado en {source_branch}", res.stdout)
+        self.assertNotIn("Rapid OS no hace commit", res.stdout + res.stderr)
         self.assertEqual(self._git("log", "-1", "--format=%s", cwd=workspace).stdout.strip(), self.SPEC["title"])
         self.assertEqual(
             (self.project / "profile_mgr.py").read_text(encoding="utf-8"),
             (EXAMPLES / "hardening-lab" / "solution" / "profile_mgr.py").read_text(encoding="utf-8"),
         )
-        self.assertIn("worktree conservado", res.stdout)
+        self.assertIn("git worktree remove", res.stdout)
 
     def test_hardening_lab_runs_inside_an_isolated_worktree(self):
         data = self._start("hardening", self.SPEC, "--worktree")
