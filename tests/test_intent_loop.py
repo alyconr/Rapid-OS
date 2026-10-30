@@ -912,7 +912,7 @@ class HardeningLabScenarioTests(LabScenarioBase):
         workspace = Path(self._session()["workspace_path"])
         res = self._rapid("finish")
         self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
-        self.assertIn(f"El trabajo esta en {workspace}, rama rapid/{run_id}", res.stdout)
+        self.assertIn(f"El trabajo está en {workspace}, rama rapid/{run_id}", res.stdout)
         self.assertIn("Cannot finish yet", res.stdout)
         self.assertNotIn("Cierre manual del worktree", res.stdout)
         self.assertNotIn("git -C", res.stdout)
@@ -985,7 +985,7 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertTrue(workspace.is_dir())
         self.assertIn('status --short)', res.stdout)
         self.assertIn("dist/", res.stdout)
-        self.assertIn("anadelos a .gitignore", res.stdout)
+        self.assertIn("añádelos a .gitignore", res.stdout)
         self.assertIn("Commit ", res.stdout)
         self.assertIn(self.SPEC["title"], res.stdout)
         self.assertIn(f"mergeado en {source_branch}", res.stdout)
@@ -996,6 +996,57 @@ class HardeningLabScenarioTests(LabScenarioBase):
             (EXAMPLES / "hardening-lab" / "solution" / "profile_mgr.py").read_text(encoding="utf-8"),
         )
         self.assertIn("git worktree remove", res.stdout)
+
+    def test_finish_merge_decline_reports_pass_and_manual_worktree_closure(self):
+        self._git("add", "-A")
+        self._git("commit", "-qm", "onboarding")
+        data = self._start_and_complete_tasks()
+        run_id = data["run_id"]
+        workspace = Path(self._session()["workspace_path"])
+        self.assertEqual(self._approve("gate.review").returncode, 0)
+        self.assertEqual(self._approve("gate.final-verification").returncode, 0)
+
+        res = self._rapid_tty(["finish", "--merge"], "no")
+
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertIn(f"Evaluation report 0001 for run '{run_id}': verdict PASS", res.stdout)
+        self.assertIn("No se integró:", res.stdout)
+        self.assertIn(f'git -C "{workspace}" add -A', res.stdout)
+        self.assertIn(f'git -C "{workspace}" commit -m "{self.SPEC["title"]}"', res.stdout)
+        self.assertIn(f'git -C "{self.project}" merge rapid/{run_id}', res.stdout)
+        self.assertIn(f'git worktree remove "{workspace}"', res.stdout)
+        self.assertIn("No uses --force", res.stdout)
+        self.assertTrue(workspace.is_dir())
+
+    def test_finish_merge_failure_reports_pass_and_manual_closure_with_nonzero_exit(self):
+        self._git("add", "-A")
+        self._git("commit", "-qm", "onboarding")
+        data = self._start("hardening", self.SPEC, "--worktree")
+        run_id = data["run_id"]
+        workspace = Path(self._session()["workspace_path"])
+
+        def implement(action):
+            if action["task_id"] == "T001":
+                self._copy_solution("profile_mgr.py", "tests/test_profile_mgr.py", dest_root=workspace)
+
+        action, _ = self._drive(implement)
+        self.assertEqual(action["kind"], "await_human_approval", action)
+        self.assertEqual(self._approve("gate.review").returncode, 0)
+        self.assertEqual(self._approve("gate.final-verification").returncode, 0)
+
+        # The source branch advances with a conflicting edit after the worktree was created.
+        (self.project / "profile_mgr.py").write_text("# conflicting source edit\n", encoding="utf-8")
+        self._git("add", "profile_mgr.py")
+        self._git("commit", "-qm", "conflicting source change")
+        res = self._rapid_tty(["finish", "--merge"], f"integrar {run_id}")
+
+        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn(f"Evaluation report 0001 for run '{run_id}': verdict PASS", res.stdout)
+        self.assertIn("No se integró:", res.stdout)
+        self.assertIn("El run sí quedó terminado", res.stdout)
+        self.assertIn(f'git -C "{self.project}" merge rapid/{run_id}', res.stdout)
+        self.assertIn(f'git worktree remove "{workspace}"', res.stdout)
+        self.assertIn("No uses --force", res.stdout)
 
     def test_hardening_lab_runs_inside_an_isolated_worktree(self):
         data = self._start("hardening", self.SPEC, "--worktree")
