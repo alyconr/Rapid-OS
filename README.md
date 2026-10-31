@@ -118,7 +118,7 @@ Rapid OS `v3.1.0` is complete and preserves full backward compatibility with all
 | Claude Code hooks (v3.1) | Complete | `rapid hook stop\|pre-tool` installed with `--hooks`: keep the agent working until a person is needed and deny reserved commands and edits inside `.rapid-os/`. |
 | Hardened human approval (v3.1) | Complete | `rapid approve` requires a TTY, refuses agent sessions and Claude Code ancestors (`RAPID1310`), and supports `--waive` / `--reject`. Best-effort: see the known limits in the release notes. |
 | MCP abstraction | Complete | Structured MCP model with editor-specific rendering and package metadata. |
-| Testing and CI hardening | Complete | GitHub Actions on Python 3.10, 3.11, 3.12 & 3.13 running `unittest`, CLI smoke checks, `python -m build` artifact checks, and clean wheel + sdist installation tests. |
+| Testing and CI hardening | Complete | GitHub Actions: fast suite on pull requests; full `unittest` suite on Python 3.10, 3.11, 3.12 & 3.13 after merge, CLI smoke checks, `python -m build` artifact checks, and clean wheel + sdist installation tests. |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -913,8 +913,12 @@ What Rapid OS **IS** and what it **IS NOT**:
 Rapid OS uses the Python standard library's `unittest`. From the repository root:
 
 ```bash
-python -m unittest discover
+python scripts/test.py              # fast suite, in parallel (a couple of minutes)
+python scripts/test.py --all        # full suite, including the slow end-to-end modules
+python scripts/test.py test_hooks   # only the modules you name
 ```
+
+`python -m unittest discover` still works, but runs everything serially (about 13 minutes).
 
 For a quick CLI check:
 
@@ -923,7 +927,7 @@ python rapid.py --help
 python rapid.py guide
 ```
 
-GitHub Actions runs the `unittest` suite and these smoke checks on every `push` and `pull_request`.
+On GitHub Actions, every pull request that is not a draft runs the fast suite on Python 3.12. The full suite on Python 3.10–3.13, the CLI smoke checks and the wheel and sdist checks run after a merge to `main`, on `v*` tags, or by hand with `gh workflow run tests.yml --ref <branch>`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
