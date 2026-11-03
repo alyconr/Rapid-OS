@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "id": "legacy-hardening-r1-run-001",
+  "spec_id": "legacy-hardening",
+  "spec_revision": 1,
+  "contract_digest": "27e187963713b0424a28aaa700df7357d843d5cf2cb1c18473dd4b67f504996c",
+  "current_state_revision": 10
+}

@@ -1390,39 +1390,21 @@ class ExecutionPolicyCLIE2ETests(unittest.TestCase):
         )
         self.assertEqual(code, 0, err)
 
-        # 7. Acknowledge/waive POST_EXECUTION gates -> finish Run
-        for gate_id in (
-            "gate.tests",
-            "gate.security-review",
-            "gate.final-verification",
-        ):
-            code, _, err = self._run_cli(
-                [
-                    "run",
-                    "gate",
-                    run_id,
-                    gate_id,
-                    "acknowledge",
-                    "--reason",
-                    f"Completed {gate_id}",
-                    "--json",
-                ]
-            )
-            self.assertEqual(code, 0, err)
-
+        # 7. Acknowledge/waive POST_EXECUTION gates -> finish Run. `rapid run gate` only moves machine
+        # gates (RAPID1431); the human ones go through the registry here, as `rapid approve` does.
         code, _, err = self._run_cli(
-            [
-                "run",
-                "gate",
-                run_id,
-                "gate.review",
-                "waive",
-                "--reason",
-                "Pair programmed",
-                "--json",
-            ]
+            ["run", "gate", run_id, "gate.tests", "acknowledge", "--reason", "Completed gate.tests", "--json"]
         )
         self.assertEqual(code, 0, err)
+        code, _, err = self._run_cli(
+            ["run", "gate", run_id, "gate.security-review", "acknowledge", "--reason", "x", "--json"]
+        )
+        self.assertNotEqual(code, 0)
+        self.assertIn("RAPID1431", err)
+        registry = RunRegistry(self.root, self.rapid_dir)
+        for gate_id in ("gate.security-review", "gate.final-verification"):
+            registry.transition_gate(run_id, gate_id, GateDisposition.ACKNOWLEDGED, reason=f"Completed {gate_id}")
+        registry.transition_gate(run_id, "gate.review", GateDisposition.WAIVED, reason="Pair programmed")
 
         code, fin_out, err = self._run_cli(
             ["run", "status", run_id, "finished", "--json"]

@@ -785,6 +785,24 @@ def validate_eval_registry(
                     getattr(exc, "path", None) or (evals_dir / target_id),
                 )
             )
+        except SpecRegistryError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    exc.code,
+                    f"Evaluation of run '{target_id}' could not read its spec: {exc}",
+                    getattr(exc, "path", None) or (evals_dir / target_id),
+                )
+            )
+        except Exception as exc:  # a broken artifact is a diagnostic, never a traceback of `rapid validate`
+            diagnostics.append(
+                Diagnostic(
+                    ERROR,
+                    "RAPID1223",
+                    f"Evaluation of run '{target_id}' failed unexpectedly: {type(exc).__name__}: {exc}",
+                    evals_dir / target_id,
+                )
+            )
 
     has_errors = any(d.level == ERROR for d in diagnostics)
     if not has_errors:
@@ -1269,7 +1287,7 @@ def validate_run_registry(
                 )
                 if (
                     contract is not None
-                    and pinned_rev.content_digest != contract.spec_content_digest
+                    and not pinned_rev.matches_content_digest(contract.spec_content_digest)
                 ):
                     diagnostics.append(
                         Diagnostic(

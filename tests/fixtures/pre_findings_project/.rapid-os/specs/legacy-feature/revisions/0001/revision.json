@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "spec_id": "legacy-feature",
+  "revision": 1,
+  "title": "Legacy feature spec",
+  "mode": "feature",
+  "business_objective": "",
+  "problem_statement": "",
+  "scope": [],
+  "out_of_scope": [],
+  "actors_users": [],
+  "main_flow": [],
+  "edge_cases": [],
+  "business_rules": [],
+  "technical_constraints": [],
+  "affected_paths": [],
+  "data_impact": "",
+  "acceptance_criteria": [],
+  "testing_strategy": [],
+  "implementation_tasks": [
+    "T001: Do the feature work"
+  ],
+  "tags": [],
+  "artifact_digests": {
+    "requirements.md": "050c40ca8d5ce6b2e8989243b4f99e013e5fa1e8101a3b481f0f055bc6a50ea4",
+    "tasks.md": "f4044ebfe30f891c8ed6a9b0626fd345d81a7a3e15e87f71244ddacbbbe23051",
+    "acceptance.md": "41fbc4a5756dd69a6d24c33682088092816b5333c30caadff509ef8089594306"
+  },
+  "content_digest": "9da90cd747601ffb1bb0f8a6a945daa3f49f63cd4e6e950a3efba6cb419f0f2b"
+}

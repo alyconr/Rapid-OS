@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "spec_id": "legacy-refactor",
+  "revision": 1,
+  "title": "Legacy refactor spec",
+  "mode": "refactor",
+  "business_objective": "",
+  "problem_statement": "",
+  "scope": [],
+  "out_of_scope": [],
+  "actors_users": [],
+  "main_flow": [],
+  "edge_cases": [],
+  "business_rules": [],
+  "technical_constraints": [],
+  "affected_paths": [],
+  "data_impact": "",
+  "acceptance_criteria": [],
+  "testing_strategy": [],
+  "implementation_tasks": [
+    "T001: Do the refactor work"
+  ],
+  "tags": [],
+  "artifact_digests": {
+    "requirements.md": "b976cbcaa6c84bfc2e546d0d29d4b1fbc4a1533d8d9a03e52d1f99062a555280",
+    "tasks.md": "435769102dc9003b2c5d45aa93385dc74bd30f07da187f32bc10f95e86f47bdb",
+    "acceptance.md": "12ef2c6e7b01ddbc3ffa3f0c5da3dab9392d662c750644da97a68a62a675a666"
+  },
+  "content_digest": "bd8dcc99f3071d9909c07be1680d5dfd9aea5e01a7563c1bc21d54dab34e198b"
+}

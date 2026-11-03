@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "spec_id": "legacy-research",
+  "revision": 1,
+  "title": "Legacy research spec",
+  "mode": "research",
+  "business_objective": "",
+  "problem_statement": "",
+  "scope": [],
+  "out_of_scope": [],
+  "actors_users": [],
+  "main_flow": [],
+  "edge_cases": [],
+  "business_rules": [],
+  "technical_constraints": [],
+  "affected_paths": [],
+  "data_impact": "",
+  "acceptance_criteria": [],
+  "testing_strategy": [],
+  "implementation_tasks": [
+    "T001: Do the research work"
+  ],
+  "tags": [],
+  "artifact_digests": {
+    "requirements.md": "0c5d3a9f2b349256ed17577ede0245ec9bcfbb04451c82ddc8255433b844cd50",
+    "tasks.md": "6a9470eb68f364754635b51f244737768bc9a6992b394166732b97811a5c0192",
+    "acceptance.md": "145e77620f6628148f4826df0b14b3ea71d7c67ddf9876c98ff1a64b9c733b38"
+  },
+  "content_digest": "92f4caecfbaf04b1ba43abd6063eced2ab4cfd43e5d3f73d559124322c3e1c33"
+}

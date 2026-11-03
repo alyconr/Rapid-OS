@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "facts": [
+    {
+      "category": "language",
+      "value": "python",
+      "confidence": "low",
+      "detector": "language.python",
+      "evidence": [
+        {
+          "path": "app.py",
+          "reason": "Python source file",
+          "source_type": "file",
+          "detector": "language.python"
+        }
+      ]
+    },
+    {
+      "category": "testing",
+      "value": "tests-directory",
+      "confidence": "medium",
+      "detector": "testing.tests-directory",
+      "evidence": [
+        {
+          "path": "tests",
+          "reason": "tests directory",
+          "source_type": "directory",
+          "detector": "testing.tests-directory"
+        }
+      ]
+    }
+  ]
+}

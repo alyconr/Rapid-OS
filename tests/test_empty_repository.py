@@ -196,7 +196,9 @@ class StartInADifferentRepositoryTests(unittest.TestCase):
         self.assertEqual(self.start().returncode, 0)
 
         contract = contract_of(self.root)
-        self.assertEqual(set(contract), CANONICAL_EXECUTION_CONTRACT_KEYS)
+        # The only optional key is the ruleset every new run records (3): no waiver.
+        self.assertEqual(set(contract), CANONICAL_EXECUTION_CONTRACT_KEYS | {"ruleset_version"})
+        self.assertEqual(contract["ruleset_version"], 3)
         self.assertIn("gate.baseline", [g["id"] for g in contract["gates"]])
         self.assertEqual([t["description"] for t in contract["tasks"]], ["T001: Hacer A", "T002: Hacer B"])
 

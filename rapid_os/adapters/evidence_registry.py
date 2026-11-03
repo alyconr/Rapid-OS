@@ -23,6 +23,7 @@ from rapid_os.domain.evidence import (
     InvalidEvidencePayloadError,
     InvalidEvidenceReferenceError,
     InvalidRunEvidenceError,
+    ReservedEvidenceInputError,
     RunEvidence,
     UnsafeEvidencePathError,
     compute_evidence_set_digest,
@@ -30,6 +31,7 @@ from rapid_os.domain.evidence import (
     format_evidence_id,
     is_canonical_evidence_file_name,
     parse_evidence_ordinal,
+    reserved_evidence_input,
     sha256_bytes,
     validate_evidence_artifact_path,
     validate_evidence_id,
@@ -934,12 +936,19 @@ class EvidenceRegistry:
         authoring_input: Mapping[str, object] | str | Path,
         *,
         base_dir: Path | None = None,
+        external: bool = False,
     ) -> RunEvidence:
-        """Ingest a new append-only `RunEvidence` record and copy its artifacts into the registry."""
+        """Ingest a new append-only `RunEvidence` record and copy its artifacts into the registry.
+
+        `external` is `rapid evidence add`: evidence that only Rapid OS writes is refused there."""
         payload_map, resolved_base = self._parse_authoring_input(
             authoring_input,
             base_dir=base_dir,
         )
+        if external:
+            refusal = reserved_evidence_input(payload_map)
+            if refusal:
+                raise ReservedEvidenceInputError(refusal)
 
         if "id" in payload_map:
             raise InvalidEvidenceIdError(

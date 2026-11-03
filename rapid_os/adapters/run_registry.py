@@ -69,6 +69,7 @@ from rapid_os.domain.execution import (
     verify_run_state_transition,
 )
 from rapid_os.domain.specs import SpecRegistryError, SpecStatus
+from rapid_os.domain.evals import BEHAVIORAL_RULESET_VERSION
 
 
 RUNS_DIRNAME = "runs"
@@ -856,6 +857,7 @@ class RunRegistry:
             harness=context_request.harness,
             baseline_waived=baseline_waived,
             isolation_waived=isolation_waived,
+            ruleset_version=BEHAVIORAL_RULESET_VERSION,
         )
         initial_state = build_initial_run_state(contract)
         record = RunRecord(

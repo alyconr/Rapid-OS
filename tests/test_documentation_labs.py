@@ -180,7 +180,11 @@ class Sprint4DocumentationLabsTests(unittest.TestCase):
         init -> scan -> spec create -> context -> policy -> run create ->
         external implementation -> test execution -> run status active ->
         evidence add (file_change + test_result) -> run gate ack -> run task done ->
-        run status finished -> eval run -> validate
+        eval run -> validate
+
+        The plumbing alone never reaches PASS (ruleset 3): hand-written test results leave the test gates
+        unverified, a `user` review cannot be added (RAPID1430) and a human gate cannot be acknowledged with
+        `rapid run gate` (RAPID1431). Only the daily commands do (see the manual walkthrough test).
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
@@ -389,7 +393,7 @@ class Sprint4DocumentationLabsTests(unittest.TestCase):
             res = run_rapid("evidence", "add", "--run", run_id, "--input", str(ev_ws_path))
             self.assertEqual(res.returncode, 0, f"rapid evidence add E004 failed: {res.stderr}")
 
-            # 12. Register final verification review evidence
+            # 12. A final verification review cannot be declared: only `rapid approve` writes it
             ev_final = {
                 "kind": "review",
                 "producer": "user",
@@ -404,23 +408,32 @@ class Sprint4DocumentationLabsTests(unittest.TestCase):
             ev_final_path = tmp_path / "ev_final.json"
             ev_final_path.write_text(json.dumps(ev_final), encoding="utf-8")
             res = run_rapid("evidence", "add", "--run", run_id, "--input", str(ev_final_path))
-            self.assertEqual(res.returncode, 0, f"rapid evidence add E005 failed: {res.stderr}")
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("RAPID1430", res.stderr)
 
-            # 13. Complete task, acknowledge gates, finish run
+            # 13. Complete task and acknowledge the machine gate; the human gate is refused
             res = run_rapid("run", "task", run_id, "T001", "done")
             self.assertEqual(res.returncode, 0, f"rapid run task done failed: {res.stderr}")
             res = run_rapid("run", "gate", run_id, "gate.tests", "acknowledged")
             self.assertEqual(res.returncode, 0, f"rapid run gate tests failed: {res.stderr}")
             res = run_rapid("run", "gate", run_id, "gate.final-verification", "acknowledged")
-            self.assertEqual(res.returncode, 0, f"rapid run gate final failed: {res.stderr}")
-            res = run_rapid("run", "status", run_id, "finished")
-            self.assertEqual(res.returncode, 0, f"rapid run status finished failed: {res.stderr}")
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("RAPID1431", res.stderr)
 
-            # 14. Evaluate run deterministically
-            res = run_rapid("eval", "run", "--run", run_id, "--write", "--require-pass", "--json")
+            # 14. Evaluate run deterministically: the plumbing alone is not verified
+            res = run_rapid("eval", "run", "--run", run_id, "--write", "--json")
             self.assertEqual(res.returncode, 0, f"rapid eval run failed: {res.stderr}")
             eval_report = json.loads(res.stdout)
-            self.assertEqual(eval_report["verdict"], "pass")
+            self.assertEqual(eval_report["ruleset_version"], 3)
+            self.assertEqual(eval_report["verdict"], "unverified")
+            statuses = {a["id"]: a["status"] for a in eval_report["assertions"]}
+            for gate in ("gate.gate.baseline.evidence", "gate.gate.tests.evidence",
+                         "gate.gate.final-verification.evidence"):
+                self.assertEqual(statuses[gate], "unverified", gate)
+            reasons = {a["id"]: a["reason"] for a in eval_report["assertions"]}
+            self.assertIn("RAPID1432", reasons["gate.gate.tests.evidence"])
+            res = run_rapid("eval", "run", "--run", run_id, "--require-pass")
+            self.assertNotEqual(res.returncode, 0)
 
             # 15. Validate repository integrity
             res = run_rapid("validate")
@@ -432,9 +445,9 @@ class Sprint4DocumentationLabsTests(unittest.TestCase):
         2. Attempting to transition to 'active' before PRE_EXECUTION gate ack fails with RAPID1014.
         3. Transition to 'active' succeeds only after PRE_EXECUTION gates are addressed.
         4. Attempting to ack POST_EXECUTION gates while task is still in_progress fails with RAPID1014.
-        5. Ingesting authentic regression test suite results and review evidence.
-        6. Acking POST_EXECUTION gates after task is marked done succeeds.
-        7. Evaluation emits deterministic PASS verdict.
+        5. Ingesting authentic regression test suite results; a declared `user` review is refused.
+        6. Acking the machine POST_EXECUTION gate after task is marked done succeeds; the human one is refused.
+        7. Evaluation of the plumbing alone is deterministic and UNVERIFIED (ruleset 3), and validates.
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
@@ -679,7 +692,8 @@ class Sprint4DocumentationLabsTests(unittest.TestCase):
             ev_review_path = tmp_path / "ev_review.json"
             ev_review_path.write_text(json.dumps(ev_review), encoding="utf-8")
             res = run_rapid("evidence", "add", "--run", run_id, "--input", str(ev_review_path))
-            self.assertEqual(res.returncode, 0, f"rapid evidence add review failed: {res.stderr}")
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("RAPID1430", res.stderr)
 
             # 15. Register workspace evidence for workspace.current observation
             ev_ws = {
@@ -705,16 +719,17 @@ class Sprint4DocumentationLabsTests(unittest.TestCase):
             res = run_rapid("run", "gate", run_id, "gate.tests", "acknowledged")
             self.assertEqual(res.returncode, 0, f"rapid run gate tests failed: {res.stderr}")
             res = run_rapid("run", "gate", run_id, "gate.final-verification", "acknowledged")
-            self.assertEqual(res.returncode, 0, f"rapid run gate final failed: {res.stderr}")
-            res = run_rapid("run", "status", run_id, "finished")
-            self.assertEqual(res.returncode, 0, f"rapid run status finished failed: {res.stderr}")
+            self.assertEqual(res.returncode, 1)
+            self.assertIn("RAPID1431", res.stderr)
 
-            # 17. Deterministic evaluation must PASS
+            # 17. Deterministic evaluation of the plumbing alone is UNVERIFIED, never PASS
             res_eval_raw = run_rapid("eval", "run", "--run", run_id, "--json")
             eval_report = json.loads(res_eval_raw.stdout) if res_eval_raw.stdout else {}
-            unverified_assertions = [a for a in eval_report.get("assertions", []) if a.get("status") != "pass"]
-            self.assertEqual(eval_report.get("verdict"), "pass", f"Eval report verdict not pass, unverified: {unverified_assertions}")
-            res = run_rapid("eval", "run", "--run", run_id, "--write", "--require-pass", "--json")
+            self.assertEqual(eval_report.get("verdict"), "unverified")
+            unverified = {a["id"] for a in eval_report.get("assertions", []) if a.get("status") == "unverified"}
+            self.assertTrue({"gate.gate.baseline.evidence", "gate.gate.tests.evidence",
+                             "gate.gate.final-verification.evidence"} <= unverified, unverified)
+            res = run_rapid("eval", "run", "--run", run_id, "--write", "--json")
             self.assertEqual(res.returncode, 0, f"rapid eval run failed: {res.stderr}")
 
             # 18. Validation

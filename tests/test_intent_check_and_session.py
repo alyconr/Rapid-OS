@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import tempfile
+import subprocess
 import unittest
 import unittest.mock
 
@@ -138,15 +139,17 @@ class IntentCheckAndSessionTests(unittest.TestCase):
         evidence_list = self.evidence_registry.list(record.id)
         self.assertEqual(len(evidence_list), 1)
 
-        # Check gate_satisfied for gate.baseline
-        satisfied = gate_satisfied(
-            contract,
-            state,
-            evidence_list,
-            "gate.baseline",
-            evaluator=self.evaluator,
+        # Ruleset 2 accepted any passing command as the baseline...
+        self.assertTrue(
+            gate_satisfied(contract, state, evidence_list, "gate.baseline",
+                           evaluator=BehavioralEvaluator(ruleset_version=2))
         )
-        self.assertTrue(satisfied)
+        # ...ruleset 3 (this run's) needs a test run: a command with no test summary is not one (R1).
+        self.assertEqual(contract.ruleset_version, 3)
+        self.assertFalse(
+            gate_satisfied(contract, state, evidence_list, "gate.baseline",
+                           evaluator=BehavioralEvaluator(ruleset_version=3))
+        )
 
     def test_run_check_red_does_not_record_evidence(self):
         record = self.run_registry.create(spec_id=self.spec.id, spec_revision=1)
@@ -309,6 +312,8 @@ class IntentCheckAndSessionTests(unittest.TestCase):
         contract = self.run_registry.get_contract(record.id)
         state = self.run_registry.get_state(record.id)
 
+        # The check records the working tree it verified, which needs git (ruleset 3 requires it).
+        subprocess.run(["git", "init", "-q"], cwd=str(self.root), check=True)
         # test_command is ['tox'] or custom script without the word 'test'
         test_cmd = ["python", "-c", "import sys; sys.exit(0)"]
         result = run_check(
@@ -330,8 +335,11 @@ class IntentCheckAndSessionTests(unittest.TestCase):
             state,
             evidence_list,
             "gate.tests",
-            evaluator=self.evaluator,
+            evaluator=BehavioralEvaluator(ruleset_version=3),
         )
+        # Exactly `test_command`: trusted even without a test summary to count.
+        self.assertTrue(result.evidence.payload["test_command"])
+        self.assertFalse(result.evidence.payload["counted"])
         self.assertTrue(satisfied)
 
     def test_cli_check_default_bindings(self):

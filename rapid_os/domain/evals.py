@@ -39,8 +39,17 @@ from rapid_os.domain.policy import sha256_canonical_json
 
 
 EVALUATION_REPORT_SCHEMA_VERSION = 1
-SUPPORTED_RULESET_VERSIONS: tuple[int, ...] = (1, 2)
-BEHAVIORAL_RULESET_VERSION = 2
+SUPPORTED_RULESET_VERSIONS: tuple[int, ...] = (1, 2, 3)
+BEHAVIORAL_RULESET_VERSION = 3
+# The ruleset of a run whose contract does not record one (created before ruleset 3).
+LEGACY_RULESET_VERSION = 2
+
+# The producer of every check Rapid OS runs itself; only it can satisfy a test gate in ruleset 3.
+CHECK_PRODUCER = "rapid:check"
+# Who wrote a review (`payload.via`): `rapid approve`, or `rapid finish` accepting another test command.
+# `rapid evidence add` refuses it, so in ruleset 3 only those commands can satisfy a human gate.
+APPROVE_VIA = "rapid:approve"
+FINISH_VIA = "rapid:finish"
 
 SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 ASSERTION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -341,12 +350,68 @@ DEFAULT_BEHAVIORAL_RULESET_V2: tuple[BehavioralRule, ...] = (
     ),
 )
 
+_V3_REPLACED_RULES: Mapping[str, BehavioralRule] = {
+    "rule.gate.implementation_tests.v2": BehavioralRule(
+        id="rule.gate.implementation_tests.v3",
+        category="gate",
+        version=3,
+        description="IMPLEMENTATION_TESTS gates require ACKNOWLEDGED disposition plus artifact-backed TEST_RESULT evidence with exit_code == 0 and failed == 0, produced by 'rapid:check', with counted == true or test_command == true, passed + failed > 0 when counted, and a recorded tree; any other passing evidence leaves the gate UNVERIFIED (evidence with expectation='fail' does not apply).",
+    ),
+    "rule.gate.baseline_check.v2": BehavioralRule(
+        id="rule.gate.baseline_check.v3",
+        category="gate",
+        version=3,
+        description="BASELINE_CHECK gates require ACKNOWLEDGED disposition plus evidence that satisfies rule.gate.implementation_tests.v3; a COMMAND_RESULT or any other passing evidence leaves the gate UNVERIFIED (exit_code != 0 or failed > 0 is FAIL).",
+    ),
+    "rule.gate.review.v2": BehavioralRule(
+        id="rule.gate.review.v3",
+        category="gate",
+        version=3,
+        description="Human review gates require ACKNOWLEDGED disposition plus approved REVIEW evidence produced by 'user' and written by 'rapid approve' (payload via == 'rapid:approve'); any other review leaves human gates UNVERIFIED (changes_requested or rejected produces FAIL).",
+    ),
+}
+
+DEFAULT_BEHAVIORAL_RULESET_V3: tuple[BehavioralRule, ...] = tuple(
+    _V3_REPLACED_RULES.get(rule.id, rule) for rule in DEFAULT_BEHAVIORAL_RULESET_V2
+)
+
 BEHAVIORAL_RULESETS: Mapping[int, tuple[BehavioralRule, ...]] = {
     1: DEFAULT_BEHAVIORAL_RULESET_V1,
     2: DEFAULT_BEHAVIORAL_RULESET_V2,
+    3: DEFAULT_BEHAVIORAL_RULESET_V3,
 }
 
-DEFAULT_BEHAVIORAL_RULESET: tuple[BehavioralRule, ...] = DEFAULT_BEHAVIORAL_RULESET_V2
+DEFAULT_BEHAVIORAL_RULESET: tuple[BehavioralRule, ...] = DEFAULT_BEHAVIORAL_RULESET_V3
+
+
+def contract_ruleset_version(contract: object) -> int:
+    """The ruleset a run is evaluated with: the one its contract records, or 2 for older runs."""
+    recorded = getattr(contract, "ruleset_version", None)
+    return recorded if recorded in SUPPORTED_RULESET_VERSIONS else LEGACY_RULESET_VERSION
+
+
+def test_evidence_ineligibility(evidence: RunEvidence) -> str | None:
+    """Why a passing test run cannot satisfy a test gate in ruleset 3, or None when it can."""
+    if evidence.producer != CHECK_PRODUCER:
+        return (
+            f"la evidencia {evidence.id} la escribió '{evidence.producer}', no 'rapid check': "
+            "solo un check que Rapid OS ejecutó cuenta para un gate de tests"
+        )
+    if evidence.kind != EvidenceKind.TEST_RESULT:
+        return f"la evidencia {evidence.id} es un comando sin resumen de tests, no una ejecución de tests"
+    counted = evidence.payload.get("counted") is True
+    if not counted and evidence.payload.get("test_command") is not True:
+        return (
+            f"la salida del check {evidence.id} no tenía un resumen de tests (pytest, unittest, vitest, jest, "
+            "cargo test, go test -v) y su comando no es el test_command del proyecto"
+        )
+    if counted and int(evidence.payload["passed"]) + int(evidence.payload["failed"]) == 0:  # type: ignore[arg-type]
+        return f"el check {evidence.id} no ejecutó ningún test (0 passed, 0 failed)"
+    if not evidence.payload.get("tree"):
+        return f"el check {evidence.id} no guardó el árbol de trabajo que verificó"
+    if not evidence.artifacts:
+        return f"el check {evidence.id} no tiene log"
+    return None
 
 
 def compute_ruleset_digest(
@@ -373,7 +438,11 @@ DEFAULT_BEHAVIORAL_RULESET_V2_DIGEST = compute_ruleset_digest(
     DEFAULT_BEHAVIORAL_RULESET_V2,
     version=2,
 )
-DEFAULT_BEHAVIORAL_RULESET_DIGEST = DEFAULT_BEHAVIORAL_RULESET_V2_DIGEST
+DEFAULT_BEHAVIORAL_RULESET_V3_DIGEST = compute_ruleset_digest(
+    DEFAULT_BEHAVIORAL_RULESET_V3,
+    version=3,
+)
+DEFAULT_BEHAVIORAL_RULESET_DIGEST = DEFAULT_BEHAVIORAL_RULESET_V3_DIGEST
 
 
 class EvalAssertionStatus(str, Enum):
@@ -1394,6 +1463,48 @@ class BehavioralEvaluator:
                 evidence_ids=evidence_ids,
             )
 
+        if self.ruleset_version >= 3 and contract_gate.kind in (GateKind.IMPLEMENTATION_TESTS, GateKind.BASELINE_CHECK):
+            why = next(
+                (
+                    test_evidence_ineligibility(ev)
+                    for ev in reversed(linked)
+                    if ev.payload.get("expectation") != "fail"
+                    and ev.kind in (EvidenceKind.TEST_RESULT, EvidenceKind.COMMAND_RESULT)
+                ),
+                None,
+            )
+            if why:
+                return EvalAssertion(
+                    id=assertion_id,
+                    category="gate",
+                    subject_id=contract_gate.id,
+                    required=contract_gate.required,
+                    status=EvalAssertionStatus.UNVERIFIED,
+                    reason=f"RAPID1432 El gate '{contract_gate.id}' no tiene una ejecución de tests verificable: {why}.",
+                    evidence_ids=evidence_ids,
+                )
+
+        if self.ruleset_version >= 3 and contract_gate.kind in HUMAN_GATE_KINDS:
+            unapproved = [
+                ev for ev in linked
+                if ev.kind == EvidenceKind.REVIEW
+                and str(ev.payload.get("review_type")) == REVIEW_GATE_KIND_TO_REVIEW_TYPE.get(contract_gate.kind)
+            ]
+            if unapproved:
+                return EvalAssertion(
+                    id=assertion_id,
+                    category="gate",
+                    subject_id=contract_gate.id,
+                    required=contract_gate.required,
+                    status=EvalAssertionStatus.UNVERIFIED,
+                    reason=(
+                        f"El gate humano '{contract_gate.id}' solo cuenta con la aprobación de `rapid approve "
+                        f"{contract_gate.id}` en la terminal de una persona; {unapproved[-1].id} la escribió "
+                        f"'{unapproved[-1].producer}' por otra vía."
+                    ),
+                    evidence_ids=all_linked_ids,
+                )
+
         if self.ruleset_version >= 2 and contract_gate.kind in HUMAN_GATE_KINDS:
             harness_reviews = [
                 ev for ev in linked
@@ -1428,6 +1539,21 @@ class BehavioralEvaluator:
         gate_kind: GateKind,
         evidence: RunEvidence,
     ) -> EvalAssertionStatus | None:
+        if self.ruleset_version >= 3 and gate_kind in (GateKind.IMPLEMENTATION_TESTS, GateKind.BASELINE_CHECK):
+            if evidence.payload.get("expectation") == "fail":
+                return None
+            if evidence.kind == EvidenceKind.TEST_RESULT:
+                if int(evidence.payload["exit_code"]) != 0 or int(evidence.payload["failed"]) > 0:  # type: ignore[arg-type]
+                    return EvalAssertionStatus.FAIL
+            elif evidence.kind == EvidenceKind.COMMAND_RESULT:
+                if int(evidence.payload["exit_code"]) != 0:  # type: ignore[arg-type]
+                    return EvalAssertionStatus.FAIL
+            else:
+                return None
+            if test_evidence_ineligibility(evidence) is None:
+                return EvalAssertionStatus.PASS
+            return EvalAssertionStatus.UNVERIFIED
+
         if gate_kind == GateKind.IMPLEMENTATION_TESTS:
             if self.ruleset_version >= 2 and evidence.payload.get("expectation") == "fail":
                 return None
@@ -1488,6 +1614,10 @@ class BehavioralEvaluator:
             if self.ruleset_version >= 2 and evidence.producer.startswith("harness:"):
                 return EvalAssertionStatus.UNVERIFIED
             outcome = str(evidence.payload["outcome"])
+            if self.ruleset_version >= 3 and outcome == "approved" and not (
+                evidence.producer == "user" and evidence.payload.get("via") == APPROVE_VIA
+            ):
+                return EvalAssertionStatus.UNVERIFIED
             if outcome == "approved":
                 return EvalAssertionStatus.PASS
             if outcome in {"changes_requested", "rejected"}:

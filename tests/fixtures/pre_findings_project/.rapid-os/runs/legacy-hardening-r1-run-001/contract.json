@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "run_id": "legacy-hardening-r1-run-001",
+  "spec_id": "legacy-hardening",
+  "spec_revision": 1,
+  "spec_content_digest": "f91b509b965a33f099007b22b9841afdc64d4d217bbea13d422ce49ae5ccfe67",
+  "harness": "codex",
+  "context_digest": "e790d45bf77e233441cf97f079c8dc96969b7f45eb8ec798bf88ed45ae27e94f",
+  "context_manifest_digest": "dcca3020934234f8ff2798da9c102255b08c7238ed94ef07fa0fb1e26ed8ceb1",
+  "project_model_digest": "106226c5a6b712b5ec8c78a91378b41e5d022c98f3e27879ec73cf14833f83e7",
+  "policy_source": "default",
+  "policy_digest": "e61a5704803d1dd1406f784d52549ae4237f5d37686d4c53fe96358aede335cf",
+  "decision": {
+    "classification": "architectural",
+    "risk": "high",
+    "risk_signals": [
+      {
+        "id": "mode.hardening",
+        "level": "high",
+        "reason": "Spec mode is 'hardening' (architectural/security scope).",
+        "source": "spec.mode"
+      },
+      {
+        "id": "classification.architectural",
+        "level": "high",
+        "reason": "Execution classification is architectural.",
+        "source": "policy.classification"
+      }
+    ],
+    "workspace": "isolated_required",
+    "gates": [
+      {
+        "id": "gate.workspace-isolation",
+        "kind": "workspace_isolation",
+        "phase": "pre_execution",
+        "required": true,
+        "waivable": false,
+        "reason": "High or critical risk work requires an isolated workspace declaration."
+      },
+      {
+        "id": "gate.baseline",
+        "kind": "baseline_check",
+        "phase": "pre_execution",
+        "required": true,
+        "waivable": false,
+        "reason": "Verify repository baseline health before executing changes."
+      },
+      {
+        "id": "gate.tests",
+        "kind": "implementation_tests",
+        "phase": "post_execution",
+        "required": true,
+        "waivable": true,
+        "reason": "Implementation changes require test verification before completion."
+      },
+      {
+        "id": "gate.review",
+        "kind": "peer_review",
+        "phase": "post_execution",
+        "required": true,
+        "waivable": true,
+        "reason": "High or critical risk execution requires architectural/peer review."
+      },
+      {
+        "id": "gate.final-verification",
+        "kind": "final_verification",
+        "phase": "post_execution",
+        "required": true,
+        "waivable": false,
+        "reason": "All executions require final contractual verification."
+      }
+    ],
+    "reasons": [
+      "mode.hardening",
+      "classification.architectural"
+    ]
+  },
+  "classification": "architectural",
+  "risk": "high",
+  "risk_signals": [
+    {
+      "id": "mode.hardening",
+      "level": "high",
+      "reason": "Spec mode is 'hardening' (architectural/security scope).",
+      "source": "spec.mode"
+    },
+    {
+      "id": "classification.architectural",
+      "level": "high",
+      "reason": "Execution classification is architectural.",
+      "source": "policy.classification"
+    }
+  ],
+  "workspace": "isolated_required",
+  "gates": [
+    {
+      "id": "gate.workspace-isolation",
+      "kind": "workspace_isolation",
+      "phase": "pre_execution",
+      "required": true,
+      "waivable": false,
+      "reason": "High or critical risk work requires an isolated workspace declaration."
+    },
+    {
+      "id": "gate.baseline",
+      "kind": "baseline_check",
+      "phase": "pre_execution",
+      "required": true,
+      "waivable": false,
+      "reason": "Verify repository baseline health before executing changes."
+    },
+    {
+      "id": "gate.tests",
+      "kind": "implementation_tests",
+      "phase": "post_execution",
+      "required": true,
+      "waivable": true,
+      "reason": "Implementation changes require test verification before completion."
+    },
+    {
+      "id": "gate.review",
+      "kind": "peer_review",
+      "phase": "post_execution",
+      "required": true,
+      "waivable": true,
+      "reason": "High or critical risk execution requires architectural/peer review."
+    },
+    {
+      "id": "gate.final-verification",
+      "kind": "final_verification",
+      "phase": "post_execution",
+      "required": true,
+      "waivable": false,
+      "reason": "All executions require final contractual verification."
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T001",
+      "description": "T001: Do the hardening work"
+    }
+  ],
+  "contract_digest": "27e187963713b0424a28aaa700df7357d843d5cf2cb1c18473dd4b67f504996c"
+}

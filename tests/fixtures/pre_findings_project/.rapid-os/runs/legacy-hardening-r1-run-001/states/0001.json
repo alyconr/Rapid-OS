@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "run_id": "legacy-hardening-r1-run-001",
+  "revision": 1,
+  "status": "prepared",
+  "tasks": [
+    {
+      "id": "T001",
+      "description": "T001: Do the hardening work",
+      "status": "pending",
+      "reason": ""
+    }
+  ],
+  "gates": [
+    {
+      "id": "gate.workspace-isolation",
+      "kind": "workspace_isolation",
+      "phase": "pre_execution",
+      "required": true,
+      "waivable": false,
+      "disposition": "pending",
+      "reason": ""
+    },
+    {
+      "id": "gate.baseline",
+      "kind": "baseline_check",
+      "phase": "pre_execution",
+      "required": true,
+      "waivable": false,
+      "disposition": "pending",
+      "reason": ""
+    },
+    {
+      "id": "gate.tests",
+      "kind": "implementation_tests",
+      "phase": "post_execution",
+      "required": true,
+      "waivable": true,
+      "disposition": "pending",
+      "reason": ""
+    },
+    {
+      "id": "gate.review",
+      "kind": "peer_review",
+      "phase": "post_execution",
+      "required": true,
+      "waivable": true,
+      "disposition": "pending",
+      "reason": ""
+    },
+    {
+      "id": "gate.final-verification",
+      "kind": "final_verification",
+      "phase": "post_execution",
+      "required": true,
+      "waivable": false,
+      "disposition": "pending",
+      "reason": ""
+    }
+  ],
+  "change_kind": "run.prepared",
+  "reason": "Initial run state prepared from execution contract.",
+  "content_digest": "329e599d716619d1bf8deb95336a75cb6e1f41165ed399ec8edbf2bf8de14ce5"
+}

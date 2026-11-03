@@ -11,6 +11,7 @@ from rapid_os.core.filesystem import (
 from rapid_os.domain.capabilities import CapabilityRequirement
 from rapid_os.domain.evals import (
     BEHAVIORAL_RULESET_VERSION,
+    contract_ruleset_version,
     DEFAULT_BEHAVIORAL_RULESET_DIGEST,
     BehavioralEvaluator,
     EvaluationBindingMismatchError,
@@ -99,9 +100,24 @@ class EvalRegistry:
         self.evaluator = evaluator or BehavioralEvaluator()
 
     def _hardening_inputs(self, contract: ExecutionContract):
-        from rapid_os.adapters.spec_registry import SpecRegistry
+        """Findings and acceptance criteria of the spec revision the run is pinned to.
 
-        revision = SpecRegistry(self.root, self.rapid_dir).get_revision(contract.spec_id)
+        A spec that cannot be read is an evaluation error with the spec's own code (RAPID8xx), never a
+        traceback: `rapid validate` and `rapid eval` report it as a diagnostic."""
+        from rapid_os.adapters.spec_registry import SpecRegistry
+        from rapid_os.domain.specs import SpecRegistryError
+
+        try:
+            revision = SpecRegistry(self.root, self.rapid_dir).get_revision(
+                contract.spec_id, revision=contract.spec_revision
+            )
+        except SpecRegistryError as exc:
+            raise EvaluationBindingMismatchError(
+                f"Spec '{contract.spec_id}' r{contract.spec_revision} of run '{contract.run_id}' "
+                f"could not be read: {exc}",
+                code=exc.code,
+                path=getattr(exc, "path", None),
+            ) from exc
         if getattr(revision.mode, "value", revision.mode) != "hardening":
             return (), ()
         return (
@@ -576,7 +592,7 @@ class EvalRegistry:
         *,
         extra_capability_requirements: Iterable[CapabilityRequirement | str] = (),
         write: bool = False,
-        ruleset_version: int = BEHAVIORAL_RULESET_VERSION,
+        ruleset_version: int | None = None,
     ) -> EvaluationReport:
         """Evaluate `run_id` against its current `RunState` and verified `RunEvidence` set.
 
@@ -590,6 +606,9 @@ class EvalRegistry:
             revision=record.current_state_revision,
         )
         evidence_records = self.evidence_registry.verify(validated_run_id)
+        if ruleset_version is None:
+            # The ruleset the run was created with: an older run keeps the rules it started under.
+            ruleset_version = contract_ruleset_version(contract)
 
         evaluator = (
             self.evaluator

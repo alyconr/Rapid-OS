@@ -2589,6 +2589,18 @@ def run_command(args):
             gate_id = getattr(args, "gate_id", None)
             disposition = getattr(args, "disposition", None)
             reason = getattr(args, "reason", None) or ""
+            from rapid_os.orchestration.conductor import HUMAN_GATE_KINDS
+
+            gate_kind = next((g.kind for g in registry.get_contract(run_id).gates if g.id == gate_id), None)
+            if gate_kind in HUMAN_GATE_KINDS:
+                # A human gate is a person's decision, typed in their own terminal: plumbing cannot make it.
+                print(
+                    f"RAPID1431 '{gate_id}' es un gate humano ({gate_kind.value}): `rapid run gate` no puede "
+                    f"cambiarlo. Una persona lo aprueba con `rapid approve {gate_id}` en su propia terminal "
+                    "(o lo dispensa con `--waive --reason TEXTO`, o lo rechaza con `--reject --reason TEXTO`).",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
             next_state = registry.transition_gate(
                 run_id,
                 gate_id,
@@ -2940,7 +2952,7 @@ def evidence_command(args):
             input_path = Path(input_file)
             if not input_path.is_absolute():
                 input_path = CURRENT_DIR / input_path
-            added = registry.add(run_id, input_path)
+            added = registry.add(run_id, input_path, external=True)
             if getattr(args, "json", False):
                 print(added.to_json(indent=2))
                 return 0
@@ -3073,7 +3085,7 @@ def eval_command(args):
                     "Option '--run' is required to evaluate a run."
                 )
             extra_reqs = tuple(getattr(args, "require", None) or ())
-            ruleset_version = getattr(args, "ruleset", 2)
+            ruleset_version = getattr(args, "ruleset", None)
             report = registry.evaluate_run(
                 run_id,
                 extra_capability_requirements=extra_reqs,
@@ -3346,7 +3358,15 @@ def check_command(args):
         sys.exit(res.exit_code)
 
     print_success(f"Check passed (evidence {res.evidence.id if res.evidence else 'recorded'})")
-    if res.kind == "test_result":
+    if res.not_a_test_run:
+        print(
+            "WARNING RAPID1432 `--kind test` no basta: la salida no tenía un resumen de tests (pytest, unittest, "
+            "vitest, jest, cargo test, go test -v) y el comando no es el test_command del proyecto. Se guardó como "
+            "command_result y no satisface gate.tests ni gate.baseline. Ejecuta el comando de test del proyecto "
+            "(`rapid next` lo da).",
+            file=sys.stderr,
+        )
+    elif res.kind == "test_result":
         print(f"Tests: {res.passed} passed, {res.failed} failed, {res.skipped} skipped"
               + ("" if res.counted else " (sin resumen de tests en la salida; el conteo sale del código de salida)"))
     elif res.tests_expected:
@@ -4366,6 +4386,8 @@ def finish_command(args):
         PROJECT_RAPID_DIR,
         config_file=CONFIG_FILE,
         templates_dir=TEMPLATES_DIR,
+        accept_test_command=getattr(args, "accept_test_command", None),
+        reviewer=getattr(args, "reviewer", None),
     )
     if isinstance(result, str):
         print(result, file=sys.stderr)
@@ -5497,7 +5519,7 @@ def create_parser():
         description="Evaluate a run's lifecycle, tasks, gates, and observable capabilities. Read-only unless --write is passed.",
     )
     eval_run.add_argument("--run", dest="run", required=True, help="Target run identifier.")
-    eval_run.add_argument("--ruleset", type=int, choices=[1, 2], default=2, help="Behavioral ruleset version to evaluate (1 or 2, defaults to 2).")
+    eval_run.add_argument("--ruleset", type=int, choices=[1, 2, 3], default=None, help="Behavioral ruleset version to evaluate (1, 2 or 3; defaults to the one the run was created with).")
     eval_run.add_argument("--require", action="append", help="Extra additive canonical capability ID to evaluate (repeatable).")
     eval_run.add_argument("--write", action="store_true", help="Persist append-only EvaluationReport under .rapid-os/evals/<run-id>/reports/.")
     eval_run.add_argument(
@@ -5684,6 +5706,12 @@ def create_parser():
     )
     finish_p.add_argument("--json", action="store_true", help="Emit EvaluationReport or NextAction JSON output.")
     finish_p.add_argument("--merge", action="store_true", help="After a passing verdict, confirm, commit the run worktree, and merge its branch into the current checkout; the worktree remains for you to remove.")
+    finish_p.add_argument(
+        "--accept-test-command",
+        metavar="MOTIVO",
+        help="Accept, typing a phrase in your own terminal, that the last test check used another command than the baseline (RAPID1435); the reason is recorded as evidence. An agent cannot do it.",
+    )
+    finish_p.add_argument("--reviewer", help="Name recorded with --accept-test-command (default: git config user.name).")
     finish_p.add_argument(
         "--no-tick",
         action="store_true",

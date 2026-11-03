@@ -824,11 +824,18 @@ class BehavioralEvaluatorAndRegistryTests(unittest.TestCase):
                     "artifacts": ["test-pass.txt"],
                 },
             )
-            rep_pass = eval_reg.evaluate_run(run_id)
+            # Ruleset 2 rules (runs created before ruleset 3): any producer can back gate.tests.
+            rep_pass = eval_reg.evaluate_run(run_id, ruleset_version=2)
             gate_tests = next(
                 a for a in rep_pass.assertions if a.id == "gate.gate.tests.evidence"
             )
             self.assertEqual(gate_tests.status, EvalAssertionStatus.PASS)
+            # Ruleset 3 (this run's): evidence not run by `rapid check` never satisfies a test gate.
+            rep_v3 = eval_reg.evaluate_run(run_id)
+            self.assertEqual(rep_v3.ruleset_version, 3)
+            gate_tests_v3 = next(a for a in rep_v3.assertions if a.id == "gate.gate.tests.evidence")
+            self.assertEqual(gate_tests_v3.status, EvalAssertionStatus.UNVERIFIED)
+            self.assertIn("RAPID1432", gate_tests_v3.reason)
 
             # Add failing test evidence for the same gate -> FAIL dominates PASS (Section 59 & 100)
             fail_log = root / "test-fail.txt"
@@ -851,7 +858,12 @@ class BehavioralEvaluatorAndRegistryTests(unittest.TestCase):
                     "artifacts": ["test-fail.txt"],
                 },
             )
-            rep_fail = eval_reg.evaluate_run(run_id)
+            rep_fail = eval_reg.evaluate_run(run_id, ruleset_version=2)
+            self.assertEqual(
+                next(a for a in eval_reg.evaluate_run(run_id).assertions
+                     if a.id == "gate.gate.tests.evidence").status,
+                EvalAssertionStatus.FAIL,
+            )
             gate_tests_after = next(
                 a for a in rep_fail.assertions if a.id == "gate.gate.tests.evidence"
             )
@@ -1308,6 +1320,14 @@ class EndToEndGovernanceLoopAndCliTests(unittest.TestCase):
                     },
                 },
             ]
+            # A `user` review is written only by `rapid approve` (RAPID1430): the CLI refuses it and the
+            # registry records it as `rapid approve` would.
+            final_review = inputs.pop()
+            in_file = root / "ev_final.json"
+            in_file.write_text(json.dumps(final_review), encoding="utf-8")
+            c_ref, _, err_ref = _run_cli(root, ["evidence", "add", "--run", run_id, "--input", str(in_file)])
+            self.assertEqual(c_ref, 1)
+            self.assertIn("RAPID1430", err_ref)
             for idx, item in enumerate(inputs, start=1):
                 in_file = root / f"ev_{idx}.json"
                 in_file.write_text(json.dumps(item), encoding="utf-8")
@@ -1325,6 +1345,7 @@ class EndToEndGovernanceLoopAndCliTests(unittest.TestCase):
                 )
                 self.assertEqual(c_add, 0, err_add)
                 self.assertEqual(json.loads(out_add)["id"], f"E{idx:03d}")
+            EvidenceRegistry(root, rapid_dir).add(run_id, final_review)
 
             # Acknowledge POST gates and finish run
             run_reg.transition_gate(run_id, "gate.tests", "acknowledged", reason="Tests green")
@@ -1358,7 +1379,12 @@ class EndToEndGovernanceLoopAndCliTests(unittest.TestCase):
             self.assertEqual(c_ver, 0, err_ver)
             self.assertTrue(json.loads(out_ver)["ok"])
 
-            # Evaluate with `--require-pass` and `--write`
+            # Ruleset 3 (this run's): hand-written test results and reviews are not verified.
+            c_v3, out_v3, _ = _run_cli(root, ["eval", "run", "--run", run_id, "--json"])
+            self.assertEqual(c_v3, 0)
+            self.assertEqual(json.loads(out_v3)["verdict"], "unverified")
+
+            # Evaluate with `--require-pass` and `--write` under the ruleset 2 rules
             c_eval, out_eval, err_eval = _run_cli(
                 root,
                 [
@@ -1366,6 +1392,8 @@ class EndToEndGovernanceLoopAndCliTests(unittest.TestCase):
                     "run",
                     "--run",
                     run_id,
+                    "--ruleset",
+                    "2",
                     "--write",
                     "--require-pass",
                     "--json",
@@ -1556,9 +1584,11 @@ class EndToEndGovernanceLoopAndCliTests(unittest.TestCase):
                 },
             )
 
+            c_v3, out_v3, _ = _run_cli(root, ["eval", "run", "--run", run_id, "--json"])
+            self.assertEqual(json.loads(out_v3)["verdict"], "unverified")
             c_pass, out_pass, err_pass = _run_cli(
                 root,
-                ["eval", "run", "--run", run_id, "--require-pass", "--json"],
+                ["eval", "run", "--run", run_id, "--ruleset", "2", "--require-pass", "--json"],
             )
             self.assertEqual(c_pass, 0, err_pass)
             payload = json.loads(out_pass)

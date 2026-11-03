@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "spec_id": "legacy-bugfix",
+  "revision": 1,
+  "title": "Legacy bugfix spec",
+  "mode": "bugfix",
+  "business_objective": "",
+  "problem_statement": "",
+  "scope": [],
+  "out_of_scope": [],
+  "actors_users": [],
+  "main_flow": [],
+  "edge_cases": [],
+  "business_rules": [],
+  "technical_constraints": [],
+  "affected_paths": [],
+  "data_impact": "",
+  "acceptance_criteria": [],
+  "testing_strategy": [],
+  "implementation_tasks": [
+    "T001: Do the bugfix work"
+  ],
+  "tags": [],
+  "artifact_digests": {
+    "requirements.md": "36f56c2a995a4e6c38b20a0aa856463480ee970336de18df90199182b3e5fd08",
+    "tasks.md": "2d0fde5a049bb23a54468d5c2295ac2a43b65e4770ef9ecc9571d5799cbb8856",
+    "acceptance.md": "ba715addaff77220c731040f2ece9703e552f4fba8f7c08da0e883f107bc2748"
+  },
+  "content_digest": "38eddcb5da5161db850f582bb99f6bfd6de5e40d4029a6a5105f51b9fef3e758"
+}

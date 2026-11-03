@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "run_id": "legacy-hardening-r1-run-001",
+  "revision": 6,
+  "status": "active",
+  "tasks": [
+    {
+      "id": "T001",
+      "description": "T001: Do the hardening work",
+      "status": "done",
+      "reason": ""
+    }
+  ],
+  "gates": [
+    {
+      "id": "gate.workspace-isolation",
+      "kind": "workspace_isolation",
+      "phase": "pre_execution",
+      "required": true,
+      "waivable": false,
+      "disposition": "acknowledged",
+      "reason": "pre"
+    },
+    {
+      "id": "gate.baseline",
+      "kind": "baseline_check",
+      "phase": "pre_execution",
+      "required": true,
+      "waivable": false,
+      "disposition": "acknowledged",
+      "reason": "pre"
+    },
+    {
+      "id": "gate.tests",
+      "kind": "implementation_tests",
+      "phase": "post_execution",
+      "required": true,
+      "waivable": true,
+      "disposition": "pending",
+      "reason": ""
+    },
+    {
+      "id": "gate.review",
+      "kind": "peer_review",
+      "phase": "post_execution",
+      "required": true,
+      "waivable": true,
+      "disposition": "pending",
+      "reason": ""
+    },
+    {
+      "id": "gate.final-verification",
+      "kind": "final_verification",
+      "phase": "post_execution",
+      "required": true,
+      "waivable": false,
+      "disposition": "pending",
+      "reason": ""
+    }
+  ],
+  "change_kind": "task.T001.done",
+  "reason": "Task 'T001' transitioned to 'done'.",
+  "content_digest": "f5dbd27ff16e9c60bce642f706736ec7125e0d3a6abd4c74abd7b394f7543512"
+}

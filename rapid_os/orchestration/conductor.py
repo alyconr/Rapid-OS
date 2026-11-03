@@ -52,10 +52,23 @@ def gate_satisfied(
     evaluator: BehavioralEvaluator,
 ) -> bool:
     """Hypothetically evaluate whether `gate_id` achieves a PASS assertion if acknowledged."""
+    assertion = hypothetical_gate_assertion(contract, state, evidence, gate_id, evaluator=evaluator)
+    return assertion is not None and assertion.status == EvalAssertionStatus.PASS
+
+
+def hypothetical_gate_assertion(
+    contract: ExecutionContract,
+    state: RunState,
+    evidence: Iterable[RunEvidence],
+    gate_id: str,
+    *,
+    evaluator: BehavioralEvaluator,
+):
+    """The assertion `gate_id` would get if it were acknowledged now (None for an unknown gate)."""
     raw_evidence = tuple(evidence)
     gate_state = next((g for g in state.gates if g.id == gate_id), None)
     if not gate_state:
-        return False
+        return None
 
     hypothetical_gate = replace(gate_state, disposition=GateDisposition.ACKNOWLEDGED)
     hypothetical_gates = tuple(
@@ -72,8 +85,8 @@ def gate_satisfied(
     )
     for assertion in hypothetical_report.assertions:
         if assertion.category == "gate" and assertion.subject_id == gate_id:
-            return assertion.status == EvalAssertionStatus.PASS
-    return False
+            return assertion
+    return None
 
 
 REJECTING_REVIEW_OUTCOMES = frozenset({"changes_requested", "rejected"})
@@ -447,9 +460,14 @@ def next_action(
                         outcome=None,
                     )
                 else:
+                    hypothetical = hypothetical_gate_assertion(
+                        contract, state, raw_evidence, baseline_gate.id, evaluator=evaluator
+                    )
                     if test_command:
                         cmd = ("rapid", "check", "--gate", baseline_gate.id, "--", *test_command)
                         instr = playbook.get_instruction(ActionKind.RUN_BASELINE)
+                        if hypothetical is not None and hypothetical.reason.startswith("RAPID1432"):
+                            instr = f"{hypothetical.reason} {instr}"
                     else:
                         cmd = None
                         instr = (
@@ -692,13 +710,37 @@ def next_action(
             contract, state, raw_evidence, g.id, evaluator=evaluator
         )
     ]
+    # Ruleset 3: a test gate acknowledged without a test run Rapid OS can vouch for (plumbing) is not done either.
+    if evaluator.ruleset_version >= 3:
+        unverified_ids = {
+            a.subject_id for a in report.assertions
+            if a.category == "gate" and a.status == EvalAssertionStatus.UNVERIFIED
+        }
+        unsatisfied_machine_gates += [
+            g for g in state.gates
+            if g.id in unverified_ids
+            and g.disposition == GateDisposition.ACKNOWLEDGED
+            and gate_by_id.get(g.id)
+            and gate_by_id[g.id].kind in (GateKind.BASELINE_CHECK, GateKind.IMPLEMENTATION_TESTS)
+        ]
     if unsatisfied_machine_gates:
         first_mg = unsatisfied_machine_gates[0]
         gate_kind = gate_by_id[first_mg.id].kind
         if gate_kind in (GateKind.BASELINE_CHECK, GateKind.IMPLEMENTATION_TESTS):
+            # Why the evidence there is does not count (RAPID1432), so the agent does not repeat it.
+            hypothetical = hypothetical_gate_assertion(
+                contract, state, raw_evidence, first_mg.id, evaluator=evaluator
+            )
+            why = (
+                hypothetical.reason
+                if hypothetical is not None and hypothetical.reason.startswith("RAPID1432")
+                else None
+            )
             if test_command:
                 cmd = ("rapid", "check", "--gate", first_mg.id, "--", *test_command)
                 instr = playbook.get_instruction(ActionKind.VERIFY)
+                if why:
+                    instr = f"{why} Ejecuta el comando de test del proyecto: `{' '.join(cmd)}`."
             else:
                 cmd = None
                 instr = (

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "spec_id": "legacy-hardening",
+  "revision": 1,
+  "title": "Legacy hardening spec",
+  "mode": "hardening",
+  "business_objective": "",
+  "problem_statement": "",
+  "scope": [],
+  "out_of_scope": [],
+  "actors_users": [],
+  "main_flow": [],
+  "edge_cases": [],
+  "business_rules": [],
+  "technical_constraints": [],
+  "affected_paths": [],
+  "data_impact": "",
+  "acceptance_criteria": [],
+  "testing_strategy": [],
+  "implementation_tasks": [
+    "T001: Do the hardening work"
+  ],
+  "tags": [],
+  "artifact_digests": {
+    "requirements.md": "2fff82c830cf0be4bc1d15f930b6708f11f97cd690336d11f800304fef6c8333",
+    "tasks.md": "d442540ea42de86d2e783127189fd8c14d380698178e1a24774524e95bfa4460",
+    "acceptance.md": "e2d6db669d298269b020778330a4281d24e6b011916a0c4a9ed0372ac028d68a"
+  },
+  "content_digest": "f91b509b965a33f099007b22b9841afdc64d4d217bbea13d422ce49ae5ccfe67"
+}

@@ -67,4 +67,4 @@ In the starter version, `BookingSystem.create_booking(user_id, slot)` saves any 
 
 ## Advanced mode
 
-You do not need this for the lab. The same kind of work done manually with v3 commands (spec, run, evidence, and evaluation), for CI or auditing, is covered in the [manual walkthrough](first-governed-project.md) and the [v3 governance loop](../governance-loop.md).
+You do not need this for the lab. The same loop typed by hand in a terminal, with the daily commands (`rapid start`, `next`, `check`, `task`, `approve`, `finish`), for CI or auditing, is covered in the [manual walkthrough](first-governed-project.md); the plumbing (`rapid evidence add`, `rapid run gate`) does not satisfy test or human gates and the [v3 governance loop](../governance-loop.md).
