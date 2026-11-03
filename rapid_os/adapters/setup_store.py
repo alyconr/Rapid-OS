@@ -182,15 +182,23 @@ def _derive_stacks(content: str | None, catalog: Catalog) -> dict[str, StackChoi
     if content is None:
         return {}
     stacks: dict[str, StackChoice] = {}
+    by_agent: set[str] = set()
     for marker in _STACK_MARKER.finditer(content):
         for pair in marker.group(1).split():
             component, _, stack_id = pair.partition("=")
-            if component in STACK_COMPONENTS and stack_id:
+            if component.startswith("decided_by.") and stack_id == "agent":
+                by_agent.add(component.partition(".")[2])
+            elif component in STACK_COMPONENTS and stack_id:
                 source = "generic" if stack_id == "generic" else "catalog" if stack_id in catalog.stacks else "custom"
                 profile = "creative" if stack_id == "react-vite" and "React Three Fiber" in content else None
                 stacks[component] = StackChoice(stack_id, source, profile)
     if stacks:
-        return stacks
+        return {
+            component: StackChoice(choice.id, choice.source, choice.profile, "agent")
+            if component in by_agent
+            else choice
+            for component, choice in stacks.items()
+        }
     from rapid_os.domain.validation import infer_stack  # lazy: validation imports the adapters
 
     stack_id = infer_stack(content)

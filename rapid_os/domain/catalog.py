@@ -37,6 +37,16 @@ FACTOR_KEYS = (
     "hiring_pool",
     "hosting_fit",
 )
+# What a BaaS provider describes besides the factors above: the data model, auth, realtime, the
+# server-side functions, local development and the way out (self-hosting or lock-in).
+BAAS_FACTOR_KEYS = (
+    "data_model",
+    "auth",
+    "realtime",
+    "server_functions",
+    "local_development",
+    "exit_strategy",
+)
 HOSTING_FITS = ("serverless", "containers", "PaaS")
 
 
@@ -73,6 +83,9 @@ class StackEntry:
     architecture: str = ""
     # Directory of the Markdown template below `templates/stacks`.
     template: str = ""
+    # The provider's own test runs the frontend's tests inside it (`firebase emulators:exec "<frontend test>"`):
+    # `default_test_command` carries `{frontend_test}` where the frontend's command goes.
+    wraps_frontend_test: bool = False
 
     def test_command(self, root: str = "") -> list[str]:
         """The test command for this stack, run from the project root: `root` is the component's folder."""
@@ -336,6 +349,11 @@ def _url_list(path: Path, value: object, label: str) -> tuple[str, ...]:
     return tuple(value)
 
 
+def command_for_wrap(data: dict) -> list[str]:
+    command = data.get("default_test_command")
+    return [token for token in command if isinstance(token, str)] if isinstance(command, list) else []
+
+
 def _load_component_stack(
     path: Path,
     data: dict,
@@ -351,10 +369,11 @@ def _load_component_stack(
     if unknown or component not in covers:
         raise _fail(path, "covers must list known components and include the stack's own component.")
     raw_factors = data.get("factors")
-    if not isinstance(raw_factors, dict) or set(raw_factors) != set(FACTOR_KEYS):
-        raise _fail(path, f"field 'factors' must have exactly: {', '.join(FACTOR_KEYS)}.")
+    factor_keys = (*FACTOR_KEYS, *BAAS_FACTOR_KEYS) if component == "baas" else FACTOR_KEYS
+    if not isinstance(raw_factors, dict) or set(raw_factors) != set(factor_keys):
+        raise _fail(path, f"field 'factors' must have exactly: {', '.join(factor_keys)}.")
     factors: dict[str, str] = {}
-    for key in FACTOR_KEYS:
+    for key in factor_keys:
         value = raw_factors[key]
         if not isinstance(value, str) or not value.strip():
             raise _fail(path, f"factor '{key}' must be a non-empty text.")
@@ -363,9 +382,14 @@ def _load_component_stack(
     if not all(token in HOSTING_FITS for token in hosting):
         raise _fail(path, f"factor 'hosting_fit' must list values of: {', '.join(HOSTING_FITS)}.")
     raw_sources = data.get("sources")
-    if not isinstance(raw_sources, dict) or set(raw_sources) != set(FACTOR_KEYS):
+    if not isinstance(raw_sources, dict) or set(raw_sources) != set(factor_keys):
         raise _fail(path, "field 'sources' must give the sources of every factor.")
-    sources = {key: _url_list(path, raw_sources[key], f"sources.{key}") for key in FACTOR_KEYS}
+    sources = {key: _url_list(path, raw_sources[key], f"sources.{key}") for key in factor_keys}
+    wraps = data.get("wraps_frontend_test", False)
+    if not isinstance(wraps, bool):
+        raise _fail(path, "field 'wraps_frontend_test' must be a boolean.")
+    if wraps and not any("{frontend_test}" in token for token in command_for_wrap(data)):
+        raise _fail(path, "wraps_frontend_test needs {frontend_test} in default_test_command.")
     command = _text_list(path, data, "default_test_command", non_empty=True)
     gitignore = _text_list(path, data, "gitignore") if "gitignore" in data else ()
     test_commands = data.get("test_commands")
@@ -423,6 +447,7 @@ def _load_component_stack(
         supported_services={engine: dict(item) for engine, item in supported.items()},
         architecture=_text(path, data, "architecture"),
         template=f"{component}/{data['id']}",
+        wraps_frontend_test=wraps,
     )
 
 
@@ -670,6 +695,8 @@ class SetupQuestion:
     text: str
     required: bool = True
     options: tuple[str, ...] = ()
+    # Asked only when this condition holds (like a conditional section); None is always.
+    when: str | None = None
 
 
 @dataclass(frozen=True)
@@ -689,7 +716,7 @@ class ConditionalSection:
     when: str
 
 
-CONDITION_PREFIXES = ("service:",)
+CONDITION_PREFIXES = ("service:", "stack:", "model:")
 
 
 @dataclass(frozen=True)
@@ -718,8 +745,13 @@ def _questions(path: Path, data: dict) -> tuple[SetupQuestion, ...]:
         options = item.get("options", [])
         if not isinstance(options, list) or not all(isinstance(o, str) and o for o in options):
             raise _fail(path, "question 'options' must be a list of non-empty strings.")
+        when = item.get("when")
+        if when is not None and (
+            not isinstance(when, str) or not when.startswith(CONDITION_PREFIXES) or not when.partition(":")[2]
+        ):
+            raise _fail(path, f"question 'when' must start with one of {', '.join(CONDITION_PREFIXES)}.")
         questions.append(
-            SetupQuestion(_text(path, item, "id"), _text(path, item, "text"), required, tuple(options))
+            SetupQuestion(_text(path, item, "id"), _text(path, item, "text"), required, tuple(options), when)
         )
     return tuple(questions)
 

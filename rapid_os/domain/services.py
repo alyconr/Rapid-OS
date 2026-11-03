@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from rapid_os.domain.catalog import SERVICE_ROLES, Catalog, ServiceEntry, StackEntry
 from rapid_os.domain.setup import SERVICE_WHEN, ServiceChoice
@@ -180,9 +180,38 @@ def has_service_role(choices: Iterable[ServiceChoice] | None, role: str) -> bool
     return any(c.role == role for c in (choices or ()))
 
 
-def active_conditions(choices: Iterable[ServiceChoice] | None) -> frozenset[str]:
-    """Conditions of the document banks (`service:<role>`) that hold for the decision."""
-    return frozenset(f"service:{c.role}" for c in (choices or ()))
+def active_conditions(
+    choices: Iterable[ServiceChoice] | None, stacks: "Mapping[str, object] | None" = None
+) -> frozenset[str]:
+    """Conditions of the document banks that hold for the decisions: `service:<role>` for each service and,
+    when a BaaS provider is decided, `stack:<provider>` and `stack:baas`."""
+    active = {f"service:{c.role}" for c in (choices or ())}
+    provider = (stacks or {}).get("baas")
+    provider_id = getattr(provider, "id", None)
+    if provider_id:
+        active.update({"stack:baas", f"stack:{provider_id}"})
+    model = data_model(choices, stacks)
+    if model:
+        active.add(f"model:{model}")
+    return frozenset(active)
+
+
+# The data model of each store: tables and migrations, or collections, indexes and schema validation.
+RELATIONAL_STORES = frozenset({"postgresql", "mysql", "mariadb", "supabase"})
+DOCUMENT_STORES = frozenset({"mongodb", "firebase"})
+
+
+def data_model(choices: Iterable[ServiceChoice] | None, stacks: "Mapping[str, object] | None" = None) -> str | None:
+    """`relational` or `documents`, from the BaaS provider (Supabase is Postgres, Firebase is Firestore) or
+    the engine of the `database` service; None when neither is decided."""
+    provider = getattr((stacks or {}).get("baas"), "id", None)
+    database = next((c.engine for c in (choices or ()) if c.role == "database"), None)
+    for store in (provider, database):
+        if store in RELATIONAL_STORES:
+            return "relational"
+        if store in DOCUMENT_STORES:
+            return "documents"
+    return None
 
 
 # --- compose.yaml ---------------------------------------------------------------------------

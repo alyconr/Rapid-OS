@@ -87,9 +87,11 @@ class StandardIsWrittenTests(Project):
         self.assertNotIn("src/modules", md)  # the tree of the other family is left out
 
     def test_the_other_stacks_of_the_family_get_their_own_tree(self):
-        self.finish_onboarding("web-modern", "fullstack-baas")
+        # fullstack-baas now needs its provider decided (H-25); next.js fills both components here.
+        self.finish_onboarding("web-modern", "fullstack-separated")
         md = (self.standards / "architecture.md").read_text("utf-8")
-        rule = json.loads((self.standards / "architecture.json").read_text("utf-8"))
+        rules = json.loads((self.standards / "architecture.json").read_text("utf-8"))["rules"]
+        rule = next(r for r in rules if r["component"] == "backend")
         self.assertEqual(rule["language"], "typescript")
         self.assertEqual((rule["modules_root"], rule["public_entry"]), ("src/modules", "index.ts"))
         self.assertEqual(rule["domain_forbidden_imports"], ["next", "react", "express", "@prisma/client"])

@@ -7,6 +7,7 @@ touches the filesystem. Reading the state is the adapter's job (`adapters/setup_
 from __future__ import annotations
 
 import re
+import shlex
 import shutil
 import sys
 from typing import Sequence
@@ -44,6 +45,12 @@ STACK_INSTRUCTION = (
     "concurrencia frente a velocidad de desarrollo). No afirmes nada que el catálogo no diga. "
     "La persona decide."
 )
+DELEGATION_INSTRUCTION = (
+    "Si la persona delega la decisión («decide tú»), elige tú con las razones del catálogo, dile cuál elegiste y "
+    "por qué, y registra la decisión como tomada por el agente con `--decided-by agent` (se añade al comando). "
+    "Una decisión de la persona va sin esa bandera. Nunca marques como decidida por la persona una que ella no tomó."
+)
+DECIDED_BY_AGENT_FLAGS = ("--decided-by", "agent")
 STACK_CUSTOM_COMMAND = ("rapid", "setup", "stack", "--custom", "--file", "-")
 TOPOLOGY_COMMAND = ("rapid", "setup", "set", "topology", "<id>")
 ARCHETYPE_COMMAND = ("rapid", "setup", "set", "archetype", "<id>")
@@ -108,14 +115,14 @@ def next_setup_action(
     if state.stack is None:
         # A topology the person already chose says which component comes first; otherwise the
         # first stack can be of any component and the topology follows from it.
-        components = [c for c in catalog.components_of(state.topology) if c != "baas"]
+        components = list(catalog.components_of(state.topology))
         return _choose_stack(project_model, catalog, stack_questions, components[0] if components else None, state)
     if state.topology is None:
         return _choose_topology(state, project_model, catalog)
     for component in catalog.components_of(state.topology):
         # A finished onboarding (a project from before the component catalog included) is not reopened
         # because its topology asks for a component it never had to decide.
-        if component != "baas" and component not in state.stacks and not state.finished:
+        if component not in state.stacks and not state.finished:
             return _choose_stack(project_model, catalog, stack_questions, component, state)
     if state.archetype is None:
         return _action(
@@ -291,6 +298,12 @@ def _choose_stack(
         command=command,
         alt_command=list(STACK_CUSTOM_COMMAND),
     )
+    if component == "baas":
+        # The provider is chosen like any other stack; the agent recommends one and the person may delegate.
+        payload["delegation"] = {
+            "instruction": DELEGATION_INSTRUCTION,
+            "command": [*command, *DECIDED_BY_AGENT_FLAGS],
+        }
     if component:
         payload["component"] = component
         payload["decided"] = {c: s.id for c, s in (state.stacks if state else {}).items()}
@@ -345,6 +358,17 @@ def _choose_services(state: SetupState, catalog: Catalog) -> SetupAction:
     """The infrastructure services come from a recorded decision, not from the stack: the stack only
     suggests a minimum."""
     entry = catalog.entry(state.stack.id) if state.stack else None
+    provider = state.stacks.get("baas")
+    note = "Una sugerencia mínima del stack, no una decisión: la persona decide."
+    suggested = list(entry.suggested_services) if entry else []
+    if provider is not None:
+        # The provider already brings the database, the auth and the storage, and runs them locally with its own
+        # tooling (`supabase start`, the Firebase emulators): Rapid OS does not add a second database.
+        suggested = []
+        note = (
+            f"El proveedor {provider.id} ya aporta base de datos, auth y almacenamiento, y se levanta en local con su "
+            "propia CLI. Propón servicios adicionales (caché, cola) solo si el brief los justifica; si no, `none`."
+        )
     return _action(
         SetupActionKind.CHOOSE_SERVICES,
         roles=list(SERVICE_ROLES),
@@ -358,8 +382,8 @@ def _choose_services(state: SetupState, catalog: Catalog) -> SetupAction:
             }
             for s in sorted(catalog.services.values(), key=lambda s: (SERVICE_ROLES.index(s.role), s.id))
         ],
-        suggested_services=list(entry.suggested_services) if entry else [],
-        suggestion_note="Una sugerencia mínima del stack, no una decisión: la persona decide.",
+        suggested_services=suggested,
+        suggestion_note=note,
         when_values=list(SERVICE_WHEN),
         instruction=SERVICES_INSTRUCTION,
         command=list(SERVICES_COMMAND),
@@ -385,6 +409,19 @@ def catalog_test_commands(state: SetupState, catalog: Catalog) -> list[dict]:
         command = entry.test_command(root)
         if command:  # `generic` knows no test command
             items.append({"component": component, "stack": stack_id, "root": root, "command": command})
+    provider = catalog.stacks.get(state.stacks["baas"].id) if "baas" in state.stacks else None
+    if provider is not None and provider.component == "baas":
+        command = provider.test_command("")
+        if provider.wraps_frontend_test:
+            # `firebase emulators:exec "<frontend test>"`: the emulators run around the frontend's tests.
+            frontend = next((item for item in items if item["component"] == "frontend"), None)
+            if frontend is not None:
+                wrapped = [token.replace("{frontend_test}", shlex.join(frontend["command"])) for token in command]
+                items = [item for item in items if item is not frontend]
+                items.append({"component": "baas", "stack": provider.id, "root": "", "command": wrapped, "wraps": "frontend"})
+        elif command:
+            # `supabase test db` (the policies) runs next to the frontend's tests.
+            items.insert(0, {"component": "baas", "stack": provider.id, "root": "", "command": command})
     return items
 
 
@@ -422,6 +459,7 @@ def _resolve_doc(
 ) -> SetupAction:
     command = [doc_id if token == "<id>" else token for token in DOC_COMMAND]
     extra = {"legacy_source": legacy_business} if doc_id == "business" and legacy_business else {}
+    conditions = active_conditions(state.services, state.stacks) if state is not None else frozenset()
     if doc_id in ("data-model", "architecture", "deployment") and state is not None and catalog is not None:
         # Only the decided services: the document describes them and invents no others.
         extra["services"] = describe_services(state.services, catalog)
@@ -429,7 +467,7 @@ def _resolve_doc(
             extra["conditional_sections"] = [
                 {"id": s.id, "titles": list(s.titles), "when": s.when}
                 for s in bank.conditional_sections
-                if s.when in active_conditions(state.services)
+                if s.when in conditions
             ]
     if doc_id == "architecture" and state is not None:
         standard = architecture_standard({component: choice.id for component, choice in state.stacks.items()})
@@ -442,7 +480,8 @@ def _resolve_doc(
         doc=doc_id,
         target=bank.file,
         choices=list(DOC_CHOICES),
-        questions=[_question(q) for q in bank.questions],
+        # A question with a condition (the data model, the provider) is asked only when it holds.
+        questions=[_question(q) for q in bank.questions if q.when is None or q.when in conditions],
         required_sections=[{"id": s.id, "titles": list(s.titles)} for s in bank.required_sections],
         max_chars=bank.max_chars,
         command=command,

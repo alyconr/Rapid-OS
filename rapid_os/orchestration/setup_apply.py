@@ -55,6 +55,7 @@ from rapid_os.domain.security import (
     is_ai_stack,
     render_ci_workflow,
     render_security_standard,
+    security_regions,
 )
 from rapid_os.domain.architecture import architecture_document, render_architecture_markdown, rules_for
 from rapid_os.domain.stack_aliases import LEGACY_STACKS
@@ -69,6 +70,7 @@ from rapid_os.domain.catalog import (
     missing_custom_stack_sections,
 )
 from rapid_os.domain.project import ProjectModel
+from rapid_os.domain.topology_guide import DYNAMIC_TOPOLOGIES, render_topology
 from rapid_os.domain.project_docs import (
     DOC_SOURCES,
     LOST_CHARACTERS_MESSAGE,
@@ -87,6 +89,7 @@ from rapid_os.orchestration.git import run_git
 from rapid_os.orchestration.session import git_trust_command, git_work_tree_state
 from rapid_os.domain.setup import (
     ARCHETYPES,
+    DECIDED_BY,
     STACK_COMPONENTS,
     DocState,
     SetupAction,
@@ -211,10 +214,17 @@ def set_decision(
     catalog: Catalog,
     agent_ids: Sequence[str],
     component: str | None = None,
+    decided_by: str = "person",
 ) -> tuple[SetupState, tuple[str, ...]]:
-    """Apply `rapid setup set <key> <value>` to the state. Returns the new state and notes."""
+    """Apply `rapid setup set <key> <value>` to the state. Returns the new state and notes.
+
+    `decided_by` says who took a stack decision: the person, or the agent when the person delegated it."""
     if key not in DECISION_KEYS:
         raise _fail("RAPID1413", f"Unknown setup key '{key}'. Use one of: {', '.join(DECISION_KEYS)}.")
+    if decided_by not in DECIDED_BY:
+        raise _fail("RAPID1413", f"Unknown value '{decided_by}' for --decided-by. Use one of: {', '.join(DECIDED_BY)}.")
+    if decided_by != "person" and key != "stack":
+        raise _fail("RAPID1413", "--decided-by only goes with 'rapid setup set stack <id>'.")
     if value is None or not value.strip():
         raise _fail("RAPID1413", f"Missing value for 'rapid setup set {key}'.")
     value = value.strip()
@@ -226,7 +236,8 @@ def set_decision(
     if key == "stack":
         stack_id = _identifier(value, "stack")
         resolution = resolve_stack(stack_id, catalog, component=component, topology=state.topology)
-        stacks = {**state.stacks, **resolution.stacks}
+        taken = {c: replace(choice, decided_by=decided_by) for c, choice in resolution.stacks.items()}
+        stacks = {**state.stacks, **taken}
         notes.extend(resolution.notes)
         topology = state.topology
         ids = {choice.id for choice in stacks.values()}
@@ -410,7 +421,7 @@ def write_doc(
         # What a person provides is stored as is; what the agent drafts must fit the bank.
         if has_lost_characters(body):
             raise _fail("RAPID1415", LOST_CHARACTERS_MESSAGE)
-        issues = validate_doc_body(body, bank, active_conditions(state.services))
+        issues = validate_doc_body(body, bank, active_conditions(state.services, state.stacks))
         if issues:
             raise SetupApplyError(
                 issues[0].code,
@@ -750,6 +761,14 @@ def render_tech_stack_file(
             raise _fail("RAPID1413", f"Template de stack no encontrado: {stack_id}")
         components = [c for c in ("backend", "frontend", "baas", "docs") if state.stacks.get(c) and state.stacks[c].id == stack_id]
         marker = " ".join(f"{c}={stack_id}" for c in components)
+        by_agent = [c for c in components if state.stacks[c].decided_by == "agent"]
+        if by_agent:
+            # The person delegated the choice: say so where the agent reads it, and keep it derivable.
+            marker += " " + " ".join(f"decided_by.{c}=agent" for c in by_agent)
+            block += (
+                f"\n- **Decisión:** el agente eligió `{stack_id}` para {', '.join(by_agent)} porque la persona delegó; "
+                f"no es una decisión confirmada. Se cambia con `rapid setup set stack <id> --component {by_agent[0]}`."
+            )
         blocks.append(f"{block}\n<!-- rapid-stack: {marker} -->")
     return "\n\n".join(blocks) + "\n"
 
@@ -840,6 +859,38 @@ def write_local_environment(
     return written, warnings
 
 
+def write_baas_environment(project_root: Path, state: SetupState) -> list[str]:
+    """`.env.example` with the variables of the BaaS provider's local environment (no real secrets).
+
+    Created in an empty repository; where the file exists only the missing variables are added."""
+    from rapid_os.domain.baas import ENV_EXAMPLE_FILE as env_name
+    from rapid_os.domain.baas import merge_env, render_env
+    from rapid_os.domain.scanner import is_empty_repository
+
+    provider = state.stacks.get("baas")
+    if provider is None or provider.id not in ("supabase", "firebase"):
+        return []
+    frontend = state.stacks.get("frontend")
+    frontend_id = frontend.id if frontend is not None else None
+    root = Path(project_root)
+    path = root / env_name
+    if path.is_file():
+        try:
+            current = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return []
+        updated = merge_env(current, provider.id, frontend_id)
+        if updated == current:
+            return []
+        safe_write_text(path, updated, encoding="utf-8", backup=True)
+    elif is_empty_repository(root):
+        safe_write_text(path, render_env(provider.id, frontend_id), encoding="utf-8", backup=False)
+    else:
+        return []
+    _ensure_env_ignored(root)
+    return [env_name]
+
+
 def ci_language_or_default(state: SetupState, languages) -> str:
     """The language of the connection URLs for a stack the catalog does not know (generic, custom)."""
     return ci_language(state.stack.id if state.stack else None, languages) or "typescript"
@@ -879,6 +930,11 @@ def _backups_kept() -> int:
     return AGENT_BACKUPS_KEPT
 
 
+def _service_engines(state: SetupState) -> tuple[str, ...]:
+    """The engines of the decided services (`database:mongodb` -> `mongodb`): the baseline depends on them."""
+    return tuple(choice.engine for choice in (state.services or ()))
+
+
 def _write_security(
     templates_dir: Path,
     standards: Path,
@@ -886,6 +942,7 @@ def _write_security(
     stack_id: "str | Sequence[str]",
     uses_ai: bool,
     backup_dir: Path | None = None,
+    engines: Sequence[str] = (),
 ) -> tuple[Path | None, str | None]:
     """`standards/security.md`: the security baseline at the archetype's level (with backup).
 
@@ -900,7 +957,8 @@ def _write_security(
     if baseline.is_file():
         try:
             body = render_security_standard(
-                baseline.read_text(encoding="utf-8"), archetype=archetype, stack_id=stack_id, ai=uses_ai
+                baseline.read_text(encoding="utf-8"), archetype=archetype, stack_id=stack_id, ai=uses_ai,
+                engines=engines,
             )
         except (OSError, UnicodeDecodeError) as exc:
             raise _fail("RAPID1413", f"No se pudo leer la base de seguridad: {exc}") from exc
@@ -937,7 +995,7 @@ def refresh_archetype_files(
     _write_coding_rules(Path(templates_dir), standards, state.archetype, backups)
     _path, warning = _write_security(
         Path(templates_dir), standards, state.archetype, state.stack_ids, effective_ai(state.stack_ids, state.ai),
-        backups,
+        backups, _service_engines(state),
     )
     warnings = (warning,) if warning else ()
     if project_has_standards(Path(rapid_dir), Path(config_file)):
@@ -994,6 +1052,7 @@ def _write_ci_workflows(
                 archetype=archetype,
                 primary=language == all_languages[0],
                 language=language,
+                stack_ids=stack_ids,
             )
         except (OSError, UnicodeDecodeError) as exc:
             raise _fail("RAPID1413", f"No se pudo leer el workflow de seguridad: {exc}") from exc
@@ -1015,7 +1074,9 @@ def render_architecture_standard(text: str, stack_id: str) -> str:
 def _stack_key(state: SetupState) -> tuple:
     """What identifies the stack decision on disk: each component's stack id and profile."""
     return tuple(
-        (c, state.stacks[c].id, state.stacks[c].profile) for c in STACK_COMPONENTS if c in state.stacks
+        (c, state.stacks[c].id, state.stacks[c].profile, state.stacks[c].decided_by)
+        for c in STACK_COMPONENTS
+        if c in state.stacks
     )
 
 
@@ -1032,8 +1093,8 @@ def _stacks_differ(on_disk: SetupState, state: SetupState, tech_stack_file: Path
     if marked:
         return _stack_key(on_disk) != _stack_key(state)
     return any(
-        (choice.id, choice.profile)
-        != ((state.stacks[c].id, state.stacks[c].profile) if c in state.stacks else None)
+        (choice.id, choice.profile, choice.decided_by)
+        != ((state.stacks[c].id, state.stacks[c].profile, state.stacks[c].decided_by) if c in state.stacks else None)
         for c, choice in on_disk.stacks.items()
     )
 
@@ -1102,17 +1163,31 @@ def apply_setup(
         elif stacks_changed:
             written.append(rel(target))
 
-    # Topology
+    # Topology: a few topologies (fullstack-baas) are written for the frontend and the provider decided.
     topology = state.topology
-    if topology is not None and (on_disk is None or on_disk.topology != topology):
+    topology_target = standards / "topology.md"
+    if topology is not None and (
+        on_disk is None
+        or on_disk.topology != topology
+        or (topology in DYNAMIC_TOPOLOGIES and (stacks_changed or not topology_target.exists()))
+    ):
         try:
             source = resolve_child_path(
                 templates_dir / "topologies", f"{_identifier(topology, 'topology')}.md", single_segment=True
             )
         except ValueError as exc:
             raise _fail("RAPID1413", str(exc)) from exc
-        _copy_template(source, standards / "topology.md", f"la topologia '{topology}'")
-        written.append(rel(standards / "topology.md"))
+        if topology in DYNAMIC_TOPOLOGIES:
+            try:
+                guide = render_topology(
+                    source.read_text(encoding="utf-8"), topology, {c: choice.id for c, choice in state.stacks.items()}
+                )
+            except (OSError, UnicodeDecodeError) as exc:
+                raise _fail("RAPID1413", f"No se pudo leer la topologia '{topology}': {exc}") from exc
+            safe_write_text(topology_target, guide, encoding="utf-8", backup=True, create_parents=True)
+        else:
+            _copy_template(source, topology_target, f"la topologia '{topology}'")
+        written.append(rel(topology_target))
 
     # Archetype and security
     if state.archetype not in ARCHETYPES and (on_disk is None or on_disk.archetype != state.archetype):
@@ -1129,13 +1204,17 @@ def apply_setup(
         or on_disk.ai != uses_ai
         or on_disk.stack is None
         or has_api(on_disk.stack_ids) != has_api(state.stack_ids)
+        or security_regions(on_disk.stack_ids, _service_engines(on_disk))
+        != security_regions(state.stack_ids, _service_engines(state))
     )
     # Only a standard Rapid OS wrote follows its decisions: a security.md the person wrote is theirs
     # (`rapid setup set archetype <id> --refresh` replaces it on request, keeping a backup).
     security_changed = not security_file.exists() or (decision_changed and is_rapid_security(security_file))
     security_warning: str | None = None
     if security_changed:
-        security_path, security_warning = _write_security(templates_dir, standards, state.archetype, state.stack_ids, uses_ai)
+        security_path, security_warning = _write_security(
+            templates_dir, standards, state.archetype, state.stack_ids, uses_ai, engines=_service_engines(state)
+        )
         if security_path is not None:
             written.append(rel(security_path))
 
@@ -1183,6 +1262,9 @@ def apply_setup(
     # Local services: the containers to test the data model from the first feature.
     env_written, env_warnings = write_local_environment(project_root, state, catalog, scan_model)
     written.extend(env_written)
+    for name in write_baas_environment(project_root, state):
+        if name not in written:
+            written.append(name)
 
     # CI: the security scans run from the first PR, written by Rapid OS in a new repository.
     written.extend(_write_ci_workflows(project_root, templates_dir, state.archetype, state.stack_ids, scan_model))

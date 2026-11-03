@@ -46,7 +46,9 @@
         "vercel",
         "render",
         "railway",
-        "dokploy"
+        "dokploy",
+        "netlify",
+        "firebase-hosting"
       ]
     },
     {
@@ -68,6 +70,21 @@
       "id": "verification",
       "text": "¿Cómo se verifica un despliegue y cómo se revierte si falla?",
       "required": true
+    },
+    {
+      "id": "provider",
+      "text": "Con un BaaS: ¿qué proveedor es (Supabase o Firebase), qué parte del producto le delega y qué queda en funciones de servidor?",
+      "required": false
+    }
+  ],
+  "conditional_sections": [
+    {
+      "id": "provider",
+      "titles": [
+        "Proveedor BaaS",
+        "BaaS provider"
+      ],
+      "when": "stack:baas"
     }
   ]
 }

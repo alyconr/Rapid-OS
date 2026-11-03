@@ -62,6 +62,46 @@ Estas reglas son obligatorias para todo código nuevo y todo cambio. Cada regla 
 - Falla de forma cerrada: ante un error, la operación se deniega, nunca se concede. [OWASP A10:2025]
 - Maneja cada ruta de error y de tiempo agotado; el cliente recibe un error genérico y el detalle queda solo en el log. [OWASP A10:2025, CWE-209]
 
+<!-- if supabase -->
+## Backend como servicio: Supabase
+
+- RLS activada en toda tabla de un esquema expuesto (`alter table ... enable row level security`) y con políticas explícitas por operación: una tabla con RLS y sin políticas no devuelve datos a la API. [OWASP A01:2025, CWE-862, OWASP ASVS V8]
+- Revoca los privilegios por omisión de `anon` y `authenticated` y concede solo los necesarios: RLS no sustituye a los GRANT. [OWASP A01:2025, CWE-732]
+- Cada política se prueba con `supabase test db` (pgTAP), con un caso que permite y otro que deniega por rol y por usuario; una migración que crea tablas trae sus pruebas, y esas pruebas corren en CI en cada PR. [OWASP A06:2025, CWE-285]
+- Una política que usa `auth.uid()` contempla que sin sesión devuelve `null`. [OWASP A07:2025, CWE-862]
+- La clave publicable (`sb_publishable_...`, antes `anon`) es pública y puede ir al cliente; la clave secreta (`sb_secret_...`, antes `service_role`) omite RLS y nunca va al cliente, al repositorio ni a un log. [OWASP A04:2025, CWE-798, OWASP ASVS V13]
+- Las operaciones privilegiadas (las que usan la clave secreta) viven solo en Edge Functions o en un servidor, autentican al usuario, validan la entrada y no confían en un id enviado por el cliente. [OWASP A01:2025, CWE-639, OWASP ASVS V8]
+
+<!-- Fuentes verificadas (Supabase): https://supabase.com/docs/guides/database/postgres/row-level-security , https://supabase.com/docs/guides/api/api-keys , https://supabase.com/docs/reference/cli/supabase-test-db , https://supabase.com/docs/guides/functions -->
+<!-- endif -->
+<!-- if firebase -->
+## Backend como servicio: Firebase
+
+- Las reglas de Firestore y de Storage niegan por defecto (`allow read, write: if false;`) y abren solo lo que cada funcionalidad necesita, con `request.auth` y comprobación del dueño; nunca reglas abiertas fuera del emulador. [OWASP A01:2025, CWE-862, OWASP ASVS V8]
+- Las reglas se prueban en el emulador con `@firebase/rules-unit-testing` (casos que permiten y casos que deniegan) mediante el script `test:rules`, y esas pruebas corren en CI en cada PR. [OWASP A06:2025, CWE-285]
+- App Check está activo para los servicios que usa la app (Firestore, Storage, Authentication, funciones invocables): comprueba que quien llama es tu app, no solo un usuario. [OWASP A06:2025]
+- La `apiKey` de la configuración web identifica el proyecto: no es un secreto y tampoco es una defensa; la protección son las reglas y App Check. [OWASP A02:2025, CWE-16]
+- Las credenciales de cuenta de servicio y el Admin SDK solo existen en el servidor; en entornos de Google usa las credenciales predeterminadas de la aplicación en lugar de archivos de clave, y nunca van al cliente ni al repositorio. [OWASP A04:2025, CWE-798, OWASP ASVS V13]
+
+<!-- Fuentes verificadas (Firebase): https://firebase.google.com/docs/firestore/security/get-started , https://firebase.google.com/docs/rules/unit-tests , https://firebase.google.com/docs/app-check , https://firebase.google.com/docs/projects/api-keys , https://firebase.google.com/docs/admin/setup -->
+<!-- endif -->
+<!-- if documents -->
+## Bases de datos de documentos (Firestore, MongoDB)
+
+- Inyección NoSQL: nunca pases a una consulta un objeto, un operador (`$where`, `$gt`, `$ne`, `$regex`, `$expr`...) ni un nombre de campo tomados de la entrada; valida el tipo de cada valor antes de construir la consulta (un id es una cadena, no un objeto `{"$ne": null}`) y no ejecutes JavaScript del servidor (`$where`, `mapReduce`, `$function`, `$accumulator`) con datos del usuario; en MongoDB, desactívalo si no lo usas (`security.javascriptEnabled: false`). [OWASP A05:2025, CWE-943, OWASP ASVS V1]
+- Valida la forma de cada documento antes de escribirlo (campos permitidos, tipos y tamaños) en el servidor o en las reglas del proveedor: una colección no impone esquema por sí sola. [OWASP A05:2025, CWE-20, OWASP ASVS V2]
+
+<!-- Fuentes verificadas (NoSQL): https://cwe.mitre.org/data/definitions/943.html , https://top10.owasp.org/2025/A05_2025-Injection , https://cheatsheetseries.owasp.org/cheatsheets/Injection_Prevention_Cheat_Sheet.html , https://www.mongodb.com/docs/manual/faq/fundamentals/#how-does-mongodb-address-sql-or-query-injection -->
+<!-- endif -->
+<!-- if mongodb -->
+## MongoDB
+
+- La autenticación está activada en todo entorno, también en local: la aplicación entra con su propio usuario y el rol mínimo sobre su base, nunca con el usuario raíz ni sin credenciales. [OWASP A07:2025, CWE-306, OWASP ASVS V6]
+- El puerto solo escucha en `127.0.0.1` en desarrollo (como el `compose.yaml` que genera Rapid OS) y nunca se publica a internet; en producción, red privada y TLS. [OWASP A02:2025, CWE-668]
+
+<!-- Fuentes verificadas (MongoDB): https://www.mongodb.com/docs/manual/administration/security-checklist/ , https://www.mongodb.com/docs/manual/core/security-mongodb-configuration/ -->
+<!-- endif -->
+
 <!-- if api -->
 ## OWASP API Security Top 10:2023
 

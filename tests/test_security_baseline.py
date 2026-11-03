@@ -21,7 +21,7 @@ from rapid_os.domain.security import (
 )
 from rapid_os.domain.setup import DocState, SetupActionKind, SetupState, SetupStateError, StackChoice
 from rapid_os.orchestration.setup_conductor import ARCHETYPE_SUMMARIES, next_setup_action
-from tests.stack_helpers import complete_stacks
+from tests.stack_helpers import complete_stacks, with_baas
 from tests.test_no_git import GitIsolated
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -254,7 +254,7 @@ class Project(GitIsolated):
         """The decisions of a complete onboarding, written as `setup.json` (what the `set` and `doc
         --skip` commands leave), so the tests that are not about those commands stay fast."""
         state = SetupState(
-            stacks=complete_stacks(stack), topology=topology, archetype=archetype,
+            stacks=with_baas(complete_stacks(stack), topology), topology=topology, archetype=archetype,
             ai=None if ai is None else ai == "yes", agents=("codex",), test_command=(), services=(),
             docs={doc: DocState("skipped") for doc in ("brief", "business", "data-model", "architecture", "deployment")},
         )

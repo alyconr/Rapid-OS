@@ -63,8 +63,51 @@
     },
     {
       "id": "local_database",
-      "text": "¿Cómo se levanta la base de datos local? Motor y versión elegidos, cómo levantarla, la variable de conexión, el comando de migraciones y los datos de prueba",
-      "required": false
+      "text": "¿Cómo se levanta la base de datos local? Motor y versión elegidos, cómo levantarla, la variable de conexión y los datos de prueba (y, en una base relacional, el comando de migraciones)",
+      "required": false,
+      "when": "service:database"
+    },
+    {
+      "id": "tables",
+      "text": "Modelo relacional: ¿qué tablas hay, con qué claves primarias y foráneas?",
+      "required": false,
+      "when": "model:relational"
+    },
+    {
+      "id": "migrations",
+      "text": "Modelo relacional: ¿cómo se versiona el esquema (herramienta y carpeta de migraciones) y cómo se aplica en local y en cada entorno?",
+      "required": false,
+      "when": "model:relational"
+    },
+    {
+      "id": "rls",
+      "text": "Con Supabase: ¿qué política RLS protege cada tabla (quién lee, quién escribe) y cómo se prueba?",
+      "required": false,
+      "when": "stack:supabase"
+    },
+    {
+      "id": "collections",
+      "text": "Modelo de documentos: ¿qué colecciones hay, qué forma tiene cada documento (campos, tipos, datos anidados o referencias) y qué consultas dictan ese modelo?",
+      "required": false,
+      "when": "model:documents"
+    },
+    {
+      "id": "indexes",
+      "text": "Modelo de documentos: ¿qué índices necesita cada consulta y dónde se declaran en el repositorio?",
+      "required": false,
+      "when": "model:documents"
+    },
+    {
+      "id": "schema_validation",
+      "text": "Modelo de documentos: no hay migraciones de esquema; ¿cómo se valida la forma de cada documento al escribirlo (validación de esquema del motor, reglas del proveedor o validación en el servidor) y cómo se tratan los documentos con una forma anterior?",
+      "required": false,
+      "when": "model:documents"
+    },
+    {
+      "id": "firebase_rules",
+      "text": "Con Firebase: ¿qué regla de Firestore y de Storage protege cada colección y cómo se prueba en el emulador?",
+      "required": false,
+      "when": "stack:firebase"
     }
   ],
   "conditional_sections": [
@@ -75,6 +118,62 @@
         "Local database"
       ],
       "when": "service:database"
+    },
+    {
+      "id": "tables",
+      "titles": [
+        "Tablas",
+        "Tables"
+      ],
+      "when": "model:relational"
+    },
+    {
+      "id": "migrations",
+      "titles": [
+        "Migraciones",
+        "Migrations"
+      ],
+      "when": "model:relational"
+    },
+    {
+      "id": "rls",
+      "titles": [
+        "Políticas RLS",
+        "RLS policies"
+      ],
+      "when": "stack:supabase"
+    },
+    {
+      "id": "collections",
+      "titles": [
+        "Colecciones y documentos",
+        "Collections and documents"
+      ],
+      "when": "model:documents"
+    },
+    {
+      "id": "indexes",
+      "titles": [
+        "Índices",
+        "Indexes"
+      ],
+      "when": "model:documents"
+    },
+    {
+      "id": "schema_validation",
+      "titles": [
+        "Validación del esquema",
+        "Schema validation"
+      ],
+      "when": "model:documents"
+    },
+    {
+      "id": "firebase_rules",
+      "titles": [
+        "Reglas de seguridad",
+        "Security rules"
+      ],
+      "when": "stack:firebase"
     }
   ]
 }

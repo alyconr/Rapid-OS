@@ -19,13 +19,16 @@ from dataclasses import dataclass, field
 from typing import Iterable, Mapping
 
 from rapid_os.domain.architecture_profiles import (
+    BAAS_RULES,
     BACKEND_LAYERS,
     BACKEND_RULES,
     CANONICAL,
     FRONTEND_RULES,
     ROLE_TEXT,
     RuleSpec,
+    with_baas_sdk,
 )
+from rapid_os.domain.topology_guide import SSR_FRONTENDS
 from rapid_os.domain.stack_aliases import LEGACY_STACKS
 
 ARCHITECTURE_SCHEMA_VERSION = 1
@@ -54,6 +57,7 @@ RULE_CROSS_MODULE = "cross_module"
 RULE_SHARED = "shared"
 RULE_DOMAIN_FORBIDDEN = "domain_forbidden_import"
 RULE_INIT_REEXPORT = "init_reexport"
+RULE_RESTRICTED = "restricted_import"
 
 
 class ArchitectureConfigError(ValueError):
@@ -88,12 +92,21 @@ def rules_for(stacks: Mapping[str, str]) -> list[tuple[str, str, RuleSpec, str]]
     found: list[tuple[str, str, RuleSpec]] = []
     backend_id = stacks.get("backend")
     frontend_id = stacks.get("frontend")
-    if backend_id in BACKEND_RULES:
+    provider = stacks.get("baas")
+    # A project on a BaaS has no backend of its own: its server code is the provider's functions.
+    if backend_id in BACKEND_RULES and provider not in BAAS_RULES:
         found.append(("backend", backend_id, BACKEND_RULES[backend_id]))
     if frontend_id in FRONTEND_RULES and (frontend_id != backend_id or backend_id in BACKEND_RULES):
-        found.append(("frontend", frontend_id, FRONTEND_RULES[frontend_id]))
+        frontend_spec = FRONTEND_RULES[frontend_id]
+        if provider in BAAS_RULES:
+            frontend_spec = with_baas_sdk(frontend_spec, provider, server_rendered=frontend_id in SSR_FRONTENDS)
+        found.append(("frontend", frontend_id, frontend_spec))
     separate = len(found) == 2 and found[0][1] != found[1][1]
-    return [(c, sid, spec, c if separate else "") for c, sid, spec in found]
+    rules = [(c, sid, spec, c if separate else "") for c, sid, spec in found]
+    if provider in BAAS_RULES:
+        # The provider's folders (`supabase/`, `functions/`) sit at the project root, whatever the frontend does.
+        rules.append(("baas", provider, BAAS_RULES[provider], ""))
+    return rules
 
 
 def architecture_document(stacks: Mapping[str, str]) -> dict:
@@ -160,6 +173,17 @@ def default_config(stack_id: str) -> dict:
 
 
 @dataclass(frozen=True)
+class RestrictedImport:
+    """A library that only `data-access` layers and some files of `shared` may import (the BaaS SDK)."""
+
+    provider: str
+    libraries: tuple[str, ...]
+    scope: str
+    allowed_layers: tuple[str, ...]
+    allowed_files: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class ArchitectureConfig:
     language: str
     modules_root: str
@@ -180,6 +204,7 @@ class ArchitectureConfig:
     complementary: str = ""
     # Where this stack assembles a module's dependencies (said when the entry layer imports infrastructure).
     composition: str = ""
+    restricted_imports: tuple[RestrictedImport, ...] = ()
 
     @property
     def public_stem(self) -> str:
@@ -283,6 +308,36 @@ class ArchitectureConfig:
         composition = data.get("composition", "")
         if not isinstance(composition, str):
             raise fail("composition debe ser un texto.")
+        restricted = []
+        raw_restricted = data.get("restricted_imports", [])
+        if not isinstance(raw_restricted, list):
+            raise fail("restricted_imports debe ser una lista.")
+        for item in raw_restricted:
+            lists = ("libraries", "allowed_layers", "allowed_files")
+            if (
+                not isinstance(item, dict)
+                or not isinstance(item.get("provider"), str)
+                or not isinstance(item.get("scope"), str)
+                or not item["scope"]
+                or not all(
+                    isinstance(item.get(key), list) and all(isinstance(entry, str) and entry for entry in item[key])
+                    for key in lists
+                )
+                or not item["libraries"]
+            ):
+                raise fail("cada restricted_imports necesita provider, scope, libraries, allowed_layers y allowed_files.")
+            unknown = [layer for layer in item["allowed_layers"] if layer not in layers]
+            if unknown:
+                raise fail(f"restricted_imports permite capas que no existen: {', '.join(unknown)}.")
+            restricted.append(
+                RestrictedImport(
+                    item["provider"],
+                    tuple(item["libraries"]),
+                    item["scope"].strip().strip("/"),
+                    tuple(item["allowed_layers"]),
+                    tuple(item["allowed_files"]),
+                )
+            )
         prefix = f"{root}/" if root else ""
         return cls(
             language=language,
@@ -302,6 +357,10 @@ class ArchitectureConfig:
             root=root,
             complementary=complementary,
             composition=composition,
+            restricted_imports=tuple(
+                RestrictedImport(r.provider, r.libraries, prefix + r.scope, r.allowed_layers, r.allowed_files)
+                for r in restricted
+            ),
         )
 
 
@@ -409,8 +468,60 @@ def _is_public(config: ArchitectureConfig, module: str, rest: tuple[str, ...]) -
     return first in {_stem(item.replace("{m}", module).replace("{M}", module)) for item in config.public_entry.split("|")}
 
 
+_RUNTIME_SCHEMES = ("npm:", "jsr:", "node:")
+
+
 def _split(name: str) -> tuple[str, ...]:
+    for scheme in _RUNTIME_SCHEMES:  # Deno writes `npm:@supabase/supabase-js@2`: the library is what follows
+        if name.startswith(scheme):
+            name = name[len(scheme):]
+            break
     return tuple(part for part in re.split(r"[./\\:]+", name) if part)
+
+
+def _is_test_file(path: str) -> bool:
+    parts = path.split("/")
+    name = parts[-1]
+    return bool(re.search(r"\.(test|spec)\.", name)) or any(part in ("__tests__", "tests", "e2e") for part in parts[:-1])
+
+
+def _under(path: str, folder: str) -> bool:
+    return path == folder or path.startswith(folder.rstrip("/") + "/")
+
+
+def _restricted_violations(
+    config: ArchitectureConfig, place: _Place, path: str, refs: Iterable[_Ref]
+) -> list[Violation]:
+    """The BaaS SDK is imported only from the `data-access` layer of a feature and from the provider client in `shared`."""
+    found: list[Violation] = []
+    if _is_test_file(path):
+        return found
+    for restriction in config.restricted_imports:
+        if not _under(path, restriction.scope):
+            continue
+        if place.kind == "module" and place.layer in restriction.allowed_layers:
+            continue
+        if place.kind == "shared" and {_stem(part) for part in path.split("/")[len(config.shared_root.split("/")):]} & set(
+            restriction.allowed_files
+        ):
+            continue
+        libraries = [_split(item) for item in restriction.libraries]
+        for line, spelled, _target, _top in refs:
+            parts = _split(spelled)
+            if any(parts[: len(lib)] == lib for lib in libraries if lib):
+                where = {"module": f"la capa '{place.layer or 'raíz'}' del módulo '{place.module}'", "shared": "shared"}.get(
+                    place.kind, "este archivo"
+                )
+                files = ", ".join(f"{config.shared_root}/{name}" for name in restriction.allowed_files)
+                found.append(
+                    Violation(
+                        RULE_RESTRICTED, path, line, spelled,
+                        f"el SDK de {restriction.provider} solo se importa desde la capa "
+                        f"{', '.join(restriction.allowed_layers)} de una funcionalidad o desde el cliente único de shared "
+                        f"({files}), no desde {where}",
+                    )
+                )
+    return found
 
 
 def _forbidden(config: ArchitectureConfig, top: str) -> bool:
@@ -531,6 +642,9 @@ def check_architecture(config: ArchitectureConfig, sources: Mapping[str, str]) -
     for path in sorted(sources):
         place = _locate(config, tuple(path.split("/")), file=True)
         if place.kind == "other":
+            # Outside the modules only the restricted libraries are judged (a route importing the BaaS SDK).
+            if config.restricted_imports and config.language != "python":
+                violations.extend(_restricted_violations(config, place, path, list(_references(config, path, sources[path]))))
             continue
         if place.kind == "module" and place.module:
             modules.add(place.module)
@@ -547,6 +661,8 @@ def check_architecture(config: ArchitectureConfig, sources: Mapping[str, str]) -
             violations.extend(
                 _violations_for_target(config, place, path, line, spelled, target_segments, top_package)
             )
+        if config.restricted_imports and config.language != "python":
+            violations.extend(_restricted_violations(config, place, path, refs))
         if config.language == "python" and place.kind == "module" and place.rest == ("__init__.py",):
             violations.extend(_init_violations(config, place, path, records))
     return ArchitectureReport(

@@ -277,14 +277,28 @@ def suggest_init_choices(scan: ProjectModel | ProjectScan) -> InitSuggestions:
         if frontends[0][0] in ("nextjs", "nuxt", "sveltekit") and "backend" not in stacks:
             stacks["backend"] = frontends[0][1]
 
-    if "nextjs" in frameworks and "supabase" in database_values:
-        evidence = _first_evidence(model, "framework", "nextjs")
+    # A BaaS provider with a frontend (and no backend of its own) is the fullstack-baas topology; two providers
+    # in one repository are ambiguous and suggest nothing.
+    providers = [name for name in ("supabase", "firebase") if name in database_values]
+    provider = providers[0] if len(providers) == 1 else None
+    own_backend = "backend" in stacks and ("frontend" not in stacks or stacks["backend"].value != stacks["frontend"].value)
+    if provider and "frontend" in stacks and not own_backend:
+        frontend = stacks["frontend"]
+        label = {"nextjs": "Next.js", "nuxt": "Nuxt", "sveltekit": "SvelteKit"}.get(frontend.value, frontend.value)
+        names = {"supabase": "Supabase", "firebase": "Firebase"}
+        stacks["baas"] = InitSuggestion(
+            "stack",
+            provider,
+            Confidence.MEDIUM,
+            f"{names[provider]} project detected.",
+            _first_evidence(model, "database", provider),
+        )
         topology = InitSuggestion(
             "topology",
             "fullstack-baas",
             Confidence.MEDIUM,
-            "Next.js and Supabase hints were detected.",
-            evidence + _first_evidence(model, "database", "supabase"),
+            f"{label} and {names[provider]} hints were detected.",
+            frontend.evidence + _first_evidence(model, "database", provider),
         )
     elif "backend" in stacks and "frontend" in stacks and stacks["backend"].value != stacks["frontend"].value:
         topology = InitSuggestion(
@@ -854,6 +868,17 @@ def _detect_databases(files, root, package_manifests, text_cache):
                     source_type=SourceType.DIRECTORY,
                 )
             )
+        if relative and len(relative) == 1 and relative[0] in ("firebase.json", ".firebaserc"):
+            facts.append(
+                _fact(
+                    "database",
+                    "firebase",
+                    Confidence.HIGH,
+                    path,
+                    f"{relative[0]} file",
+                    source_type=SourceType.CONFIG,
+                )
+            )
         if relative == ("prisma", "schema.prisma"):
             facts.append(
                 _fact(
@@ -867,6 +892,17 @@ def _detect_databases(files, root, package_manifests, text_cache):
             )
         if path.name.startswith(".env"):
             env_keys = tuple(key.upper() for key in read_env_keys(path))
+            if any("FIREBASE" in key for key in env_keys):
+                facts.append(
+                    _fact(
+                        "database",
+                        "firebase",
+                        Confidence.LOW,
+                        path,
+                        "FIREBASE env key",
+                        source_type=SourceType.ENVIRONMENT_KEY,
+                    )
+                )
             if any("SUPABASE" in key for key in env_keys):
                 facts.append(
                     _fact(
@@ -906,6 +942,9 @@ def _detect_databases(files, root, package_manifests, text_cache):
 
     dependency_map = {
         "@supabase/supabase-js": "supabase",
+        "firebase": "firebase",
+        "firebase-admin": "firebase",
+        "firebase-functions": "firebase",
         "pg": "postgres",
         "postgres": "postgres",
         "prisma": "prisma",

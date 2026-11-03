@@ -362,7 +362,10 @@ def validate_project_docs(
             )
         if doc.source == "drafted":
             # What a person pasted is not validated; what the agent drafted is.
-            conditions = active_conditions(docs.setup_state.services if docs.setup_state else None)
+            conditions = active_conditions(
+                docs.setup_state.services if docs.setup_state else None,
+                docs.setup_state.stacks if docs.setup_state else None,
+            )
             for issue in validate_doc_body(doc.body, doc.bank, conditions):
                 diagnostics.append(Diagnostic(WARNING, issue.code, issue.message, doc.path))
 
