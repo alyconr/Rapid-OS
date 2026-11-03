@@ -1,8 +1,8 @@
 # Recorrido manual: el bucle de gobernanza a mano (Bajo el capó)
 
-> **Modo avanzado.** No necesitas este laboratorio para usar Rapid OS: hace a mano, con los comandos v3 (`rapid scan`, `rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…), lo que el agente hace por ti con los shortcuts. Es para integradores, CI y auditoría. Si estás empezando, ve a los [laboratorios](index.md), empezando por [Feature](feature-lab.md) (`/rapid-feature`).
+> **Modo avanzado.** No necesitas este laboratorio para usar Rapid OS: escribe en una terminal, uno a uno, los comandos de uso diario (`rapid start`, `rapid next`, `rapid check`, `rapid task`, `rapid approve`, `rapid finish`) que el agente ejecuta por ti con los shortcuts. Es para integradores, CI y auditoría. Si estás empezando, ve a los [laboratorios](index.md), empezando por [Feature](feature-lab.md) (`/rapid-feature`).
 
-Aprende a ejecutar el Governance Loop completo de RAPID OS v3 sobre un proyecto Python real con un asistente o coding harness externo.
+Aprende a ejecutar el bucle de gobernanza completo de RAPID OS sobre un proyecto Python real, viendo qué registra cada paso y por qué un veredicto solo llega a `pass` con tests reales y una aprobación humana real.
 
 ---
 
@@ -10,10 +10,10 @@ Aprende a ejecutar el Governance Loop completo de RAPID OS v3 sobre un proyecto 
 
 - **Nombre:** Task Tracker CLI Governance.
 - **Problema:** Un proyecto Python sin gobernanza arriesga cambios no validados introducidos por asistentes de IA. Se requiere implementar una nueva funcionalidad de prioridad de tareas bajo un contrato verificable.
-- **Objetivo:** Recorrer todo el ciclo de gobernanza desde `rapid init` hasta la evaluación de evidencia y validación final de integridad.
+- **Objetivo:** Recorrer todo el ciclo de gobernanza, desde `rapid init` hasta el informe de evaluación y la validación final de integridad, solo con los comandos de uso diario.
 - **Nivel de dificultad:** Avanzado.
-- **Conocimientos previos:** Uso básico de terminal y comandos de Python.
-- **Dependencias:** Python 3.10+ (exclusivamente biblioteca estándar).
+- **Conocimientos previos:** Uso básico de terminal, git y comandos de Python.
+- **Dependencias:** Python 3.10+ (exclusivamente biblioteca estándar) y git.
 - **Archivos de referencia:** [`examples/first-governed-project/`](https://github.com/alyconr/Rapid-OS/tree/main/examples/first-governed-project).
 
 ---
@@ -21,18 +21,15 @@ Aprende a ejecutar el Governance Loop completo de RAPID OS v3 sobre un proyecto 
 ## 2. Learning Outcomes
 
 Al completar este laboratorio, sabrás cómo:
-1. Inicializar RAPID OS en un repositorio existente.
-2. Escanear facts del proyecto mediante `rapid scan --write`.
-3. Crear una especificación declarativa (`rapid spec create`).
-4. Compilar un Context Bundle reproducible (`rapid context --manifest`).
-5. Inspeccionar y resolver la política de ejecución (`rapid policy show`).
-6. Generar un `ExecutionContract` inmutable y un `RunState` inicial (`rapid run create`).
-7. Resolver el perfil de capacidades de tu coding harness (`rapid harness show`).
-8. Ejecutar la implementación externamente con tu herramienta o harness preferido.
-9. Actualizar tareas y gates en el estado versionado (`rapid run task` y `rapid run gate`).
-10. Registrar evidencia determinista vinculada a revisiones de estado (`rapid evidence add`).
-11. Evaluar el cumplimiento del Run (`rapid eval run`).
-12. Validar la integridad holística del proyecto (`rapid validate`).
+1. Inicializar RAPID OS en un repositorio git existente.
+2. Abrir un run gobernado desde un archivo de spec (`rapid start feature --spec-file`), que además registra la baseline.
+3. Pedir a Rapid OS el siguiente paso determinista (`rapid next`).
+4. Trabajar en una tarea y cerrarla con sus tests (`rapid task start`, `rapid task done`).
+5. Satisfacer los gates de máquina con checks que ejecuta el propio Rapid OS (`rapid check`).
+6. Aprobar el gate humano desde tu propia terminal (`rapid approve`).
+7. Terminar el run y obtener su informe de evaluación (`rapid finish`, `rapid eval run --require-pass`).
+8. Validar la integridad holística del proyecto (`rapid validate`).
+9. Distinguir los comandos de plomería (`rapid evidence add`, `rapid run gate`), que nunca satisfacen un gate de tests ni uno humano.
 
 ---
 
@@ -112,96 +109,88 @@ En este estado inicial, `TaskTracker.add_task(title)` solo acepta el título de 
 
 ## 4. Engineering Requirements
 
-1. **Nueva funcionalidad:** Permitir especificar la prioridad de la tarea (`low`, `medium`, `high`), por defecto `medium`.
+1. **Nueva funcionalidad:** Permitir especificar la prioridad de la tarea (`low`, `medium`, `high`), con `medium` por defecto.
 2. **Validación:** Rechazar prioridades desconocidas con `ValueError`.
-3. **Filtrado:** `list_tasks(priority=None)` debe permitir filtrar por prioridad cuando se indique.
-4. **Preservación:** No romper pruebas unitarias existentes.
+3. **Filtrado:** `list_tasks(priority=None)` debe permitir filtrar por prioridad cuando se indique una.
+4. **Preservación:** No romper las pruebas unitarias existentes.
 
 ---
 
 ## 5. Guided Procedure
 
-### Paso 1: Inicializar RAPID OS
+### Paso 1: Poner el starter bajo git
 
-En la raíz del proyecto, inicializa Rapid OS sin preguntas (`--yes`) con un stack de Python y registra el comando de pruebas:
+Rapid OS observa los cambios de un run con git, así que el proyecto parte de un commit:
+
+```bash
+git init
+git add .
+git commit -m "Starter task tracker"
+```
+
+### Paso 2: Inicializar RAPID OS
+
+En la raíz del proyecto, inicializa Rapid OS sin preguntas (`--yes`) con un stack Python:
 
 ```bash
 rapid init --stack python-ai --yes
-rapid setup set test-command "python -m unittest discover -s tests -t ."
 ```
 
-Esto crea la estructura `.rapid-os/` con sus estándares y configuración base. Lo demás (topología, arquetipo) toma los valores por defecto del stack.
+Esto crea la estructura `.rapid-os/` con sus estándares y configuración base. Detecta la carpeta `tests/` y registra `python -m unittest discover` como `test_command` del proyecto: el comando en el que Rapid OS confía para ejecutar los tests.
 
-### Paso 2: Escanear el proyecto
+### Paso 3: Escribir la spec
+
+La spec dice qué debe lograr el run y qué tareas tiene. Guárdala como `spec.json`:
+
+```json
+{
+  "title": "Task priority",
+  "business_objective": "Tasks carry a priority so the most urgent work can be listed first.",
+  "acceptance_criteria": [
+    "add_task accepts the priorities low, medium and high, and medium by default",
+    "add_task rejects an unknown priority with ValueError",
+    "list_tasks(priority) returns only the tasks of that priority"
+  ],
+  "implementation_tasks": ["T001: Implementar soporte de prioridades en TaskTracker"]
+}
+```
+
+### Paso 4: Iniciar el run
 
 ```bash
-rapid scan --write
+rapid start feature --spec-file spec.json
 ```
 
-El scanner detecta el lenguaje (Python) y los directorios de pruebas (`tests/`), persistiendo el Project Model.
+`rapid start` guarda la spec (id `task-priority`), resuelve la política de ejecución y crea el run `task-priority-r1-run-001` con su `ExecutionContract` inmutable. Para una spec `feature` sobre un stack de backend, el contrato exige estos gates:
 
-### Paso 3: Crear la Especificación
+- `gate.baseline` (fase `pre_execution`): la suite de tests pasa antes de cambiar nada. `rapid start` ejecuta él mismo `test_command` y registra el resultado como evidencia `test_result` producida por `rapid:check`; con la baseline satisfecha, activa el run.
+- `gate.tests` (fase `post_execution`): la suite de tests pasa sobre el código final.
+- `gate.architecture` (fase `post_execution`): este proyecto se inicializó con un stack de backend (`python-ai`), así que parte como monolito modular y la regla se verifica con `rapid arch check`.
+- `gate.final-verification` (fase `post_execution`): una persona aprueba el resultado, en su propia terminal.
 
-Crea la especificación con su tarea de implementación (`--task`). El id sale del título (`task-priority`) y el modo por defecto es `feature`. Después márcala como lista:
+### Paso 5: Pedir el siguiente paso
 
 ```bash
-rapid spec create --title "Task priority" --task "T001: Implementar soporte de prioridades en TaskTracker"
-rapid spec status task-priority ready
+rapid next
 ```
 
-### Paso 4: Compilar el Context Bundle
-
-Genera el paquete de contexto determinista para alimentar al coding harness:
-
-```bash
-rapid context --manifest
-```
-
-### Paso 5: Consultar la Política de Ejecución
-
-```bash
-rapid policy show
-```
-
-Para una especificación en modo `feature`, el motor de políticas resuelve la clasificación `bounded` (las clases canónicas son `spike`, `bounded` y `architectural`) con nivel de riesgo `medium`. Esta política requiere las siguientes compuertas obligatorias:
-- `gate.baseline` (fase `pre_execution`): verificación previa de la salud de pruebas del repositorio antes de iniciar cambios.
-- `gate.tests` (fase `post_execution`): verificación con suite de pruebas aprobada y artefacto de log adjunto.
-- `gate.architecture` (fase `post_execution`): este proyecto se inicializó con un stack de backend (`python-ai`), así que arranca como monolito modular y su contrato verifica la regla con `rapid arch check`.
-- `gate.final-verification` (fase `post_execution`): revisión formal final de cumplimiento contractual con veredicto aprobado.
-
-### Paso 6: Crear el Run de Ejecución
-
-```bash
-rapid run create --spec task-priority --harness codex
-```
-
-Esto genera un identificador de run determinista (por ejemplo `task-priority-r1-run-001`), calcula el digest SHA-256 del contrato y escribe el snapshot inicial `RunState s1` en estado `prepared`.
-
-### Paso 7: Resolver Capabilities del Harness
-
-```bash
-rapid harness show codex
-```
-
-Observa que RAPID OS reporta las capacidades soportadas (`context.consume`, `repository.read`, `workspace.current`) y aquellas que dependen de tu entorno local (`tests.execute`, `repository.write`).
+Rapid OS responde con la siguiente acción determinista y su comando exacto: `implement_task -> rapid task start T001`. Siempre que dudes de qué sigue, `rapid next` te lo dice.
 
 ---
 
 ## 6. External Execution
 
-> **Nota de límite de responsabilidades:** RAPID OS **no** edita el código. La implementación la realiza el desarrollador o su coding harness externo (Claude Code, Cursor, Codex, Antigravity, etc.).
+> **Nota de límite de responsabilidad:** RAPID OS **no** edita el código. La implementación la hace el desarrollador o su coding harness externo (Claude Code, Cursor, Codex, Antigravity, etc.).
 
-### Paso 1: Ejecución y Captura del Baseline
-
-Antes de modificar el código y activar el run, ejecuta la suite de pruebas existente y captura la salida auténtica en un archivo de artefacto `base.log`:
+### Paso 1: Empezar la tarea
 
 ```bash
-python -m unittest discover -s tests -t . > base.log 2>&1
+rapid task start T001
 ```
 
-### Paso 2: Implementación Externa de Código y Pruebas
+### Paso 2: Implementar el código y sus tests
 
-Modifica externamente `app.py` y `tests/test_app.py` para cumplir los requerimientos:
+Modifica `app.py` y `tests/test_app.py` para cumplir los requisitos:
 
 ```python
 # app.py
@@ -275,227 +264,79 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-Ejecuta la suite actualizada capturando el registro de salida en `tests.log`:
+### Paso 3: Cerrar la tarea con sus tests
 
 ```bash
-python -m unittest discover -s tests -t . > tests.log 2>&1
+rapid task done T001
 ```
+
+`rapid task done` ejecuta `test_command` antes de cerrar la tarea. Si un test falla, la tarea sigue abierta y el comando sale con el fallo.
 
 ---
 
 ## 7. Evidence Collection
 
-Actualiza el estado del Run ingiriendo la evidencia exigida por el `BehavioralEvaluator`:
+Toda la evidencia de este recorrido la escribe el propio Rapid OS mientras ejecuta algo. Nunca escribes evidencia a mano.
 
-### 1. Registrar evidencia de Baseline y Acreditar `gate.baseline`
+### 1. Verificar los gates de máquina
 
-El evaluador exige que `gate.baseline` cuente con evidencia de prueba o comando con `exit_code: 0`, cero fallos y al menos un artefacto físico (`base.log`). Además, las compuertas de fase `pre_execution` deben reconocerse obligatoriamente antes de activar el run.
-
-Prepara `evidence_baseline.json`:
-
-```json
-{
-  "kind": "test_result",
-  "producer": "harness:codex",
-  "summary": "Verificación exitosa de baseline previo a modificaciones",
-  "task_ids": ["T001"],
-  "gate_ids": ["gate.baseline"],
-  "capability_ids": ["tests.execute"],
-  "payload": {
-    "suite": "tests/test_app.py",
-    "exit_code": 0,
-    "passed": 2,
-    "failed": 0,
-    "skipped": 0
-  },
-  "artifacts": ["base.log"]
-}
-```
-
-Ingiere la evidencia y reconoce la compuerta:
+Pide el siguiente paso:
 
 ```bash
-rapid evidence add --run task-priority-r1-run-001 --input evidence_baseline.json
-rapid run gate task-priority-r1-run-001 gate.baseline acknowledged
+rapid next
 ```
 
-### 2. Activar el Run e iniciar la tarea
-
-Una vez satisfecha la compuerta previa, pasa el run al estado `active` y marca la tarea en progreso:
+Responde `verify -> rapid check --gate gate.tests -- python -m unittest discover`. Ejecuta el comando que da:
 
 ```bash
-rapid run status task-priority-r1-run-001 active
-rapid run task task-priority-r1-run-001 T001 in_progress
+rapid check --gate gate.tests -- python -m unittest discover
 ```
 
-### 3. Registrar evidencia de cambios en el código (`file_change`)
+`rapid check` ejecuta el comando sin shell, guarda su salida como log en `.rapid-os/scratch/checks/`, lee el resumen de tests (`Ran 4 tests ... OK`) y registra evidencia `test_result` producida por `rapid:check` con los conteos, `counted: true` y la huella (`tree`) del árbol de trabajo que verificó.
 
-El evaluador exige constatar la capacidad `repository.write` mediante evidencia de tipo `file_change` asociada a las tareas en el alcance del contrato.
-
-Prepara `evidence_file_change.json`:
-
-```json
-{
-  "kind": "file_change",
-  "producer": "harness:codex",
-  "summary": "Implementación de prioridad en app.py y tests",
-  "task_ids": ["T001"],
-  "gate_ids": [],
-  "capability_ids": ["repository.write"],
-  "payload": {
-    "paths": ["app.py", "tests/test_app.py"]
-  }
-}
-```
-
-Ingiérelo en RAPID OS:
+Después, el gate de arquitectura. `rapid next` lo propone con `--new-only` (solo fallan las violaciones que añade el run); este proyecto aún no tiene módulos, así que el checker sin opciones también pasa:
 
 ```bash
-rapid evidence add --run task-priority-r1-run-001 --input evidence_file_change.json
+rapid next
+rapid check --gate gate.architecture -- rapid arch check
 ```
 
-### 4. Registrar evidencia de pruebas aprobadas (`test_result`)
+### 2. Qué no cuenta como ejecución de tests
 
-El evaluador exige que `gate.tests` contenga evidencia `test_result` con `exit_code: 0`, `failed: 0` y al menos un artefacto de log registrado (`tests.log`).
+Un gate de tests (`gate.tests`, `gate.baseline`) solo lo satisface un check que ejecutó Rapid OS cuya salida tenía un resumen de tests que pudo contar (pytest, unittest, vitest, jest, `cargo test`, `go test -v`) o cuyo comando es exactamente `test_command`, con al menos un test ejecutado y el árbol de trabajo registrado. Por eso:
 
-Prepara `evidence_test_result.json`:
+- `rapid check --kind test -- python -c "print('hello')"`, ligado a `gate.tests`, pasa como comando, pero se registra como `command_result` y `rapid next` sigue pidiendo el comando de test real (`RAPID1432`).
+- Si el código cambia después del último check, `rapid next`, `rapid approve` y `rapid finish` piden un check nuevo y nombran los archivos (`RAPID1423`).
 
-```json
-{
-  "kind": "test_result",
-  "producer": "harness:codex",
-  "summary": "Ejecución exitosa de suite de pruebas unitarias",
-  "task_ids": ["T001"],
-  "gate_ids": ["gate.tests"],
-  "capability_ids": ["tests.execute"],
-  "payload": {
-    "suite": "tests/test_app.py",
-    "exit_code": 0,
-    "passed": 4,
-    "failed": 0,
-    "skipped": 0
-  },
-  "artifacts": ["tests.log"]
-}
-```
+### 3. Aprobar el gate humano
 
-Ingiérelo:
+`rapid next` responde ahora `await_human_approval -> rapid approve gate.final-verification`. Revisa el diff y ejecuta, **en tu propia terminal** (no desde dentro de un agente):
 
 ```bash
-rapid evidence add --run task-priority-r1-run-001 --input evidence_test_result.json
+rapid approve gate.final-verification
 ```
 
-### 4 bis. Registrar evidencia de arquitectura (`command_result`)
-
-El evaluador exige que `gate.architecture` contenga evidencia `command_result` con `exit_code: 0` y un artefacto de log (`arch.log`). El verificador solo juzga el código dentro de `app/modules/` (la carpeta de módulos de la regla): este proyecto aún no tiene módulos, así que no hay nada que violar.
-
-Captura la salida del verificador:
-
-```bash
-rapid arch check > arch.log 2>&1
-```
-
-Prepara `evidence_architecture.json`:
-
-```json
-{
-  "kind": "command_result",
-  "producer": "harness:codex",
-  "summary": "rapid arch check sin violaciones",
-  "task_ids": ["T001"],
-  "gate_ids": ["gate.architecture"],
-  "capability_ids": ["shell.execute"],
-  "payload": {
-    "label": "rapid arch check",
-    "exit_code": 0
-  },
-  "artifacts": ["arch.log"]
-}
-```
-
-Ingiérelo:
-
-```bash
-rapid evidence add --run task-priority-r1-run-001 --input evidence_architecture.json
-```
-
-### 5. Registrar evidencia de espacio de trabajo (`workspace`)
-
-El evaluador exige validar la capacidad derivada `workspace.current` mediante una evidencia de tipo `workspace` con payload `mode: "current"`.
-
-Prepara `evidence_workspace.json`:
-
-```json
-{
-  "kind": "workspace",
-  "producer": "harness:codex",
-  "summary": "Verificación de espacio de trabajo actual",
-  "task_ids": ["T001"],
-  "gate_ids": [],
-  "capability_ids": ["workspace.current"],
-  "payload": {
-    "mode": "current"
-  }
-}
-```
-
-Ingiérelo:
-
-```bash
-rapid evidence add --run task-priority-r1-run-001 --input evidence_workspace.json
-```
-
-### 6. Registrar evidencia de revisión final (`review`)
-
-El evaluador exige que la compuerta contractual `gate.final-verification` cuente con una evidencia de tipo `review` con `review_type: "final"` y `outcome: "approved"`.
-
-Prepara `evidence_review.json`:
-
-```json
-{
-  "kind": "review",
-  "producer": "user",
-  "summary": "Revisión final contractual de cumplimiento",
-  "task_ids": ["T001"],
-  "gate_ids": ["gate.final-verification"],
-  "payload": {
-    "review_type": "final",
-    "outcome": "approved",
-    "reviewer": "quality-lead"
-  }
-}
-```
-
-Ingiérelo:
-
-```bash
-rapid evidence add --run task-priority-r1-run-001 --input evidence_review.json
-```
-
-### 7. Marcar tarea completada, reconocer compuertas y finalizar Run
-
-Con toda la evidencia registrada y verificable, completa la tarea, reconoce las compuertas post-ejecución y transiciona el run a `finished`:
-
-```bash
-rapid run task task-priority-r1-run-001 T001 done
-rapid run gate task-priority-r1-run-001 gate.tests acknowledged
-rapid run gate task-priority-r1-run-001 gate.architecture acknowledged
-rapid run gate task-priority-r1-run-001 gate.final-verification acknowledged
-rapid run status task-priority-r1-run-001 finished
-```
+Rapid OS te pide escribir la frase `aprobar gate.final-verification`. Registra una evidencia `review` escrita por `rapid approve`, con tu nombre y la huella del árbol de trabajo que aprobaste. Un agente no puede hacerlo: dentro de una sesión de agente, bajo un proceso de agente o sin TTY se rechaza (`RAPID1310`).
 
 ---
 
 ## 8. Evaluation
 
-Ejecuta el evaluador conductual determinista: primero guarda el reporte (`--write`) y después exige el veredicto exitoso (`--require-pass`, que sale con error si no es `pass`):
+Termina el run:
 
 ```bash
-rapid eval run --run task-priority-r1-run-001 --write
+rapid finish
+```
+
+`rapid finish` registra los archivos cambiados (`file_change`, producido por `rapid:finish`), reconoce los gates de máquina cuya evidencia los satisface, comprueba que el código sigue siendo el que verificaron los tests y el que aprobaste (si no, se niega con `RAPID1423` o `RAPID1433` y nombra los archivos) y escribe el informe de evaluación con el veredicto.
+
+Vuelve a leer el informe y exige el veredicto exitoso (`--require-pass` sale con error si el veredicto no es `pass`):
+
+```bash
 rapid eval run --run task-priority-r1-run-001 --require-pass
 ```
 
-El evaluador inspecciona las transiciones de estado, verifica que los gates requeridos (`gate.baseline`, `gate.tests`, `gate.architecture`, `gate.final-verification`) y las capacidades observadas estén satisfechos por la evidencia vinculada y emite el veredicto:
+El evaluador (ruleset 3) revisa el ciclo de vida del run, las tareas, los gates requeridos (`gate.baseline`, `gate.tests`, `gate.architecture`, `gate.final-verification`) y las capacidades observadas, y emite el veredicto:
 
 ```json
 {
@@ -516,21 +357,41 @@ rapid validate
 
 ---
 
-## 10. Troubleshooting & Common Errors
+## 10. Referencia: los comandos de plomería
 
-- **Error `RAPID1203` (Evidence Binding Mismatch):** El estado del run avanzó antes de registrar la evidencia. El comando `rapid evidence add` resuelve automáticamente la revisión actual de estado si omites o sincronizas `state_revision`.
-- **Error `RAPID1225` / `RAPID1226` (Evaluation Unverified / Fail):** Una compuerta requerida no fue reconocida, no contiene evidencias válidas o la evidencia asociada contiene un `exit_code != 0`. Recuerda que `gate.baseline` debe reconocerse antes de activar el run.
+Los comandos de uso diario se apoyan en comandos de más bajo nivel que siguen disponibles para integradores y CI: `rapid scan`, `rapid spec`, `rapid context`, `rapid policy show`, `rapid run create`, `rapid run task`, `rapid run gate`, `rapid evidence add` y `rapid eval run`. Dos de ellos escriben en el registro y tienen límites que importan:
+
+- **`rapid evidence add` no satisface gates de tests ni humanos.** Registra evidencia producida fuera de Rapid OS (`harness:<id>`, `ci:<nombre>`, `external:<nombre>`). Los productores `rapid:*` y la evidencia `review` de producer `user` están reservados a los comandos que los observan (`rapid check`, `rapid start`, `rapid finish`, `rapid attach`, `rapid approve`): `evidence add` los rechaza con `RAPID1430`. Un `test_result` escrito a mano nunca satisface `gate.tests` ni `gate.baseline`: el gate queda `unverified`.
+- **`rapid run gate` no cambia gates humanos.** `rapid run gate <run> gate.final-verification acknowledged` se rechaza con `RAPID1431`; un gate humano solo se mueve con `rapid approve <gate>` en la terminal de la persona. Reconocer un gate de tests con `rapid run gate` sin un check de `rapid check` deja su aserción en `unverified`.
+
+Por ejemplo, los dos se rechazan:
+
+```text
+rapid evidence add --run task-priority-r1-run-001 --input review_a_mano.json   # producer "user", kind "review" -> RAPID1430
+rapid run gate task-priority-r1-run-001 gate.final-verification acknowledged   # gate humano -> RAPID1431
+```
+
+La lista completa de comandos está en la [referencia de la CLI](../cli.md) y en el [bucle de gobernanza v3](../governance-loop.md).
 
 ---
 
-## 11. Assessment Criteria
+## 11. Troubleshooting & Common Errors
 
-- [x] Repositorio inicializado y escaneado.
-- [x] Spec en estado `ready` y Context compilado.
-- [x] Run creado y vinculado al harness `codex`.
-- [x] Evidencia de baseline capturada y `gate.baseline` reconocido antes de `active`.
-- [x] Código y pruebas implementados externamente con artefactos de log.
-- [x] Evidencias `file_change`, `test_result`, `workspace` y `review` registradas.
-- [x] Compuertas `gate.tests`, `gate.architecture` y `gate.final-verification` reconocidas.
-- [x] Veredicto `pass` emitido por `rapid eval run --require-pass`.
+- **`RAPID1432` (gate de tests no verificable):** la evidencia vinculada a `gate.tests` o `gate.baseline` no era una ejecución de tests de la que Rapid OS pueda responder (sin resumen de tests y sin ser `test_command`, cero tests ejecutados, sin árbol registrado, o escrita con `rapid evidence add`). Ejecuta el comando que da `rapid next`.
+- **`RAPID1423` / `RAPID1434` (código no verificado):** el código cambió después del último check de tests, o ese check no registró qué árbol verificó. Vuelve a ejecutar el check de tests.
+- **`RAPID1433` (el código cambió después de la aprobación):** vuelve a ejecutar el check de tests y aprueba de nuevo con `rapid approve <gate>`.
+- **`RAPID1435` (otro comando de tests que el de la baseline):** repite el check con el comando de la baseline; solo la persona puede aceptar la diferencia, en su terminal, con `rapid finish --accept-test-command "MOTIVO"`.
+- **Error `RAPID1225` / `RAPID1226` (Evaluation Unverified / Fail):** un gate requerido no está satisfecho por evidencia válida, o la evidencia asociada tiene `exit_code != 0` o tests fallidos. `rapid next` nombra lo que falta.
+
+---
+
+## 12. Assessment Criteria
+
+- [x] Repositorio bajo git y RAPID OS inicializado.
+- [x] Run iniciado desde `spec.json`, con la baseline registrada por `rapid start`.
+- [x] Tarea `T001` implementada y cerrada con `rapid task done`.
+- [x] `gate.tests` y `gate.architecture` verificados con `rapid check`.
+- [x] `gate.final-verification` aprobado con `rapid approve` en la terminal de una persona.
+- [x] Run terminado con `rapid finish` y veredicto `pass` confirmado por `rapid eval run --require-pass`.
 - [x] `rapid validate` finaliza con código de salida 0.
+- [x] Ninguna evidencia escrita a mano: sin `rapid evidence add` ni `rapid run gate`.

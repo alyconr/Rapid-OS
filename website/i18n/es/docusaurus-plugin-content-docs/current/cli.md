@@ -295,6 +295,8 @@ rapid evidence add --run <run-id> --input <file> [--json]
 rapid evidence verify --run <run-id> [--json]
 ```
 
+`rapid evidence add` registra evidencia producida fuera de Rapid OS (`harness:<id>`, `ci:<nombre>`, `external:<nombre>`). Rechaza con `RAPID1430` los productores reservados a Rapid OS (`rapid:check`, `rapid:start`, `rapid:finish`, `rapid:attach`, cualquier `rapid:*`), un `review` con producer `user` (solo lo escribe `rapid approve`) y los campos de review `via`, `tree` y `accepts`. Al leer el registro se siguen aceptando todos. En el ruleset 3, la evidencia añadida así nunca satisface un gate de tests (`gate.tests`, `gate.baseline`) ni un gate humano.
+
 ---
 
 ## Behavioral Evals (`rapid eval`)
@@ -307,13 +309,13 @@ Run deterministic, offline behavioral evaluations (`BehavioralEvaluator` → `Ev
 > **Product Truth**: `GateDisposition.ACKNOWLEDGED` is a declaration, not proof (`UNVERIFIED` without qualifying evidence). `EvaluationVerdict.PASS` means the configured Phase 6 evidence rules are satisfied by the exact recorded evidence set; it does not mathematically prove the software has zero bugs or that requirements are complete. Every persisted `EvaluationReport` undergoes mandatory semantic replay via `BehavioralEvaluator` when loaded or validated (`RAPID1223` on any discrepancy).
 
 ```bash
-rapid eval run --run <run-id> [--ruleset {1,2}] [--require <capability-id>] [--write] [--require-pass] [--json]
+rapid eval run --run <run-id> [--ruleset {1,2,3}] [--require <capability-id>] [--write] [--require-pass] [--json]
 rapid eval list --run <run-id> [--json]
 rapid eval show --run <run-id> [--revision <n>] [--json]
 ```
 
 Options for `run`:
-- `--ruleset {1,2}`: Behavioral ruleset version to evaluate against (defaults to `2`).
+- `--ruleset {1,2,3}`: versión del ruleset con la que evaluar (por defecto, la del run: `3` para los runs creados con esta versión, `2` para los anteriores). Un informe guardado se reproduce siempre con el ruleset que declara.
 - `--require <capability-id>`: Extra additive canonical capability ID to evaluate (repeatable).
 - `--write`: Persist append-only EvaluationReport snapshot.
 - `--require-pass`: Exit non-zero unless verdict is `pass` or `pass_with_waivers`.
@@ -332,9 +334,10 @@ rapid check [--task <task-id>] [--gate <gate-id>] [--kind {test,command}] [--exp
 Options:
 - `--task <task-id>`: Bind recorded evidence to a task (e.g. `T001`).
 - `--gate <gate-id>`: Bind recorded evidence to a gate (e.g. `gate.baseline`, `gate.tests`).
-- `--kind {test,command}`: Explicitly choose `test_result` or `command_result` evidence kind (inferred from argv if omitted).
+- `--kind {test,command}`: Explicitly choose `test_result` or `command_result` evidence kind (inferred from argv if omitted). `--kind test` no basta para que un comando cuente como ejecución de tests: si la salida no tiene resumen de tests y el argv no es exactamente `test_command`, se registra como `command_result` y `rapid check` lo dice (`RAPID1432`).
 - `--expect {pass,fail}`: Expected outcome of the check (defaults to `pass`). If `fail`, evidence with `expectation="fail"` is registered only when the check fails (e.g. reproducing a defect before a fix).
 - A check bound to `gate.baseline` or `gate.tests`, or to a task of a mode that needs tests (every mode but `research`), is recorded as `test_result` with its count when the output has a summary of pytest, unittest, vitest, jest, `cargo test` or `go test -v`, **even if its argv is not exactly `test_command`** (`pytest -q` run through `uv run` is still `pytest`). `--kind command` keeps it a plain `command_result`. `rapid check` always prints `Tests: N passed, M failed, K skipped` for a test run, and when a check that should be a test run has no readable summary it says so (`No se pudo leer un conteo de tests...`): its evidence has no count. `go test` without `-v` prints no per-test counts.
+- Cada ejecución de tests guarda `counted` (su salida tenía un resumen de tests que se contó) y `test_command` (su argv era exactamente `test_command`). En el ruleset 3, un gate de tests (`gate.tests`, `gate.baseline`) solo lo satisface evidencia producida por `rapid:check` con `counted` o `test_command` en true, al menos un test ejecutado (`passed + failed > 0` cuando hay conteo) y `tree`; si no, su aserción queda `unverified` y `rapid next` devuelve `verify` con el motivo (`RAPID1432`) y el comando correcto en lugar de pedir la aprobación. En un run de ruleset 3, una última evidencia de tests sin árbol legible cuenta como código no verificado (`RAPID1434`).
 - Each test run keeps its `command` in the evidence payload (optional), and every check keeps `tree`: the digest of the working tree when it ended (the files that differ from `HEAD`, tracked or not, with their hashes; `.rapid-os/` and tool artifacts left out; the map is in `.rapid-os/scratch/trees/`). `rapid next` before asking for approval, `rapid approve` and `rapid finish` compare the tree with the one the last `gate.tests` check saw: if it changed (a test deleted, a file edited), `rapid next` returns `verify` with the new check, `approve` and `finish` refuse with `RAPID1423`, and all of them name the changed files. Rejecting a gate does not need a new check. A check that predates the fingerprint, no `gate.tests` check, or a folder git cannot read are not judged.
 - `--json`: Output execution and recorded evidence details as JSON.
 - The executable of the argv is resolved with the `PATH` and `PATHEXT` before it runs (`pnpm`, `npm`, `yarn` are `.cmd` shims on Windows and `subprocess` does not find them without a shell); the argv compared with `test_command` and recorded in the evidence is the one that was typed.
@@ -415,7 +418,7 @@ With no active run, `rapid next` (and `rapid start feature` without a spec) retu
 Collect repository changes, evaluate machine gates, and close the run.
 
 ```bash
-rapid finish [--json] [--no-tick]
+rapid finish [--json] [--no-tick] [--accept-test-command <motivo>] [--reviewer <nombre>]
 ```
 
 The `file_change` evidence it records (capability `repository.write`) lists the files the run changed in the project: tracked changes since the run started plus new untracked files, without `.rapid-os/` and without tool artifacts (`__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `.tox`, `.nox`, `node_modules`, `.venv`, `venv`, `*.pyc`, `*.pyo`, `.coverage*`), even in a project with no `.gitignore`; with no real change no `file_change` is recorded and the verdict is not `pass`.
@@ -445,6 +448,8 @@ Options:
 - `--waive`: Waive a gate instead of approving it. Only gates that the contract marks as waivable (for example `gate.review`) can be waived, and `--reason` is mandatory. Confirm by typing `dispensar <gate-id>`.
 - `--reject`: Record a `review` evidence with outcome `changes_requested`. This leaves the gate in `FAIL` for the rest of that run: `rapid next` returns `blocked` with the command `rapid abort`, and a new run is needed. `--reason` is mandatory. Confirm by typing `rechazar <gate-id>` (typing `aprobar <gate-id>` does not reject).
 - `--reason <text>`: Reason for `--waive` or `--reject` (`RAPID1333` if missing). A rejection keeps it in the evidence (`payload.reason`) and `rapid next` hands it to the agent (see `action.rejection`).
+
+La aprobación queda como evidencia `review` con producer `user`, `via: rapid:approve` (un campo que `rapid evidence add` no puede poner) y `tree`, la huella del árbol de trabajo aprobado. En el ruleset 3 solo un review así satisface un gate humano, y `rapid finish` se niega a terminar un run cuyo código cambió después (`RAPID1433`); entonces `rapid approve <gate>` vuelve a aprobar el gate reconocido sobre el código actual. `rapid finish` también se niega cuando el último check de tests usó otro comando que la baseline (`RAPID1435`), salvo que la persona lo acepte en su terminal con `--accept-test-command <motivo>` y la frase `aceptar comando de tests` (las mismas comprobaciones que `rapid approve`, `RAPID1310`); la aceptación queda como evidencia con el motivo. `rapid run gate` no acepta gates humanos (`RAPID1431`).
 
 After the last pending human gate is approved, `rapid approve` prints `Siguiente: rapid finish (o /rapid-next en tu agente). Tras finish el run ya no se puede cancelar.` Approving, waiving or rejecting a gate that is already decided is `RAPID1332`, and the message says how to take it back: `rapid abort` before `rapid finish`; after `rapid finish`, `git revert` and a new run. The full procedure is in [Undo an approval](./guides/undo-approval.md).
 

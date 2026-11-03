@@ -121,13 +121,25 @@ A generated report contains the following fundamental blocks:
 
 Starting with Rapid OS v3.2, the evaluation engine supports multiple rule versions (`BehavioralRuleset`):
 
-| Feature | Ruleset v1 | Ruleset v2 (Default) |
+| Feature | Ruleset v1 | Ruleset v2 |
 | :--- | :--- | :--- |
 | **Default version** | Compatible with historical runs | Active rule by default in `rapid eval run` |
 | **Human Gates (`GateKind`)** | Accepted reviews issued by any producer (including `harness:*`) | **Rejects** `harness:*` producers for human review gates (`peer_review`, `security_review`, `migration_review`, `manual_approval`, `final_verification`). They stay `UNVERIFIED` if signed by a harness |
 | **Automatic / Machine Gates** | Accepts `harness:*` and tools | Accepts `harness:*` and tools |
 | **Expected Failures (`expectation: "fail"`)** | Evaluated as regular failures | Supported for defect reproduction verification (TDD/Bugfix); the evaluator produces `reproduction.<task-id>` assertions |
-| **CLI `--ruleset`** | `--ruleset 1` | `--ruleset 2` |
+| **CLI `--ruleset`** | `--ruleset 1` | `--ruleset 2` (default for runs created before ruleset 3) |
+
+### Ruleset v3 (default for new runs)
+
+Every run created by Rapid OS 3.2 records `ruleset_version: 3` in its contract and is evaluated with it; a run whose contract has no `ruleset_version` was created by an earlier release and keeps ruleset 2. Ruleset 3 changes three rules:
+
+| Rule | Ruleset v2 | Ruleset v3 |
+| :--- | :--- | :--- |
+| **Test gates** (`gate.tests`, `gate.baseline`) | A passing `test_result` (and, for the baseline, a `command_result`) with a log artifact, from any producer | Only evidence produced by `rapid:check`, with `counted: true` (the output had a test summary) or `test_command: true` (the argv was exactly `test_command`), at least one test executed when counted, and a recorded `tree`. Anything else is `UNVERIFIED` (`RAPID1432`), never `PASS`; failing evidence is still `FAIL` |
+| **Human gates** | An approved `review` from `user`, `ci:*` or `external:*` | Only an approved `review` written by `rapid approve` (producer `user`, `via: rapid:approve`); `rapid evidence add` cannot write one (`RAPID1430`) and `rapid run gate` cannot acknowledge a human gate (`RAPID1431`) |
+| **Fail closed** | A test evidence without `tree` is not judged | `rapid next`, `rapid approve` and `rapid finish` treat it as unverified code (`RAPID1434`); `rapid finish` also refuses code changed after the approval (`RAPID1433`) and a test command other than the baseline's unless the person accepts it (`RAPID1435`) |
+
+`rapid eval run --ruleset 3` evaluates any run with it.
 
 > [!IMPORTANT]
 > Reports saved with `--write` record their `ruleset_version`. When running `rapid eval show` or `rapid validate`, the semantic replay uses exactly the version declared in the report to guarantee immutable historical reproducibility.

@@ -148,14 +148,16 @@ Every verb that records evidence does so with an identifiable producer:
 | `rapid:start` | `rapid start` | `workspace` (`current` or `isolated`) |
 | `rapid:finish` | `rapid finish` | `file_change` with the files modified by the run, excluding `.rapid-os/` and tool artifacts (`__pycache__`, `*.pyc`, `.pytest_cache`...); with no real changes nothing is recorded |
 | `rapid:attach` | `rapid attach` | `artifact` with the attached file, linked to a task |
-| `user` | `rapid approve` | `review` with the result and the reviewer |
-| `harness:<id>` | an external harness, via `rapid evidence add` | any; see ruleset v2 |
+| `user` | `rapid approve`; `rapid finish --accept-test-command` | `review` with the result, the reviewer, `via` (`rapid:approve` or `rapid:finish`) and, for an approval, the approved `tree` |
+| `harness:<id>` | an external harness, via `rapid evidence add` | any; see ruleset v2 and v3 |
+
+`rapid evidence add` refuses the producers `rapid:*` and a `review` from `user` (`RAPID1430`): those are written only by the commands above. The ledger still reads them.
 
 ---
 
 ## 7. Ruleset v2
 
-The evaluator applies ruleset v2 by default (`rapid eval run --ruleset {1,2}`):
+Runs created before Rapid OS 3.2 are evaluated with ruleset v2 (`rapid eval run --ruleset {1,2,3}`); new runs record `ruleset_version: 3` in their contract and are evaluated with ruleset v3 (see [Behavioral evaluations](../cookbooks/behavioral-evaluations.md)): test gates only accept checks Rapid OS ran with a counted summary or `test_command` and a recorded tree, human gates only accept a `rapid approve` review, and what cannot be compared fails closed. Ruleset v2:
 
 - **`gate.architecture`:** in `feature`, `bugfix`, and `refactor`, if `architecture.json` exists, the contract adds this machine gate (`architecture_check`, post-execution, mandatory, non-waivable). `rapid next` proposes `rapid check --gate gate.architecture -- rapid arch check --new-only` and violations are `RAPID1420`. See [Architecture by stack](../concepts/architecture.md#the-gatearchitecture-gate).
 - **`expectation: "fail"`:** `rapid check --expect fail --task <id>` records an expected failure. It produces the `reproduction.<task>` assertion as `PASS` if the command really failed (and `FAIL` if not), and that evidence does **not** count as a task failure nor serve as `gate.baseline` or `gate.tests` evidence. It is only accepted linked to a task (`RAPID1320`).

@@ -121,13 +121,25 @@ Un reporte generado contiene los siguientes bloques fundamentales:
 
 A partir de Rapid OS v3.2, el motor de evaluación soporta múltiples versiones de reglas (`BehavioralRuleset`):
 
-| Característica | Ruleset v1 | Ruleset v2 (Por defecto) |
+| Característica | Ruleset v1 | Ruleset v2 |
 | :--- | :--- | :--- |
 | **Versión por defecto** | Compatible con runs históricos | Regla activa por defecto en `rapid eval run` |
 | **Compuertas Humanas (`GateKind`)** | Aceptaba revisiones emitidas por cualquier productor (incluyendo `harness:*`) | **Rechaza** productores `harness:*` para compuertas de revisión humana (`peer_review`, `security_review`, `migration_review`, `manual_approval`, `final_verification`). Quedan `UNVERIFIED` si las firma un harness |
 | **Compuertas Automáticas / Machine** | Acepta `harness:*` y herramientas | Acepta `harness:*` y herramientas |
 | **Fallas Esperadas (`expectation: "fail"`)** | Evaluadas como fallas regulares | Soportadas para verificación de reproducción de defectos (TDD/Bugfix); el evaluador produce aserciones `reproduction.<task-id>` |
-| **CLI `--ruleset`** | `--ruleset 1` | `--ruleset 2` |
+| **CLI `--ruleset`** | `--ruleset 1` | `--ruleset 2` (por defecto en los runs creados antes del ruleset 3) |
+
+### Ruleset v3 (por defecto en los runs nuevos)
+
+Todo run creado con Rapid OS 3.2 registra `ruleset_version: 3` en su contrato y se evalúa con él; un run cuyo contrato no tiene `ruleset_version` se creó con una versión anterior y conserva el ruleset 2. El ruleset 3 cambia tres reglas:
+
+| Regla | Ruleset v2 | Ruleset v3 |
+| :--- | :--- | :--- |
+| **Gates de tests** (`gate.tests`, `gate.baseline`) | Un `test_result` que pasa (y, para la baseline, un `command_result`) con un log como artefacto, de cualquier productor | Solo evidencia producida por `rapid:check`, con `counted: true` (la salida tenía un resumen de tests) o `test_command: true` (el argv era exactamente `test_command`), al menos un test ejecutado cuando hay conteo y un `tree` registrado. Cualquier otra cosa es `UNVERIFIED` (`RAPID1432`), nunca `PASS`; la evidencia que falla sigue siendo `FAIL` |
+| **Gates humanos** | Un `review` aprobado de `user`, `ci:*` o `external:*` | Solo un `review` aprobado escrito por `rapid approve` (producer `user`, `via: rapid:approve`); `rapid evidence add` no puede escribirlo (`RAPID1430`) y `rapid run gate` no puede reconocer un gate humano (`RAPID1431`) |
+| **Fallar cerrado** | Una evidencia de tests sin `tree` no se juzga | `rapid next`, `rapid approve` y `rapid finish` la tratan como código no verificado (`RAPID1434`); `rapid finish` además rechaza el código que cambió después de la aprobación (`RAPID1433`) y un comando de tests distinto al de la baseline salvo que la persona lo acepte (`RAPID1435`) |
+
+`rapid eval run --ruleset 3` evalúa cualquier run con él.
 
 > [!IMPORTANT]
 > Los reportes guardados con `--write` registran su `ruleset_version`. Al ejecutar `rapid eval show` o `rapid validate`, el replay semántico utiliza exactamente la versión declarada en el reporte para garantizar reproducibilidad histórica inmutable.

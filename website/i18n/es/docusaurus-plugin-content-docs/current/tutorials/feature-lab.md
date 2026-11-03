@@ -66,4 +66,4 @@ En la versión inicial (`starter`), `BookingSystem.create_booking(user_id, slot)
 
 ## Modo avanzado
 
-No lo necesitas para hacer el laboratorio. El mismo tipo de trabajo hecho a mano con los comandos v3 (spec, run, evidencia y evaluación), para CI o auditoría, está en el [recorrido manual (Bajo el capó)](first-governed-project.md) y en el [ciclo de gobernanza v3](../governance-loop.md).
+No lo necesitas para hacer el laboratorio. El mismo ciclo escrito a mano en una terminal, con los comandos de uso diario (`rapid start`, `next`, `check`, `task`, `approve`, `finish`), para CI o auditoría, está en el [recorrido manual (Bajo el capó)](first-governed-project.md); la plomería (`rapid evidence add`, `rapid run gate`) no satisface gates de tests ni humanos y en el [ciclo de gobernanza v3](../governance-loop.md).

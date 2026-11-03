@@ -148,14 +148,16 @@ Cada verbo que registra evidencia lo hace con un productor identificable:
 | `rapid:start` | `rapid start` | `workspace` (`current` o `isolated`) |
 | `rapid:finish` | `rapid finish` | `file_change` con los archivos modificados por el run, sin `.rapid-os/` ni artefactos de herramientas (`__pycache__`, `*.pyc`, `.pytest_cache`...); sin cambios reales no se registra |
 | `rapid:attach` | `rapid attach` | `artifact` con el archivo adjunto, ligado a una tarea |
-| `user` | `rapid approve` | `review` con el resultado y el revisor |
-| `harness:<id>` | un harness externo, vía `rapid evidence add` | cualquiera; ver el ruleset v2 |
+| `user` | `rapid approve`; `rapid finish --accept-test-command` | `review` con el resultado, el revisor, `via` (`rapid:approve` o `rapid:finish`) y, en una aprobación, el `tree` aprobado |
+| `harness:<id>` | un harness externo, vía `rapid evidence add` | cualquiera; ver los rulesets v2 y v3 |
+
+`rapid evidence add` rechaza los productores `rapid:*` y un `review` de `user` (`RAPID1430`): solo los escriben los comandos de arriba. El registro los sigue leyendo.
 
 ---
 
 ## 7. Ruleset v2
 
-El evaluador aplica por defecto el ruleset v2 (`rapid eval run --ruleset {1,2}`):
+Los runs creados antes de Rapid OS 3.2 se evalúan con el ruleset v2 (`rapid eval run --ruleset {1,2,3}`); los runs nuevos registran `ruleset_version: 3` en su contrato y se evalúan con el ruleset v3 (ver [Evaluaciones de comportamiento](../cookbooks/behavioral-evaluations.md)): los gates de tests solo aceptan checks que ejecutó Rapid OS con un resumen contado o `test_command` y un árbol registrado, los gates humanos solo aceptan un review de `rapid approve`, y lo que no se puede comparar falla cerrado. Ruleset v2:
 
 - **`gate.architecture`:** en `feature`, `bugfix` y `refactor`, si existe `architecture.json`, el contrato añade este gate de máquina (`architecture_check`, posterior a la ejecución, obligatorio, no dispensable). `rapid next` propone `rapid check --gate gate.architecture -- rapid arch check` y las violaciones son `RAPID1420`. Ver [Arquitectura por stack](../concepts/architecture.md#el-gate-gatearchitecture).
 - **`expectation: "fail"`:** `rapid check --expect fail --task <id>` registra un fallo esperado. Genera la aserción `reproduction.<tarea>` en `PASS` si el comando falló de verdad (y en `FAIL` si no), y esa evidencia **no** cuenta como fallo de la tarea ni sirve de evidencia de `gate.baseline` o `gate.tests`. Solo se admite ligada a una tarea (`RAPID1320`).
