@@ -61,6 +61,9 @@ class CheckResult:
     tests_expected: bool = False
     # ...and its output had a test summary that could be counted.
     counted: bool = False
+    # `--kind test` was asked for a command whose output had no test summary and that is not `test_command`:
+    # it was recorded as a command_result, which no test gate accepts.
+    not_a_test_run: bool = False
 
 
 def resolve_executable(argv: Sequence[str]) -> list[str]:
@@ -216,6 +219,7 @@ def run_check(
         bool(task_ids) and str(getattr(contract, "mode", "") or "") not in MODES_WITHOUT_TESTS
     )
     explicit_command = kind in ("command", "command_result", EvidenceKind.COMMAND_RESULT.value)
+    is_test_command = test_command is not None and list(clean_argv) == list(test_command)
 
     # Windows: `subprocess` with shell=False does not find `pnpm`, `npm` or `yarn` (they are `.cmd` shims). The
     # executable is resolved with the PATH and PATHEXT; the argv that is compared with `test_command` and recorded
@@ -227,7 +231,7 @@ def run_check(
         effective_kind = EvidenceKind.TEST_RESULT.value
     elif kind in ("command", "command_result", EvidenceKind.COMMAND_RESULT.value):
         effective_kind = EvidenceKind.COMMAND_RESULT.value
-    elif test_command is not None and list(clean_argv) == list(test_command):
+    elif is_test_command:
         effective_kind = EvidenceKind.TEST_RESULT.value
     else:
         effective_kind = EvidenceKind.COMMAND_RESULT.value
@@ -267,8 +271,14 @@ def run_check(
     counts = {"passed": 0, "failed": 0, "skipped": 0}
     summary = parse_test_summary(output)
     counted = False
+    not_a_test_run = False
     if effective_kind == EvidenceKind.COMMAND_RESULT.value and tests_expected and not explicit_command and summary:
         effective_kind = EvidenceKind.TEST_RESULT.value  # same run, recognised by its output
+    if effective_kind == EvidenceKind.TEST_RESULT.value and summary is None and not is_test_command:
+        # `--kind test` does not turn `python -c "print('hello')"` into a test run: with no summary to count,
+        # only the project's own test command is trusted to be one.
+        effective_kind = EvidenceKind.COMMAND_RESULT.value
+        not_a_test_run = True
     if effective_kind == EvidenceKind.TEST_RESULT.value:
         counts = summary if summary is not None else parse_test_output(output, exit_code)
         counted = summary is not None
@@ -293,6 +303,7 @@ def run_check(
             failed=counts["failed"],
             skipped=counts["skipped"],
             evidence=None,
+            not_a_test_run=not_a_test_run,
         )
 
     # For standard checks (expect == "pass"), non-zero exit is failure and no evidence is recorded
@@ -308,6 +319,7 @@ def run_check(
             failed=counts["failed"],
             skipped=counts["skipped"],
             evidence=None,
+            not_a_test_run=not_a_test_run,
         )
 
     # Success: record evidence in EvidenceRegistry
@@ -341,6 +353,9 @@ def run_check(
             "passed": counts["passed"],
             "failed": counts["failed"],
             "skipped": counts["skipped"],
+            # What a test gate needs (ruleset 3): a summary that was counted, or the project's test command.
+            "counted": counted,
+            "test_command": is_test_command,
         }
         if expect == "fail":
             authoring_payload["expectation"] = "fail"
@@ -399,4 +414,5 @@ def run_check(
         evidence=evidence,
         tests_expected=tests_expected,
         counted=counted,
+        not_a_test_run=not_a_test_run,
     )

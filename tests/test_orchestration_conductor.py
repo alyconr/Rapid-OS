@@ -47,7 +47,9 @@ class OrchestrationConductorTests(unittest.TestCase):
         self.spec_registry = SpecRegistry(self.root, self.rapid_dir)
         self.run_registry = RunRegistry(self.root, self.rapid_dir)
         self.evidence_registry = EvidenceRegistry(self.root, self.rapid_dir)
-        self.evaluator = BehavioralEvaluator()
+        # These tests feed hand-written evidence to check the order of actions, not where evidence comes from:
+        # ruleset 2 rules. The ruleset 3 provenance rules are covered in test_evidence_integrity.
+        self.evaluator = BehavioralEvaluator(ruleset_version=2)
         self.playbook = load_playbook("feature")
 
         # Create baseline spec

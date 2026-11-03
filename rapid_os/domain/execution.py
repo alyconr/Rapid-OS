@@ -237,7 +237,10 @@ ALLOWED_ISOLATION_WAIVERS = frozenset({ISOLATION_WAIVER_NO_COMMITS})
 ISOLATION_GATE_ID = "gate.workspace-isolation"
 
 # Present in the dict only when used (invariant: existing contracts do not change).
-OPTIONAL_EXECUTION_CONTRACT_KEYS = frozenset({"baseline_waived", "isolation_waived"})
+OPTIONAL_EXECUTION_CONTRACT_KEYS = frozenset({"baseline_waived", "isolation_waived", "ruleset_version"})
+# The behavioral ruleset a run is evaluated with. Runs created before it was recorded have none and keep
+# ruleset 2; every new run records the current one (3 or later), so its rules cannot change under it.
+FIRST_RECORDED_RULESET_VERSION = 3
 
 
 ALLOWED_POLICY_SOURCES = frozenset(
@@ -280,6 +283,7 @@ class ExecutionContract:
     contract_digest: str = ""
     baseline_waived: str | None = None
     isolation_waived: str | None = None
+    ruleset_version: int | None = None
 
     def __post_init__(self):
         if (
@@ -471,6 +475,16 @@ class ExecutionContract:
                     "ExecutionContract.isolation_waived is set but 'gate.workspace-isolation' is still required."
                 )
 
+        if self.ruleset_version is not None and (
+            isinstance(self.ruleset_version, bool)
+            or not isinstance(self.ruleset_version, int)
+            or self.ruleset_version < FIRST_RECORDED_RULESET_VERSION
+        ):
+            raise InvalidExecutionContractError(
+                f"Invalid ExecutionContract.ruleset_version '{self.ruleset_version}': "
+                f"expected an integer >= {FIRST_RECORDED_RULESET_VERSION}."
+            )
+
         computed_digest = self._compute_contract_digest()
         if self.contract_digest:
             validated_digest = _validate_sha256(
@@ -508,6 +522,8 @@ class ExecutionContract:
             payload["baseline_waived"] = self.baseline_waived
         if self.isolation_waived is not None:
             payload["isolation_waived"] = self.isolation_waived
+        if self.ruleset_version is not None:
+            payload["ruleset_version"] = self.ruleset_version
         return payload
 
     def _compute_contract_digest(self) -> str:
@@ -539,6 +555,8 @@ class ExecutionContract:
             payload["baseline_waived"] = self.baseline_waived
         if self.isolation_waived is not None:
             payload["isolation_waived"] = self.isolation_waived
+        if self.ruleset_version is not None:
+            payload["ruleset_version"] = self.ruleset_version
         return payload
 
     def to_json(self, indent: int = 2) -> str:
@@ -607,6 +625,7 @@ class ExecutionContract:
             contract_digest=raw_contract_digest,
             baseline_waived=payload.get("baseline_waived"),  # type: ignore[arg-type]
             isolation_waived=payload.get("isolation_waived"),  # type: ignore[arg-type]
+            ruleset_version=payload.get("ruleset_version"),  # type: ignore[arg-type]
         )
 
     @classmethod
@@ -641,6 +660,7 @@ def build_execution_contract(
     harness: str = "cursor",
     baseline_waived: str | None = None,
     isolation_waived: str | None = None,
+    ruleset_version: int | None = None,
 ) -> ExecutionContract:
     """Deterministically build an `ExecutionContract` from a `SpecRevision`, `CompiledContext`, `ProjectModel`, and `ExecutionPolicy`."""
     if not isinstance(spec, SpecRevision):
@@ -700,6 +720,7 @@ def build_execution_contract(
         tasks=derive_task_contracts(spec),
         baseline_waived=baseline_waived,
         isolation_waived=isolation_waived,
+        ruleset_version=ruleset_version,
     )
 
 

@@ -188,19 +188,22 @@ class H28RefactorProtectionTests(Project):
         result = self.ok("check", "--gate", "gate.baseline", "--", sys.executable, "-c", "print('ok')")
         self.assertIn("No se pudo leer un conteo de tests", result.stderr)
         self.assertEqual(next(e for e in self.evidence() if "gate.baseline" in e["gate_ids"])["kind"], "command_result")
+        # Ruleset 3: a command without a test count does not satisfy gate.baseline, so the run is not activated
+        # and `rapid next` asks for the baseline again, saying why (before, the run started and was blocked).
         self.ok("start", "--resume")
         action = self.next()["action"]
-        self.assertEqual(action["kind"], "blocked")
-        self.assertIn("no baseline with a test count", action["instructions"])
+        self.assertEqual(action["kind"], "run_baseline")
+        self.assertIn("RAPID1432", action["instructions"])
         self.assertEqual(action["command"][:5], ["rapid", "check", "--gate", "gate.baseline", "--"])
 
     def test_repeating_the_baseline_with_a_countable_command_unblocks(self):
         self.start("refactor", REFACTOR_SPEC)
         self.ok("check", "--gate", "gate.baseline", "--", sys.executable, "-c", "print('ok')")
         self.ok("start", "--resume")
-        self.assertEqual(self.next()["action"]["kind"], "blocked")
+        self.assertEqual(self.next()["action"]["kind"], "run_baseline")
         self.ok("check", "--gate", "gate.baseline", "--", *UNITTEST)
-        self.assertNotEqual(self.next()["action"]["kind"], "blocked")
+        self.ok("start", "--resume")
+        self.assertNotIn(self.next()["action"]["kind"], ("blocked", "run_baseline"))
 
     def test_an_explicit_command_kind_is_respected(self):
         self.start("refactor", REFACTOR_SPEC)

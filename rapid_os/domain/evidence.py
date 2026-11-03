@@ -89,6 +89,12 @@ class EvidenceOverwriteError(EvidenceError):
     default_code = "RAPID1211"
 
 
+class ReservedEvidenceInputError(EvidenceError):
+    """`rapid evidence add` with a producer or review fields only Rapid OS writes."""
+
+    default_code = "RAPID1430"
+
+
 def sha256_bytes(data: bytes) -> str:
     if not isinstance(data, (bytes, bytearray)):
         raise TypeError("sha256_bytes requires bytes.")
@@ -228,7 +234,9 @@ def validate_relative_posix_path(
 
 
 def validate_evidence_producer(raw_producer: object) -> str:
-    """Validate declared evidence producer (`harness:<id>`, `ci:...`, `user`, `external:...`, `rapid:check`, `rapid:start`, `rapid:finish`, `rapid:attach`)."""
+    """Validate declared evidence producer (`harness:<id>`, `ci:...`, `user`, `external:...`, `rapid:check`, `rapid:start`, `rapid:finish`, `rapid:attach`).
+
+    Reading the ledger accepts all of them; `rapid evidence add` refuses the reserved ones (`reserved_evidence_input`)."""
     producer = _validate_portable_text(
         raw_producer,
         "RunEvidence.producer",
@@ -302,10 +310,51 @@ PAYLOAD_OPTIONAL_KEYS: Mapping[EvidenceKind, frozenset[str]] = {
     # `tree`: digest of the working tree when the check ended (what a later `approve`/`finish` compares);
     # `command`: the argv of a test run, so a baseline and a later check can be compared.
     EvidenceKind.COMMAND_RESULT: frozenset({"expectation", "tree"}),
-    EvidenceKind.TEST_RESULT: frozenset({"expectation", "command", "tree"}),
-    # Why a person rejected a gate: `rapid next` hands it to the agent that opens the new run.
-    EvidenceKind.REVIEW: frozenset({"reason"}),
+    # `counted`: the output had a test summary; `test_command`: the argv was the project's test command.
+    EvidenceKind.TEST_RESULT: frozenset({"expectation", "command", "tree", "counted", "test_command"}),
+    # `reason`: why a person rejected a gate (`rapid next` hands it to the agent that opens the new run), or
+    # why they accepted another test command. `via`: the Rapid OS command that wrote it; `tree`: the working
+    # tree that was approved; `accepts`: what `rapid finish` was told to accept.
+    EvidenceKind.REVIEW: frozenset({"reason", "via", "tree", "accepts"}),
 }
+
+# Producers only Rapid OS writes (check, start, finish, attach, approve). The ledger accepts them on read;
+# `rapid evidence add` refuses them (ReservedEvidenceInputError), with the review fields only `rapid approve` and
+# `rapid finish` set.
+RESERVED_PRODUCER_PREFIX = "rapid:"
+RESERVED_REVIEW_PRODUCER = "user"
+RESERVED_REVIEW_PAYLOAD_KEYS = frozenset({"via", "tree", "accepts"})
+REVIEW_VIAS = frozenset({"rapid:approve", "rapid:finish"})
+REVIEW_ACCEPTS = frozenset({"test_command_mismatch"})
+
+
+def reserved_evidence_input(raw: Mapping[str, object]) -> str | None:
+    """Why `rapid evidence add` must refuse this authoring input, or None.
+
+    Evidence that says Rapid OS observed something (a check, a start, a finish, an attachment) or that a person
+    approved a gate in their terminal is written only by those commands."""
+    producer = str(raw.get("producer", "")).strip()
+    kind = str(raw.get("kind", "")).strip().lower()
+    if producer.startswith(RESERVED_PRODUCER_PREFIX):
+        return (
+            f"El productor '{producer}' es de Rapid OS: esa evidencia la escriben `rapid check`, "
+            "`rapid start`, `rapid finish` y `rapid attach`, no `rapid evidence add`. Ejecuta el comando "
+            "(por ejemplo `rapid check -- <test_command>`) en lugar de declarar su resultado."
+        )
+    if kind == EvidenceKind.REVIEW.value and producer == RESERVED_REVIEW_PRODUCER:
+        return (
+            "Un review con producer 'user' solo lo escribe `rapid approve <gate>`, en la terminal de "
+            "la persona que aprueba; `rapid evidence add` no puede registrarlo."
+        )
+    payload = raw.get("payload")
+    if kind == EvidenceKind.REVIEW.value and isinstance(payload, Mapping):
+        reserved = sorted(RESERVED_REVIEW_PAYLOAD_KEYS & set(payload))
+        if reserved:
+            return (
+                f"Los campos {reserved} de un review los escriben `rapid approve` y `rapid finish`; "
+                "`rapid evidence add` no puede ponerlos."
+            )
+    return None
 
 
 def _validate_int_field(
@@ -422,6 +471,11 @@ def validate_evidence_payload(
             )
         if "tree" in actual_keys:
             test_payload["tree"] = _validate_tree_digest(payload["tree"])
+        for flag in ("counted", "test_command"):
+            if flag in actual_keys:
+                if not isinstance(payload[flag], bool):
+                    raise InvalidEvidencePayloadError(f"Payload field 'test_result.{flag}' must be a boolean.")
+                test_payload[flag] = payload[flag]
         return test_payload
 
     if coerced_kind == EvidenceKind.FILE_CHANGE:
@@ -509,6 +563,16 @@ def validate_evidence_payload(
             if not isinstance(raw_reason, str) or not raw_reason.strip() or "\x00" in raw_reason:
                 raise InvalidEvidencePayloadError("review.reason must be a non-empty string without null bytes.")
             review["reason"] = raw_reason.strip()
+        if "via" in payload:
+            if payload["via"] not in REVIEW_VIAS:
+                raise InvalidEvidencePayloadError(f"review.via must be one of {sorted(REVIEW_VIAS)}.")
+            review["via"] = payload["via"]
+        if "accepts" in payload:
+            if payload["accepts"] not in REVIEW_ACCEPTS:
+                raise InvalidEvidencePayloadError(f"review.accepts must be one of {sorted(REVIEW_ACCEPTS)}.")
+            review["accepts"] = payload["accepts"]
+        if "tree" in payload:
+            review["tree"] = _validate_tree_digest(payload["tree"])
         return review
 
     if coerced_kind == EvidenceKind.TOOL_INVOCATION:

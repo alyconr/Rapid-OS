@@ -2,7 +2,9 @@
 
 Every `rapid check` records one when it ends. `rapid next` (before asking for approval), `rapid approve`
 and `rapid finish` compare the tree with the one the last `gate.tests` check saw: if a test was deleted or a
-file edited in between, nothing verified that code, so they ask for a new check and name the files.
+file edited in between, nothing verified that code, so they ask for a new check and name the files. In a run
+of ruleset 3 a test evidence without a readable tree counts as unverified too. `rapid approve` records the
+tree it approved, and `rapid finish` refuses to end a run whose code changed after that approval.
 
 The fingerprint is the set of files that differ from `HEAD` (tracked changes, deletions and untracked files,
 without `.rapid-os/` and without tool artifacts) with the SHA-256 of each one. The map is kept in
@@ -84,25 +86,86 @@ def changed_files(before: Mapping[str, str], after: Mapping[str, str]) -> list[s
     return sorted(path for path in set(before) | set(after) if before.get(path) != after.get(path))
 
 
+def _shown(files: Sequence[str]) -> str:
+    return ", ".join(files[:8]) + (f" (+{len(files) - 8} más)" if len(files) > 8 else "")
+
+
 @dataclass(frozen=True)
 class StaleVerification:
-    """The tree is not the one `gate.tests` was last checked on."""
+    """The tree is not the one `gate.tests` was last checked on, or which tree that was cannot be told."""
 
     files: tuple[str, ...]
     gate_id: str
     command: tuple[str, ...] | None
+    # Ruleset 3: the last test evidence has no readable tree, so nothing says what it verified.
+    unverifiable: bool = False
 
     def message(self, code: str = "RAPID1423") -> str:
-        shown = ", ".join(self.files[:8]) + (f" (+{len(self.files) - 8} más)" if len(self.files) > 8 else "")
         how = (
             f"`rapid check --gate {self.gate_id} -- {' '.join(self.command)}`"
             if self.command
             else f"`rapid check --gate {self.gate_id} -- <comando de test>`"
         )
+        if self.unverifiable:
+            return (
+                f"RAPID1434 La última evidencia de {self.gate_id} no dice qué árbol de trabajo verificó (no guardó "
+                f"`tree` o su snapshot no se puede leer): el código actual cuenta como no verificado. "
+                f"Vuelve a ejecutar {how} y repite el comando."
+            )
         return (
-            f"{code} El código cambió desde el último check de {self.gate_id}: {shown}. Nada verificó esos cambios. "
-            f"Vuelve a ejecutar {how} y repite el comando."
+            f"{code} El código cambió desde el último check de {self.gate_id}: {_shown(self.files)}. "
+            f"Nada verificó esos cambios. Vuelve a ejecutar {how} y repite el comando."
         )
+
+
+@dataclass(frozen=True)
+class StaleApproval:
+    """The tree changed after a person approved `gate_id` with `rapid approve` (ruleset 3)."""
+
+    files: tuple[str, ...]
+    gate_id: str
+    unverifiable: bool = False
+
+    def message(self) -> str:
+        what = (
+            "la aprobación no guardó el árbol que se aprobó (o su snapshot no se puede leer)"
+            if self.unverifiable
+            else f"el código cambió desde que se aprobó: {_shown(self.files)}"
+        )
+        return (
+            f"RAPID1433 {what[0].upper()}{what[1:]}. Nadie aprobó el código que terminaría el run. Ejecuta de nuevo el "
+            f"check de tests (`rapid next` da el comando) y pide a la persona otra aprobación con "
+            f"`rapid approve {self.gate_id}` en su terminal; después repite `rapid finish`."
+        )
+
+
+def stale_approval(
+    rapid_dir: Path | str,
+    cwd: Path | str,
+    run_id: str,
+    human_gate_ids: Sequence[str],
+    evidence: Sequence,
+) -> StaleApproval | None:
+    """The first human gate whose last `rapid approve` saw another tree than the current one (None when none)."""
+    now = None
+    for gate_id in human_gate_ids:
+        approvals = [
+            item for item in evidence
+            if item.kind.value == "review" and gate_id in item.gate_ids
+            and item.payload.get("via") == "rapid:approve" and item.payload.get("outcome") == "approved"
+        ]
+        if not approvals:
+            continue
+        last = approvals[-1]
+        before = load_snapshot(rapid_dir, run_id, str(last.payload["tree"])) if last.payload.get("tree") else None
+        if now is None:
+            now = working_tree_snapshot(cwd)
+        if before is None or now is None:
+            return StaleApproval((), gate_id, unverifiable=True)
+        changed = changed_files(before, now)
+        if changed:
+            return StaleApproval(tuple(changed), gate_id)
+    return None
 
 
 def stale_verification(
@@ -112,22 +175,28 @@ def stale_verification(
     test_gate_ids: Sequence[str],
     evidence: Sequence,
     test_command: Sequence[str] | None = None,
+    *,
+    strict: bool = False,
 ) -> StaleVerification | None:
-    """None when the tree is the one the last `gate.tests` check saw, or when that cannot be told
-    (no such check, a check that predates the fingerprint, or git cannot answer)."""
+    """None when the tree is the one the last `gate.tests` check saw.
+
+    Without `strict` (runs before ruleset 3) also None when that cannot be told: no such check, a check that
+    predates the fingerprint, or git cannot answer. With `strict` the last test evidence must carry a tree that
+    can be read and compared; otherwise the result is `unverifiable` (fail closed)."""
     last = None
     for item in evidence:
         if item.kind.value in ("test_result", "command_result") and set(item.gate_ids) & set(test_gate_ids):
-            if item.payload.get("expectation") != "fail" and item.payload.get("tree"):
+            if item.payload.get("expectation") != "fail" and (strict or item.payload.get("tree")):
                 last = item
     if last is None:
         return None
-    before = load_snapshot(rapid_dir, run_id, str(last.payload["tree"]))
+    gate_id = next(g for g in last.gate_ids if g in test_gate_ids)
+    command = tuple(test_command) if test_command else None
+    before = load_snapshot(rapid_dir, run_id, str(last.payload["tree"])) if last.payload.get("tree") else None
     now = working_tree_snapshot(cwd)
     if before is None or now is None:
-        return None
+        return StaleVerification((), gate_id, command, unverifiable=True) if strict else None
     changed = changed_files(before, now)
     if not changed:
         return None
-    gate_id = next(g for g in last.gate_ids if g in test_gate_ids)
-    return StaleVerification(tuple(changed), gate_id, tuple(test_command) if test_command else None)
+    return StaleVerification(tuple(changed), gate_id, command)

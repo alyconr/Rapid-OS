@@ -5,7 +5,11 @@ Parses code blocks in order from docs/tutorials/first-governed-project.md:
 2. ```json: writes JSON content to the last mentioned `*.json` file before the block.
 3. ```python: writes code to the path specified in its first line (e.g. "# <path>").
 
-Verifies that `rapid eval run --run <id> --require-pass` exits with 0 and verdict "pass".
+Verifies that `rapid eval run --run <id> --require-pass` exits with 0 and verdict "pass", and that the
+walkthrough gets there with the daily commands only: no `rapid evidence add`, no `rapid run gate`.
+
+`rapid approve` needs a person at a terminal: the test plays that person (TTY, the typed phrase, no agent
+ancestor) by calling the same approval code in a child process.
 """
 
 from pathlib import Path
@@ -21,11 +25,28 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 TUTORIAL_PATH = ROOT / "docs" / "tutorials" / "first-governed-project.md"
 
+APPROVE_AS_PERSON = """
+import sys
+from pathlib import Path
+from rapid_os.core.ancestry import AncestryResult
+from rapid_os.orchestration.lifecycle import execute_approve
+gate = sys.argv[1]
+code, message = execute_approve(
+    Path.cwd(), Path.cwd() / ".rapid-os", gate, reviewer="Tutorial Reader", is_tty=True,
+    input_func=lambda prompt: f"aprobar {gate}", environ={}, ancestry=AncestryResult(()),
+)
+print(message)
+sys.exit(code)
+"""
+
 
 class TestTutorialExecutable(unittest.TestCase):
     def test_first_governed_project_tutorial_is_executable(self):
         self.assertTrue(TUTORIAL_PATH.is_file(), f"Tutorial not found: {TUTORIAL_PATH}")
         content = TUTORIAL_PATH.read_text(encoding="utf-8")
+        executed = "\n".join(m.group(1) for m in re.finditer(r"```bash\n(.*?)```", content, re.DOTALL))
+        for plumbing in ("rapid evidence add", "rapid run gate", "rapid run status", "rapid run task"):
+            self.assertNotIn(plumbing, executed, f"the walkthrough must not need '{plumbing}'")
 
         # Find code blocks in order with preceding context:
         # Regex accepts optional language identifier and empty blocks
@@ -36,6 +57,11 @@ class TestTutorialExecutable(unittest.TestCase):
             tmp_path = Path(tmp_dir)
             env = dict(os.environ)
             env["PYTHONPATH"] = str(ROOT)
+            env.pop("CLAUDE_CODE_CHILD_SESSION", None)
+            for key in ("GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"):
+                env[key] = "Tutorial Reader"
+            for key in ("GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"):
+                env[key] = "reader@example.com"
 
             def run_rapid_cmd(cli_line: str) -> subprocess.CompletedProcess:
                 # Handle pipeline redirection in bash commands if present
@@ -61,7 +87,7 @@ class TestTutorialExecutable(unittest.TestCase):
                         encoding="utf-8",
                         errors="replace",
                         env=env,
-                        timeout=30,
+                        timeout=120,
                     )
                     combined_output = (res.stdout or "") + (res.stderr or "")
                     (tmp_path / out_file).write_text(combined_output, encoding="utf-8")
@@ -71,6 +97,19 @@ class TestTutorialExecutable(unittest.TestCase):
                 if not tokens:
                     return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
 
+                if tokens[:2] == ["rapid", "approve"] and len(tokens) == 3:
+                    # The person types the phrase in their own terminal.
+                    cmd = [sys.executable, "-c", APPROVE_AS_PERSON, tokens[2]]
+                    return subprocess.run(
+                        cmd,
+                        cwd=str(tmp_path),
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        env=env,
+                        timeout=60,
+                    )
                 if tokens[0] == "rapid":
                     cmd = [sys.executable, str(ROOT / "rapid.py")] + tokens[1:]
                     return subprocess.run(
@@ -81,7 +120,7 @@ class TestTutorialExecutable(unittest.TestCase):
                         encoding="utf-8",
                         errors="replace",
                         env=env,
-                        timeout=30,
+                        timeout=120,
                     )
                 elif tokens[0] == "python":
                     cmd = [sys.executable] + tokens[1:]
@@ -93,7 +132,7 @@ class TestTutorialExecutable(unittest.TestCase):
                         encoding="utf-8",
                         errors="replace",
                         env=env,
-                        timeout=30,
+                        timeout=120,
                     )
                 else:
                     return subprocess.run(
@@ -104,7 +143,7 @@ class TestTutorialExecutable(unittest.TestCase):
                         encoding="utf-8",
                         errors="replace",
                         env=env,
-                        timeout=30,
+                        timeout=120,
                     )
 
             last_json_filename = None

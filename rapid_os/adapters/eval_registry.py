@@ -11,6 +11,7 @@ from rapid_os.core.filesystem import (
 from rapid_os.domain.capabilities import CapabilityRequirement
 from rapid_os.domain.evals import (
     BEHAVIORAL_RULESET_VERSION,
+    contract_ruleset_version,
     DEFAULT_BEHAVIORAL_RULESET_DIGEST,
     BehavioralEvaluator,
     EvaluationBindingMismatchError,
@@ -576,7 +577,7 @@ class EvalRegistry:
         *,
         extra_capability_requirements: Iterable[CapabilityRequirement | str] = (),
         write: bool = False,
-        ruleset_version: int = BEHAVIORAL_RULESET_VERSION,
+        ruleset_version: int | None = None,
     ) -> EvaluationReport:
         """Evaluate `run_id` against its current `RunState` and verified `RunEvidence` set.
 
@@ -590,6 +591,9 @@ class EvalRegistry:
             revision=record.current_state_revision,
         )
         evidence_records = self.evidence_registry.verify(validated_run_id)
+        if ruleset_version is None:
+            # The ruleset the run was created with: an older run keeps the rules it started under.
+            ruleset_version = contract_ruleset_version(contract)
 
         evaluator = (
             self.evaluator

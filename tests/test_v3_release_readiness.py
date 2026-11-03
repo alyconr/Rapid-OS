@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 import rapid
 import rapid_os
+from rapid_os.adapters.run_registry import RunRegistry
 from rapid_os.cli import main as cli_main
 from rapid_os.cli.main import create_parser
 from rapid_os.core.paths import resolve_paths
@@ -314,13 +315,21 @@ class V3ReleaseReadinessTests(unittest.TestCase):
                 self.assertEqual(code, 0, err)
                 self.assertEqual(json.loads(ev_out)["id"], f"E{idx:03d}")
 
-            # 8. Acknowledge post-execution gates and finish the run
-            for gate_id in ("gate.tests", "gate.final-verification"):
-                code, _, err = _run_cli(
-                    ["run", "gate", run_id, gate_id, "acknowledged", "--reason", f"{gate_id} verified", "--json"],
-                    cwd=root,
-                )
-                self.assertEqual(code, 0, err)
+            # 8. Acknowledge post-execution gates and finish the run. `rapid run gate` moves the machine gate;
+            # the human gate is only moved by `rapid approve` (RAPID1431), so the registry does it here.
+            code, _, err = _run_cli(
+                ["run", "gate", run_id, "gate.tests", "acknowledged", "--reason", "gate.tests verified", "--json"],
+                cwd=root,
+            )
+            self.assertEqual(code, 0, err)
+            code, _, err = _run_cli(
+                ["run", "gate", run_id, "gate.final-verification", "acknowledged", "--json"], cwd=root
+            )
+            self.assertEqual(code, 1)
+            self.assertIn("RAPID1431", err)
+            RunRegistry(root, root / ".rapid-os").transition_gate(
+                run_id, "gate.final-verification", "acknowledged", reason="gate.final-verification verified"
+            )
 
             code, _, err = _run_cli(
                 ["run", "status", run_id, "finished", "--reason", "All tasks and gates complete", "--json"],
@@ -335,8 +344,13 @@ class V3ReleaseReadinessTests(unittest.TestCase):
             self.assertTrue(verify_doc["ok"])
             self.assertEqual(verify_doc["record_count"], 5)
 
+            # Ruleset 3 (this run's): hand-written test results and reviews never pass.
+            code, v3_out, err = _run_cli(["eval", "run", "--run", run_id, "--json"], cwd=root)
+            self.assertEqual(code, 0, err)
+            self.assertEqual(json.loads(v3_out)["verdict"], "unverified")
+            # Under the ruleset 2 rules the same evidence set is a passing, reproducible report.
             code, eval_out, err = _run_cli(
-                ["eval", "run", "--run", run_id, "--write", "--require-pass", "--json"],
+                ["eval", "run", "--run", run_id, "--ruleset", "2", "--write", "--require-pass", "--json"],
                 cwd=root,
             )
             self.assertEqual(code, 0, err)

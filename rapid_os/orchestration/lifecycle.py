@@ -26,11 +26,14 @@ from rapid_os.core.config import load_project_config
 from rapid_os.core.text import InputEncodingError, decode_utf8_input, read_stdin_text
 from rapid_os.core.harness_detect import detect_harness
 from rapid_os.domain.evals import (
+    APPROVE_VIA,
+    FINISH_VIA,
     BehavioralEvaluator,
+    contract_ruleset_version,
     EvaluationVerdict,
     REVIEW_GATE_KIND_TO_REVIEW_TYPE,
 )
-from rapid_os.domain.evidence import EvidenceKind
+from rapid_os.domain.evidence import EvidenceKind, parse_evidence_ordinal
 from rapid_os.domain.execution import (
     InvalidGateTransitionError,
     GateDisposition,
@@ -203,20 +206,79 @@ def _author_spec_action(
     return next_action_without_run(mode, playbook, seed)
 
 
+def run_evaluator(contract) -> BehavioralEvaluator:
+    """The evaluator of the ruleset the run was created with (ruleset 2 for runs that predate ruleset 3)."""
+    return BehavioralEvaluator(ruleset_version=contract_ruleset_version(contract))
+
+
 def _test_gate_ids(contract) -> list[str]:
     return [g.id for g in contract.gates if g.kind == GateKind.IMPLEMENTATION_TESTS]
 
 
+def _strict(contract) -> bool:
+    """Ruleset 3 and later fail closed: what cannot be compared counts as unverified."""
+    return contract_ruleset_version(contract) >= 3
+
+
 def _stale_verification(project_root, project_rapid_dir, sess, contract, evidence, test_cmd):
-    """Code that changed after the last `gate.tests` check (None when nothing did, or it cannot be told)."""
+    """Code that changed after the last `gate.tests` check (None when nothing did; before ruleset 3 also when
+    it cannot be told)."""
     gate_ids = _test_gate_ids(contract)
     if not gate_ids:
         return None
     cwd = Path(sess.workspace_path) if sess.workspace_path else Path(project_root)
     command = tuple(test_cmd) if isinstance(test_cmd, (list, tuple)) else None
     return tree_fingerprint.stale_verification(
-        project_rapid_dir, cwd, sess.active_run_id, gate_ids, evidence, command
+        project_rapid_dir, cwd, sess.active_run_id, gate_ids, evidence, command, strict=_strict(contract)
     )
+
+
+def _stale_approval(project_root, project_rapid_dir, sess, contract, evidence, gate_ids=None):
+    """A human gate whose approval saw another tree than the current one (ruleset 3; None before)."""
+    if not _strict(contract):
+        return None
+    human = [g.id for g in contract.gates if g.kind in HUMAN_GATE_KINDS]
+    if gate_ids is not None:
+        human = [g for g in human if g in gate_ids]
+    cwd = Path(sess.workspace_path) if sess.workspace_path else Path(project_root)
+    return tree_fingerprint.stale_approval(project_rapid_dir, cwd, sess.active_run_id, human, evidence)
+
+
+def _accepted_command_change(evidence) -> bool:
+    """A person accepted, after the latest test run, that it used another command than the baseline."""
+    last_test = max(
+        (parse_evidence_ordinal(e.id) for e in evidence if e.kind == EvidenceKind.TEST_RESULT), default=0
+    )
+    return any(
+        e.kind == EvidenceKind.REVIEW
+        and e.producer == "user"
+        and e.payload.get("via") == FINISH_VIA
+        and e.payload.get("accepts") == "test_command_mismatch"
+        and parse_evidence_ordinal(e.id) > last_test
+        for e in evidence
+    )
+
+
+def human_terminal_refusal(env_map, ancestry, is_tty, what: str, closing: str) -> str | None:
+    """Why `what` cannot be done here (an agent session, an agent ancestor, no TTY), or None.
+
+    The same checks as `rapid approve` (RAPID1310): only a person, in their own terminal, can do it."""
+    if env_map.get("CLAUDE_CODE_CHILD_SESSION") == "1":
+        return (
+            f"RAPID1310 {what} cannot be run inside Claude Code agent session (CLAUDE_CODE_CHILD_SESSION=1). "
+            + closing
+        )
+    agent = find_agent_ancestor(ancestry if ancestry is not None else read_ancestry())
+    if agent is not None:
+        return (
+            f"RAPID1310 {what} cannot be run under an agent harness (ancestor process "
+            f"'{agent.ancestor.name}', pid {agent.ancestor.pid}, {agent.harness}). "
+            + closing
+        )
+    tty_active = (sys.stdin.isatty() and not stdin_is_windows_nul()) if is_tty is None else is_tty
+    if not tty_active:
+        return f"RAPID1310 {what} requires interactive terminal confirmation (TTY). Stdin is not a TTY."
+    return None
 
 
 def mismatch_warning(contract, evidence) -> str | None:
@@ -238,7 +300,10 @@ def verification_warning(project_root: Path, project_rapid_dir: Path) -> str | N
         if not sess or not sess.active_run_id:
             return None
         contract = RunRegistry(project_root, project_rapid_dir).get_contract(sess.active_run_id)
-        return mismatch_warning(contract, EvidenceRegistry(project_root, project_rapid_dir).list(sess.active_run_id))
+        evidence = EvidenceRegistry(project_root, project_rapid_dir).list(sess.active_run_id)
+        if _accepted_command_change(evidence):
+            return None  # the person accepted it, and the reason is in the evidence
+        return mismatch_warning(contract, evidence)
     except Exception:  # a warning must never break `rapid finish`
         return None
 
@@ -354,7 +419,6 @@ def execute_start(
         write_project_snapshot(model, project_rapid_dir, backup=False)
 
     spec_reg = SpecRegistry(project_root, project_rapid_dir)
-    evaluator = BehavioralEvaluator()
 
     if not resume:
         # 1.d Spec resolution
@@ -477,6 +541,8 @@ def execute_start(
         active_run_id = record.id
         contract = run_reg.get_contract(active_run_id)
         current_state = run_reg.get_state(active_run_id)
+
+    evaluator = run_evaluator(contract)
 
     # Session object creation
     if resume and existing_session and existing_session.start_head:
@@ -739,7 +805,6 @@ def execute_next(
 
     run_reg = RunRegistry(project_root, project_rapid_dir)
     evidence_reg = EvidenceRegistry(project_root, project_rapid_dir)
-    evaluator = BehavioralEvaluator()
 
     try:
         contract = run_reg.get_contract(sess.active_run_id)
@@ -752,6 +817,7 @@ def execute_next(
 
     playbook = load_playbook(sess.mode, templates_dir=templates_dir)
     ev_records = evidence_reg.list(sess.active_run_id)
+    evaluator = run_evaluator(contract)
 
     action = next_action(
         contract,
@@ -762,8 +828,24 @@ def execute_next(
         test_command=test_cmd if isinstance(test_cmd, (list, tuple)) else None,
         workspace_ready=bool(sess.workspace_path),
     )
-    if action.kind == ActionKind.AWAIT_HUMAN_APPROVAL:
+    if action.kind == ActionKind.AWAIT_HUMAN_APPROVAL or (
+        action.kind == ActionKind.FINISH and _strict(contract)
+    ):
         stale = _stale_verification(project_root, project_rapid_dir, sess, contract, ev_records, test_cmd)
+        approval = (
+            _stale_approval(project_root, project_rapid_dir, sess, contract, ev_records)
+            if stale is None and action.kind == ActionKind.FINISH
+            else None
+        )
+        if approval is not None:
+            action = replace(
+                action,
+                kind=ActionKind.AWAIT_HUMAN_APPROVAL,
+                gate_ids=(approval.gate_id,),
+                awaiting_human=(approval.gate_id,),
+                instructions=approval.message(),
+                command=None,
+            )
         if stale is not None:
             action = replace(
                 action,
@@ -796,6 +878,12 @@ def execute_finish(
     *,
     config_file: Path | None = None,
     templates_dir: Path | None = None,
+    accept_test_command: str | None = None,
+    reviewer: str | None = None,
+    is_tty: bool | None = None,
+    input_func: Any = None,
+    environ: dict[str, str] | None = None,
+    ancestry: AncestryResult | None = None,
 ) -> tuple[int, EvaluationVerdict | NextAction | str]:
     """Execute porcelain `rapid finish` workflow.
 
@@ -809,9 +897,9 @@ def execute_finish(
     run_reg = RunRegistry(project_root, project_rapid_dir)
     evidence_reg = EvidenceRegistry(project_root, project_rapid_dir)
     eval_reg = EvalRegistry(project_root, project_rapid_dir)
-    evaluator = BehavioralEvaluator()
 
     contract = run_reg.get_contract(run_id)
+    evaluator = run_evaluator(contract)
     current_state = run_reg.get_state(run_id)
     playbook = load_playbook(sess.mode, templates_dir=templates_dir)
 
@@ -925,7 +1013,34 @@ def execute_finish(
     if stale is not None:
         return 1, stale.message()
 
-    # 3.f Transition to finished and evaluate
+    # 3.f Ruleset 3: the code that ends the run is the code a person approved.
+    approval = _stale_approval(project_root, project_rapid_dir, sess, contract, evidence_reg.list(run_id))
+    if approval is not None:
+        return 1, approval.message()
+
+    # 3.g Ruleset 3: tests run with another command than the baseline are not comparable with it. Only the person
+    # can accept that, in their terminal; the acceptance stays as evidence with its reason.
+    mismatch = test_command_mismatch(contract, evidence_reg.list(run_id)) if _strict(contract) else None
+    if mismatch is not None and not _accepted_command_change(evidence_reg.list(run_id)):
+        baseline_cmd, latest_cmd = mismatch
+        blocked = (
+            f"RAPID1435 La baseline se grabó con `{baseline_cmd}` y el último check de tests usó `{latest_cmd}`: "
+            "sus conteos no son comparables y otro comando puede ejecutar menos tests. Repite el check con el "
+            "comando de la baseline (`rapid next` lo da), o que la persona lo acepte en su terminal con "
+            "`rapid finish --accept-test-command \"MOTIVO\"`."
+        )
+        if accept_test_command is None:
+            return 1, blocked
+        if not accept_test_command.strip():
+            return 1, "RAPID1435 '--accept-test-command' necesita un motivo no vacío."
+        accepted = _accept_command_change(
+            project_root, project_rapid_dir, run_id, evidence_reg, mismatch, accept_test_command.strip(),
+            reviewer=reviewer, is_tty=is_tty, input_func=input_func, environ=environ, ancestry=ancestry,
+        )
+        if accepted is not None:
+            return 1, accepted
+
+    # 3.h Transition to finished and evaluate
     finished_state = run_reg.transition_status(
         run_id,
         RunStatus.FINISHED,
@@ -935,6 +1050,62 @@ def execute_finish(
 
     exit_code = 0 if report.verdict in (EvaluationVerdict.PASS, EvaluationVerdict.PASS_WITH_WAIVERS) else 1
     return exit_code, report
+
+
+def _accept_command_change(
+    project_root, project_rapid_dir, run_id, evidence_reg, mismatch, reason, *,
+    reviewer, is_tty, input_func, environ, ancestry,
+) -> str | None:
+    """Record that the person accepted another test command than the baseline's; an error message, or None."""
+    if environ is None:
+        import os
+
+        environ = dict(os.environ)
+    refusal = human_terminal_refusal(environ, ancestry, is_tty, "Accepting another test command",
+                                     "La aceptación debe hacerla una persona en su propia terminal.")
+    if refusal:
+        return refusal
+    ask = input_func if input_func is not None else input
+    name = (reviewer or "").strip() or _git_user_name(project_root)
+    try:
+        if not name:
+            name = ask("Reviewer name (git config user.name is not set): ").strip()
+        if not name:
+            return "RAPID1331 A reviewer name is required: pass --reviewer or set 'git config user.name'."
+        expected = "aceptar comando de tests"
+        baseline_cmd, latest_cmd = mismatch
+        typed = ask(
+            f"La baseline usó `{baseline_cmd}` y el último check `{latest_cmd}`.\n"
+            f"Escribe la frase siguiente para aceptarlo:\n{expected}\n> "
+        )
+    except EOFError:
+        return "RAPID1310 Accepting another test command requires interactive terminal confirmation (TTY). Stdin was closed before the answer (EOF)."
+    if typed.strip().strip("'\"“”‘’").strip() != expected:
+        return f"Confirmación abortada (se esperaba '{expected}')."
+    current_state = RunRegistry(project_root, project_rapid_dir).get_state(run_id)
+    evidence_reg.add(
+        run_id,
+        {
+            "kind": EvidenceKind.REVIEW.value,
+            "producer": "user",
+            "summary": f"{name} accepted test command '{latest_cmd}' instead of baseline '{baseline_cmd}'",
+            "state_revision": current_state.revision,
+            "task_ids": [],
+            "gate_ids": [],
+            "capability_ids": [],
+            "payload": {
+                "review_type": "manual",
+                "outcome": "approved",
+                "reviewer": name,
+                "reason": reason,
+                "via": FINISH_VIA,
+                "accepts": "test_command_mismatch",
+            },
+            "artifacts": [],
+        },
+        base_dir=project_root,
+    )
+    return None
 
 
 def _git_user_name(project_root: Path) -> str | None:
@@ -1069,30 +1240,14 @@ def execute_approve(
         # Read-only listing: needs neither a TTY nor to be outside an agent session.
         return _list_pending_human_gates(project_rapid_dir, project_root)
 
-    if env_map.get("CLAUDE_CODE_CHILD_SESSION") == "1":
-        return (
-            1,
-            "RAPID1310 Human gate approval cannot be run inside Claude Code agent session (CLAUDE_CODE_CHILD_SESSION=1). La aprobación debe hacerla una persona en su propia terminal.",
-        )
-
     # An agent harness among the ancestors means an agent (or a script it spawned) is asking, even
     # if it dropped the session variables and found a pty. Unreadable ancestry never rejects.
-    agent = find_agent_ancestor(ancestry if ancestry is not None else read_ancestry())
-    if agent is not None:
-        return (
-            1,
-            f"RAPID1310 Human gate approval cannot be run under an agent harness (ancestor process "
-            f"'{agent.ancestor.name}', pid {agent.ancestor.pid}, {agent.harness}). "
-            "La aprobación debe hacerla una persona en su propia terminal.",
-        )
-
-    # TTY check comes before touching the ledger so every mutating case fails the same way.
-    tty_active = (sys.stdin.isatty() and not stdin_is_windows_nul()) if is_tty is None else is_tty
-    if not tty_active:
-        return (
-            1,
-            "RAPID1310 Human gate approval requires interactive terminal confirmation (TTY). Stdin is not a TTY.",
-        )
+    # The TTY check comes before touching the ledger so every mutating case fails the same way.
+    refusal = human_terminal_refusal(
+        env_map, ancestry, is_tty, "Human gate approval", "La aprobación debe hacerla una persona en su propia terminal."
+    )
+    if refusal:
+        return 1, refusal
     raw_input_func = input_func if input_func is not None else input
     no_terminal = (
         "RAPID1310 Human gate approval requires interactive terminal confirmation (TTY). "
@@ -1136,7 +1291,15 @@ def execute_approve(
     if gate.kind not in HUMAN_GATE_KINDS:
         return 1, f"RAPID1332 Gate '{gate_id}' is a machine gate ({gate.kind.value}); manual approval is only for human review gates."
 
-    if gate_st.disposition != GateDisposition.PENDING:
+    # Ruleset 3: an approved gate whose code changed since is approved again (same gate, new tree).
+    reapproval = (
+        gate_st.disposition == GateDisposition.ACKNOWLEDGED
+        and not reject
+        and not waive
+        and _stale_approval(project_root, project_rapid_dir, sess, contract, evidence_reg.list(run_id), [gate_id])
+        is not None
+    )
+    if gate_st.disposition != GateDisposition.PENDING and not reapproval:
         return (
             1,
             f"RAPID1332 Gate '{gate_id}' is already {gate_st.disposition.value}; nothing to do. {UNDO_APPROVAL_HINT}",
@@ -1160,7 +1323,7 @@ def execute_approve(
         except InvalidGateTransitionError as exc:
             return 1, f"RAPID1333 {exc}"
 
-    if not reject:
+    if not reject and not reapproval:
         # Approve/waive modify the gate: refuse early, before writing review evidence, when the
         # run is not active or tasks are still open.
         try:
@@ -1226,6 +1389,13 @@ def execute_approve(
 
     review_type = REVIEW_GATE_KIND_TO_REVIEW_TYPE.get(gate.kind, "manual")
     outcome = "changes_requested" if reject else "approved"
+    # The tree this person approved: `rapid finish` refuses to end the run if the code changes after it.
+    approved_tree = None
+    snapshot = tree_fingerprint.working_tree_snapshot(
+        Path(sess.workspace_path) if sess.workspace_path else Path(project_root)
+    )
+    if snapshot is not None:
+        approved_tree = tree_fingerprint.save_snapshot(project_rapid_dir, run_id, snapshot)
     summary = f"Gate {gate_id} {outcome} by {reviewer_name}"
     if reject:
         summary = f"{summary}: {str(reason).strip()}"
@@ -1245,6 +1415,8 @@ def execute_approve(
                 "outcome": outcome,
                 "reviewer": reviewer_name,
                 **({"reason": str(reason).strip()} if reject else {}),
+                "via": APPROVE_VIA,
+                **({"tree": approved_tree} if approved_tree else {}),
             },
             "artifacts": [],
         },
@@ -1253,6 +1425,8 @@ def execute_approve(
 
     if reject:
         return 0, f"Gate '{gate_id}' rechazado (changes_requested). Ejecuta 'rapid abort' e inicia un run nuevo."
+    if reapproval:
+        return 0, f"Gate '{gate_id}' aprobado de nuevo sobre el código actual.\n{AFTER_LAST_APPROVAL}"
 
     try:
         run_reg.transition_gate(
