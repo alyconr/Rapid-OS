@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "run_id": "legacy-hardening-r1-run-001",
+  "contract_digest": "27e187963713b0424a28aaa700df7357d843d5cf2cb1c18473dd4b67f504996c",
+  "state_revision": 10,
+  "state_digest": "bc17a9b3566507490043effb397c9d961c4ee8b1438a9890f4bfed6110b0134e",
+  "evidence_set_digest": "e2fda6025f83507d0ec6a8bf113bc89a1b19f19cd8f6589550530c9dc40ea82f",
+  "ruleset_version": 2,
+  "ruleset_digest": "3493f495a069c16c0a54a102480c66e12e47d20e44485ac8a725e28a470b6a8c",
+  "extra_capability_ids": [],
+  "assertions": [
+    {
+      "id": "run.lifecycle",
+      "category": "lifecycle",
+      "subject_id": "legacy-hardening-r1-run-001",
+      "required": true,
+      "status": "pass",
+      "reason": "Run reached terminal status 'finished'.",
+      "evidence_ids": []
+    },
+    {
+      "id": "task.T001.evidence",
+      "category": "task",
+      "subject_id": "T001",
+      "required": true,
+      "status": "unverified",
+      "reason": "Task 'T001' is marked done without linked execution evidence.",
+      "evidence_ids": []
+    },
+    {
+      "id": "gate.gate.workspace-isolation.evidence",
+      "category": "gate",
+      "subject_id": "gate.workspace-isolation",
+      "required": true,
+      "status": "unverified",
+      "reason": "Gate 'gate.workspace-isolation' is acknowledged in RunState but lacks qualifying verification evidence.",
+      "evidence_ids": []
+    },
+    {
+      "id": "gate.gate.baseline.evidence",
+      "category": "gate",
+      "subject_id": "gate.baseline",
+      "required": true,
+      "status": "unverified",
+      "reason": "Gate 'gate.baseline' is acknowledged in RunState but lacks qualifying verification evidence.",
+      "evidence_ids": []
+    },
+    {
+      "id": "gate.gate.tests.evidence",
+      "category": "gate",
+      "subject_id": "gate.tests",
+      "required": true,
+      "status": "unverified",
+      "reason": "Gate 'gate.tests' is acknowledged in RunState but lacks qualifying verification evidence.",
+      "evidence_ids": []
+    },
+    {
+      "id": "gate.gate.review.evidence",
+      "category": "gate",
+      "subject_id": "gate.review",
+      "required": true,
+      "status": "unverified",
+      "reason": "Gate 'gate.review' is acknowledged in RunState but lacks qualifying verification evidence.",
+      "evidence_ids": []
+    },
+    {
+      "id": "gate.gate.final-verification.evidence",
+      "category": "gate",
+      "subject_id": "gate.final-verification",
+      "required": true,
+      "status": "unverified",
+      "reason": "Gate 'gate.final-verification' is acknowledged in RunState but lacks qualifying verification evidence.",
+      "evidence_ids": []
+    },
+    {
+      "id": "capability.context.consume.observed",
+      "category": "capability",
+      "subject_id": "context.consume",
+      "required": false,
+      "status": "not_applicable",
+      "reason": "Capability 'context.consume' is not objectively observable by Evidence Engine v1.",
+      "evidence_ids": []
+    },
+    {
+      "id": "capability.repository.read.observed",
+      "category": "capability",
+      "subject_id": "repository.read",
+      "required": false,
+      "status": "not_applicable",
+      "reason": "Capability 'repository.read' is not objectively observable by Evidence Engine v1.",
+      "evidence_ids": []
+    },
+    {
+      "id": "capability.repository.write.observed",
+      "category": "capability",
+      "subject_id": "repository.write",
+      "required": true,
+      "status": "unverified",
+      "reason": "Required capability 'repository.write' (contract.tasks) has no qualifying observation evidence.",
+      "evidence_ids": []
+    },
+    {
+      "id": "capability.tests.execute.observed",
+      "category": "capability",
+      "subject_id": "tests.execute",
+      "required": true,
+      "status": "unverified",
+      "reason": "Required capability 'tests.execute' (contract.gate.tests) has no qualifying observation evidence.",
+      "evidence_ids": []
+    },
+    {
+      "id": "capability.workspace.isolated.observed",
+      "category": "capability",
+      "subject_id": "workspace.isolated",
+      "required": true,
+      "status": "unverified",
+      "reason": "Required capability 'workspace.isolated' (contract.workspace) has no qualifying observation evidence.",
+      "evidence_ids": []
+    }
+  ],
+  "verdict": "unverified",
+  "report_digest": "da4928d21cb1005ae0d744589dc6bbe39be1a7016f39e2cf96c1a0424202ff4f"
+}

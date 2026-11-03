@@ -2,7 +2,7 @@ import hashlib
 import json
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Iterable, Mapping
@@ -519,6 +519,9 @@ class SpecRevision:
 
     tags: tuple[str, ...] = ()
     findings: tuple[HardeningFinding, ...] = ()
+    # Read from a revision.json written before `findings` existed (3.1, 3.2.0rc1): its content_digest was
+    # computed without that key. Not part of the content, the digest or equality.
+    stored_without_findings: bool = field(default=False, compare=False, repr=False)
 
     def __post_init__(self):
         if (
@@ -677,6 +680,24 @@ class SpecRevision:
         )
         return sha256_text(canonical_json)
 
+    @property
+    def legacy_content_digest(self) -> str:
+        """The content digest as written before `findings` existed: the same payload without that key."""
+        legacy_payload = self._canonical_content_payload()
+        legacy_payload.pop("findings", None)
+        return sha256_text(json.dumps(legacy_payload, sort_keys=True, separators=(",", ":")))
+
+    def matches_content_digest(self, digest: object, *, without_findings: bool | None = None) -> bool:
+        """The one rule for a stored content digest (revision.json, a run's `spec_content_digest`).
+
+        The current digest always matches. The legacy one (computed without `findings`) matches only for a
+        revision stored without the `findings` key, which therefore has no findings: `without_findings` says
+        so for a raw payload, and defaults to how this revision was read."""
+        if digest == self.content_digest:
+            return True
+        legacy = self.stored_without_findings if without_findings is None else without_findings
+        return legacy and not self.findings and digest == self.legacy_content_digest
+
     def to_dict(self) -> dict[str, object]:
         payload = self._canonical_content_payload()
         payload["content_digest"] = self.content_digest
@@ -752,6 +773,7 @@ class SpecRevision:
             implementation_tasks=payload.get("implementation_tasks", ()),  # type: ignore[arg-type]
             tags=payload.get("tags", ()),  # type: ignore[arg-type]
             findings=payload.get("findings", ()),  # type: ignore[arg-type]
+            stored_without_findings="findings" not in payload,
         )
 
         if verify_digests:
@@ -765,15 +787,7 @@ class SpecRevision:
                 raise SpecArtifactDriftError(
                     f"SpecRevision artifact_digests in revision.json do not match canonical derived artifacts for '{instance.spec_id}' r{instance.revision}."
                 )
-            raw_content_digest = str(payload["content_digest"])
-            legacy_content_payload = instance._canonical_content_payload()
-            legacy_content_payload.pop("findings", None)
-            legacy_content_digest = sha256_text(
-                json.dumps(legacy_content_payload, sort_keys=True, separators=(",", ":"))
-            )
-            if raw_content_digest != instance.content_digest and not (
-                "findings" not in payload and raw_content_digest == legacy_content_digest
-            ):
+            if not instance.matches_content_digest(payload["content_digest"]):
                 raise SpecArtifactDriftError(
                     f"SpecRevision content_digest mismatch for '{instance.spec_id}' r{instance.revision}."
                 )

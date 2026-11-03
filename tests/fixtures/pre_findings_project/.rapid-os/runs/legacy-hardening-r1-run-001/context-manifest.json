@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "mode": "hardening",
+  "harness": "codex",
+  "objective": "",
+  "max_chars": 24000,
+  "compiled_chars": 9224,
+  "content_digest": "e790d45bf77e233441cf97f079c8dc96969b7f45eb8ec798bf88ed45ae27e94f",
+  "selected": [
+    {
+      "source_id": "standard.security",
+      "kind": "security",
+      "selected": true,
+      "reason": "required for hardening mode by policy",
+      "priority": 100,
+      "required": true,
+      "chars": 5934,
+      "precedence": 1,
+      "provenance": ".rapid-os/standards/security.md",
+      "path": ".rapid-os/standards/security.md"
+    },
+    {
+      "source_id": "standard.topology",
+      "kind": "topology",
+      "selected": true,
+      "reason": "relevant to hardening mode",
+      "priority": 80,
+      "required": false,
+      "chars": 776,
+      "precedence": 4,
+      "provenance": ".rapid-os/standards/topology.md",
+      "path": ".rapid-os/standards/topology.md"
+    },
+    {
+      "source_id": "standard.tech-stack",
+      "kind": "tech_stack",
+      "selected": true,
+      "reason": "relevant to hardening mode",
+      "priority": 80,
+      "required": false,
+      "chars": 498,
+      "precedence": 5,
+      "provenance": ".rapid-os/standards/tech-stack.md",
+      "path": ".rapid-os/standards/tech-stack.md"
+    },
+    {
+      "source_id": "standard.coding-rules",
+      "kind": "coding_rules",
+      "selected": true,
+      "reason": "relevant to hardening mode",
+      "priority": 50,
+      "required": false,
+      "chars": 633,
+      "precedence": 6,
+      "provenance": ".rapid-os/standards/coding-rules.md",
+      "path": ".rapid-os/standards/coding-rules.md"
+    },
+    {
+      "source_id": "spec.legacy-hardening.requirements",
+      "kind": "spec",
+      "selected": true,
+      "reason": "selected spec 'legacy-hardening'",
+      "priority": 80,
+      "required": false,
+      "chars": 477,
+      "precedence": 7,
+      "provenance": ".rapid-os/specs/legacy-hardening/revisions/0001/requirements.md",
+      "path": ".rapid-os/specs/legacy-hardening/revisions/0001/requirements.md"
+    },
+    {
+      "source_id": "spec.legacy-hardening.tasks",
+      "kind": "tasks",
+      "selected": true,
+      "reason": "selected spec 'legacy-hardening'",
+      "priority": 50,
+      "required": false,
+      "chars": 267,
+      "precedence": 8,
+      "provenance": ".rapid-os/specs/legacy-hardening/revisions/0001/tasks.md",
+      "path": ".rapid-os/specs/legacy-hardening/revisions/0001/tasks.md"
+    },
+    {
+      "source_id": "spec.legacy-hardening.acceptance",
+      "kind": "acceptance",
+      "selected": true,
+      "reason": "relevant to hardening mode; selected spec 'legacy-hardening'",
+      "priority": 50,
+      "required": false,
+      "chars": 340,
+      "precedence": 9,
+      "provenance": ".rapid-os/specs/legacy-hardening/revisions/0001/acceptance.md",
+      "path": ".rapid-os/specs/legacy-hardening/revisions/0001/acceptance.md"
+    },
+    {
+      "source_id": "project.intelligence",
+      "kind": "project_intelligence",
+      "selected": true,
+      "reason": "relevant to hardening mode; selected ProjectModel facts (language=python, testing=tests-directory)",
+      "priority": 50,
+      "required": false,
+      "chars": 47,
+      "precedence": 13,
+      "provenance": "snapshot:.rapid-os/project.json"
+    }
+  ],
+  "skipped": [],
+  "conflicts": []
+}

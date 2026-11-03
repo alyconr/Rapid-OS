@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "stacks": {
+    "docs": {
+      "id": "docs-modern",
+      "source": "catalog"
+    }
+  },
+  "topology": "doc-site",
+  "archetype": "mvp",
+  "agents": [
+    "cursor"
+  ],
+  "test_command": [],
+  "docs": {
+    "architecture": {
+      "status": "pending",
+      "confirmed": false,
+      "sha256": ""
+    },
+    "brief": {
+      "status": "pending",
+      "confirmed": false,
+      "sha256": ""
+    },
+    "business": {
+      "status": "pending",
+      "confirmed": false,
+      "sha256": ""
+    },
+    "data-model": {
+      "status": "pending",
+      "confirmed": false,
+      "sha256": ""
+    },
+    "deployment": {
+      "status": "pending",
+      "confirmed": false,
+      "sha256": ""
+    }
+  },
+  "finished": false
+}

@@ -317,7 +317,8 @@ class SpecRegistry:
                     path=artifact_path,
                 )
 
-        if payload["content_digest"] != spec_rev.content_digest:
+        # The same rule as SpecRevision.from_dict: a revision stored before `findings` keeps its legacy digest.
+        if not spec_rev.matches_content_digest(payload["content_digest"]):
             raise SpecArtifactDriftError(
                 f"Revision content_digest mismatch for '{spec_id}' r{revision}.",
                 path=manifest_file,

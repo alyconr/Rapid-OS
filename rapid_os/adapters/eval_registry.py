@@ -100,9 +100,24 @@ class EvalRegistry:
         self.evaluator = evaluator or BehavioralEvaluator()
 
     def _hardening_inputs(self, contract: ExecutionContract):
-        from rapid_os.adapters.spec_registry import SpecRegistry
+        """Findings and acceptance criteria of the spec revision the run is pinned to.
 
-        revision = SpecRegistry(self.root, self.rapid_dir).get_revision(contract.spec_id)
+        A spec that cannot be read is an evaluation error with the spec's own code (RAPID8xx), never a
+        traceback: `rapid validate` and `rapid eval` report it as a diagnostic."""
+        from rapid_os.adapters.spec_registry import SpecRegistry
+        from rapid_os.domain.specs import SpecRegistryError
+
+        try:
+            revision = SpecRegistry(self.root, self.rapid_dir).get_revision(
+                contract.spec_id, revision=contract.spec_revision
+            )
+        except SpecRegistryError as exc:
+            raise EvaluationBindingMismatchError(
+                f"Spec '{contract.spec_id}' r{contract.spec_revision} of run '{contract.run_id}' "
+                f"could not be read: {exc}",
+                code=exc.code,
+                path=getattr(exc, "path", None),
+            ) from exc
         if getattr(revision.mode, "value", revision.mode) != "hardening":
             return (), ()
         return (
