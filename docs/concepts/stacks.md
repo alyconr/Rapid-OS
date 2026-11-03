@@ -66,8 +66,8 @@ The `baas` component of `fullstack-baas` is filled by `supabase` or `firebase` (
 
 | Provider | Data | Server functions | Local development | Tests |
 |---|---|---|---|---|
-| `supabase` | Postgres, schema in `supabase/migrations/`, RLS policies | Edge Functions (`supabase/functions/<module>/`) | `supabase init`, `supabase start` (needs Docker or another container runtime) | `supabase test db` (policies) next to the frontend tests |
-| `firebase` | Firestore collections and documents, rules in `firestore.rules` and `storage.rules` | Cloud Functions (`functions/src/<module>/`) | Emulator Suite: `firebase emulators:start` | `firebase emulators:exec "<frontend test>"` |
+| `supabase` | Postgres, schema in `supabase/migrations/`, RLS policies | Edge Functions (`supabase/functions/<module>/`) | `supabase init`, `supabase start` (needs Docker or another container runtime) | the frontend's; `supabase test db` (policies) in CI and as a person action |
+| `firebase` | Firestore collections and documents, rules in `firestore.rules` and `storage.rules` | Cloud Functions (`functions/src/<module>/`) | Emulator Suite: `firebase emulators:start` | the frontend's; `firebase emulators:exec "<pm> run test:rules"` in CI and as a person action |
 
 The person runs the local commands, as with `docker compose up -d`: `rapid setup finish` lists them in `person_actions` (`supabase init` only while `supabase/config.toml` does not exist, then `supabase start`; or `firebase init` and `firebase emulators:start`). Rapid OS writes `.env.example` with the local variables of the provider (prefixed as the frontend framework requires, such as `NEXT_PUBLIC_` or `VITE_`) and no real secret: the secret key and the service-account credentials have no value and no client prefix.
 
@@ -79,7 +79,7 @@ The person runs the local commands, as with `docker compose up -d`: `rapid setup
 
 **Documents.** `docs/DATA_MODEL.md` follows the data model decided, not only the BaaS (see [Infrastructure services](infrastructure-services.md#project-documents)): Supabase is relational (`Tablas`, `Migraciones`) and adds `Políticas RLS`; Firebase is a document store (`Colecciones y documentos`, `Índices`, `Validación del esquema`) and adds `Reglas de seguridad`. `ARCHITECTURE.md` and `DEPLOYMENT.md` need `Proveedor BaaS`. The deployment platforms include `netlify` and `firebase-hosting`, and `vercel` has a section for Supabase. The scanner suggests the provider and `fullstack-baas` for a frontend with `supabase/` or `@supabase/supabase-js`, or `firebase.json`, `.firebaserc` or the `firebase` dependency; with both providers in one repository it suggests none.
 
-**Test command.** `rapid setup set test-command --recommended` combines the catalog's commands: Supabase runs `supabase test db` and the frontend's tests; Firebase wraps the frontend's tests in `firebase emulators:exec`. `RAPID1426` warns while `supabase` or `firebase` is not on the `PATH`.
+**Test command.** `rapid setup set test-command --recommended` proposes only the frontend's command (`pnpm exec vitest run`): `gate.tests` must pass without Docker or Java. The provider's rules tests (`supabase test db`; `firebase emulators:exec "<pm> run test:rules"`, with the package manager of the frontend) come in `rules_test` of `set_test_command`, run in the CI workflow, and are a person action after `supabase start` or `firebase emulators:start`.
 
 `generic` (repository conventions detected by the scanner) and `custom` (a `tech-stack.md` supplied with `rapid setup stack --custom --file -`) cover all components. `docs-modern` covers `docs`.
 

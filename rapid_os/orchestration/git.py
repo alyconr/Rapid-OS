@@ -119,7 +119,7 @@ def baas_actions(root: Path | str | None) -> list[dict[str, str]]:
     if provider is None:
         return []
     initialized = (base / "supabase" / "config.toml").is_file() if provider.id == "supabase" else (base / "firebase.json").is_file()
-    return local_actions(provider.id, initialized=initialized)
+    return local_actions(provider.id, initialized=initialized, frontend_test=state.test_command)
 
 
 def local_services_actions(root: Path | str | None) -> list[dict[str, str]]:

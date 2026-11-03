@@ -19,11 +19,6 @@
   ],
   "service_roles": [],
   "package_manager": "npm",
-  "default_test_command": [
-    "supabase",
-    "test",
-    "db"
-  ],
   "gitignore": [
     ".env",
     "supabase/.temp/",

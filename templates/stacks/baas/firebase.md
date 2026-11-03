@@ -5,7 +5,7 @@
 - **Credenciales:** la configuración web (incluida su `apiKey`) identifica el proyecto y no es secreta; las credenciales de cuenta de servicio y el Admin SDK solo existen en el servidor.
 - **Funciones en servidor:** Cloud Functions for Firebase (Node.js 20 o 22) en `functions/src/<módulo>/`; el código TypeScript se compila a `functions/lib/`.
 - **Desarrollo local:** Firebase CLI y Emulator Suite (`firebase emulators:start`, `firebase emulators:exec`); lo ejecuta la persona. Los emuladores no son para producción.
-- **Testing:** `firebase emulators:exec "<test del frontend>"`, que levanta los emuladores y corre las pruebas de reglas y del frontend.
+- **Testing:** el comando de test del proyecto es el del frontend (`gate.tests` pasa sin Java ni emuladores). Las reglas se prueban con `firebase emulators:exec "<gestor> run test:rules"` en el job de CI y, en local, lo ejecuta la persona.
 - **Version Control:** Git.
 <!-- Fuentes (documentación oficial, verificadas al escribir esta plantilla):
   https://firebase.google.com/docs/emulator-suite/install_and_configure

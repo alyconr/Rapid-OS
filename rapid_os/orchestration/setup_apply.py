@@ -288,7 +288,14 @@ def set_decision(
             check_stack_compatibility(choices, state.stack.id if state.stack else None, catalog)
         except ServiceInputError as exc:
             raise _fail(exc.code, exc.message) from exc
-        return replace(state, services=choices, finished=False), ()
+        provider = state.stacks.get("baas")
+        if provider is not None and any(choice.role == "database" for choice in choices):
+            # Allowed (the person decides), but the app's data lives in the provider: say so.
+            notes.append(
+                f"El proveedor {provider.id} ya da la base de datos de la app: un servicio database aparte es una "
+                "segunda fuente de datos. Mantenlo solo si algo fuera del proveedor lo necesita."
+            )
+        return replace(state, services=choices, finished=False), tuple(notes)
 
     if key == "ai":
         answer = value.strip().lower()

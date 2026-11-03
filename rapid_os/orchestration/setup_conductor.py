@@ -7,7 +7,6 @@ touches the filesystem. Reading the state is the adapter's job (`adapters/setup_
 from __future__ import annotations
 
 import re
-import shlex
 import shutil
 import sys
 from typing import Sequence
@@ -25,6 +24,7 @@ from rapid_os.domain.project import ProjectModel
 from rapid_os.domain.scanner import suggest_init_choices
 from rapid_os.domain.stack_aliases import LEGACY_STACKS
 from rapid_os.domain.services import active_conditions, describe_services
+from rapid_os.domain.baas import BAAS_PROVIDERS, RULES_TEST_NOTE, rules_test_command
 from rapid_os.domain.setup import (
     ARCHETYPES,
     SERVICE_WHEN,
@@ -83,6 +83,13 @@ SERVICES_INSTRUCTION = (
     "Empieza por lo mínimo: una base de datos. Propón caché, colas o streaming solo si el brief lo justifica "
     "(p. ej. webhooks de pago con reintentos -> cola; notificaciones masivas por WhatsApp -> cola), y márcalos "
     "@later si no hacen falta para la primera historia. La persona decide; no fijes nada sin su respuesta."
+)
+# With a BaaS provider: it already brings the database, the auth and the storage.
+BAAS_SERVICES_INSTRUCTION = (
+    "El proveedor BaaS ya da la base de datos, la autenticación y el almacenamiento: no propongas el rol database "
+    "(si la persona lo pide, adviértele que tendría dos fuentes de datos y que el proveedor es la de la app). "
+    "Propón caché, colas o streaming solo si el brief lo justifica, con una línea de porqué por cada uno, y "
+    "márcalos @later si no hacen falta para la primera historia; si nada lo justifica, `none`. La persona decide."
 )
 STANDARD_INSTRUCTION = (
     "`standard` es la estructura que fijará .rapid-os/standards/architecture.md al terminar (aún no existe). "
@@ -157,6 +164,12 @@ def next_setup_action(
             recommended = combine_test_commands([item["command"] for item in per_component])
         if per_component:
             extra["components"] = per_component
+        provider = state.stacks.get("baas")
+        if provider is not None and provider.id in BAAS_PROVIDERS:
+            extra["rules_test"] = {
+                "command": rules_test_command(provider.id, recommended),
+                "note": RULES_TEST_NOTE,
+            }
         return _action(
             SetupActionKind.SET_TEST_COMMAND,
             recommended=recommended,
@@ -261,6 +274,10 @@ def _choose_stack(
     """One stack per component of the topology (`component` names the one asked now)."""
     entries = catalog.options_for(component) if component else tuple(catalog.stacks.values())
     flat = [e for e in catalog.stacks.values() if not e.component and (component is None or component in e.covers)]
+    if component == "baas":
+        # Only the providers of the catalog: `generic` or a stack without sidecar is not a backend as a service.
+        flat = []
+        entries = tuple(e for e in entries if e.component == "baas")
     unique = {}
     for entry in [*entries, *flat]:
         unique.setdefault(entry.id, entry)
@@ -276,7 +293,7 @@ def _choose_stack(
             "avoid_if": [],
             "compatible_topologies": [],
         }
-        for stack_id in catalog.sidecarless_stacks
+        for stack_id in (() if component == "baas" else catalog.sidecarless_stacks)
     ]
     options.sort(key=lambda o: (-o["score"], o["source"] == "generic", o["id"]))
 
@@ -299,6 +316,8 @@ def _choose_stack(
         alt_command=list(STACK_CUSTOM_COMMAND),
     )
     if component == "baas":
+        # Only the catalog's providers: there is no custom alternative for a backend as a service.
+        payload.pop("alt_command")
         # The provider is chosen like any other stack; the agent recommends one and the person may delegate.
         payload["delegation"] = {
             "instruction": DELEGATION_INSTRUCTION,
@@ -369,9 +388,10 @@ def _choose_services(state: SetupState, catalog: Catalog) -> SetupAction:
             f"El proveedor {provider.id} ya aporta base de datos, auth y almacenamiento, y se levanta en local con su "
             "propia CLI. Propón servicios adicionales (caché, cola) solo si el brief los justifica; si no, `none`."
         )
+    roles = [r for r in SERVICE_ROLES if provider is None or r != "database"]
     return _action(
         SetupActionKind.CHOOSE_SERVICES,
-        roles=list(SERVICE_ROLES),
+        roles=roles,
         catalog=[
             {
                 "id": s.id,
@@ -381,11 +401,12 @@ def _choose_services(state: SetupState, catalog: Catalog) -> SetupAction:
                 "connection_env": s.connection_env,
             }
             for s in sorted(catalog.services.values(), key=lambda s: (SERVICE_ROLES.index(s.role), s.id))
+            if s.role in roles
         ],
         suggested_services=suggested,
         suggestion_note=note,
         when_values=list(SERVICE_WHEN),
-        instruction=SERVICES_INSTRUCTION,
+        instruction=BAAS_SERVICES_INSTRUCTION if provider is not None else SERVICES_INSTRUCTION,
         command=list(SERVICES_COMMAND),
     )
 
@@ -409,19 +430,8 @@ def catalog_test_commands(state: SetupState, catalog: Catalog) -> list[dict]:
         command = entry.test_command(root)
         if command:  # `generic` knows no test command
             items.append({"component": component, "stack": stack_id, "root": root, "command": command})
-    provider = catalog.stacks.get(state.stacks["baas"].id) if "baas" in state.stacks else None
-    if provider is not None and provider.component == "baas":
-        command = provider.test_command("")
-        if provider.wraps_frontend_test:
-            # `firebase emulators:exec "<frontend test>"`: the emulators run around the frontend's tests.
-            frontend = next((item for item in items if item["component"] == "frontend"), None)
-            if frontend is not None:
-                wrapped = [token.replace("{frontend_test}", shlex.join(frontend["command"])) for token in command]
-                items = [item for item in items if item is not frontend]
-                items.append({"component": "baas", "stack": provider.id, "root": "", "command": wrapped, "wraps": "frontend"})
-        elif command:
-            # `supabase test db` (the policies) runs next to the frontend's tests.
-            items.insert(0, {"component": "baas", "stack": provider.id, "root": "", "command": command})
+    # A BaaS provider adds nothing: its policies or rules tests need Docker or Java, and gate.tests must pass
+    # without them. They run in CI and are a person action (`rules_test` of `set_test_command`).
     return items
 
 

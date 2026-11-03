@@ -6,7 +6,7 @@
 - **Funciones en servidor:** Edge Functions en `supabase/functions/<módulo>/` (TypeScript sobre Deno, `supabase functions serve` en local); código compartido en `supabase/functions/_shared/`.
 - **Desarrollo local:** Supabase CLI (`supabase init`, `supabase start` con Docker u otro runtime de contenedores, `supabase db reset`); lo ejecuta la persona.
 - **Tipos:** `supabase gen types --lang typescript --local` genera los tipos desde el esquema local.
-- **Testing:** `supabase test db` para las políticas y el esquema, más el test del frontend.
+- **Testing:** el comando de test del proyecto es el del frontend (`gate.tests` pasa sin Docker). Las políticas y el esquema se prueban con `supabase test db` en el job de CI y, en local, lo ejecuta la persona tras `supabase start`.
 - **Version Control:** Git.
 <!-- Fuentes (documentación oficial, verificadas al escribir esta plantilla):
   https://supabase.com/docs/guides/local-development/cli/getting-started

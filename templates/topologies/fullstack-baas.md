@@ -29,7 +29,7 @@
 - **Privileged work** (payments, admin actions, anything that needs elevated credentials, third-party secrets) goes in the provider's server functions, never in the frontend.
 <!-- endif -->
 <!-- if supabase -->
-- **Access rules:** Row Level Security (RLS) is enabled on every table of an exposed schema, with policies tested by `supabase test db`.
+- **Access rules:** Row Level Security (RLS) is enabled on every table of an exposed schema, with policies tested by `supabase test db` (in the CI job, and by the person with Supabase running locally; not part of the project's test command).
 - **Keys:** the publishable key (`sb_publishable_...`, formerly `anon`) may ship to the browser. The secret key (`sb_secret_...`, formerly `service_role`) never leaves a server function.
 - **Server functions:** Edge Functions in `supabase/functions/<module>/`.
 <!-- endif -->

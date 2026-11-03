@@ -134,26 +134,65 @@ class ConductorTests(unittest.TestCase):
         )
         return catalog_test_commands(state, self.catalog)
 
-    def test_supabase_runs_the_policies_and_the_frontend_tests(self):
-        items = self._commands("react-vite", "supabase")
-        self.assertEqual([i["component"] for i in items], ["baas", "frontend"])
-        self.assertEqual(items[0]["command"], ["supabase", "test", "db"])
-        self.assertEqual(items[1]["command"][:3], ["pnpm", "exec", "vitest"])
+    def test_the_test_command_is_only_the_frontends_so_gate_tests_needs_no_docker(self):
+        for frontend, provider in (("nextjs", "supabase"), ("react-vite", "firebase"),
+                                   ("react-vite", "supabase"), ("nextjs", "firebase")):
+            items = self._commands(frontend, provider)
+            with self.subTest(frontend=frontend, provider=provider):
+                self.assertEqual([i["component"] for i in items], ["frontend"])
+                self.assertEqual(items[0]["command"][:3], ["pnpm", "exec", "vitest"])
+                flat = " ".join(" ".join(i["command"]) for i in items)
+                self.assertNotIn("supabase", flat)
+                self.assertNotIn("emulators", flat)
 
-    def test_firebase_wraps_the_frontend_tests_in_the_emulators(self):
-        items = self._commands("react-vite", "firebase")
-        self.assertEqual([i["component"] for i in items], ["baas"])
-        command = items[0]["command"]
-        self.assertEqual(command[:2], ["firebase", "emulators:exec"])
-        self.assertEqual(command[2], "pnpm exec vitest run")
-        self.assertEqual(items[0]["wraps"], "frontend")
+    def test_the_rules_test_is_offered_apart_from_the_test_command(self):
 
-    def test_firebase_without_a_frontend_test_proposes_nothing_for_the_provider(self):
+        self.assertEqual(baas.rules_test_command("supabase", ["pnpm", "exec", "vitest", "run"]), "supabase test db")
+        self.assertEqual(
+            baas.rules_test_command("firebase", ["pnpm", "exec", "vitest", "run"]),
+            'firebase emulators:exec "pnpm run test:rules"',
+        )
+        self.assertEqual(baas.rules_test_command("firebase", None), 'firebase emulators:exec "npm run test:rules"')
+        actions = baas.local_actions("firebase", initialized=True, frontend_test=["pnpm", "exec", "vitest", "run"])
+        self.assertEqual([a["id"] for a in actions], ["baas-local", "baas-rules-test"])
+        self.assertIn("gate.tests", actions[-1]["why"])
+
+    def test_a_provider_sidecar_with_a_test_command_is_rapid1401(self):
+        import shutil
+
+        with tempfile.TemporaryDirectory() as tmp:
+            templates = Path(tmp) / "templates"
+            shutil.copytree(TEMPLATES, templates)
+            path = templates / "stacks" / "baas" / "supabase.json"
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["default_test_command"] = ["supabase", "test", "db"]
+            path.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaises(CatalogError) as ctx:
+                load_catalog(templates)
+            self.assertIn("gate.tests", str(ctx.exception))
+
+    def test_choose_stack_of_baas_offers_only_the_providers(self):
+        from rapid_os.domain.project import ProjectModel
+        from rapid_os.orchestration.setup_conductor import _choose_stack
+
+        state = SetupState(topology="fullstack-baas", stacks={"frontend": StackChoice("react-vite", "catalog")})
+        action = _choose_stack(ProjectModel(facts=()), self.catalog, (), "baas", state).to_dict()
+        self.assertEqual(sorted(o["id"] for o in action["options"]), sorted(PROVIDERS))
+        self.assertNotIn("alt_command", action)
+
+    def test_services_of_a_baas_project_do_not_offer_a_database(self):
+        from rapid_os.orchestration.setup_conductor import BAAS_SERVICES_INSTRUCTION, _choose_services
+
         state = SetupState(
             topology="fullstack-baas",
-            stacks={"frontend": StackChoice("generic", "generic"), "baas": StackChoice("firebase", "catalog")},
+            stacks={"frontend": StackChoice("react-vite", "catalog"), "baas": StackChoice("supabase", "catalog")},
         )
-        self.assertEqual(catalog_test_commands(state, self.catalog), [])
+        action = _choose_services(state, self.catalog).to_dict()
+        self.assertNotIn("database", action["roles"])
+        self.assertFalse([s for s in action["catalog"] if s["role"] == "database"])
+        self.assertIn("cache", action["roles"])
+        self.assertEqual(action["suggested_services"], [])
+        self.assertEqual(action["instruction"], BAAS_SERVICES_INSTRUCTION)
 
 
 class TopologyGuideTests(unittest.TestCase):
@@ -338,14 +377,33 @@ class SecurityTests(unittest.TestCase):
             self.assertTrue(has_api(provider))
             self.assertEqual(ci_language(provider), "typescript")
 
+    def test_the_workflow_follows_the_lockfile_and_never_needs_package_lock(self):
+        template = (TEMPLATES / "ci" / "typescript-security.yml").read_text(encoding="utf-8")
+        for provider, job in (("supabase", "rls-tests"), ("firebase", "rules-tests")):
+            text = render_ci_workflow(template, archetype="mvp", stack_ids=["react-vite", provider])
+            with self.subTest(provider=provider):
+                # No step is skipped for lack of package-lock.json: the manager comes from the lockfile.
+                self.assertNotIn("[ -f package-lock.json ] &&", text)
+                self.assertNotIn("if [ -f package-lock.json ]; then\n            npm", text)
+                self.assertIn("pnpm/action-setup@", text)
+                self.assertRegex(text, r"pnpm/action-setup@[0-9a-f]{40} # v\d")
+                self.assertIn("pnpm install --frozen-lockfile", text)
+                self.assertIn("pnpm audit --audit-level high", text)
+                self.assertIn("yarn install --immutable", text)
+                self.assertIn("npm ci", text)
+                job_text = text.split(f"  {job}:")[1].split("\n# endif")[0]
+                self.assertIn("steps.pm.outputs.manager", job_text)
+                self.assertIn('run="pnpm exec"', job_text)
+                self.assertIn("pnpm install --frozen-lockfile", job_text)
+
     def test_the_workflow_runs_the_rules_tests_of_the_provider(self):
         template = (TEMPLATES / "ci" / "typescript-security.yml").read_text(encoding="utf-8")
         supabase = render_ci_workflow(template, archetype="mvp", stack_ids=["react-vite", "supabase"])
         firebase = render_ci_workflow(template, archetype="mvp", stack_ids=["react-vite", "firebase"])
         plain = render_ci_workflow(template, archetype="mvp", stack_ids=["react-vite"])
-        self.assertIn("npx supabase test db", supabase)
+        self.assertIn("$run supabase test db", supabase)
         self.assertNotIn("emulators:exec", supabase)
-        self.assertIn('npx firebase emulators:exec "npm run test:rules"', firebase)
+        self.assertIn('$run firebase emulators:exec "$script"', firebase)
         self.assertNotIn("supabase test db", firebase)
         self.assertNotIn("rls-tests", plain)
         self.assertNotIn("rules-tests", plain)
@@ -408,10 +466,16 @@ class LocalEnvironmentTests(unittest.TestCase):
 
     def test_the_person_runs_the_cli_commands(self):
         init = baas.local_actions("supabase", initialized=False)
-        self.assertEqual([a["command"] for a in init], ["supabase init", "supabase start"])
-        self.assertEqual([a["command"] for a in baas.local_actions("supabase", initialized=True)], ["supabase start"])
+        # The rules test closes the list: the person runs it with the provider up (it is not gate.tests).
+        self.assertEqual([a["command"] for a in init], ["supabase init", "supabase start", "supabase test db"])
+        self.assertEqual(
+            [a["command"] for a in baas.local_actions("supabase", initialized=True)], ["supabase start", "supabase test db"]
+        )
         firebase = baas.local_actions("firebase", initialized=False)
-        self.assertEqual([a["command"] for a in firebase], ["firebase init", "firebase emulators:start"])
+        self.assertEqual(
+            [a["command"] for a in firebase],
+            ["firebase init", "firebase emulators:start", 'firebase emulators:exec "npm run test:rules"'],
+        )
         self.assertEqual(baas.local_actions("firebase", initialized=True)[0]["command"], "firebase emulators:start")
         self.assertEqual(baas.local_actions(None, initialized=False), [])
 
@@ -604,6 +668,9 @@ class RehearsalTests(Project):
         self.ok("setup", "set", "ai", "no")
         self.ok("setup", "set", "agents", "claude")
         self.assertEqual(self.next_json()["kind"], "set_test_command")
+        test_action = self.next_json()
+        self.assertEqual(test_action["recommended"][:3], ["pnpm", "exec", "vitest"])
+        self.assertEqual(test_action["rules_test"]["command"], baas.rules_test_command(provider, test_action["recommended"]))
         self.ok("setup", "set", "test-command", "--recommended")
         self.ok("setup", "set", "services", "none")
         self.ok("setup", "doc", "brief", "--skip")
@@ -648,7 +715,13 @@ class RehearsalTests(Project):
         done = self.next_json()
         self.assertEqual(done["kind"], "done")
         commands = [a["command"] for a in done["person_actions"] if a["id"].startswith("baas")]
-        self.assertEqual(commands, ["supabase init", "supabase start"] if provider == "supabase" else ["firebase init", "firebase emulators:start"])
+        self.assertEqual(
+            commands,
+            ["supabase init", "supabase start", "supabase test db"] if provider == "supabase"
+            else ["firebase init", "firebase emulators:start", 'firebase emulators:exec "pnpm run test:rules"'],
+        )
+        config = json.loads((self.root / ".rapid-os" / "config.json").read_text(encoding="utf-8"))
+        self.assertEqual(config["test_command"][:3], ["pnpm", "exec", "vitest"])
         show = self.ok("setup", "show")
         self.assertEqual("(agente)" in show, delegate)
         code, out, err = self.run_text("validate", "--strict")
@@ -677,6 +750,18 @@ class RehearsalTests(Project):
         code, out, err = self.run_text("arch", "check")
         self.assertEqual(code, 1, out + err)
         self.assertIn("el SDK de supabase", out + err)
+
+    def test_asking_for_a_database_on_a_baas_is_allowed_with_a_warning(self):
+        self.ok("setup", "set", "topology", "fullstack-baas")
+        # Next.js may use a database (a SPA cannot: that is RAPID1402 already).
+        self.ok("setup", "set", "stack", "nextjs", "--component", "frontend")
+        self.ok("setup", "set", "stack", "supabase", "--component", "baas")
+        code, out, err = self.run_text("setup", "set", "services", "database:postgresql@now")
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("segunda fuente de datos", out + err)
+        code, out, err = self.run_text("setup", "set", "services", "cache:redis@later")
+        self.assertEqual(code, 0, out + err)
+        self.assertNotIn("segunda fuente de datos", out + err)
 
     def test_decided_by_only_goes_with_a_stack(self):
         code, out, err = self.run_text("setup", "set", "archetype", "mvp", "--decided-by", "agent")

@@ -19,12 +19,6 @@
   ],
   "service_roles": [],
   "package_manager": "npm",
-  "default_test_command": [
-    "firebase",
-    "emulators:exec",
-    "{frontend_test}"
-  ],
-  "wraps_frontend_test": true,
   "gitignore": [
     "firebase-debug.log",
     ".firebase/",

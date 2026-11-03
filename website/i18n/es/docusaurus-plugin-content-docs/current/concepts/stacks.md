@@ -72,12 +72,14 @@ El componente `baas` de `fullstack-baas` lo llena `supabase` o `firebase` (`temp
 
 | Proveedor | Datos | Funciones en servidor | Desarrollo local | Pruebas |
 |---|---|---|---|---|
-| `supabase` | Postgres, esquema en `supabase/migrations/`, políticas RLS | Edge Functions (`supabase/functions/<módulo>/`) | `supabase init`, `supabase start` (necesita Docker u otro runtime de contenedores) | `supabase test db` (políticas) junto a las del frontend |
-| `firebase` | colecciones y documentos de Firestore, reglas en `firestore.rules` y `storage.rules` | Cloud Functions (`functions/src/<módulo>/`) | Emulator Suite: `firebase emulators:start` | `firebase emulators:exec "<test del frontend>"` |
+| `supabase` | Postgres, esquema en `supabase/migrations/`, políticas RLS | Edge Functions (`supabase/functions/<módulo>/`) | `supabase init`, `supabase start` (necesita Docker u otro runtime de contenedores) | las del frontend; `supabase test db` (políticas) en CI y como acción de la persona |
+| `firebase` | colecciones y documentos de Firestore, reglas en `firestore.rules` y `storage.rules` | Cloud Functions (`functions/src/<módulo>/`) | Emulator Suite: `firebase emulators:start` | las del frontend; `firebase emulators:exec "<gestor> run test:rules"` en CI y como acción de la persona |
 
 Los comandos locales los ejecuta la persona, como `docker compose up -d`: `rapid setup finish` los lista en `person_actions`. Rapid OS escribe `.env.example` con las variables locales del proveedor (con el prefijo que exige el framework del frontend, como `NEXT_PUBLIC_` o `VITE_`) y sin secretos reales.
 
 **La guía de topología depende del frontend y del proveedor.** Con un frontend con renderizado en servidor (`nextjs`, `nuxt`, `sveltekit`) las mutaciones salen del servidor; con uno solo de navegador (`react-vite`, `vue-vite`, `svelte-vite`, `angular`, `astro`) el SDK corre en el cliente, las reglas de acceso del proveedor son la única barrera y lo privilegiado va en funciones de servidor del proveedor.
+
+**Comando de test.** `rapid setup set test-command --recommended` propone solo el del frontend (`pnpm exec vitest run`): `gate.tests` debe pasar sin Docker ni Java. Las pruebas de reglas del proveedor (`supabase test db`; `firebase emulators:exec "<gestor> run test:rules"`, con el gestor de paquetes del frontend) vienen en `rules_test` de `set_test_command`, corren en el workflow de CI y son una acción de la persona tras `supabase start` o `firebase emulators:start`.
 
 **La regla de arquitectura cubre el SDK y las funciones.** El SDK del proveedor solo se importa desde `data-access` de cada funcionalidad y desde un cliente único en `shared`; las funciones siguen la regla de módulos (`supabase/functions/<m>` o `functions/src/<m>`). `rapid arch check` lo verifica. `security.md` añade una sección por proveedor (RLS probada y claves; reglas con denegación por defecto probadas en el emulador, App Check y credenciales solo en el servidor) y el CI corre esas pruebas. El comando de test recomendado combina `supabase test db` con el del frontend, o envuelve el del frontend en `firebase emulators:exec`.
 

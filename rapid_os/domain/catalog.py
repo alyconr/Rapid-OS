@@ -83,9 +83,6 @@ class StackEntry:
     architecture: str = ""
     # Directory of the Markdown template below `templates/stacks`.
     template: str = ""
-    # The provider's own test runs the frontend's tests inside it (`firebase emulators:exec "<frontend test>"`):
-    # `default_test_command` carries `{frontend_test}` where the frontend's command goes.
-    wraps_frontend_test: bool = False
 
     def test_command(self, root: str = "") -> list[str]:
         """The test command for this stack, run from the project root: `root` is the component's folder."""
@@ -349,11 +346,6 @@ def _url_list(path: Path, value: object, label: str) -> tuple[str, ...]:
     return tuple(value)
 
 
-def command_for_wrap(data: dict) -> list[str]:
-    command = data.get("default_test_command")
-    return [token for token in command if isinstance(token, str)] if isinstance(command, list) else []
-
-
 def _load_component_stack(
     path: Path,
     data: dict,
@@ -385,12 +377,14 @@ def _load_component_stack(
     if not isinstance(raw_sources, dict) or set(raw_sources) != set(factor_keys):
         raise _fail(path, "field 'sources' must give the sources of every factor.")
     sources = {key: _url_list(path, raw_sources[key], f"sources.{key}") for key in factor_keys}
-    wraps = data.get("wraps_frontend_test", False)
-    if not isinstance(wraps, bool):
-        raise _fail(path, "field 'wraps_frontend_test' must be a boolean.")
-    if wraps and not any("{frontend_test}" in token for token in command_for_wrap(data)):
-        raise _fail(path, "wraps_frontend_test needs {frontend_test} in default_test_command.")
-    command = _text_list(path, data, "default_test_command", non_empty=True)
+    # A BaaS provider adds nothing to the project's test command: gate.tests passes without Docker or Java.
+    # The tests of its rules run in CI and as a person action (`rapid_os.domain.baas`).
+    if component == "baas":
+        if "default_test_command" in data:
+            raise _fail(path, "a BaaS provider has no default_test_command: its rules tests are not gate.tests.")
+        command: tuple[str, ...] = ()
+    else:
+        command = _text_list(path, data, "default_test_command", non_empty=True)
     gitignore = _text_list(path, data, "gitignore") if "gitignore" in data else ()
     test_commands = data.get("test_commands")
     command_root: tuple[str, ...] = ()
@@ -447,7 +441,6 @@ def _load_component_stack(
         supported_services={engine: dict(item) for engine, item in supported.items()},
         architecture=_text(path, data, "architecture"),
         template=f"{component}/{data['id']}",
-        wraps_frontend_test=wraps,
     )
 
 
