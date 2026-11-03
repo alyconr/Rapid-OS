@@ -33,6 +33,12 @@ La velocidad de MVP nunca rebaja la base: `coding-rules.md` de MVP lo dice (*La 
 
 Source L2 de SLSA 1.2 es *historial y procedencia*: el historial de `main` es continuo e inmutable y la plataforma de código emite la procedencia de cada revisión. Que todo cambio entre por un PR con revisión es una práctica del proyecto que se suma, no un requisito de L2. Esta parte se completa al configurar el repositorio.
 
+## Proyectos sobre un proveedor BaaS
+
+Con `supabase` o `firebase` como stack `baas`, `security.md` añade una sección del proveedor, con las mismas citas entre corchetes que el resto: Supabase (RLS en toda tabla de un esquema expuesto, privilegios por omisión revocados, políticas probadas con `supabase test db`, la clave publicable es pública y la secreta nunca va al cliente) o Firebase (reglas de Firestore y Storage con deny por defecto probadas en el emulador con `@firebase/rules-unit-testing`, App Check, la `apiKey` web como identificador y no como secreto, credenciales de cuenta de servicio solo en el servidor). Aplica el API Security Top 10, y el workflow de CI añade el job que ejecuta esas pruebas.
+
+Una base de datos de documentos, Firestore o el servicio `database:mongodb`, añade una sección sobre inyección NoSQL [OWASP A05:2025, CWE-943, OWASP ASVS V1]: nunca pases a una consulta un objeto, un operador (`$where`, `$gt`, `$ne`...) ni un nombre de campo tomados de la entrada, comprueba antes el tipo de cada valor y valida la forma de cada documento al escribirlo. Con MongoDB, una sección exige autenticación en todo entorno (también en local) y el puerto solo en `127.0.0.1`, como el `compose.yaml` que escribe Rapid OS. Cambiar de proveedor o de motor de base de datos reescribe un `security.md` que escribió Rapid OS.
+
 ## ¿Usa IA?
 
 El onboarding hace una pregunta después del arquetipo, `rapid setup set ai yes|no`: *¿El producto usará modelos de IA o agentes (por ejemplo, un asistente que responda por WhatsApp)?* Con `yes`, `security.md` incluye la sección **Seguridad de IA**: la salida del modelo es entrada no confiable, defensa contra la inyección de instrucciones, herramientas en lista permitida con mínimo privilegio, aprobación humana para las acciones irreversibles (pagos, borrados, mensajes a clientes), sin secretos en prompts ni en memoria y límites de costo y de iteraciones. Cada regla cita su ítem de OWASP LLM 2025 y de OWASP Agentic 2026.

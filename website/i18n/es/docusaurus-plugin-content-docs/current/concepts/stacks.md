@@ -10,7 +10,7 @@ La topología dice qué piezas tiene el proyecto, y cada pieza necesita su stack
 |---|---|---|
 | `front-end-only` | `frontend` | un stack de frontend |
 | `fullstack-separated` | `frontend`, `backend` | uno de cada |
-| `fullstack-baas` | `frontend`, `baas` | solo el frontend: el backend como servicio no tiene stack en el catálogo |
+| `fullstack-baas` | `frontend`, `baas` | un stack de frontend y un proveedor BaaS (`supabase` o `firebase`), elegidos como cualquier otro stack |
 | `doc-site` | `docs` | `docs-modern` |
 
 `rapid setup next` emite `choose_stack` una vez por componente, en el orden de la topología (`frontend` antes que `backend`). Si la persona todavía no decidió la topología, la primera decisión puede ser el stack de cualquier componente: la topología se pregunta después, con solo las opciones compatibles, y el resto de componentes se pregunta al final.
@@ -65,6 +65,23 @@ Cada ficha trae `factors`, cualitativos (nunca puntajes inventados), y `sources`
 `performance`, `memory_footprint`, `cold_start`, `concurrency_model`, `typing`, `productivity`, `learning_curve`, `maintainability`, `ecosystem_maturity`, `hiring_pool` y `hosting_fit` (`serverless`, `containers` o `PaaS`).
 
 Los factores de popularidad (`hiring_pool`) citan los porcentajes de desarrolladores profesionales de la encuesta de Stack Overflow 2025; los demás, la documentación oficial del lenguaje o del framework. La ficha también trae `fits`, `avoid_if`, `default_test_command`, `package_manager` y `supported_services` (los motores de [servicios de infraestructura](./infrastructure-services.md) con su driver).
+
+## Proveedores BaaS
+
+El componente `baas` de `fullstack-baas` lo llena `supabase` o `firebase` (`templates/stacks/baas/`). Además de los factores de arriba, cada ficha describe `data_model` (Postgres relacional frente a documentos de Firestore), `auth`, `realtime`, `server_functions` (Edge Functions o Cloud Functions), `local_development` y `exit_strategy` (autoalojamiento de Supabase frente al lock-in de Firebase), cada uno con sus `sources` oficiales.
+
+| Proveedor | Datos | Funciones en servidor | Desarrollo local | Pruebas |
+|---|---|---|---|---|
+| `supabase` | Postgres, esquema en `supabase/migrations/`, políticas RLS | Edge Functions (`supabase/functions/<módulo>/`) | `supabase init`, `supabase start` (necesita Docker u otro runtime de contenedores) | `supabase test db` (políticas) junto a las del frontend |
+| `firebase` | colecciones y documentos de Firestore, reglas en `firestore.rules` y `storage.rules` | Cloud Functions (`functions/src/<módulo>/`) | Emulator Suite: `firebase emulators:start` | `firebase emulators:exec "<test del frontend>"` |
+
+Los comandos locales los ejecuta la persona, como `docker compose up -d`: `rapid setup finish` los lista en `person_actions`. Rapid OS escribe `.env.example` con las variables locales del proveedor (con el prefijo que exige el framework del frontend, como `NEXT_PUBLIC_` o `VITE_`) y sin secretos reales.
+
+**La guía de topología depende del frontend y del proveedor.** Con un frontend con renderizado en servidor (`nextjs`, `nuxt`, `sveltekit`) las mutaciones salen del servidor; con uno solo de navegador (`react-vite`, `vue-vite`, `svelte-vite`, `angular`, `astro`) el SDK corre en el cliente, las reglas de acceso del proveedor son la única barrera y lo privilegiado va en funciones de servidor del proveedor.
+
+**La regla de arquitectura cubre el SDK y las funciones.** El SDK del proveedor solo se importa desde `data-access` de cada funcionalidad y desde un cliente único en `shared`; las funciones siguen la regla de módulos (`supabase/functions/<m>` o `functions/src/<m>`). `rapid arch check` lo verifica. `security.md` añade una sección por proveedor (RLS probada y claves; reglas con denegación por defecto probadas en el emulador, App Check y credenciales solo en el servidor) y el CI corre esas pruebas. El comando de test recomendado combina `supabase test db` con el del frontend, o envuelve el del frontend en `firebase emulators:exec`.
+
+**Quién decidió.** Cada decisión de stack en `setup.json` registra `decided_by` (`person` o `agent`). Si la persona delega («decide tú»), el agente elige, lo dice con sus razones y lo registra con `--decided-by agent`; `tech-stack.md` indica que la eligió el agente y que no es una decisión confirmada.
 
 ## Cómo recomienda el agente
 

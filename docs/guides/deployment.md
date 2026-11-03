@@ -25,6 +25,8 @@ The templates cite the official pages consulted. If the consulted documentation 
 | aws | ECS with Fargate (App Runner no longer accepts new customers) | RDS (PostgreSQL, MySQL, MariaDB); DocumentDB is MongoDB-compatible | ElastiCache (Valkey, Redis OSS) | Amazon MQ (RabbitMQ) | MSK (Kafka) |
 | azure | Container Apps or App Service | PostgreSQL and MySQL Flexible Server; Cosmos DB for MongoDB | Azure Managed Redis | Service Bus (not RabbitMQ) | Event Hubs with Kafka endpoint |
 | vercel | Frontend and functions; not an API with persistent connections | Marketplace (Neon, Supabase, MongoDB Atlas...) | Marketplace (Upstash, Redis Cloud) | Outside Vercel | Outside Vercel |
+| netlify | Frontend (and the Deploy Previews); with Supabase the data lives in the provider | Supabase (provider) | Outside Netlify | Outside Netlify | Outside Netlify |
+| firebase-hosting | Static frontend or SPA; Cloud Functions for the server code | Cloud Firestore | Outside Firebase | Outside Firebase | Outside Firebase |
 | render | Docker web service and private services | Render Postgres | Render Key Value (Valkey) | Container with disk | Container with disk |
 | railway | Services in a project with a private network | PostgreSQL template (single node) | Container with volume | Container with volume | Container with volume |
 | dokploy | Self-hosted server with Docker and Traefik | PostgreSQL, MySQL, MariaDB, MongoDB | Redis | Compose | Compose |
