@@ -24,6 +24,7 @@ from rapid_os.domain.project import ProjectModel
 from rapid_os.domain.scanner import suggest_init_choices
 from rapid_os.domain.stack_aliases import LEGACY_STACKS
 from rapid_os.domain.services import active_conditions, describe_services
+from rapid_os.domain.baas import BAAS_PROVIDERS, RULES_TEST_NOTE, rules_test_command
 from rapid_os.domain.setup import (
     ARCHETYPES,
     SERVICE_WHEN,
@@ -44,6 +45,12 @@ STACK_INSTRUCTION = (
     "concurrencia frente a velocidad de desarrollo). No afirmes nada que el catálogo no diga. "
     "La persona decide."
 )
+DELEGATION_INSTRUCTION = (
+    "Si la persona delega la decisión («decide tú»), elige tú con las razones del catálogo, dile cuál elegiste y "
+    "por qué, y registra la decisión como tomada por el agente con `--decided-by agent` (se añade al comando). "
+    "Una decisión de la persona va sin esa bandera. Nunca marques como decidida por la persona una que ella no tomó."
+)
+DECIDED_BY_AGENT_FLAGS = ("--decided-by", "agent")
 STACK_CUSTOM_COMMAND = ("rapid", "setup", "stack", "--custom", "--file", "-")
 TOPOLOGY_COMMAND = ("rapid", "setup", "set", "topology", "<id>")
 ARCHETYPE_COMMAND = ("rapid", "setup", "set", "archetype", "<id>")
@@ -77,6 +84,13 @@ SERVICES_INSTRUCTION = (
     "(p. ej. webhooks de pago con reintentos -> cola; notificaciones masivas por WhatsApp -> cola), y márcalos "
     "@later si no hacen falta para la primera historia. La persona decide; no fijes nada sin su respuesta."
 )
+# With a BaaS provider: it already brings the database, the auth and the storage.
+BAAS_SERVICES_INSTRUCTION = (
+    "El proveedor BaaS ya da la base de datos, la autenticación y el almacenamiento: no propongas el rol database "
+    "(si la persona lo pide, adviértele que tendría dos fuentes de datos y que el proveedor es la de la app). "
+    "Propón caché, colas o streaming solo si el brief lo justifica, con una línea de porqué por cada uno, y "
+    "márcalos @later si no hacen falta para la primera historia; si nada lo justifica, `none`. La persona decide."
+)
 STANDARD_INSTRUCTION = (
     "`standard` es la estructura que fijará .rapid-os/standards/architecture.md al terminar (aún no existe). "
     "Cita sus carpetas, su punto público (`public_entry`), sus capas y sus reglas de dependencia tal cual; "
@@ -108,14 +122,14 @@ def next_setup_action(
     if state.stack is None:
         # A topology the person already chose says which component comes first; otherwise the
         # first stack can be of any component and the topology follows from it.
-        components = [c for c in catalog.components_of(state.topology) if c != "baas"]
+        components = list(catalog.components_of(state.topology))
         return _choose_stack(project_model, catalog, stack_questions, components[0] if components else None, state)
     if state.topology is None:
         return _choose_topology(state, project_model, catalog)
     for component in catalog.components_of(state.topology):
         # A finished onboarding (a project from before the component catalog included) is not reopened
         # because its topology asks for a component it never had to decide.
-        if component != "baas" and component not in state.stacks and not state.finished:
+        if component not in state.stacks and not state.finished:
             return _choose_stack(project_model, catalog, stack_questions, component, state)
     if state.archetype is None:
         return _action(
@@ -150,6 +164,12 @@ def next_setup_action(
             recommended = combine_test_commands([item["command"] for item in per_component])
         if per_component:
             extra["components"] = per_component
+        provider = state.stacks.get("baas")
+        if provider is not None and provider.id in BAAS_PROVIDERS:
+            extra["rules_test"] = {
+                "command": rules_test_command(provider.id, recommended),
+                "note": RULES_TEST_NOTE,
+            }
         return _action(
             SetupActionKind.SET_TEST_COMMAND,
             recommended=recommended,
@@ -254,6 +274,10 @@ def _choose_stack(
     """One stack per component of the topology (`component` names the one asked now)."""
     entries = catalog.options_for(component) if component else tuple(catalog.stacks.values())
     flat = [e for e in catalog.stacks.values() if not e.component and (component is None or component in e.covers)]
+    if component == "baas":
+        # Only the providers of the catalog: `generic` or a stack without sidecar is not a backend as a service.
+        flat = []
+        entries = tuple(e for e in entries if e.component == "baas")
     unique = {}
     for entry in [*entries, *flat]:
         unique.setdefault(entry.id, entry)
@@ -269,7 +293,7 @@ def _choose_stack(
             "avoid_if": [],
             "compatible_topologies": [],
         }
-        for stack_id in catalog.sidecarless_stacks
+        for stack_id in (() if component == "baas" else catalog.sidecarless_stacks)
     ]
     options.sort(key=lambda o: (-o["score"], o["source"] == "generic", o["id"]))
 
@@ -291,6 +315,14 @@ def _choose_stack(
         command=command,
         alt_command=list(STACK_CUSTOM_COMMAND),
     )
+    if component == "baas":
+        # Only the catalog's providers: there is no custom alternative for a backend as a service.
+        payload.pop("alt_command")
+        # The provider is chosen like any other stack; the agent recommends one and the person may delegate.
+        payload["delegation"] = {
+            "instruction": DELEGATION_INSTRUCTION,
+            "command": [*command, *DECIDED_BY_AGENT_FLAGS],
+        }
     if component:
         payload["component"] = component
         payload["decided"] = {c: s.id for c, s in (state.stacks if state else {}).items()}
@@ -345,9 +377,21 @@ def _choose_services(state: SetupState, catalog: Catalog) -> SetupAction:
     """The infrastructure services come from a recorded decision, not from the stack: the stack only
     suggests a minimum."""
     entry = catalog.entry(state.stack.id) if state.stack else None
+    provider = state.stacks.get("baas")
+    note = "Una sugerencia mínima del stack, no una decisión: la persona decide."
+    suggested = list(entry.suggested_services) if entry else []
+    if provider is not None:
+        # The provider already brings the database, the auth and the storage, and runs them locally with its own
+        # tooling (`supabase start`, the Firebase emulators): Rapid OS does not add a second database.
+        suggested = []
+        note = (
+            f"El proveedor {provider.id} ya aporta base de datos, auth y almacenamiento, y se levanta en local con su "
+            "propia CLI. Propón servicios adicionales (caché, cola) solo si el brief los justifica; si no, `none`."
+        )
+    roles = [r for r in SERVICE_ROLES if provider is None or r != "database"]
     return _action(
         SetupActionKind.CHOOSE_SERVICES,
-        roles=list(SERVICE_ROLES),
+        roles=roles,
         catalog=[
             {
                 "id": s.id,
@@ -357,11 +401,12 @@ def _choose_services(state: SetupState, catalog: Catalog) -> SetupAction:
                 "connection_env": s.connection_env,
             }
             for s in sorted(catalog.services.values(), key=lambda s: (SERVICE_ROLES.index(s.role), s.id))
+            if s.role in roles
         ],
-        suggested_services=list(entry.suggested_services) if entry else [],
-        suggestion_note="Una sugerencia mínima del stack, no una decisión: la persona decide.",
+        suggested_services=suggested,
+        suggestion_note=note,
         when_values=list(SERVICE_WHEN),
-        instruction=SERVICES_INSTRUCTION,
+        instruction=BAAS_SERVICES_INSTRUCTION if provider is not None else SERVICES_INSTRUCTION,
         command=list(SERVICES_COMMAND),
     )
 
@@ -385,6 +430,8 @@ def catalog_test_commands(state: SetupState, catalog: Catalog) -> list[dict]:
         command = entry.test_command(root)
         if command:  # `generic` knows no test command
             items.append({"component": component, "stack": stack_id, "root": root, "command": command})
+    # A BaaS provider adds nothing: its policies or rules tests need Docker or Java, and gate.tests must pass
+    # without them. They run in CI and are a person action (`rules_test` of `set_test_command`).
     return items
 
 
@@ -422,6 +469,7 @@ def _resolve_doc(
 ) -> SetupAction:
     command = [doc_id if token == "<id>" else token for token in DOC_COMMAND]
     extra = {"legacy_source": legacy_business} if doc_id == "business" and legacy_business else {}
+    conditions = active_conditions(state.services, state.stacks) if state is not None else frozenset()
     if doc_id in ("data-model", "architecture", "deployment") and state is not None and catalog is not None:
         # Only the decided services: the document describes them and invents no others.
         extra["services"] = describe_services(state.services, catalog)
@@ -429,7 +477,7 @@ def _resolve_doc(
             extra["conditional_sections"] = [
                 {"id": s.id, "titles": list(s.titles), "when": s.when}
                 for s in bank.conditional_sections
-                if s.when in active_conditions(state.services)
+                if s.when in conditions
             ]
     if doc_id == "architecture" and state is not None:
         standard = architecture_standard({component: choice.id for component, choice in state.stacks.items()})
@@ -442,7 +490,8 @@ def _resolve_doc(
         doc=doc_id,
         target=bank.file,
         choices=list(DOC_CHOICES),
-        questions=[_question(q) for q in bank.questions],
+        # A question with a condition (the data model, the provider) is asked only when it holds.
+        questions=[_question(q) for q in bank.questions if q.when is None or q.when in conditions],
         required_sections=[{"id": s.id, "titles": list(s.titles)} for s in bank.required_sections],
         max_chars=bank.max_chars,
         command=command,

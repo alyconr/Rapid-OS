@@ -15,6 +15,13 @@ FRONTEND_FALLBACK = "generic"
 BACKEND_FALLBACK = "generic"
 
 
+def with_baas(stacks: dict[str, StackChoice], topology: str | None, provider: str = "supabase") -> dict[str, StackChoice]:
+    """The topology `fullstack-baas` asks for a provider too: a test that picks it decides one."""
+    if topology == "fullstack-baas":
+        return {**stacks, "baas": StackChoice(provider, "catalog")}
+    return stacks
+
+
 def complete_stacks(stack_id: str, source: str = "catalog") -> dict[str, StackChoice]:
     if stack_id in ("generic", "custom"):
         choice = StackChoice(stack_id, "generic" if stack_id == "generic" else "custom")

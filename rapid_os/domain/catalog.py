@@ -37,6 +37,16 @@ FACTOR_KEYS = (
     "hiring_pool",
     "hosting_fit",
 )
+# What a BaaS provider describes besides the factors above: the data model, auth, realtime, the
+# server-side functions, local development and the way out (self-hosting or lock-in).
+BAAS_FACTOR_KEYS = (
+    "data_model",
+    "auth",
+    "realtime",
+    "server_functions",
+    "local_development",
+    "exit_strategy",
+)
 HOSTING_FITS = ("serverless", "containers", "PaaS")
 
 
@@ -351,10 +361,11 @@ def _load_component_stack(
     if unknown or component not in covers:
         raise _fail(path, "covers must list known components and include the stack's own component.")
     raw_factors = data.get("factors")
-    if not isinstance(raw_factors, dict) or set(raw_factors) != set(FACTOR_KEYS):
-        raise _fail(path, f"field 'factors' must have exactly: {', '.join(FACTOR_KEYS)}.")
+    factor_keys = (*FACTOR_KEYS, *BAAS_FACTOR_KEYS) if component == "baas" else FACTOR_KEYS
+    if not isinstance(raw_factors, dict) or set(raw_factors) != set(factor_keys):
+        raise _fail(path, f"field 'factors' must have exactly: {', '.join(factor_keys)}.")
     factors: dict[str, str] = {}
-    for key in FACTOR_KEYS:
+    for key in factor_keys:
         value = raw_factors[key]
         if not isinstance(value, str) or not value.strip():
             raise _fail(path, f"factor '{key}' must be a non-empty text.")
@@ -363,10 +374,17 @@ def _load_component_stack(
     if not all(token in HOSTING_FITS for token in hosting):
         raise _fail(path, f"factor 'hosting_fit' must list values of: {', '.join(HOSTING_FITS)}.")
     raw_sources = data.get("sources")
-    if not isinstance(raw_sources, dict) or set(raw_sources) != set(FACTOR_KEYS):
+    if not isinstance(raw_sources, dict) or set(raw_sources) != set(factor_keys):
         raise _fail(path, "field 'sources' must give the sources of every factor.")
-    sources = {key: _url_list(path, raw_sources[key], f"sources.{key}") for key in FACTOR_KEYS}
-    command = _text_list(path, data, "default_test_command", non_empty=True)
+    sources = {key: _url_list(path, raw_sources[key], f"sources.{key}") for key in factor_keys}
+    # A BaaS provider adds nothing to the project's test command: gate.tests passes without Docker or Java.
+    # The tests of its rules run in CI and as a person action (`rapid_os.domain.baas`).
+    if component == "baas":
+        if "default_test_command" in data:
+            raise _fail(path, "a BaaS provider has no default_test_command: its rules tests are not gate.tests.")
+        command: tuple[str, ...] = ()
+    else:
+        command = _text_list(path, data, "default_test_command", non_empty=True)
     gitignore = _text_list(path, data, "gitignore") if "gitignore" in data else ()
     test_commands = data.get("test_commands")
     command_root: tuple[str, ...] = ()
@@ -670,6 +688,8 @@ class SetupQuestion:
     text: str
     required: bool = True
     options: tuple[str, ...] = ()
+    # Asked only when this condition holds (like a conditional section); None is always.
+    when: str | None = None
 
 
 @dataclass(frozen=True)
@@ -689,7 +709,7 @@ class ConditionalSection:
     when: str
 
 
-CONDITION_PREFIXES = ("service:",)
+CONDITION_PREFIXES = ("service:", "stack:", "model:")
 
 
 @dataclass(frozen=True)
@@ -718,8 +738,13 @@ def _questions(path: Path, data: dict) -> tuple[SetupQuestion, ...]:
         options = item.get("options", [])
         if not isinstance(options, list) or not all(isinstance(o, str) and o for o in options):
             raise _fail(path, "question 'options' must be a list of non-empty strings.")
+        when = item.get("when")
+        if when is not None and (
+            not isinstance(when, str) or not when.startswith(CONDITION_PREFIXES) or not when.partition(":")[2]
+        ):
+            raise _fail(path, f"question 'when' must start with one of {', '.join(CONDITION_PREFIXES)}.")
         questions.append(
-            SetupQuestion(_text(path, item, "id"), _text(path, item, "text"), required, tuple(options))
+            SetupQuestion(_text(path, item, "id"), _text(path, item, "text"), required, tuple(options), when)
         )
     return tuple(questions)
 

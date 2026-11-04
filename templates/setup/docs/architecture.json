@@ -101,6 +101,21 @@
       "id": "integrations",
       "text": "¿Con qué servicios externos se integra?",
       "required": false
+    },
+    {
+      "id": "provider",
+      "text": "Con un BaaS: ¿qué proveedor es (Supabase o Firebase), qué parte del producto le delega y qué queda en funciones de servidor?",
+      "required": false
+    }
+  ],
+  "conditional_sections": [
+    {
+      "id": "provider",
+      "titles": [
+        "Proveedor BaaS",
+        "BaaS provider"
+      ],
+      "when": "stack:baas"
     }
   ]
 }

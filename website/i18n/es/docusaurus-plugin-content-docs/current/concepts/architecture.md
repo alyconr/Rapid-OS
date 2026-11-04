@@ -58,6 +58,10 @@ Los ocho stacks de frontend (`react-vite`, `nextjs`, `angular`, `vue-vite`, `nux
 
 Cuando el backend y el frontend son stacks distintos viven en `backend/` y `frontend/` y `architecture.json` trae dos reglas. Cuando un solo framework cubre ambos (`nextjs`, `nuxt`, `sveltekit`) las dos reglas están en la raíz, en `src/modules` y `src/features`. Un proyecto con una sola de las dos usa la raíz.
 
+### Sobre un proveedor BaaS
+
+En `fullstack-baas` la regla del frontend y una regla del componente `baas` están en la raíz del proyecto. El SDK del proveedor (`@supabase/supabase-js` y `@supabase/ssr`, o `firebase` y `firebase-admin`) solo se importa desde la carpeta `data-access` de cada funcionalidad y desde un cliente único en `shared`; un import en otro sitio es una violación `RAPID1420`. Las funciones de servidor del proveedor siguen la regla de módulos: `supabase/functions/<módulo>/` o `functions/src/<módulo>/`, y cada una importa otra solo por su punto de entrada público. `rapid arch check` verifica las dos cosas.
+
 ## Cuándo un módulo es hexagonal
 
 Usa puertos en la capa de aplicación y adaptadores en la de infraestructura cuando el módulo integra un sistema externo (pagos, mensajería, IA, correo), cuando su dominio tiene reglas complejas que deben probarse sin infraestructura, o cuando se prevé cambiar de proveedor. Un CRUD simple no lo necesita.

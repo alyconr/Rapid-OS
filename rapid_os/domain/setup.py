@@ -16,6 +16,8 @@ STACK_SOURCES = ("catalog", "custom", "generic")
 DOC_STATUSES = ("pending", "provided", "drafted", "skipped")
 SETUP_DOC_ORDER = ("brief", "business", "data-model", "architecture", "deployment")
 SERVICE_WHEN = ("now", "later")
+# Who took a stack decision: the person, or the agent because the person delegated ("decide tú").
+DECIDED_BY = ("person", "agent")
 
 
 class SetupStateError(ValueError):
@@ -34,11 +36,13 @@ class StackChoice:
     source: str
     # A variant of the stack's `tech-stack.md` (react-vite with the creative profile).
     profile: str | None = None
+    decided_by: str = "person"
 
     def to_dict(self) -> dict[str, str]:
         data = {"id": self.id, "source": self.source}
         if self.profile:
             data["profile"] = self.profile
+        data["decided_by"] = self.decided_by
         return data
 
 
@@ -236,7 +240,11 @@ def _stack_choice(raw: object, where: str) -> StackChoice:
         or not (raw.get("profile") is None or (isinstance(raw["profile"], str) and raw["profile"]))
     ):
         raise _fail(f"{where} must be {{id, source}} with source in {list(STACK_SOURCES)}.")
-    return StackChoice(raw["id"], raw["source"], raw.get("profile"))
+    # A file written before the field existed has only people's decisions.
+    decided_by = raw.get("decided_by", "person")
+    if decided_by not in DECIDED_BY:
+        raise _fail(f"{where}.decided_by must be one of {list(DECIDED_BY)}.")
+    return StackChoice(raw["id"], raw["source"], raw.get("profile"), decided_by)
 
 
 def _read_stacks(data: dict) -> dict[str, StackChoice]:

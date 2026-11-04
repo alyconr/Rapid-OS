@@ -16,6 +16,7 @@ DEFAULT_MCP_PACKAGES = {
     "context7": "@upstash/context7-mcp",
     "firecrawl": "firecrawl-mcp",
     "supabase": "@modelcontextprotocol/server-postgres",
+    "firebase": "firebase-tools",
 }
 
 
@@ -188,6 +189,15 @@ def build_mcp_config(
     if "supabase" in normalized_topology:
         template_servers, template_warnings = load_template_servers(
             templates_dir / "mcp" / "supabase.json"
+        )
+        servers.extend(template_servers)
+        warnings.extend(template_warnings)
+
+    # The Firebase CLI ships its own MCP server (`npx -y firebase-tools@latest mcp`, from the official documentation
+    # https://firebase.google.com/docs/ai-assistance/mcp-server); it needs no placeholder.
+    if "firebase" in normalized_topology:
+        template_servers, template_warnings = load_template_servers(
+            templates_dir / "mcp" / "firebase.json"
         )
         servers.extend(template_servers)
         warnings.extend(template_warnings)

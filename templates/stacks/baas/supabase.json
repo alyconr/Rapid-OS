@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "id": "supabase",
+  "component": "baas",
+  "covers": [
+    "baas"
+  ],
+  "summary": "Supabase: Postgres administrado con Auth, Storage, Realtime y Edge Functions; la seguridad vive en la base de datos (RLS).",
+  "language": "TypeScript",
+  "fits": [
+    "productos con datos relacionales (usuarios, pedidos, inventario) que necesitan SQL y transacciones",
+    "MVPs y equipos pequeños que quieren auth, base de datos, almacenamiento y realtime sin escribir un backend",
+    "proyectos que quieren poder salir a un Postgres estándar o autoalojarse"
+  ],
+  "avoid_if": [
+    "el equipo no quiere escribir SQL ni políticas de seguridad por fila",
+    "se necesita un backend con lógica de larga duración o conexiones persistentes propias",
+    "el modelo de datos es de documentos anidados sin relaciones y se prefiere Firestore"
+  ],
+  "service_roles": [],
+  "package_manager": "npm",
+  "gitignore": [
+    ".env",
+    "supabase/.temp/",
+    "supabase/.branches/"
+  ],
+  "architecture": "supabase",
+  "factors": {
+    "performance": "alto para datos relacionales: es Postgres con índices y SQL; las Edge Functions son sin estado y pueden tener arranques en frío",
+    "memory_footprint": "no aplica al servidor, lo gestiona el proveedor; en local `supabase start` recomienda al menos 7 GB de RAM para todos los servicios",
+    "cold_start": "las Edge Functions pueden tener arranque en frío; la base de datos y la API de datos no dependen de él",
+    "concurrency_model": "Postgres gestionado por el proveedor; las Edge Functions son funciones sin estado sobre el runtime de Deno",
+    "typing": "TypeScript en el cliente y en las Edge Functions (solo TypeScript); `supabase gen types` genera los tipos desde el esquema",
+    "productivity": "alto: auth, base de datos, almacenamiento y realtime listos, con migraciones versionadas desde la CLI",
+    "learning_curve": "media: exige entender SQL y las políticas RLS, porque la autorización vive en la base de datos",
+    "maintainability": "alta si el esquema y las políticas viven en supabase/migrations y se prueban con `supabase test db`",
+    "ecosystem_maturity": "alto en la base (Postgres); el paquete `@supabase/ssr` figura como beta en su documentación",
+    "hiring_pool": "SQL y Postgres son habilidades muy extendidas; Supabase como plataforma es más reciente que Firebase",
+    "hosting_fit": "containers, PaaS",
+    "data_model": "relacional: tablas, claves foráneas, transacciones y SQL sobre Postgres; el esquema evoluciona por migraciones",
+    "auth": "Supabase Auth; las políticas RLS autorizan por fila con `auth.uid()` y sin sesión devuelve null",
+    "realtime": "Realtime ofrece Broadcast, Presence y Postgres Changes; las conexiones públicas duran como máximo 24 horas salvo autenticación de usuario",
+    "server_functions": "Edge Functions en TypeScript sobre Deno (`supabase functions new`, `supabase functions serve`); lo privilegiado va ahí, no en el cliente",
+    "local_development": "CLI: `supabase init`, `supabase start` (necesita un runtime de contenedores como Docker), `supabase db reset`, `supabase test db`",
+    "exit_strategy": "la salida es Postgres estándar; el autoalojamiento con Docker no incluye ramas, copias gestionadas ni PITR y el soporte es de la comunidad"
+  },
+  "sources": {
+    "performance": [
+      "https://supabase.com/docs/guides/functions",
+      "https://supabase.com/docs/guides/database/overview"
+    ],
+    "memory_footprint": [
+      "https://supabase.com/docs/reference/cli/supabase-start"
+    ],
+    "cold_start": [
+      "https://supabase.com/docs/guides/functions"
+    ],
+    "concurrency_model": [
+      "https://supabase.com/docs/guides/functions",
+      "https://supabase.com/docs/guides/database/overview"
+    ],
+    "typing": [
+      "https://supabase.com/docs/guides/functions/quickstart",
+      "https://supabase.com/docs/reference/cli/supabase-gen-types"
+    ],
+    "productivity": [
+      "https://supabase.com/docs/guides/local-development/overview"
+    ],
+    "learning_curve": [
+      "https://supabase.com/docs/guides/database/postgres/row-level-security"
+    ],
+    "maintainability": [
+      "https://supabase.com/docs/guides/local-development/overview",
+      "https://supabase.com/docs/guides/local-development/testing/overview"
+    ],
+    "ecosystem_maturity": [
+      "https://supabase.com/docs/guides/auth/server-side"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://supabase.com/docs/guides/self-hosting"
+    ],
+    "data_model": [
+      "https://supabase.com/docs/guides/database/overview"
+    ],
+    "auth": [
+      "https://supabase.com/docs/guides/database/postgres/row-level-security"
+    ],
+    "realtime": [
+      "https://supabase.com/docs/guides/realtime",
+      "https://supabase.com/docs/guides/api/api-keys"
+    ],
+    "server_functions": [
+      "https://supabase.com/docs/guides/functions/quickstart"
+    ],
+    "local_development": [
+      "https://supabase.com/docs/guides/local-development/cli/getting-started",
+      "https://supabase.com/docs/reference/cli/supabase-start"
+    ],
+    "exit_strategy": [
+      "https://supabase.com/docs/guides/self-hosting"
+    ]
+  },
+  "supported_services": {},
+  "default_topology": "fullstack-baas"
+}

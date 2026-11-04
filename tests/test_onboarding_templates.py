@@ -65,6 +65,8 @@ class Project(unittest.TestCase):
             else:
                 self.ok("setup", "set", "stack", spec)
         self.ok("setup", "set", "topology", topology)
+        if topology == "fullstack-baas" and not any(spec.endswith(":baas") for spec in stacks):
+            self.ok("setup", "set", "stack", "supabase", "--component", "baas")
         self.ok("setup", "set", "archetype", "mvp")
         self.ok("setup", "set", "ai", ai)
         self.ok("setup", "set", "agents", agents)

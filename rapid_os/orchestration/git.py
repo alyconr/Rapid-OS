@@ -104,7 +104,22 @@ def person_actions(root: Path | str | None) -> list[dict[str, str]]:
     if trust.needs_exception:
         actions.append({"id": PERSON_ACTION_ID, "why": PERSON_ACTION_WHY, "command": trust.command or ""})
     actions.extend(local_services_actions(root))
+    actions.extend(baas_actions(root))
     return actions
+
+
+def baas_actions(root: Path | str | None) -> list[dict[str, str]]:
+    """`supabase init` / `supabase start` or `firebase init` / `firebase emulators:start` for a BaaS project."""
+    from rapid_os.adapters.setup_store import read_setup_file
+    from rapid_os.domain.baas import local_actions
+
+    base = git_root(root)
+    state, _ = read_setup_file(base / ".rapid-os")
+    provider = state.stacks.get("baas") if state is not None else None
+    if provider is None:
+        return []
+    initialized = (base / "supabase" / "config.toml").is_file() if provider.id == "supabase" else (base / "firebase.json").is_file()
+    return local_actions(provider.id, initialized=initialized, frontend_test=state.test_command)
 
 
 def local_services_actions(root: Path | str | None) -> list[dict[str, str]]:
@@ -125,7 +140,7 @@ def person_action_lines(actions: list[dict[str, str]]) -> list[str]:
     """The text form of `person_actions`."""
     lines: list[str] = []
     for action in actions:
-        text = LOCAL_SERVICES_TEXT if action.get("id") == "local-services" else PERSON_ACTION_TEXT
+        text = action.get("text") or (LOCAL_SERVICES_TEXT if action.get("id") == "local-services" else PERSON_ACTION_TEXT)
         lines.append(text.format(command=action["command"]))
         lines.append(f"  Por qué: {action['why']}")
     return lines

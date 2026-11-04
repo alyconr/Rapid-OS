@@ -135,9 +135,29 @@ class ConductorTests(unittest.TestCase):
         state = SetupState(topology="fullstack-separated", stacks=both)
         self.assertEqual(next_action(state).kind, SetupActionKind.CHOOSE_ARCHETYPE)
 
-    def test_the_baas_component_needs_no_stack(self):
+    def test_the_baas_provider_is_chosen_like_any_other_stack(self):
         state = SetupState(topology="fullstack-baas", stacks={"frontend": StackChoice("react-vite", "catalog")})
-        self.assertEqual(next_action(state).kind, SetupActionKind.CHOOSE_ARCHETYPE)
+        action = next_action(state).to_dict()
+        self.assertEqual((action["kind"], action["component"]), ("choose_stack", "baas"))
+        self.assertEqual(action["command"][-2:], ["--component", "baas"])
+        providers = {o["id"] for o in action["options"] if o.get("component") == "baas"}
+        self.assertEqual(providers, {"supabase", "firebase"})
+        for option in action["options"]:
+            if option.get("component") == "baas":
+                self.assertTrue(option["factors"]["data_model"])
+                self.assertTrue(option["factor_sources"]["exit_strategy"])
+        self.assertEqual(action["delegation"]["command"][-2:], ["--decided-by", "agent"])
+        decided = SetupState(
+            topology="fullstack-baas",
+            stacks={"frontend": StackChoice("react-vite", "catalog"), "baas": StackChoice("supabase", "catalog")},
+        )
+        self.assertEqual(next_action(decided).kind, SetupActionKind.CHOOSE_ARCHETYPE)
+
+    def test_a_finished_project_without_a_provider_is_not_reopened(self):
+        state = SetupState(
+            topology="fullstack-baas", stacks={"frontend": StackChoice("react-vite", "catalog")}, finished=True
+        )
+        self.assertNotEqual(next_action(state).kind, SetupActionKind.CHOOSE_STACK)
 
     def test_the_payload_carries_factors_questions_and_the_instruction(self):
         action = next_action(SetupState(topology="fullstack-separated", stacks={"frontend": StackChoice("react-vite", "catalog")})).to_dict()

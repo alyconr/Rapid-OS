@@ -19,6 +19,10 @@ Vercel no aloja bases de datos propias en esta guía: se conectan por el Marketp
 | cache (redis) | Upstash for Redis o Redis Cloud (Marketplace) |
 | mysql, mariadb, queue, stream | Sin servicio gestionado documentado: fuera de Vercel |
 
+## Con Supabase
+- La integración de Supabase del Marketplace sincroniza las variables del proyecto con Vercel (entre ellas `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` para el navegador, y `SUPABASE_SECRET_KEY` solo para el servidor); el prefijo del navegador puede cambiarse en el panel de Supabase. Un SPA solo recibe las variables públicas; la clave secreta (`sb_secret_...`) nunca va a una variable expuesta al navegador.
+- Las migraciones y las Edge Functions no se despliegan con Vercel: desde CI con la CLI de Supabase (`supabase link --project-ref <id>`, `supabase db push`, `supabase functions deploy`), con `SUPABASE_ACCESS_TOKEN` y `SUPABASE_DB_PASSWORD` como secretos del CI.
+
 ## Verificación y reversión
 - Revisar el despliegue de Preview antes de promoverlo; comprobar logs tras producción.
 - Reversión: Instant Rollback desde el panel (no cambia las variables de entorno); `vercel promote` deshace el rollback.
@@ -28,4 +32,7 @@ Vercel no aloja bases de datos propias en esta guía: se conectan por el Marketp
 - https://vercel.com/docs/functions/limitations
 - https://vercel.com/docs/environment-variables
 - https://vercel.com/marketplace
+- https://vercel.com/marketplace/supabase
+- https://supabase.com/docs/guides/functions/deploy
+- https://supabase.com/docs/guides/deployment/managing-environments
 - https://vercel.com/docs/instant-rollback

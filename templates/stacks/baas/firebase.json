@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "id": "firebase",
+  "component": "baas",
+  "covers": [
+    "baas"
+  ],
+  "summary": "Firebase: Firestore (documentos), Authentication, Storage y Cloud Functions de Google; la seguridad vive en las reglas de seguridad y App Check.",
+  "language": "TypeScript",
+  "fits": [
+    "apps móviles y web con datos en forma de documentos y sincronización en tiempo real",
+    "equipos que ya usan Google Cloud o quieren auth y hosting integrados sin administrar servidores",
+    "prototipos donde el esquema aún cambia con frecuencia"
+  ],
+  "avoid_if": [
+    "el modelo es muy relacional y necesita joins, transacciones entre muchas tablas o SQL ad hoc",
+    "salir del proveedor o autoalojar es un requisito",
+    "se necesita un control fino del costo con muchas lecturas"
+  ],
+  "service_roles": [],
+  "package_manager": "npm",
+  "gitignore": [
+    "firebase-debug.log",
+    ".firebase/",
+    "functions/node_modules/",
+    "functions/lib/"
+  ],
+  "architecture": "firebase",
+  "factors": {
+    "performance": "alto para lecturas por documento y consultas con índice; el rendimiento depende de modelar los datos según las consultas",
+    "memory_footprint": "no aplica al servidor, lo gestiona el proveedor; en local corre el Emulator Suite",
+    "cold_start": "Cloud Functions puede tener arranque en frío en funciones sin instancias activas",
+    "concurrency_model": "Firestore con escuchas en tiempo real; Cloud Functions son funciones sin estado",
+    "typing": "SDK web en TypeScript; las funciones pueden escribirse en TypeScript (código en functions/src, salida compilada en functions/lib)",
+    "productivity": "alto: auth, base de datos, almacenamiento y hosting integrados, con emuladores locales",
+    "learning_curve": "media: modelar documentos para las consultas y escribir reglas de seguridad y App Check",
+    "maintainability": "media: las reglas y los índices viven en archivos del repositorio y se prueban en el emulador",
+    "ecosystem_maturity": "muy alto: producto de Google con SDK para web, móvil y servidor; las Cloud Functions soportan Node.js 20 y 22",
+    "hiring_pool": "muy extendido en desarrollo móvil y web; el modelo de documentos es específico de Firestore",
+    "hosting_fit": "serverless, PaaS",
+    "data_model": "documentos y colecciones en Firestore (no tablas); sin joins, así que los datos se modelan según las consultas",
+    "auth": "Firebase Authentication; las reglas de seguridad autorizan con request.auth y App Check verifica que el cliente sea tu app",
+    "realtime": "Firestore sincroniza cambios en tiempo real hacia los clientes suscritos",
+    "server_functions": "Cloud Functions for Firebase (Node.js 20 y 22); lo privilegiado, con el Admin SDK, va en funciones o servidores",
+    "local_development": "Emulator Suite: `firebase emulators:start` y `firebase emulators:exec`; los emuladores no son para producción",
+    "exit_strategy": "propietario y sin autoalojamiento: salir implica reescribir el acceso a datos y exportar los documentos"
+  },
+  "sources": {
+    "performance": [
+      "https://firebase.google.com/docs/firestore"
+    ],
+    "memory_footprint": [
+      "https://firebase.google.com/docs/emulator-suite"
+    ],
+    "cold_start": [
+      "https://firebase.google.com/docs/functions/get-started"
+    ],
+    "concurrency_model": [
+      "https://firebase.google.com/docs/firestore",
+      "https://firebase.google.com/docs/functions/get-started"
+    ],
+    "typing": [
+      "https://firebase.google.com/docs/functions/typescript",
+      "https://firebase.google.com/docs/web/setup"
+    ],
+    "productivity": [
+      "https://firebase.google.com/docs/emulator-suite",
+      "https://firebase.google.com/docs/hosting/quickstart"
+    ],
+    "learning_curve": [
+      "https://firebase.google.com/docs/firestore/security/get-started",
+      "https://firebase.google.com/docs/app-check"
+    ],
+    "maintainability": [
+      "https://firebase.google.com/docs/rules/unit-tests"
+    ],
+    "ecosystem_maturity": [
+      "https://firebase.google.com/docs/functions/get-started"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://firebase.google.com/docs/hosting/quickstart"
+    ],
+    "data_model": [
+      "https://firebase.google.com/docs/firestore"
+    ],
+    "auth": [
+      "https://firebase.google.com/docs/app-check",
+      "https://firebase.google.com/docs/firestore/security/get-started"
+    ],
+    "realtime": [
+      "https://firebase.google.com/docs/firestore"
+    ],
+    "server_functions": [
+      "https://firebase.google.com/docs/functions/get-started"
+    ],
+    "local_development": [
+      "https://firebase.google.com/docs/emulator-suite",
+      "https://firebase.google.com/docs/emulator-suite/install_and_configure"
+    ],
+    "exit_strategy": [
+      "https://firebase.google.com/docs/emulator-suite"
+    ]
+  },
+  "supported_services": {},
+  "default_topology": "fullstack-baas"
+}

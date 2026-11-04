@@ -90,6 +90,8 @@ class RuleSpec:
     notes: str = ""
     # Where the dependencies are assembled in this stack, said when the entry layer reaches for infrastructure.
     composition: str = ""
+    # Libraries only some places may import (the BaaS SDK): [{provider, libraries, scope, allowed_layers, allowed_files}].
+    restricted: tuple[Mapping[str, object], ...] = ()
 
     def to_dict(self, root: str = "") -> dict:
         data: dict = {
@@ -119,6 +121,10 @@ class RuleSpec:
             data["complementary"] = self.complementary
         if self.composition:
             data["composition"] = self.composition
+        if self.restricted:
+            data["restricted_imports"] = [
+                {k: (list(v) if isinstance(v, (list, tuple)) else v) for k, v in item.items()} for item in self.restricted
+            ]
         if root:
             data["root"] = root
         return data
@@ -371,6 +377,93 @@ BACKEND_RULES: Mapping[str, RuleSpec] = {
     "nuxt": _ts_modules("server/modules", "server/shared", ["h3", "nitropack", "@prisma/client", "pg"]),
     "sveltekit": _ts_modules("src/lib/server/modules", "src/lib/server/shared", ["@sveltejs/kit", "@prisma/client", "pg"]),
 }
+
+# The server functions of a BaaS provider follow the module rule too: one folder per function.
+SUPABASE_TREE = """supabase/
+  config.toml                  # lo crea `supabase init`
+  migrations/                  # el esquema y las políticas RLS, versionados
+  tests/                       # pruebas pgTAP: `supabase test db`
+  functions/
+    _shared/                   # código compartido, sin importar funciones
+    <m>/
+      index.ts                 # único punto público de la función (Deno.serve)
+      api/                     # entrada: validación de la petición y respuesta
+      application/             # casos de uso (y puertos)
+      domain/                  # entidades y reglas, sin SDK del proveedor
+      infrastructure/          # acceso a datos con la clave secreta, adaptadores
+"""
+FIREBASE_TREE = """firebase.json                  # reglas, emuladores y hosting
+firestore.rules                # deny por defecto, probadas en el emulador
+storage.rules                  # deny por defecto
+functions/
+  src/
+    index.ts                   # exporta las funciones (composición)
+    shared/                    # código compartido, sin importar funciones
+    <m>/
+      index.ts                 # único punto público de la función
+      api/                     # entrada: validación de la petición y respuesta
+      application/             # casos de uso (y puertos)
+      domain/                  # entidades y reglas, sin firebase-admin ni firebase-functions
+      infrastructure/          # Admin SDK y adaptadores
+"""
+BAAS_RULES: Mapping[str, RuleSpec] = {
+    "supabase": RuleSpec(
+        component="baas", language="typescript", modules_root="supabase/functions",
+        shared_root="supabase/functions/_shared", public_entry="index.ts",
+        roles=_roles("api", "application", "domain", "infrastructure"), forbidden=("@supabase",),
+        tree=SUPABASE_TREE, module_pattern="supabase/functions/<m>/", public_contract="index.ts",
+        notes=(
+            "Cada Edge Function es un módulo de `supabase/functions/`. Lo privilegiado (la clave secreta, `service_role`) "
+            "solo existe aquí, nunca en el cliente. Los imports de Deno (`npm:`, `jsr:`) se leen sin el esquema."
+        ),
+    ),
+    "firebase": RuleSpec(
+        component="baas", language="typescript", modules_root="functions/src", shared_root="functions/src/shared",
+        public_entry="index.ts", roles=_roles("api", "application", "domain", "infrastructure"),
+        forbidden=("firebase-admin", "firebase-functions", "firebase"),
+        tree=FIREBASE_TREE, module_pattern="functions/src/<m>/", public_contract="index.ts",
+        notes=(
+            "Cada Cloud Function vive en un módulo de `functions/src/`; `functions/src/index.ts` las exporta. "
+            "El Admin SDK y las credenciales de cuenta de servicio solo existen aquí."
+        ),
+    ),
+}
+
+# The provider SDK, and the only places that may import it from the frontend.
+BAAS_SDK = {
+    "supabase": {
+        "libraries": ("@supabase/supabase-js", "@supabase/ssr"),
+        "client_files": ("supabase-client",),
+        "server_files": ("supabase-server", "supabase-middleware"),
+    },
+    "firebase": {
+        "libraries": ("firebase", "firebase-admin"),
+        "client_files": ("firebase-client",),
+        "server_files": ("firebase-server",),
+    },
+}
+
+
+def with_baas_sdk(spec: RuleSpec, provider: str, *, server_rendered: bool) -> RuleSpec:
+    """The frontend rule of a project on a BaaS: the SDK is imported from `data-access` and from one client in `shared`."""
+    sdk = BAAS_SDK.get(provider)
+    if sdk is None:
+        return spec
+    files = (*sdk["client_files"], *(sdk["server_files"] if server_rendered else ()))
+    scope = spec.modules_root.split("/")[0]
+    return replace(
+        spec,
+        restricted=(
+            {
+                "provider": provider,
+                "libraries": list(sdk["libraries"]),
+                "scope": scope,
+                "allowed_layers": ["data-access"],
+                "allowed_files": list(files),
+            },
+        ),
+    )
+
 
 FRONTEND_RULES: Mapping[str, RuleSpec] = {
     "react-vite": _feature_rule("src/features", "src/shared", {"@/": "src/"}),

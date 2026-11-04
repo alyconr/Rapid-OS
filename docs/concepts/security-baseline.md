@@ -33,6 +33,12 @@ MVP speed never lowers the baseline: MVP `coding-rules.md` says "Speed never low
 
 SLSA 1.2 Source L2 covers *history and provenance*: `main` history is continuous and immutable, and the code platform emits provenance for each revision. Requiring all changes to go through reviewed PRs is an additional project practice, not an L2 requirement. Complete this part when configuring the repository.
 
+## Projects on a BaaS provider
+
+With `supabase` or `firebase` as the `baas` stack, `security.md` adds a section for the provider, with the same bracketed citations as the rest: Supabase (RLS on every table of an exposed schema, revoked default privileges, policies tested by `supabase test db`, the publishable key public and the secret key never in the client) or Firebase (deny-by-default Firestore and Storage rules tested in the emulator with `@firebase/rules-unit-testing`, App Check, the web `apiKey` as an identifier and not a secret, service-account credentials only on the server). The API Security Top 10 applies, and the CI workflow adds the job that runs those tests.
+
+A document database, Firestore or the service `database:mongodb`, adds a section on NoSQL injection [OWASP A05:2025, CWE-943, OWASP ASVS V1]: never pass an object, an operator (`$where`, `$gt`, `$ne`...) or a field name taken from the input to a query, check the type of each value first, and validate the shape of each document when it is written. With MongoDB, a section requires authentication in every environment (also locally) and the port on `127.0.0.1` only, as the `compose.yaml` Rapid OS writes. Changing the provider or the database engine rewrites a `security.md` that Rapid OS wrote.
+
 ## Does the product use AI?
 
 After archetype selection, onboarding asks `rapid setup set ai yes|no`: *Will the product use AI models or agents (for example, an assistant that replies over WhatsApp)?* With `yes`, `security.md` includes **AI Security** rules: treat model output as untrusted input; defend against prompt injection; allow-list tools with least privilege; require human approval for irreversible actions (payments, deletions, customer messages); keep secrets out of prompts and memory; and set cost and iteration limits. Each rule cites the relevant OWASP LLM 2025 and OWASP Agentic 2026 item.

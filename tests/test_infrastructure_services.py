@@ -129,7 +129,7 @@ class ConductorTests(unittest.TestCase):
         self.assertEqual(after.to_dict()["doc"], "data-model")
         self.assertEqual(after.to_dict()["services"][0]["engine"], "mysql")
         self.assertEqual(
-            [s["id"] for s in after.to_dict()["conditional_sections"]], ["local_database"]
+            [s["id"] for s in after.to_dict()["conditional_sections"]], ["local_database", "tables", "migrations"]
         )
 
     def test_none_is_a_decision(self):
@@ -204,7 +204,11 @@ class BodyValidationTests(unittest.TestCase):
         body = "".join(f"## {t.titles[0]}\nx\n\n" for t in bank.required_sections)
         self.assertEqual(validate_doc_body(body, bank), ())
         conditions = active_conditions((ServiceChoice("database", "mysql", "now"),))
-        self.assertEqual([i.code for i in validate_doc_body(body, bank, conditions)], ["RAPID1403"])
+        # A relational engine also asks for its tables and migrations (one RAPID1403 per missing section).
+        issues = validate_doc_body(body, bank, conditions)
+        self.assertEqual([i.code for i in issues], ["RAPID1403"] * 3)
+        for title in ("Base de datos local", "Tablas", "Migraciones"):
+            self.assertTrue(any(title in i.message for i in issues), title)
 
 
 class Project(GitIsolated):
@@ -322,7 +326,7 @@ class DeployCommandTests(Project):
         self.assertFalse((self.root / "DEPLOY.md").exists())
 
     def test_every_platform_has_a_template_with_official_sources(self):
-        for platform in ("aws", "azure", "vercel", "render", "railway", "dokploy"):
+        for platform in ("aws", "azure", "vercel", "netlify", "firebase-hosting", "render", "railway", "dokploy"):
             text = (TEMPLATES / "deploy" / f"{platform}.md").read_text(encoding="utf-8")
             with self.subTest(platform=platform):
                 self.assertIn("## Fuentes oficiales", text)

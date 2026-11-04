@@ -19,7 +19,7 @@ description: How Rapid OS migrates projects from a single stack to per-component
 }
 ```
 
-`source` remains `catalog`, `generic`, or `custom`; optional `profile` names a variant from `tech-stack.md`. A stack that covers multiple components is stored under each component.
+`source` remains `catalog`, `generic`, or `custom`; optional `profile` names a variant from `tech-stack.md`; `decided_by` (`person` or `agent`) says who took the decision and reads as `person` in a file written before the field. A stack that covers multiple components is stored under each component.
 
 ## How previous IDs map
 

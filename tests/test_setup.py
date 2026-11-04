@@ -475,7 +475,8 @@ class SetupCliTests(unittest.TestCase):
             self.assertEqual(show["origin"], "derived")
             state = show["state"]
             self.assertEqual(
-                state["stacks"], {c: {"id": "generic", "source": "generic"} for c in ("frontend", "backend", "baas", "docs")}
+                state["stacks"],
+                {c: {"id": "generic", "source": "generic", "decided_by": "person"} for c in ("frontend", "backend", "baas", "docs")},
             )
             self.assertEqual(state["topology"], "fullstack-separated")
             self.assertEqual(state["archetype"], "mvp")

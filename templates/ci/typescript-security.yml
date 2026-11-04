@@ -45,23 +45,160 @@ jobs:
       - name: semgrep con las reglas OWASP Top 10
         run: semgrep scan --config p/owasp-top-ten --error --metrics=off
 
+  # El gestor de paquetes sale del lockfile del proyecto (pnpm-lock.yaml, package-lock.json o yarn.lock).
+  # Fuentes: https://github.com/pnpm/action-setup , https://pnpm.io/cli/install#--frozen-lockfile ,
+  # https://pnpm.io/cli/audit , https://docs.npmjs.com/cli/commands/npm-ci ,
+  # https://docs.npmjs.com/cli/commands/npm-audit , https://yarnpkg.com/cli/install ,
+  # https://yarnpkg.com/cli/npm/audit
   dependencies:
-    name: Dependencias (npm audit)
+    name: Dependencias (auditoría del gestor de paquetes)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Detectar el gestor de paquetes por el lockfile
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then manager=pnpm
+          elif [ -f package-lock.json ]; then manager=npm
+          elif [ -f yarn.lock ]; then manager=yarn
+          else manager=none; fi
+          echo "manager=$manager" >> "$GITHUB_OUTPUT"
+          # pnpm/action-setup lee la versión de "packageManager"; sin ese campo, instala pnpm 10.
+          if [ -f package.json ] && grep -q '"packageManager"' package.json; then
+            echo "pnpm_version=" >> "$GITHUB_OUTPUT"
+          else
+            echo "pnpm_version=10" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: steps.pm.outputs.manager == 'pnpm'
+        with:
+          version: ${{ steps.pm.outputs.pnpm_version }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "lts/*"
+      - name: Instalar las dependencias con el lockfile
+        if: steps.pm.outputs.manager != 'none'
+        run: |
+          case "${{ steps.pm.outputs.manager }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            npm) npm ci ;;
+            yarn) corepack enable && yarn install --immutable ;;
+          esac
       - name: Auditar las dependencias (severidad alta o superior)
         run: |
-          if [ -f package-lock.json ]; then
-            npm audit --audit-level=high
+          case "${{ steps.pm.outputs.manager }}" in
+            pnpm) pnpm audit --audit-level high ;;
+            npm) npm audit --audit-level=high ;;
+            yarn) yarn npm audit --all --recursive --severity high ;;
+            *) echo "Sin lockfile todavía (pnpm-lock.yaml, package-lock.json o yarn.lock): nada que auditar." ;;
+          esac
+
+# if supabase
+  rls-tests:
+    name: Políticas RLS (supabase test db)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Detectar el gestor de paquetes por el lockfile
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then manager=pnpm
+          elif [ -f package-lock.json ]; then manager=npm
+          elif [ -f yarn.lock ]; then manager=yarn
+          else manager=none; fi
+          echo "manager=$manager" >> "$GITHUB_OUTPUT"
+          # pnpm/action-setup lee la versión de "packageManager"; sin ese campo, instala pnpm 10.
+          if [ -f package.json ] && grep -q '"packageManager"' package.json; then
+            echo "pnpm_version=" >> "$GITHUB_OUTPUT"
           else
-            echo "Sin package-lock.json todavía: nada que auditar."
+            echo "pnpm_version=10" >> "$GITHUB_OUTPUT"
           fi
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: steps.pm.outputs.manager == 'pnpm'
+        with:
+          version: ${{ steps.pm.outputs.pnpm_version }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "lts/*"
+      - name: Instalar las dependencias con el lockfile
+        if: steps.pm.outputs.manager != 'none'
+        run: |
+          case "${{ steps.pm.outputs.manager }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            npm) npm ci ;;
+            yarn) corepack enable && yarn install --immutable ;;
+          esac
+      - name: Probar las políticas (la CLI de Supabase es una dependencia del proyecto)
+        run: |
+          case "${{ steps.pm.outputs.manager }}" in
+            pnpm) run="pnpm exec" ;;
+            npm) run="npx" ;;
+            yarn) run="yarn" ;;
+            *) run="" ;;
+          esac
+          if [ -n "$run" ] && [ -d supabase ]; then
+            $run supabase start
+            $run supabase test db
+          else
+            echo "Sin lockfile o sin supabase/ todavía: nada que probar."
+          fi
+# endif
+
+# if firebase
+  rules-tests:
+    name: Reglas de seguridad (emuladores de Firebase)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Detectar el gestor de paquetes por el lockfile
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then manager=pnpm
+          elif [ -f package-lock.json ]; then manager=npm
+          elif [ -f yarn.lock ]; then manager=yarn
+          else manager=none; fi
+          echo "manager=$manager" >> "$GITHUB_OUTPUT"
+          # pnpm/action-setup lee la versión de "packageManager"; sin ese campo, instala pnpm 10.
+          if [ -f package.json ] && grep -q '"packageManager"' package.json; then
+            echo "pnpm_version=" >> "$GITHUB_OUTPUT"
+          else
+            echo "pnpm_version=10" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: steps.pm.outputs.manager == 'pnpm'
+        with:
+          version: ${{ steps.pm.outputs.pnpm_version }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "lts/*"
+      - name: Instalar las dependencias con el lockfile
+        if: steps.pm.outputs.manager != 'none'
+        run: |
+          case "${{ steps.pm.outputs.manager }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            npm) npm ci ;;
+            yarn) corepack enable && yarn install --immutable ;;
+          esac
+      - name: Probar las reglas (firebase-tools es una dependencia del proyecto)
+        run: |
+          case "${{ steps.pm.outputs.manager }}" in
+            pnpm) run="pnpm exec"; script="pnpm run test:rules" ;;
+            npm) run="npx"; script="npm run test:rules" ;;
+            yarn) run="yarn"; script="yarn run test:rules" ;;
+            *) run="" ;;
+          esac
+          if [ -n "$run" ] && [ -f firebase.json ]; then
+            $run firebase emulators:exec "$script"
+          else
+            echo "Sin lockfile o sin firebase.json todavía: nada que probar."
+          fi
+# endif
 
 # if corporate
   sbom:

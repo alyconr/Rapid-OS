@@ -46,7 +46,8 @@ def collect_sources(project_root: Path | str, config: ArchitectureConfig) -> dic
     root = Path(project_root)
     suffixes = SOURCE_SUFFIXES[config.language]
     sources: dict[str, str] = {}
-    for base in (config.modules_root, config.shared_root):
+    bases = [config.modules_root, config.shared_root, *(r.scope for r in config.restricted_imports)]
+    for base in dict.fromkeys(bases):
         folder = root / base
         if not folder.is_dir():
             continue

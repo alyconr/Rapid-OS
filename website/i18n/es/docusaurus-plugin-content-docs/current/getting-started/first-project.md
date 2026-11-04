@@ -38,7 +38,7 @@ Abre tu agente en esa carpeta y escribe (en Codex, `$rapid-init`):
 
 ### 3. Responde a sus propuestas
 
-El agente te pregunta, una decisión a la vez: stack, topología, arquetipo (MVP o Corporate), comando de tests y los cuatro documentos del proyecto (brief, reglas de negocio, modelo de datos y arquitectura). Para cada decisión te recomienda una opción y una alternativa. Para cada documento eliges:
+El agente te pregunta, una decisión a la vez: stack, topología, arquetipo (MVP o Corporate), comando de tests y los cuatro documentos del proyecto (brief, reglas de negocio, modelo de datos y arquitectura). Para cada decisión te recomienda una opción y una alternativa. Si el producto es un frontend sobre un backend como servicio, elige la topología `fullstack-baas`: el agente te propone entonces el proveedor (Supabase o Firebase) como cualquier otro stack, con una alternativa y las razones del catálogo (modelo de datos, auth, realtime, funciones en servidor, desarrollo local, salida). Si le dices que decida él, elige, te dice cuál y por qué, y `setup.json` registra que esa decisión la tomó el agente (`decided_by: agent`). Al final te muestra los comandos locales del proveedor (`supabase start`, o `firebase emulators:start`) para que los ejecutes tú. Para cada documento eliges:
 
 - **Pegarlo** si ya lo tienes.
 - **Que lo redacte el agente**: te muestra el borrador completo antes de guardarlo.

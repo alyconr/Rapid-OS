@@ -3772,9 +3772,12 @@ def _setup_write(args, action_name, state, catalog, doc_banks):
             catalog,
             DEFAULT_AGENT_REGISTRY.ids(),
             component=getattr(args, "component", None),
+            decided_by=getattr(args, "decided_by", None) or "person",
         )
         write_setup(PROJECT_RAPID_DIR, new_state)
         summary = f"Setup: {key} = {shown}"
+        if getattr(args, "decided_by", None) == "agent":
+            summary += " (decidido por el agente: la persona delegó)"
         if refresh:
             for warning in apply.refresh_archetype_files(
                 CURRENT_DIR, PROJECT_RAPID_DIR, CONFIG_FILE, TEMPLATES_DIR, new_state
@@ -4066,7 +4069,10 @@ def setup_command(args):
         if as_json:
             print(json.dumps({"origin": snapshot.origin, "state": state}, indent=2))
             return 0
-        stack = ", ".join(f"{c}={choice['id']}" for c, choice in state["stacks"].items()) or "-"
+        stack = ", ".join(
+            f"{c}={choice['id']}" + (" (agente)" if choice.get("decided_by") == "agent" else "")
+            for c, choice in state["stacks"].items()
+        ) or "-"
         docs = ", ".join(_doc_summary(k, v) for k, v in state["docs"].items()) or "-"
         test_command = " ".join(state["test_command"]) if state["test_command"] else "-"
         print(f"Setup state ({snapshot.origin}): finished={str(state['finished']).lower()}")
@@ -5573,7 +5579,7 @@ def create_parser():
     deploy.add_argument(
         "--target",
         dest="target_option",
-        help="Platform: aws, azure, vercel, render, railway or dokploy.",
+        help="Platform: aws, azure, vercel, netlify, firebase-hosting, render, railway or dokploy.",
     )
 
     vision = subparsers.add_parser(
@@ -5778,7 +5784,7 @@ def create_parser():
         help="Record a decision: stack, topology, archetype, ai, agents or test-command (writes state).",
         description=(
             "Record one onboarding decision in .rapid-os/setup.json. Standards are written by 'rapid setup finish'. "
-            "Keys: stack <id> [--component frontend|backend], topology <id>, archetype <mvp|corporate>, ai <yes|no>, agents <id,id>, "
+            "Keys: stack <id> [--component frontend|backend|baas] [--decided-by person|agent], topology <id>, archetype <mvp|corporate>, ai <yes|no>, agents <id,id>, "
             "test-command '<cmd>' ('none' for no command)."
         ),
     )
@@ -5793,6 +5799,12 @@ def create_parser():
         "--component",
         choices=["frontend", "backend", "baas", "docs"],
         help="With 'stack <id>': fill only this component of the topology (a stack that covers several fills them all).",
+    )
+    _sp.add_argument(
+        "--decided-by",
+        dest="decided_by",
+        choices=["person", "agent"],
+        help="With 'stack <id>': who took the decision. 'agent' when the person delegated it ('decide tú'); default person.",
     )
     _sp.add_argument(
         "--refresh",

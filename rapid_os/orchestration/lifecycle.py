@@ -112,6 +112,18 @@ def _has_local_services(project_rapid_dir) -> bool:
     return state is not None and bool(services_now(state.services))
 
 
+def _data_model(project_rapid_dir) -> str | None:
+    """`relational` or `documents`: what the scaffold says about the schema (None when undecided)."""
+    from rapid_os.adapters.setup_store import read_setup_file
+    from rapid_os.domain.services import data_model
+
+    try:
+        state, _ = read_setup_file(Path(project_rapid_dir))
+    except Exception:  # an unreadable setup.json is reported by `rapid validate`, not by the scaffold
+        return None
+    return data_model(state.services, state.stacks) if state is not None else None
+
+
 SCAFFOLD_TEST_COMMAND_HINT = f"{TEST_COMMAND_FIX} antes de cerrarla"
 
 
@@ -131,10 +143,19 @@ def _complementary_architecture_test(project_rapid_dir) -> str:
 
 
 SCAFFOLD_SERVICES_HINT = (
-    "Lee la configuración de .env.example (nunca valores fijos); el esquema de datos va en migraciones; "
+    "Lee la configuración de .env.example (nunca valores fijos); {schema}; "
     "las pruebas unitarias no usan servicios externos y las de integración llevan un marcador propio, "
     "de modo que gate.tests pasa sin Docker; Dockerfile multi-stage con usuario no root y healthcheck"
 )
+# Where the schema lives, by data model: migrations for tables; validation and indexes for documents.
+SCAFFOLD_SCHEMA_HINTS = {
+    "relational": "el esquema de datos va en migraciones versionadas",
+    "documents": (
+        "no hay migraciones: la forma de cada documento se valida al escribirlo (validación de esquema o "
+        "reglas del proveedor) y los índices se declaran en el repositorio"
+    ),
+}
+SCAFFOLD_DATA_HINT = "{schema}; lee la configuración de .env.example (nunca valores fijos)"
 
 
 def with_scaffold_task(
@@ -144,6 +165,7 @@ def with_scaffold_task(
     architecture: bool = False,
     services: bool = False,
     complementary: str = "",
+    data_model: str | None = None,
 ) -> list[str]:
     """The scaffold as the first task. Contract task ids start at T001, so the scaffold is T001
     and the written `T00n:` prefixes of the other tasks move down by one to keep matching.
@@ -162,8 +184,11 @@ def with_scaffold_task(
         scaffold += f" {SCAFFOLD_ARCHITECTURE_HINT}"
     if complementary:
         scaffold += f". Añade como test complementario (el gate sigue siendo rapid arch check): {complementary}"
+    schema = SCAFFOLD_SCHEMA_HINTS.get(data_model or "relational")
     if services:
-        scaffold += f". {SCAFFOLD_SERVICES_HINT}"
+        scaffold += ". " + SCAFFOLD_SERVICES_HINT.format(schema=schema)
+    elif data_model:  # a BaaS without local services: the schema still has its place
+        scaffold += ". " + SCAFFOLD_DATA_HINT.format(schema=schema)
     if needs_test_command:
         scaffold += f". {SCAFFOLD_TEST_COMMAND_HINT}"
     return [scaffold, *renumbered]
@@ -484,6 +509,7 @@ def execute_start(
                     architecture=has_architecture_rule(project_rapid_dir),
                     complementary=_complementary_architecture_test(project_rapid_dir),
                     services=_has_local_services(project_rapid_dir),
+                    data_model=_data_model(project_rapid_dir),
                 )
                 if not has_scaffold_task(written_tasks):
                     run_notes = scaffold_notes(written_tasks, spec_fields["implementation_tasks"])

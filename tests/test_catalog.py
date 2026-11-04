@@ -53,6 +53,11 @@ for _stack in ("python-fastapi", "python-django", "node-nestjs", "node-fastify",
 for _stack in ("react-vite", "nextjs", "angular", "vue-vite", "nuxt", "svelte-vite", "sveltekit", "astro"):
     for _topology, _codes in _FRONTEND.items():
         EXPECTED_STACK_TOPOLOGY[(_stack, _topology)] = _codes
+# A BaaS provider only fits the topology that has a baas component.
+_BAAS = {"backend-only": ["RAPID404"], "doc-site": ["RAPID403"], "front-end-only": ["RAPID404"], "fullstack-baas": _NO, "fullstack-separated": ["RAPID404"]}
+for _stack in ("supabase", "firebase"):
+    for _topology, _codes in _BAAS.items():
+        EXPECTED_STACK_TOPOLOGY[(_stack, _topology)] = _codes
 EXPECTED_STACK_TOPOLOGY.update(
     {
         ("docs-modern", "backend-only"): ["RAPID402"],

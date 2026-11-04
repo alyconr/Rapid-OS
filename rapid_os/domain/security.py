@@ -20,8 +20,15 @@ API_STACKS = frozenset(
         "python-fastapi", "python-django", "node-nestjs", "node-fastify", "go", "rust-axum", "ruby-rails",
         "dotnet-aspnetcore", "java-spring-boot", "kotlin-spring-boot", "php-laravel",
         "nextjs", "nuxt", "sveltekit",
+        # A BaaS exposes its data API to the browser: the API Security Top 10 applies.
+        "supabase", "firebase",
     }
 )
+# BaaS providers: the baseline and the CI workflow have a region for each.
+BAAS_PROVIDERS = ("supabase", "firebase")
+# Document databases (NoSQL injection, CWE-943): a BaaS stack, or a decided service engine.
+DOCUMENT_STACKS = frozenset({"firebase"})
+DOCUMENT_ENGINES = frozenset({"mongodb"})
 # OWASP ASVS 5.0.0 level each archetype verifies.
 ASVS_LEVELS: Mapping[str, str] = {"mvp": "L1", "corporate": "L2"}
 # The language of the CI workflow for each stack (`generic` depends on what the scanner finds).
@@ -51,6 +58,9 @@ CI_LANGUAGE_BY_STACK: Mapping[str, str] = {
     "java-spring-boot": "java",
     "kotlin-spring-boot": "kotlin",
     "php-laravel": "php",
+    # The language of the provider's functions and of the tests of its rules.
+    "supabase": "typescript",
+    "firebase": "typescript",
 }
 _SCANNED_CI_LANGUAGES: Mapping[str, str] = {
     "python": "python",
@@ -116,12 +126,30 @@ def render_conditionals(text: str, active: Collection[str]) -> str:
     return "".join(kept)
 
 
+def security_regions(stack_id: "str | Iterable[str] | None", engines: Iterable[str] = ()) -> frozenset[str]:
+    """The regions of the baseline that depend on the data store: the BaaS provider, `documents` for a
+    document database (Firestore, or the service `database:mongodb`) and `mongodb` for that engine."""
+    ids = {stack_id} if isinstance(stack_id, str) else set(stack_id or ())
+    engine_ids = set(engines)
+    regions = {provider for provider in BAAS_PROVIDERS if provider in ids}
+    if ids & DOCUMENT_STACKS or engine_ids & DOCUMENT_ENGINES:
+        regions.add("documents")
+    regions.update(engine_ids & DOCUMENT_ENGINES)
+    return frozenset(regions)
+
+
 def render_security_standard(
-    template: str, *, archetype: str, stack_id: "str | Iterable[str] | None", ai: bool | None
+    template: str,
+    *,
+    archetype: str,
+    stack_id: "str | Iterable[str] | None",
+    ai: bool | None,
+    engines: Iterable[str] = (),
 ) -> str:
     """`standards/security.md`: the baseline at the archetype's level, with the API and AI parts
-    only where they apply."""
+    only where they apply, and the parts of the data store decided (`engines`: the service engines)."""
     active = {archetype}
+    active.update(security_regions(stack_id, engines))
     if has_api(stack_id):
         active.add("api")
     if effective_ai(stack_id, ai):
@@ -130,11 +158,21 @@ def render_security_standard(
     return body.replace(ASVS_LEVEL_TOKEN, ASVS_LEVELS.get(archetype, "L1"))
 
 
-def render_ci_workflow(template: str, *, archetype: str, primary: bool = True, language: str | None = None) -> str:
+def render_ci_workflow(
+    template: str,
+    *,
+    archetype: str,
+    primary: bool = True,
+    language: str | None = None,
+    stack_ids: Iterable[str] = (),
+) -> str:
     """The CI workflow: Corporate adds the SBOM and the provenance, and only the first workflow of a
     project scans the secrets (a second language would repeat the same scan). With a `language`,
     the workflow is named after it so the two of a project do not look alike on GitHub."""
-    body = render_conditionals(template, {archetype, "primary"} if primary else {archetype})
+    active = {archetype, "primary"} if primary else {archetype}
+    # The tests of a BaaS provider's rules run in the workflow of its language (the frontend's).
+    active.update(provider for provider in BAAS_PROVIDERS if provider in set(stack_ids))
+    body = render_conditionals(template, active)
     if language:
         body = re.sub(r"^name: rapid-security[ \t]*$", f"name: rapid-security ({language})", body, count=1, flags=re.MULTILINE)
     return body
