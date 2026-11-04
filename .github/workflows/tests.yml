@@ -1,13 +1,58 @@
 name: Tests
 
+# Pull requests run the fast suite on one Python version (a few minutes).
+# The full suite (fast + slow end-to-end modules) on every supported Python runs
+# after a merge to main, on tags, or by hand on any branch:
+#   gh workflow run tests.yml --ref <branch>
+# Locally: `python scripts/test.py` (fast) and `python scripts/test.py --all` (full).
+
 on:
-  push:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUTF8: "1"
 
 jobs:
-  unittest:
-    name: Python ${{ matrix.python-version }}
+  fast:
+    name: Fast suite (Python 3.12)
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js (the stack catalog tests run it)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+
+      - name: Verify bytecode compilation
+        run: python -m compileall -q rapid.py rapid_os tests scripts
+
+      - name: Run the fast suite in parallel
+        run: python scripts/test.py
+
+  full:
+    name: Full suite (Python ${{ matrix.python-version }})
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     strategy:
       fail-fast: false
@@ -17,10 +62,6 @@ jobs:
           - "3.11"
           - "3.12"
           - "3.13"
-
-    env:
-      PYTHONDONTWRITEBYTECODE: "1"
-      PYTHONUTF8: "1"
 
     steps:
       - name: Check out repository
@@ -43,10 +84,10 @@ jobs:
           node-version: lts/*
 
       - name: Verify bytecode compilation
-        run: python -m compileall -q rapid.py rapid_os tests
+        run: python -m compileall -q rapid.py rapid_os tests scripts
 
-      - name: Run unit and E2E tests
-        run: python -m unittest discover
+      - name: Run unit and E2E tests in parallel
+        run: python scripts/test.py --all
 
       - name: Run CLI smoke checks
         run: |
