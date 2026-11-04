@@ -11,14 +11,14 @@
     "main_flow": ["Definir criterios de comparación", "Ejecutar el experimento", "Documentar la conclusión"],
     "edge_cases": ["Resultados no concluyentes"],
     "business_rules": ["La conclusión se sustenta en evidencia adjunta"],
-    "technical_constraints": ["Sin nuevas dependencias", "Python stdlib 3.10-3.13"],
-    "affected_paths": ["experiments/"],
+    "technical_constraints": ["Respeta el stack del proyecto (tech-stack); nuevas dependencias solo si la spec lo justifica"],
+    "affected_paths": ["experiments/<id-de-la-spec>/"],
     "acceptance_criteria": ["Existe evidencia adjunta que respalda la conclusión", "La recomendación queda documentada"],
     "testing_strategy": ["Un spike no exige tests; la evidencia se adjunta con rapid attach"],
     "implementation_tasks": [
       "T001: Definir la pregunta y los criterios de comparación",
-      "T002: Ejecutar el experimento y adjuntar la evidencia",
-      "T003: Documentar la conclusión y la recomendación"
+      "T002: Ejecutar el experimento, guardar los hallazgos con sus fuentes en experiments/<id-de-la-spec>/T002.md y adjuntarlos",
+      "T003: Documentar la conclusión y la recomendación en experiments/<id-de-la-spec>/T003.md y adjuntarla"
     ]
   },
   "instructions": {

@@ -119,6 +119,45 @@ class ShortcutRenderingTests(unittest.TestCase):
         self.assertEqual(dict(Bare().shortcut_outputs(self.templates)), {})
 
 
+class ResearchShortcutTests(unittest.TestCase):
+    """The research loop attaches findings; the harness, not Rapid OS, does the searching."""
+
+    def setUp(self):
+        self.template = next(t for t in installer.load_templates(TEMPLATES) if t.name == "rapid-research")
+
+    def test_attach_is_an_allowed_command(self):
+        self.assertIn("attach", self.template.allowed_commands)
+        outputs = DEFAULT_AGENT_REGISTRY.get("claude").shortcut_outputs([self.template])
+        [content] = outputs.values()
+        [allowed] = [l for l in content.splitlines() if l.startswith("allowed-tools:")]
+        self.assertIn("Bash(rapid attach *)", allowed)
+
+    def test_body_saves_findings_with_sources_before_attaching(self):
+        body = self.template.body
+        self.assertIn("Rapid OS no busca por ti", body)
+        saved = body.index("experiments/<id-de-la-spec>/T00N.md")
+        self.assertLess(saved, body.index("rapid attach <ruta> --label TEXT --task T00N"))
+        self.assertLess(body.index("las fuentes (URL o ruta y fecha de consulta)"), body.index("rapid attach <ruta>"))
+        self.assertIn("No inventes fuentes", body)
+        self.assertIn("--no-check", body)
+
+
+class ModeTemplateTests(unittest.TestCase):
+    def test_spec_templates_carry_no_rapid_os_repo_constraints(self):
+        for path in sorted((TEMPLATES / "modes").glob("*.json")):
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(mode=path.stem):
+                self.assertNotIn("Python stdlib", text)
+                self.assertNotIn("Sin nuevas dependencias", text)
+
+    def test_research_findings_live_under_the_spec_folder(self):
+        spec = json.loads((TEMPLATES / "modes" / "research.json").read_text(encoding="utf-8"))["spec_template"]
+        self.assertEqual(spec["affected_paths"], ["experiments/<id-de-la-spec>/"])
+        tasks = spec["implementation_tasks"]
+        for task in tasks[1:]:
+            self.assertIn("experiments/<id-de-la-spec>/", task)
+
+
 class ShortcutInstallerTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
