@@ -72,7 +72,7 @@ Escribe `/rapid-` en Claude Code y elige un shortcut, o lánzalo directamente:
 ```
 
 - Claude Code es el único harness que ejecuta la línea `` !`rapid next --json` `` antes de enviar el prompt; si ese comando falla, el skill se aborta, así que `rapid` debe estar en el `PATH`.
-- `allowed-tools` pre-aprueba solo `rapid next`, `start`, `check`, `task`, `finish` y `status`; nunca `approve` ni `abort`.
+- `allowed-tools` pre-aprueba solo `rapid next`, `start`, `check`, `task`, `finish` y `status` (y `attach` en `/rapid-research`); nunca `approve` ni `abort`.
 - `/rapid-approve` lleva `disable-model-invocation` y **no aprueba**: te da el comando para tu terminal. Aprueba siempre en tu propia terminal, no con el modo `!` de Claude Code (`RAPID1310`).
 
 ---

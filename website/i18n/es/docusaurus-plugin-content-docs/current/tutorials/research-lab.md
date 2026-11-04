@@ -23,7 +23,7 @@ Abre tu agente en la carpeta y escribe `/rapid-init` (en Codex, `$rapid-init`). 
 /rapid-research comparar JSON y SQLite para guardar las preferencias
 ```
 
-Un spike no exige baseline ni tests: el agente prueba las dos opciones y registra cada hallazgo como evidencia del run (`rapid attach <ruta> --label "…"`).
+Un spike no exige baseline ni tests: el agente prueba las dos opciones, guarda los hallazgos de cada tarea con sus fuentes en `experiments/<id-de-la-spec>/T00N.md` y registra ese archivo como evidencia del run (`rapid attach <ruta> --label "…" --task T00N`). Si hace falta buscar en la web o consultar documentación, lo hacen las herramientas y los MCP de tu harness; Rapid OS no busca.
 
 ### 4. Aprueba en tu terminal
 

@@ -11,7 +11,7 @@
     "main_flow": ["Entrada actual sin validar", "Entrada validada y acotada"],
     "edge_cases": ["Entradas vacías, enormes, con bytes nulos o con formato inválido"],
     "business_rules": ["Las entradas inválidas se rechazan con un error explícito"],
-    "technical_constraints": ["Sin nuevas dependencias", "Python stdlib 3.10-3.13"],
+    "technical_constraints": ["Respeta el stack del proyecto (tech-stack); nuevas dependencias solo si la spec lo justifica"],
     "affected_paths": ["src/"],
     "acceptance_criteria": ["Las entradas inválidas se rechazan", "Las entradas válidas siguen funcionando"],
     "testing_strategy": ["Tests de entradas maliciosas y de límites", "Suite completa en el workspace aislado"],

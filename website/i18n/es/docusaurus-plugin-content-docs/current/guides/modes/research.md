@@ -20,6 +20,8 @@ El modo **Research** está orientado a spikes técnicos, evaluación de bibliote
 Qué hace su playbook (`templates/modes/research.json` y las reglas del Conductor):
 
 - Un spike es de riesgo bajo: solo queda `gate.final-verification`; no hay baseline ni tests obligatorios.
+- Rapid OS no busca nada por sí mismo: las herramientas de investigación las aporta el harness (búsqueda y lectura web, servidores MCP conectados como Context7 para la documentación de librerías). Cuando un experimento en el repo puede responder la pregunta, el agente lo prefiere a la opinión de un artículo.
+- Un resultado de búsqueda no es un archivo: el agente guarda los hallazgos de cada tarea en `experiments/<id-de-la-spec>/T00N.md` con la pregunta, lo que encontró, sus fuentes (URL o ruta y fecha de consulta) y qué se probó aquí frente a qué solo se leyó, y después adjunta ese archivo. Un hallazgo sin fuente lo dice; las fuentes nunca se inventan.
 - Los hallazgos se registran con `rapid attach <ruta> --label "…"` (evidencia `artifact`, productor `rapid:attach`), vinculada a la tarea en curso (o a la que indiques con `--task`).
 - Las tareas se cierran con `rapid task done T00N --no-check`, porque no hay tests que ejecutar.
 

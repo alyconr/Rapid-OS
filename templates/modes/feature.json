@@ -11,7 +11,7 @@
     "main_flow": ["Paso 1 del flujo principal", "Paso 2 del flujo principal"],
     "edge_cases": ["Caso borde a considerar"],
     "business_rules": ["Regla de negocio 1"],
-    "technical_constraints": ["Sin nuevas dependencias", "Python stdlib 3.10-3.13"],
+    "technical_constraints": ["Respeta el stack del proyecto (tech-stack); nuevas dependencias solo si la spec lo justifica"],
     "affected_paths": ["rapid_os/orchestration/"],
     "acceptance_criteria": ["Criterio verificable 1"],
     "testing_strategy": ["Pruebas unitarias en tests/"],

@@ -11,7 +11,7 @@
     "main_flow": ["Entrada o escenario que dispara el bug", "Resultado erróneo actual", "Resultado correcto esperado"],
     "edge_cases": ["Variantes de la entrada que podrían seguir fallando"],
     "business_rules": ["Regla de negocio que el bug viola"],
-    "technical_constraints": ["Sin nuevas dependencias", "Python stdlib 3.10-3.13"],
+    "technical_constraints": ["Respeta el stack del proyecto (tech-stack); nuevas dependencias solo si la spec lo justifica"],
     "affected_paths": ["src/"],
     "acceptance_criteria": ["Existe un test que reproduce el bug y pasa tras la corrección", "La suite completa sigue en verde"],
     "testing_strategy": ["Test de reproducción en rojo antes de corregir", "Suite completa tras la corrección"],

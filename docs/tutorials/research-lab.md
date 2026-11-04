@@ -28,7 +28,7 @@ Open your agent in the folder and enter `/rapid-init` (`$rapid-init` in Codex). 
 /rapid-research compare JSON and SQLite for storing preferences
 ```
 
-A spike does not require a baseline or tests: the agent tries both options and records each finding as run evidence (`rapid attach <path> --label "..."`).
+A spike does not require a baseline or tests: the agent tries both options, saves each task's findings with their sources in `experiments/<spec-id>/T00N.md`, and records that file as run evidence (`rapid attach <path> --label "..." --task T00N`). Any web search or documentation lookup comes from your harness's own tools and MCP servers; Rapid OS does not search.
 
 ### 4. Approve in your terminal
 

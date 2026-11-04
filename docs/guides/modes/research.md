@@ -20,6 +20,8 @@ description: Exploratory spikes, evaluation of technical alternatives, and proof
 What its playbook does (`templates/modes/research.json` and the Conductor's rules):
 
 - A spike is low risk: only `gate.final-verification` remains; there is no baseline or mandatory tests.
+- Rapid OS does not search anything itself: the harness brings the research tools (web search and reading, connected MCP servers such as Context7 for library docs). When an experiment in the repo can answer the question, the agent prefers it to an article's opinion.
+- A search result is not a file: the agent saves each task's findings in `experiments/<spec-id>/T00N.md` with the question, what it found, its sources (URL or path and date consulted) and what was tested here versus only read, and then attaches that file. A finding without a source says so; sources are never invented.
 - Findings are recorded with `rapid attach <path> --label "…"` (an `artifact` evidence, producer `rapid:attach`), linked to the task in progress (or to the one you indicate with `--task`).
 - Tasks are closed with `rapid task done T00N --no-check`, because there are no tests to run.
 

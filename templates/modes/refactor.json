@@ -11,7 +11,7 @@
     "main_flow": ["Estado actual del código", "Estructura objetivo tras el refactor"],
     "edge_cases": ["Comportamientos sutiles que los tests actuales no cubren"],
     "business_rules": ["El comportamiento observable no cambia"],
-    "technical_constraints": ["Sin nuevas dependencias", "Python stdlib 3.10-3.13"],
+    "technical_constraints": ["Respeta el stack del proyecto (tech-stack); nuevas dependencias solo si la spec lo justifica"],
     "affected_paths": ["src/"],
     "acceptance_criteria": ["Los tests que pasaban en la baseline siguen pasando", "El número de tests pasados no disminuye"],
     "testing_strategy": ["Tests existentes como red de seguridad", "Tests de caracterización donde falte cobertura"],
