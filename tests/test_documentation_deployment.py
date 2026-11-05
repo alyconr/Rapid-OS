@@ -14,6 +14,15 @@ SIDEBARS_FILE = WEBSITE_DIR / "sidebars.ts"
 DEPLOY_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "docs-deploy.yml"
 DOCS_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "docs.yml"
 BUILD_DIR = WEBSITE_DIR / "build"
+# The site serves English at the root and Spanish under /es: each route has its own heading.
+TUTORIALS_HEADINGS = {
+    "tutorials": "Rapid OS Hands-on Labs",
+    "es/tutorials": "Laboratorios prácticos de RAPID OS",
+}
+TUTORIALS_SOURCES = {
+    "tutorials": REPO_ROOT / "docs" / "tutorials" / "index.md",
+    "es/tutorials": WEBSITE_DIR / "i18n" / "es" / "docusaurus-plugin-content-docs" / "current" / "tutorials" / "index.md",
+}
 
 
 class TestDocumentationProductionConfig(unittest.TestCase):
@@ -172,6 +181,15 @@ class TestDocumentationStaticBuildIntegrity(unittest.TestCase):
         self.assertNotIn("file:///", index_content)
 
 
+class TestLiveSmokeExpectations(unittest.TestCase):
+    """Without a network, catches a live smoke expectation that no longer matches the page it checks."""
+
+    def test_tutorials_headings_match_their_sources(self):
+        for path, heading in TUTORIALS_HEADINGS.items():
+            with self.subTest(path=path):
+                self.assertIn(f"# {heading}\n", TUTORIALS_SOURCES[path].read_text(encoding="utf-8"))
+
+
 class TestLiveDocsSmoke(unittest.TestCase):
     """Optional live smoke tests executed when RAPID_OS_LIVE_DOCS_URL is provided."""
 
@@ -205,8 +223,10 @@ class TestLiveDocsSmoke(unittest.TestCase):
         self.assertIn("CLI", body)
 
     def test_live_tutorials_accessible(self):
-        body = self._check_url("/tutorials", expected_status=200)
-        self.assertIn("Laboratorios", body)
+        for path, heading in TUTORIALS_HEADINGS.items():
+            with self.subTest(path=path):
+                body = self._check_url(f"/{path}", expected_status=200)
+                self.assertIn(heading, body)
 
     def test_live_sitemap_accessible(self):
         body = self._check_url("/sitemap.xml", expected_status=200)

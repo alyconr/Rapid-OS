@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- The live smoke test of `docs-deploy.yml` looked for the Spanish heading at the English route `/tutorials`, so every deployment ended in failure after publishing the site. It now checks each language at its own route, and a test without network access compares those headings with their source pages.
+- The README no longer says that `main` is at `3.2.0.dev0`.
+
 ---
 
 ## [3.2.0rc2] - 2026-11-04 (pre-release)
