@@ -4,15 +4,19 @@
 
 # ⚡ Rapid OS
 
-### Context Injection for AI Engineering
+### Your agent says "done". Rapid OS checks it.
 
-Turn your agents (Cursor, Claude, Antigravity, VS Code and Codex) into Senior Engineers instantly.
+Evidence it runs itself and your approval, before any work counts as finished.
+
+Works with Claude Code, Codex, Cursor, VS Code and Antigravity ([what each one guarantees](#harness-guarantees)).
 
 </div>
 
 <details>
   <summary>Table of Contents</summary>
   <ol>
+    <li><a href="#quick-start-shortcuts">Quick start with shortcuts</a></li>
+    <li><a href="#harness-guarantees">What each harness guarantees</a></li>
     <li><a href="#about-the-project">📖 About the Project</a></li>
     <li><a href="#rapid-os-v3-status">Rapid OS v3.1.0 Status</a></li>
     <li><a href="#how-it-works">🧩 How it Works</a></li>
@@ -32,7 +36,6 @@ Turn your agents (Cursor, Claude, Antigravity, VS Code and Codex) into Senior En
         <li><a href="#update">Update</a></li>
       </ul>
     </li>
-    <li><a href="#quick-start-shortcuts">Quick start with shortcuts</a></li>
     <li><a href="#usage">Usage</a></li>
     <li><a href="#run-tests">Run tests</a></li>
     <li><a href="#deployment">Deployment</a></li>
@@ -47,6 +50,52 @@ Turn your agents (Cursor, Claude, Antigravity, VS Code and Codex) into Senior En
 </details>
 
 ---
+
+## ⚡ Quick start with shortcuts <a name="quick-start-shortcuts"></a>
+
+[Install Rapid OS](#install) and accept the shortcuts when the installer offers them (or run `rapid init --shortcuts` in your project). Then work from your agent:
+
+```text
+/rapid-init invoicing API for small businesses          # onboarding: stack, documents, test command
+/rapid-feature add CSV export to the monthly report     # one governed run: spec, tasks, tests, evidence
+/rapid-status                                           # tasks, gates and the last verdict
+/rapid-next                                             # carry on, for example after your approval
+```
+
+In Codex the prefix is `$`: `$rapid-feature add CSV export to the monthly report`.
+
+There is one shortcut per mode (`/rapid-feature`, `/rapid-bugfix`, `/rapid-refactor`, `/rapid-hardening`, `/rapid-research`). When the agent says it is done, Rapid OS checks its evidence: the tests it ran itself with `rapid check`, against the spec. When a person is needed, the agent stops and gives you one command to run in **your terminal**:
+
+```bash
+rapid approve gate.final-verification
+```
+
+Then type `/rapid-next` to close the run. Rapid OS does not commit: you review the changes and commit them.
+
+- Per-harness details (generated folder and invocation), user-level installation with `rapid shortcuts install --global` and common errors: [Shortcuts per harness](https://alyconr.github.io/Rapid-OS/guides/shortcuts).
+- The v3 commands (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) remain available as **Advanced mode** for CI, debugging and auditing: see the [CLI Command Reference](#cli-reference).
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## 🛡️ What each harness guarantees <a name="harness-guarantees"></a>
+
+Rapid OS runs on the same machine and with the same permissions as your agent, so what it can prevent depends on the harness. In every harness the shortcuts tell the agent not to do these things; the table covers what is **enforced** when the agent ignores that.
+
+| Harness | Approving a human gate from the agent | Passing the test gate with plumbing | Writing to `.rapid-os/` directly |
+| :-- | :-- | :-- | :-- |
+| **Claude Code** (with hooks) | **Refused**: `rapid approve` detects `CLAUDE_CODE_CHILD_SESSION=1`, a Claude Code ancestor process and the lack of a TTY (`RAPID1310`), and the `PreToolUse` hook denies the command. Best-effort, not attestation. | **Refused** (see below). | **Denied by the `PreToolUse` hook** in file tools and in shell commands. Shell analysis is best-effort: a command built at runtime can get past it. |
+| **Codex** | **Partly**: only the TTY check. Rapid OS does not recognize this harness's processes, so an agent with a real terminal or a pty wrapper can get past it. | **Refused** (see below). | **Not prevented.** There are no hooks. |
+| **Cursor** | **Partly**: only the TTY check, with the same limit as Codex. | **Refused** (see below). | **Not prevented.** There are no hooks. |
+| **VS Code** | **Partly**: only the TTY check, with the same limit as Codex. | **Refused** (see below). | **Not prevented.** There are no hooks. |
+| **Antigravity** | **Partly**: only the TTY check, with the same limit as Codex. | **Refused** (see below). | **Not prevented.** There are no hooks. |
+
+- **Plumbing, the same in all five.** In runs with ruleset 3, test gates count only evidence produced by `rapid check` from a counted test summary or the exact `test_command`. `rapid evidence add` refuses the reserved producers (`rapid:*`), a `review` from `user` and the review fields only Rapid OS writes (`RAPID1430`), and `rapid run gate` refuses human gates (`RAPID1431`). A test command other than the baseline's blocks `rapid finish` until you accept it in your terminal (`RAPID1435`).
+- **What this does not cover.** Evidence is not signed. An agent that can write to `.rapid-os/` can forge records there that look valid, which also undoes the plumbing refusals: that is the real gap outside Claude Code, and closing it needs a channel outside the agent's reach. Rapid OS also does not judge the quality of the tests: an agent can weaken them, and your review is what catches that.
+- **Claude Code hooks.** Only Claude Code has hooks (`PreToolUse` and `Stop`, which keeps the agent working until the run needs a person). `rapid setup finish` adds them when Claude is one of the project's agents; otherwise use `rapid init --hooks` or `rapid shortcuts install --hooks`. Without them, Claude Code keeps the `rapid approve` checks but `.rapid-os/` is not protected. If `rapid` is not on the `PATH` the hooks cannot start, and `rapid doctor` warns about it (`RAPID1339`).
+
+More in [SECURITY.md](SECURITY.md) and [Product Limits and Boundaries](https://alyconr.github.io/Rapid-OS/concepts/product-boundaries).
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## 📖 About the Project <a name="about-the-project"></a>
 
@@ -300,28 +349,6 @@ git checkout main
 git pull --ff-only origin main
 rapid doctor
 ```
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## ⚡ Quick start with shortcuts <a name="quick-start-shortcuts"></a>
-
-The main Rapid OS workflow is **shortcuts**: one `/rapid-<mode>` command per engineering mode that your coding agent runs to carry the work from start to finish inside a governed run.
-
-```bash
-rapid shortcuts install --global --harness claude   # 1. once: the shortcuts in all your projects (the installer asks you)
-rapid init --shortcuts                              #    or, in VS Code / to version them with the repo: in each project
-```
-
-```text
-/rapid-init invoicing API for small businesses               # 2. onboarding driven by your agent (Codex: $rapid-init)
-/rapid-feature add CSV export to the monthly report          # 3. Claude Code, Cursor, Antigravity, VS Code
-$rapid-feature add CSV export to the monthly report          #    Codex
-```
-
-- `/rapid-init` drives onboarding with `rapid setup` (user-level since 3.2.0 with `rapid shortcuts install --global --harness <id>`). There is one shortcut per mode (`/rapid-feature`, `-bugfix`, `-refactor`, `-hardening`, `-research`) and three helpers (`/rapid-next`, `/rapid-status`, `/rapid-approve`).
-- The agent follows the loop `rapid next --json` → `rapid start` → `rapid task` / `rapid check` → `rapid finish`, and stops when a person is needed. Then you run the command it gives you in **your terminal** (for example `rapid approve gate.final-verification`) and type `/rapid-next` to close: the agent never approves, aborts or edits `.rapid-os/`.
-- Per-harness details (generated folder and invocation), human approval and common errors: [Shortcuts per harness](https://alyconr.github.io/Rapid-OS/guides/shortcuts).
-- The v3 commands (`rapid spec`, `rapid run`, `rapid evidence`, `rapid eval`…) remain available as **Advanced mode** for CI, debugging and auditing: see the [CLI Command Reference](#cli-reference).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -962,13 +989,7 @@ Rapid OS v3.1.0 is complete. These items are optional post-v3.1 enhancements and
 
 ## 🤝 Contributing <a name="contributing"></a>
 
-Contributions are welcome!
-
-1.  Fork the project.
-2.  Create your feature branch (`git checkout -b feature/AmazingFeature`).
-3.  Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4.  Push to the branch (`git push origin feature/AmazingFeature`).
-5.  Open a Pull Request.
+Contributions are welcome! Read [CONTRIBUTING.md](CONTRIBUTING.md) for the development environment, the tests to run before a pull request and the invariants of Rapid OS. Taking part means accepting the [Code of Conduct](CODE_OF_CONDUCT.md). To report a vulnerability, follow [SECURITY.md](SECURITY.md).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
