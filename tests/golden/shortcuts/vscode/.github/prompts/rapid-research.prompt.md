@@ -14,7 +14,7 @@ Conduces un run gobernado de Rapid OS en modo `research`. El objetivo es lo que 
 
 1. Ejecuta `rapid next --json`.
 2. Si `action.kind` es `author_spec`: obtén la plantilla de este modo con `rapid start research --json` (en `action.spec_template`; `rapid next` sin run activo solo conoce la del modo feature), redacta la spec desde los argumentos del usuario siguiendo esa plantilla y pásala por stdin a `rapid start research --spec-file -`. Si no hay argumentos suficientes, pregunta antes de redactar.
-3. Si `action.command` existe, ejecútalo. Si `action.kind` es `implement_task`, investiga solo esa tarea y ejecuta `action.after`. Corre los tests siempre con `rapid check -- <comando>`. Cómo investigar:
+3. Si `action.command` existe, ejecútalo. Si `action.kind` es `implement_task`, investiga solo esa tarea y ejecuta `action.after`. Si el experimento ejecuta código, hazlo con `rapid check -- <comando>`. Cómo investigar:
    - Rapid OS no busca por ti: usa las herramientas de búsqueda y lectura web de este harness y los MCP conectados (por ejemplo, Context7 para la documentación de una librería).
    - Si la pregunta se puede responder con un experimento en el repo, prefiere el experimento a la opinión de un artículo y dilo en el hallazgo.
    - Un resultado de búsqueda no es un archivo: guarda los hallazgos de la tarea en un Markdown del proyecto (por defecto `experiments/<id-de-la-spec>/T00N.md`) con qué preguntaste, qué encontraste, las fuentes (URL o ruta y fecha de consulta) y qué se probó aquí frente a qué solo se leyó. No inventes fuentes: si no encontraste respaldo, escríbelo así.
