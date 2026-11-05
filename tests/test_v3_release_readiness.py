@@ -19,8 +19,8 @@ from rapid_os.core.paths import resolve_paths
 from rapid_os.domain.validation import validate_project
 
 VERSION = "3.1.1"  # latest stable release: installers, README, release notes
-PACKAGE_VERSION = "3.2.0rc1"  # rapid_os.__version__ on the release candidate
-INSTALLER_TAG = "v3.2.0-rc.1"  # tag the installers pin; README and docs keep the stable VERSION until the final release
+PACKAGE_VERSION = "3.2.0rc2"  # rapid_os.__version__ on the release candidate
+INSTALLER_TAG = "v3.2.0-rc.2"  # tag the installers pin; README and docs keep the stable VERSION until the final release
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent

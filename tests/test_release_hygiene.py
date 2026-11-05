@@ -72,12 +72,13 @@ class CommunityFilesTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, text)
 
-    def test_code_of_conduct_has_no_invented_contact(self):
+    def test_code_of_conduct_names_the_contact_the_maintainer_chose(self):
         text = self.read("CODE_OF_CONDUCT.md")
         self.assertIn("Contributor Covenant", text)
         self.assertIn("version 2.1", text)
         self.assertNotIn("[INSERT CONTACT METHOD]", text)
-        self.assertNotRegex(text, r"[\w.+-]+@[\w-]+\.\w+")
+        self.assertNotIn("to be confirmed by the maintainer", text)
+        self.assertIn("alyconr473@gmail.com", text)
 
     def test_issue_and_pull_request_templates(self):
         bug = self.read(".github/ISSUE_TEMPLATE/bug_report.yml")
@@ -128,10 +129,12 @@ class ReadmeTests(unittest.TestCase):
 
 
 class ModeTemplatesTests(unittest.TestCase):
-    def test_no_mode_template_names_the_repository_of_rapid_os(self):
+    def test_no_mode_template_talks_about_rapid_os_itself(self):
         for path in sorted((ROOT / "templates" / "modes").iterdir()):
-            with self.subTest(path=path.name):
-                self.assertNotIn("rapid_os/", path.read_text(encoding="utf-8"))
+            text = path.read_text(encoding="utf-8").lower()
+            for word in ("rapid_os/", "conductor", "dataclasses"):
+                with self.subTest(path=path.name, word=word):
+                    self.assertNotIn(word, text)
 
     def test_the_research_shortcut_only_asks_for_rapid_check_when_code_runs(self):
         text = (ROOT / "templates" / "shortcuts" / "rapid-research.md").read_text(encoding="utf-8")
