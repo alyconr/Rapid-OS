@@ -8,6 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+---
+
+## [3.2.0rc2] - 2026-11-04 (pre-release)
+
+Second release candidate for 3.2.0 (git tag `v3.2.0-rc.2`, PEP 440 version `3.2.0rc2`). The latest stable release is still `v3.1.1`: the README and the installation docs keep documenting it until the final 3.2.0 release, while the installers pin this tag. If you tried rc1, this is what changes:
+
+- **Evidence integrity (ruleset 3).** In new runs, `PASS` needs real tests run by `rapid check` and a human approval made with `rapid approve`; plumbing no longer satisfies those gates.
+- **Windows.** Text sent through stdin is read as UTF-8 whatever the console code page, `rapid check` finds `.cmd` executables, Git calls in worktrees handle long paths, and a smoke job checks a real wheel on Windows in CI.
+- **Runs with a worktree.** `rapid finish` reports the real paths and safe commands when the worktree is dirty, and `rapid finish --merge` commits and merges after the person's written confirmation.
+- **Hardening findings.** Rapid OS calculates the score from the CVSS v4.0 vector, and the declared severity must match it.
+- **BaaS providers.** `fullstack-baas` decides Supabase or Firebase like any other stack.
+- **`/rapid-research`.** It says how to research and where to save the findings with their sources, and `rapid attach` is pre-approved in that mode.
+- **Specs from rc1.** Specs written with rc1 or 3.1 still read and validate; you do not need to rewrite them.
+
+### Known issues
+- Outside Claude Code there are no hooks, so nothing stops an agent with a shell from writing to `.rapid-os/` directly. In Claude Code the hooks block it on a best-effort basis.
+- Evidence is not signed: records written directly under `.rapid-os/` can look valid.
+- Research during onboarding arrives in 3.3 (H-37).
+
+### Detailed changes
+
 ### Changed
 - README: the hero states what Rapid OS does (the agent says it is done, and Rapid OS checks that with evidence it runs itself and with your approval), the shortcuts come first, and a new table says what each harness guarantees and what it does not.
 - Packaging: the license uses the SPDX form (`license = "MIT"`, `license-files = ["LICENSE"]`, PEP 639), which needs `setuptools>=77.0.3` to build; the license classifier is gone because PEP 639 does not allow both.

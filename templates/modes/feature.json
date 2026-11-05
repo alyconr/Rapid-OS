@@ -16,9 +16,9 @@
     "acceptance_criteria": ["Criterio verificable 1"],
     "testing_strategy": ["Tests de la funcionalidad según el stack"],
     "implementation_tasks": [
-      "T001: Definir modelos y dataclasses",
-      "T002: Implementar lógica de conductor",
-      "T003: Añadir tests exhaustivos"
+      "T001: Modelo y reglas de la funcionalidad",
+      "T002: Caso de uso y punto de entrada",
+      "T003: Tests de la funcionalidad"
     ]
   },
   "instructions": {

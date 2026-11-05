@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $RepoUrl = "https://github.com/alyconr/Rapid-OS.git"
-$RapidVersion = "v3.2.0-rc.1"
+$RapidVersion = "v3.2.0-rc.2"
 $InstallDir = Join-Path $HOME ".rapid-os"
 $VenvDir = Join-Path $InstallDir ".venv"
 $BinDir = Join-Path $InstallDir "bin"
