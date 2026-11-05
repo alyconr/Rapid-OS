@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # Keeps the SHA pins of .github/workflows/ and their "# vX.Y.Z" comments current.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels: []
+
+  # pyproject.toml: the build requirement (Rapid OS itself has no runtime dependencies).
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels: []

@@ -114,11 +114,11 @@ class TestDocumentationWorkflows(unittest.TestCase):
 
     def test_deploy_workflow_uses_official_actions(self):
         content = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("actions/checkout@v4", content)
-        self.assertIn("actions/setup-node@v4", content)
-        self.assertIn("actions/configure-pages@v5", content)
-        self.assertIn("actions/upload-pages-artifact@v3", content)
-        self.assertIn("actions/deploy-pages@v4", content)
+        self.assertRegex(content, r"actions/checkout@[0-9a-f]{40} # v\d")
+        self.assertRegex(content, r"actions/setup-node@[0-9a-f]{40} # v\d")
+        self.assertRegex(content, r"actions/configure-pages@[0-9a-f]{40} # v\d")
+        self.assertRegex(content, r"actions/upload-pages-artifact@[0-9a-f]{40} # v\d")
+        self.assertRegex(content, r"actions/deploy-pages@[0-9a-f]{40} # v\d")
 
 
 class TestDocumentationOperationsRunbooks(unittest.TestCase):

@@ -12,9 +12,9 @@
     "edge_cases": ["Caso borde a considerar"],
     "business_rules": ["Regla de negocio 1"],
     "technical_constraints": ["Respeta el stack del proyecto (tech-stack); nuevas dependencias solo si la spec lo justifica"],
-    "affected_paths": ["rapid_os/orchestration/"],
+    "affected_paths": ["<carpeta del módulo>/"],
     "acceptance_criteria": ["Criterio verificable 1"],
-    "testing_strategy": ["Pruebas unitarias en tests/"],
+    "testing_strategy": ["Tests de la funcionalidad según el stack"],
     "implementation_tasks": [
       "T001: Definir modelos y dataclasses",
       "T002: Implementar lógica de conductor",

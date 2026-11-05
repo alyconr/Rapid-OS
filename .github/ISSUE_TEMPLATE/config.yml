@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://alyconr.github.io/Rapid-OS/
+    about: Guides, CLI reference and the RAPIDxxxx diagnostics.
+  - name: Report a vulnerability
+    url: https://github.com/alyconr/Rapid-OS/blob/main/SECURITY.md
+    about: Please report it privately, as SECURITY.md explains. Do not open a public issue.
