@@ -30,6 +30,7 @@ You do not start with microservices: a modular monolith gives the same boundarie
 | `python-django` | `apps/<m>/` (one app per module) | `api/` (views and serializers) | `services/` | `domain/` | `models.py` | `public.py` |
 | `node-nestjs` | `src/modules/<m>/` | `controllers/` | `application/` | `domain/` | `infrastructure/` | `<m>.module.ts` (its `exports`) or `index.ts` |
 | `node-fastify` | `src/modules/<m>/` | `routes/` | `application/` | `domain/` | `infrastructure/` | `index.ts` |
+| `hono` | `src/modules/<m>/` | `routes/` | `application/` | `domain/` | `infrastructure/` | `index.ts` |
 | `go` | `internal/<m>/` | `http/` | `app/` | `domain/` | `store/` or `adapters/` | the module's root package (exported identifiers) |
 | `rust-axum` | `src/modules/<m>/` | `routes.rs` | `application.rs` | `domain.rs` | `infra.rs` | `mod.rs` (`pub use`); everything else `pub(crate)` |
 | `ruby-rails` | `packs/<m>/` (packwerk) | `app/controllers` | `app/use_cases` | `app/domain` (POROs) | `app/models` (Active Record) | `app/public/` |

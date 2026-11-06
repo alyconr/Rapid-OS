@@ -260,7 +260,7 @@ This project is built with native technologies to ensure maximum compatibility a
 - **🖼️ Visual Reference Context (Vision)**: Records screenshots in `references/` together with a human description in `references/VISION_CONTEXT.md` and reassembles the agents' context.
 - **🚀 Senior Stacks**: Pre-configured templates for Modern Web, Python AI, Creative Frontend, **Docusaurus Docs**, etc.
 - **🛡️ Secure by Default**: Automatic injection of OWASP protocols and Anti-PII rules.
-- **☁️ Deployment Guides**: `rapid deploy --target <platform>` prints the local template (`templates/deploy/<platform>.md`: `aws`, `azure`, `vercel`, `render`, `railway`, `dokploy`) without writing anything; the project document is `docs/DEPLOYMENT.md`, optional during onboarding.
+- **☁️ Deployment Guides**: `rapid deploy --target <platform>` prints the local template (`templates/deploy/<platform>.md`: `aws`, `azure`, `vercel`, `cloudflare`, `render`, `railway`, `dokploy`) without writing anything; the project document is `docs/DEPLOYMENT.md`, optional during onboarding.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -962,7 +962,7 @@ On GitHub Actions, every pull request that is not a draft runs the fast suite on
 
 Rapid OS does not deploy itself (it is a local CLI), but it helps document and standardize the deployment of your applications.
 
-Use `rapid deploy --target <platform>` to print the deployment template (`aws`, `azure`, `vercel`, `render`, `railway` or `dokploy`). It writes no files: the project document is `docs/DEPLOYMENT.md`, which you resume with `rapid setup doc deployment --reopen`. An unknown platform is `RAPID1413`.
+Use `rapid deploy --target <platform>` to print the deployment template (`aws`, `azure`, `vercel`, `cloudflare`, `render`, `railway` or `dokploy`). It writes no files: the project document is `docs/DEPLOYMENT.md`, which you resume with `rapid setup doc deployment --reopen`. An unknown platform is `RAPID1413`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

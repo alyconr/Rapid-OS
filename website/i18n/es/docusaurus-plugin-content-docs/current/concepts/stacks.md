@@ -35,6 +35,7 @@ Cada stack son dos archivos en `templates/stacks/<componente>/`: `<id>.json` (la
 | `python-django` | Python | backend, frontend | containers, PaaS | pip | `python manage.py test` |
 | `node-nestjs` | TypeScript | backend | containers, PaaS, serverless | pnpm | `pnpm test` |
 | `node-fastify` | TypeScript | backend | containers, PaaS, serverless | pnpm | `pnpm test` |
+| `hono` | TypeScript | backend | edge, serverless | pnpm | `pnpm test` |
 | `go` | Go | backend | containers, PaaS | go modules | `go test ./...` |
 | `rust-axum` | Rust | backend | containers, PaaS | cargo | `cargo test` |
 | `ruby-rails` | Ruby | backend, frontend | containers, PaaS | bundler | `bin/rails test` |
@@ -62,7 +63,7 @@ Cada stack son dos archivos en `templates/stacks/<componente>/`: `<id>.json` (la
 
 Cada ficha trae `factors`, cualitativos (nunca puntajes inventados), y `sources` con las URL oficiales de cada uno:
 
-`performance`, `memory_footprint`, `cold_start`, `concurrency_model`, `typing`, `productivity`, `learning_curve`, `maintainability`, `ecosystem_maturity`, `hiring_pool` y `hosting_fit` (`serverless`, `containers` o `PaaS`).
+`performance`, `memory_footprint`, `cold_start`, `concurrency_model`, `typing`, `productivity`, `learning_curve`, `maintainability`, `ecosystem_maturity`, `hiring_pool` y `hosting_fit` (`serverless`, `containers`, `PaaS` o `edge`).
 
 Los factores de popularidad (`hiring_pool`) citan los porcentajes de desarrolladores profesionales de la encuesta de Stack Overflow 2025; los demás, la documentación oficial del lenguaje o del framework. La ficha también trae `fits`, `avoid_if`, `default_test_command`, `package_manager` y `supported_services` (los motores de [servicios de infraestructura](./infrastructure-services.md) con su driver).
 
@@ -92,6 +93,35 @@ Los comandos locales los ejecuta la persona, como `docker compose up -d`: `rapid
 > Haz las preguntas que el brief no responda. Recomienda una opción y una alternativa, y explica la diferencia con los factors del catálogo aplicados a este producto (p. ej. consumo de memoria y concurrencia frente a velocidad de desarrollo). No afirmes nada que el catálogo no diga. La persona decide.
 
 `recommended` es lo que el escáner detectó en un repositorio existente (por ejemplo `go.mod`, `Cargo.toml` con `axum`, `Gemfile` con `rails`, `*.csproj`, `pom.xml` o `build.gradle(.kts)` con `spring-boot`, `composer.json` con `laravel/framework`, `angular.json`, o `vue`, `nuxt`, `svelte`, `@sveltejs/kit` y `astro` en `package.json`). Con más de un backend (o frontend) en el mismo repositorio no sugiere nada para ese componente.
+
+## Acceso a datos
+
+Cada stack de backend declara cómo llega a su base de datos en `data_access`: sus `options`, cada una un ORM, un query builder, un driver o un ODM (`kind`), con los `models` y `engines` en los que encaja, los `runtimes` donde corre, sus `migrations` (herramienta y comandos `generate` y `apply`) o su `schema_validation`, sus `notes` y sus `sources` oficiales. `default` nombra la opción recomendada de cada modelo de datos. Los stacks de frontend y BaaS no lo declaran.
+
+| Stack | Relacional por defecto | Otras relacionales | Documentos por defecto | Otras de documentos |
+|---|---|---|---|---|
+| `node-fastify` | `drizzle` | `prisma`, `kysely` | `mongodb-driver` | `mongoose` |
+| `node-nestjs` | `typeorm` | `drizzle`, `prisma`, `kysely` | `mongoose` | `mongodb-driver` |
+| `hono` | `drizzle` | `prisma`, `kysely` | ninguna (el catálogo no tiene MongoDB desde Workers) | ninguna |
+| `python-fastapi` | `sqlalchemy-async` | `sqlalchemy-sync`, `sqlmodel` | `pymongo-async` | `beanie` |
+| `python-django` | `django-orm` | ninguna | `django-mongodb-backend` | ninguna |
+| `go` | `pgx-sqlc` (PostgreSQL) | `gorm`, `ent` | `mongo-go-driver` | ninguna |
+| `rust-axum` | `sqlx` | `sea-orm`, `diesel` | `mongodb-crate` | ninguna |
+| `java-spring-boot` | `spring-data-jpa` | `spring-data-jdbc`, `jooq` | `spring-data-mongodb` | ninguna |
+| `kotlin-spring-boot` | `spring-data-jpa` | `spring-data-jdbc`, `jooq`, `exposed` | `spring-data-mongodb` | ninguna |
+| `dotnet-aspnetcore` | `ef-core` | `dapper` | `mongodb-csharp-driver` | `mongodb-ef-core` |
+| `php-laravel` | `eloquent` | ninguna | `laravel-mongodb` | ninguna |
+| `ruby-rails` | `active-record` | ninguna | `mongoid` | ninguna |
+
+Cuando el default no encaja con el motor, se recomienda la primera opción que sí: `go` con MySQL recomienda `gorm`, y `node-fastify` con MariaDB solo tiene `prisma`.
+
+**Prisma** figura como Prisma ORM 7 con `prisma migrate`: el tag `latest` de npm apunta a la versión candidata 8.0.0, que sustituye esos comandos y aún no da soporte estable a MySQL ni a MariaDB. **`sqlalchemy-sync`** existe para Python Workers, donde Cloudflare solo admite ORMs síncronos de SQLAlchemy; conecta con psycopg o pymysql en lugar de los drivers async. **`jooq`** solo lista PostgreSQL, porque el sitio de jOOQ no se pudo consultar para sus otros motores.
+
+El paso del onboarding es [`choose_data_access`](./infrastructure-services.md#acceso-a-datos). El `tech-stack.md` compilado nombra la opción elegida, y la acción de `data-model` trae sus comandos de migración o su validación de esquema.
+
+## Hono
+
+`hono` es Hono sobre Cloudflare Workers, con tests en Vitest y `@cloudflare/vitest-plugin`. Sus `supported_services` son PostgreSQL y MySQL, por Hyperdrive. `rapid setup set services` rechaza lo que necesita un proceso persistente con `RAPID1402` y nombra la alternativa de la plataforma: RabbitMQ y Kafka reciben Cloudflare Queues, con su semántica distinta. D1 es la base alternativa de `hono.md` y de la plantilla de Cloudflare; todavía no es un servicio del catálogo. El mismo código corre en Node.js, Bun y Deno. Encaja en las topologías `backend-only` y `fullstack-separated`, con la misma estructura de módulos que `node-fastify`.
 
 ## Los servicios siguen al stack del backend
 

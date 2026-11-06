@@ -202,7 +202,7 @@ Cada componente de la topología tiene su stack (ver [Stacks y componentes](../c
 
 | Componente | Stacks |
 | :--- | :--- |
-| `backend` | `python-fastapi`, `python-django`, `node-nestjs`, `node-fastify`, `go`, `rust-axum`, `ruby-rails`, `dotnet-aspnetcore`, `java-spring-boot`, `kotlin-spring-boot`, `php-laravel` |
+| `backend` | `python-fastapi`, `python-django`, `node-nestjs`, `node-fastify`, `hono`, `go`, `rust-axum`, `ruby-rails`, `dotnet-aspnetcore`, `java-spring-boot`, `kotlin-spring-boot`, `php-laravel` |
 | `frontend` | `react-vite`, `nextjs`, `angular`, `vue-vite`, `nuxt`, `svelte-vite`, `sveltekit`, `astro` |
 | `docs` | `docs-modern` (Docusaurus), compatible solo con `doc-site` |
 | todos | `generic` (sin plantilla: se genera con lo que detecta el escáner) y `custom` (el `tech-stack.md` que escribe el agente) |

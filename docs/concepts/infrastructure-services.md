@@ -23,6 +23,17 @@ rapid setup set services none
 - An unknown role or engine, or an incompatible pair, returns `RAPID1413`; an engine unsupported by the stack returns `RAPID1402`.
 - After `setup finish`, `rapid setup set services ...` applies immediately and does not reopen onboarding.
 
+## Data access
+
+With a database decided, `rapid setup next` returns `choose_data_access` before the `data-model` document when the backend's stack offers more than one option for that engine: `options[]` (only the compatible ones, with their notes and sources), `recommended`, `instruction`, `delegation`, `command` and `alt_command`.
+
+```bash
+rapid setup set data-access drizzle --component backend
+rapid setup set data-access --recommended
+```
+
+With a single compatible option Rapid OS fixes it and says so in a note (`decided_by: auto`), so the person is not asked. The decision is stored in `.rapid-os/setup.json` as `data_access`; a file without it is still valid, and a project finished before this step is not reopened. Changing the stack or the engine leaves a choice that no longer fits undecided. See [Data access](./stacks.md#data-access).
+
 ## Catalog
 
 Each engine is a `templates/services/<engine>.json` file validated by `rapid_os.domain.catalog` (`RAPID1401`). It defines the role, official image with pinned major version, ports, variables, health check, volume, connection variable, language drivers, and official `sources`.

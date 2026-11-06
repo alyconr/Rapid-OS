@@ -25,6 +25,7 @@ The templates cite the official pages consulted. If the consulted documentation 
 | aws | ECS with Fargate (App Runner no longer accepts new customers) | RDS (PostgreSQL, MySQL, MariaDB); DocumentDB is MongoDB-compatible | ElastiCache (Valkey, Redis OSS) | Amazon MQ (RabbitMQ) | MSK (Kafka) |
 | azure | Container Apps or App Service | PostgreSQL and MySQL Flexible Server; Cosmos DB for MongoDB | Azure Managed Redis | Service Bus (not RabbitMQ) | Event Hubs with Kafka endpoint |
 | vercel | Frontend and functions; not an API with persistent connections | Marketplace (Neon, Supabase, MongoDB Atlas...) | Marketplace (Upstash, Redis Cloud) | Outside Vercel | Outside Vercel |
+| cloudflare | Workers with Static Assets; an API in Workers (Hono), FastAPI in Python Workers only with synchronous data access | Hyperdrive to an external PostgreSQL or MySQL; D1 for SQLite | KV (not Redis) | Queues (not RabbitMQ) | Outside Cloudflare |
 | netlify | Frontend (and the Deploy Previews); with Supabase the data lives in the provider | Supabase (provider) | Outside Netlify | Outside Netlify | Outside Netlify |
 | firebase-hosting | Static frontend or SPA; Cloud Functions for the server code | Cloud Firestore | Outside Firebase | Outside Firebase | Outside Firebase |
 | render | Docker web service and private services | Render Postgres | Render Key Value (Valkey) | Container with disk | Container with disk |
@@ -32,3 +33,5 @@ The templates cite the official pages consulted. If the consulted documentation 
 | dokploy | Self-hosted server with Docker and Traefik | PostgreSQL, MySQL, MariaDB, MongoDB | Redis | Compose | Compose |
 
 **Vercel** serves frontends and functions with a maximum duration per invocation; put an API with WebSockets or long-running processes on another platform. Keep secrets in the platform's secret manager, never in the repository.
+
+**Cloudflare** recommends Workers with Static Assets for new projects; Pages keeps working. A Worker runs per request, not as a persistent process, so a stack that needs one goes to another platform or to Cloudflare Containers, with the frontend on Cloudflare. FastAPI runs in Python Workers only with synchronous data access: when the stack and the data access option decided do not fit Workers, the `deployment` action carries a note in `platform_notes.cloudflare`, which informs and blocks nothing. `rapid deploy --target cloudflare` prints the template, and the scanner reports `wrangler.toml`, `wrangler.json` and `wrangler.jsonc` as the `cloudflare` provider.

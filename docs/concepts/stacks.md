@@ -39,6 +39,7 @@ Each stack has two files under `templates/stacks/<component>/`: `<id>.json` (the
 | `python-django` | Python | backend, frontend | containers, PaaS | pip | `python manage.py test` |
 | `node-nestjs` | TypeScript | backend | containers, PaaS, serverless | pnpm | `pnpm test` |
 | `node-fastify` | TypeScript | backend | containers, PaaS, serverless | pnpm | `pnpm test` |
+| `hono` | TypeScript | backend | edge, serverless | pnpm | `pnpm test` |
 | `go` | Go | backend | containers, PaaS | go modules | `go test ./...` |
 | `rust-axum` | Rust | backend | containers, PaaS | cargo | `cargo test` |
 | `ruby-rails` | Ruby | backend, frontend | containers, PaaS | bundler | `bin/rails test` |
@@ -85,7 +86,7 @@ The person runs the local commands, as with `docker compose up -d`: `rapid setup
 
 ## Stack factors
 
-Each profile includes qualitative (not invented numerical) `factors` and official `sources`: `performance`, `memory_footprint`, `cold_start`, `concurrency_model`, `typing`, `productivity`, `learning_curve`, `maintainability`, `ecosystem_maturity`, `hiring_pool`, and `hosting_fit` (`serverless`, `containers`, or `PaaS`). Popularity factors cite professional developer percentages from the 2025 Stack Overflow survey; other factors cite official language or framework documentation. A `baas` profile adds `data_model`, `auth`, `realtime`, `server_functions`, `local_development` and `exit_strategy`. Profiles also include `fits`, `avoid_if`, `default_test_command`, `package_manager`, and `supported_services` (infrastructure service engines and their drivers).
+Each profile includes qualitative (not invented numerical) `factors` and official `sources`: `performance`, `memory_footprint`, `cold_start`, `concurrency_model`, `typing`, `productivity`, `learning_curve`, `maintainability`, `ecosystem_maturity`, `hiring_pool`, and `hosting_fit` (`serverless`, `containers`, `PaaS`, or `edge`). Popularity factors cite professional developer percentages from the 2025 Stack Overflow survey; other factors cite official language or framework documentation. A `baas` profile adds `data_model`, `auth`, `realtime`, `server_functions`, `local_development` and `exit_strategy`. Profiles also include `fits`, `avoid_if`, `default_test_command`, `package_manager`, and `supported_services` (infrastructure service engines and their drivers).
 
 ## How the agent recommends a stack
 
@@ -98,6 +99,35 @@ Each profile includes qualitative (not invented numerical) `factors` and officia
 ## Who decided
 
 Every stack decision in `setup.json` records `decided_by`: `person` (the default, also for files from before the field) or `agent`. When the person delegates ("decide for me"), the agent chooses, says which one and why, and records it with `rapid setup set stack <id> --component <component> --decided-by agent`; `rapid setup next` gives that command in `delegation` for the `baas` component. `tech-stack.md` then says the agent chose it and that it is not a confirmed decision (and keeps `decided_by.<component>=agent` in its `rapid-stack` marker), and `rapid setup show` marks it `(agente)`. Choosing the stack again without the flag makes it the person's.
+
+## Data access
+
+Each backend stack declares how it reaches its database in `data_access`: its `options`, each one an ORM, a query builder, a driver or an ODM (`kind`), with the `models` and `engines` it fits, the `runtimes` where it runs, its `migrations` (tool and `generate` and `apply` commands) or its `schema_validation`, `notes` and official `sources`. `default` names the recommended option of each data model. Frontend and BaaS stacks do not declare it.
+
+| Stack | Relational default | Other relational options | Document default | Other document options |
+|---|---|---|---|---|
+| `node-fastify` | `drizzle` | `prisma`, `kysely` | `mongodb-driver` | `mongoose` |
+| `node-nestjs` | `typeorm` | `drizzle`, `prisma`, `kysely` | `mongoose` | `mongodb-driver` |
+| `hono` | `drizzle` | `prisma`, `kysely` | none (no MongoDB from Workers in the catalog) | none |
+| `python-fastapi` | `sqlalchemy-async` | `sqlalchemy-sync`, `sqlmodel` | `pymongo-async` | `beanie` |
+| `python-django` | `django-orm` | none | `django-mongodb-backend` | none |
+| `go` | `pgx-sqlc` (PostgreSQL) | `gorm`, `ent` | `mongo-go-driver` | none |
+| `rust-axum` | `sqlx` | `sea-orm`, `diesel` | `mongodb-crate` | none |
+| `java-spring-boot` | `spring-data-jpa` | `spring-data-jdbc`, `jooq` | `spring-data-mongodb` | none |
+| `kotlin-spring-boot` | `spring-data-jpa` | `spring-data-jdbc`, `jooq`, `exposed` | `spring-data-mongodb` | none |
+| `dotnet-aspnetcore` | `ef-core` | `dapper` | `mongodb-csharp-driver` | `mongodb-ef-core` |
+| `php-laravel` | `eloquent` | none | `laravel-mongodb` | none |
+| `ruby-rails` | `active-record` | none | `mongoid` | none |
+
+When the default does not fit the engine, the first option that does is recommended: `go` with MySQL recommends `gorm`, and `node-fastify` with MariaDB has `prisma` only.
+
+**Prisma** is listed as Prisma ORM 7 with `prisma migrate`: the `latest` npm tag points to the 8.0.0 release candidate, which replaces those commands and does not yet give MySQL or MariaDB stable support. **`sqlalchemy-sync`** exists for Python Workers, where Cloudflare only supports synchronous SQLAlchemy ORMs; it connects through psycopg or pymysql instead of the async drivers. **`jooq`** lists PostgreSQL only, because jOOQ's site could not be consulted for its other engines.
+
+The onboarding step is [`choose_data_access`](./infrastructure-services.md#data-access). The compiled `tech-stack.md` names the chosen option, and the `data-model` action carries its migration commands or its schema validation.
+
+## Hono
+
+`hono` is Hono on Cloudflare Workers, tested with Vitest and `@cloudflare/vitest-plugin`. Its `supported_services` are PostgreSQL and MySQL, through Hyperdrive. `rapid setup set services` rejects what needs a persistent process with `RAPID1402` and names the platform's alternative: RabbitMQ and Kafka get Cloudflare Queues, with its different semantics. D1 is the alternative database of `hono.md` and of the Cloudflare template; it is not a catalog service yet. The same code runs on Node.js, Bun and Deno. It fits the `backend-only` and `fullstack-separated` topologies, with the same module structure as `node-fastify`.
 
 ## Services follow the backend stack
 
