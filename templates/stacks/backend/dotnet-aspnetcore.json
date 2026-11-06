@@ -124,5 +124,116 @@
       "driver": "Confluent.Kafka",
       "url": "localhost:9092"
     }
+  },
+  "data_access": {
+    "default": {
+      "relational": "ef-core",
+      "document": "mongodb-csharp-driver"
+    },
+    "options": [
+      {
+        "id": "ef-core",
+        "name": "Entity Framework Core",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql",
+          "mariadb"
+        ],
+        "runtimes": [
+          "dotnet"
+        ],
+        "migrations": {
+          "tool": "dotnet ef",
+          "generate": [
+            "dotnet",
+            "ef",
+            "migrations",
+            "add",
+            "<name>"
+          ],
+          "apply": [
+            "dotnet",
+            "ef",
+            "database",
+            "update"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "PostgreSQL con Npgsql; MySQL y MariaDB con el proveedor Pomelo.",
+        "sources": [
+          "https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/",
+          "https://learn.microsoft.com/en-us/ef/core/providers/"
+        ]
+      },
+      {
+        "id": "dapper",
+        "name": "Dapper",
+        "kind": "driver",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql",
+          "mariadb"
+        ],
+        "runtimes": [
+          "dotnet"
+        ],
+        "migrations": null,
+        "schema_validation": null,
+        "notes": "Mapeador de objetos sobre ADO.NET; escribes el SQL y no incluye migraciones: decide la herramienta en el documento de datos.",
+        "sources": [
+          "https://github.com/DapperLib/Dapper"
+        ]
+      },
+      {
+        "id": "mongodb-csharp-driver",
+        "name": "Driver oficial de MongoDB para .NET",
+        "kind": "driver",
+        "models": [
+          "document"
+        ],
+        "engines": [
+          "mongodb"
+        ],
+        "runtimes": [
+          "dotnet"
+        ],
+        "migrations": null,
+        "schema_validation": "Validación de esquema de MongoDB: reglas `$jsonSchema` en cada colección, declaradas en el repositorio.",
+        "notes": "Sin capa de modelos de EF Core: la forma la fija el código y la validación de la colección.",
+        "sources": [
+          "https://www.mongodb.com/docs/drivers/csharp/current/",
+          "https://www.mongodb.com/docs/manual/core/schema-validation/"
+        ]
+      },
+      {
+        "id": "mongodb-ef-core",
+        "name": "Proveedor de EF Core para MongoDB",
+        "kind": "orm",
+        "models": [
+          "document"
+        ],
+        "engines": [
+          "mongodb"
+        ],
+        "runtimes": [
+          "dotnet"
+        ],
+        "migrations": null,
+        "schema_validation": "Validación de esquema de MongoDB: reglas `$jsonSchema` en cada colección, declaradas en el repositorio.",
+        "notes": "Proveedor oficial, en desarrollo activo: no soporta migraciones, claves foráneas ni proyecciones `Select`.",
+        "sources": [
+          "https://www.mongodb.com/docs/entity-framework/current/",
+          "https://www.mongodb.com/docs/entity-framework/current/limitations/",
+          "https://www.mongodb.com/docs/manual/core/schema-validation/"
+        ]
+      }
+    ]
   }
 }

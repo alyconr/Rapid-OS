@@ -47,7 +47,76 @@ BAAS_FACTOR_KEYS = (
     "local_development",
     "exit_strategy",
 )
-HOSTING_FITS = ("serverless", "containers", "PaaS")
+HOSTING_FITS = ("serverless", "containers", "PaaS", "edge")
+# Where a data access option runs (`data_access.options[].runtimes`).
+RUNTIMES = (
+    "node", "bun", "deno", "workers", "python", "python-workers", "jvm", "dotnet", "go", "rust", "php", "ruby",
+)
+DATA_ACCESS_KINDS = ("orm", "query-builder", "driver", "odm")
+DATA_ACCESS_MODELS = ("relational", "document")
+# The data model of each database engine of the catalog.
+ENGINE_DATA_MODEL = {"postgresql": "relational", "mysql": "relational", "mariadb": "relational", "mongodb": "document"}
+# An argv token of a migration command: plain text or a `<placeholder>`, nothing a shell would interpret.
+_ARGV_TOKEN = re.compile(r"^(?:[A-Za-z0-9_@%+=:,./-]+|<[a-z][a-z0-9-]*>)$")
+
+
+@dataclass(frozen=True)
+class DataAccessMigrations:
+    tool: str
+    # None: the tool has no command that writes a migration (they are written by hand).
+    generate: tuple[str, ...] | None
+    apply: tuple[str, ...]
+
+    def to_dict(self) -> dict:
+        return {
+            "tool": self.tool,
+            "generate": None if self.generate is None else list(self.generate),
+            "apply": list(self.apply),
+        }
+
+
+@dataclass(frozen=True)
+class DataAccessOption:
+    """One way a stack reaches its database: an ORM, a query builder, a driver or an ODM."""
+
+    id: str
+    name: str
+    kind: str
+    models: tuple[str, ...]
+    engines: tuple[str, ...]
+    runtimes: tuple[str, ...]
+    migrations: DataAccessMigrations | None
+    schema_validation: str | None
+    notes: str
+    sources: tuple[str, ...]
+    # engine -> {"driver", "url"} when this option needs another client than the stack's (sync SQLAlchemy).
+    drivers: dict[str, dict[str, str]] = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "kind": self.kind,
+            "models": list(self.models),
+            "engines": list(self.engines),
+            "runtimes": list(self.runtimes),
+            "migrations": None if self.migrations is None else self.migrations.to_dict(),
+            "schema_validation": self.schema_validation,
+            "notes": self.notes,
+            "sources": list(self.sources),
+        }
+
+
+@dataclass(frozen=True)
+class DataAccess:
+    default: dict[str, str]
+    options: tuple[DataAccessOption, ...]
+
+    def option(self, option_id: str) -> DataAccessOption | None:
+        return next((o for o in self.options if o.id == option_id), None)
+
+    def for_engine(self, engine: str) -> tuple[DataAccessOption, ...]:
+        return tuple(o for o in self.options if engine in o.engines)
 
 
 @dataclass(frozen=True)
@@ -83,6 +152,10 @@ class StackEntry:
     architecture: str = ""
     # Directory of the Markdown template below `templates/stacks`.
     template: str = ""
+    # How the stack reaches its database (the ORM...), chosen in the onboarding. None: not declared.
+    data_access: DataAccess | None = None
+    # engine -> what to use instead, for an engine the stack rejects.
+    service_alternatives: dict[str, str] = field(default_factory=dict)
 
     def test_command(self, root: str = "") -> list[str]:
         """The test command for this stack, run from the project root: `root` is the component's folder."""
@@ -346,6 +419,108 @@ def _url_list(path: Path, value: object, label: str) -> tuple[str, ...]:
     return tuple(value)
 
 
+def _argv(path: Path, value: object, label: str) -> tuple[str, ...]:
+    if (
+        not isinstance(value, list)
+        or not value
+        or not all(isinstance(token, str) and _ARGV_TOKEN.match(token) for token in value)
+    ):
+        raise _fail(path, f"{label} must be a non-empty argv without shell metacharacters.")
+    return tuple(value)
+
+
+def _optional_text(path: Path, data: dict, name: str) -> str | None:
+    value = data.get(name)
+    if value is not None and (not isinstance(value, str) or not value.strip()):
+        raise _fail(path, f"data_access field '{name}' must be null or a non-empty text.")
+    return value
+
+
+def _load_data_access_option(path: Path, raw: object, supported: dict) -> DataAccessOption:
+    if not isinstance(raw, dict):
+        raise _fail(path, "each data_access option must be an object.")
+    option_id = _text(path, raw, "id")
+    label = f"data_access option '{option_id}'"
+    kind = _text(path, raw, "kind")
+    if kind not in DATA_ACCESS_KINDS:
+        raise _fail(path, f"{label}: kind must be one of {', '.join(DATA_ACCESS_KINDS)}.")
+    models = _text_list(path, raw, "models", non_empty=True)
+    if any(model not in DATA_ACCESS_MODELS for model in models):
+        raise _fail(path, f"{label}: models must be of {', '.join(DATA_ACCESS_MODELS)}.")
+    engines = _text_list(path, raw, "engines", non_empty=True)
+    outside = [engine for engine in engines if engine not in supported]
+    if outside:
+        raise _fail(path, f"{label}: engines outside the stack's supported_services: {', '.join(outside)}.")
+    for engine in engines:
+        if ENGINE_DATA_MODEL.get(engine) not in models:
+            raise _fail(path, f"{label}: engine '{engine}' does not fit the models {', '.join(models)}.")
+    runtimes = _text_list(path, raw, "runtimes", non_empty=True)
+    unknown = [runtime for runtime in runtimes if runtime not in RUNTIMES]
+    if unknown:
+        raise _fail(path, f"{label}: unknown runtime: {', '.join(unknown)}.")
+    raw_migrations = raw.get("migrations")
+    migrations = None
+    if raw_migrations is not None:
+        if not isinstance(raw_migrations, dict):
+            raise _fail(path, f"{label}: migrations must be null or {{tool, generate, apply}}.")
+        generate = raw_migrations.get("generate")
+        migrations = DataAccessMigrations(
+            _text(path, raw_migrations, "tool"),
+            None if generate is None else _argv(path, generate, f"{label}: migrations.generate"),
+            _argv(path, raw_migrations.get("apply"), f"{label}: migrations.apply"),
+        )
+    schema_validation = _optional_text(path, raw, "schema_validation")
+    if "document" in models and schema_validation is None:
+        raise _fail(path, f"{label}: a document option must say how the shape is validated (schema_validation).")
+    drivers = raw.get("drivers", {})
+    if not isinstance(drivers, dict) or not all(
+        engine in engines and isinstance(item, dict) and item.get("driver") and item.get("url")
+        for engine, item in drivers.items()
+    ):
+        raise _fail(path, f"{label}: drivers must map its engines to {{driver, url}}.")
+    return DataAccessOption(
+        id=option_id,
+        name=_text(path, raw, "name"),
+        kind=kind,
+        models=models,
+        engines=engines,
+        runtimes=runtimes,
+        migrations=migrations,
+        schema_validation=schema_validation,
+        notes=_text(path, raw, "notes"),
+        sources=_url_list(path, raw.get("sources"), f"{label}: sources"),
+        drivers={engine: dict(item) for engine, item in drivers.items()},
+    )
+
+
+def _load_data_access(path: Path, data: dict, supported: dict) -> DataAccess | None:
+    raw = data.get("data_access")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or not isinstance(raw.get("options"), list) or not raw["options"]:
+        raise _fail(path, "field 'data_access' must have a non-empty list of options.")
+    options = tuple(_load_data_access_option(path, item, supported) for item in raw["options"])
+    ids = [option.id for option in options]
+    if len(set(ids)) != len(ids):
+        raise _fail(path, "data_access has two options with the same id.")
+    default = raw.get("default")
+    if not isinstance(default, dict) or not default or not all(isinstance(v, str) for v in default.values()):
+        raise _fail(path, "data_access.default must map each model to an option id.")
+    access = DataAccess(dict(default), options)
+    for model, option_id in default.items():
+        if model not in DATA_ACCESS_MODELS:
+            raise _fail(path, f"data_access.default: unknown model '{model}'.")
+        option = access.option(option_id)
+        if option is None:
+            raise _fail(path, f"data_access.default.{model}: '{option_id}' is not among the options.")
+        if model not in option.models:
+            raise _fail(path, f"data_access.default.{model}: '{option_id}' is not a {model} option.")
+    for model in DATA_ACCESS_MODELS:
+        if model not in default and any(model in option.models for option in options):
+            raise _fail(path, f"data_access.default must name the {model} option.")
+    return access
+
+
 def _load_component_stack(
     path: Path,
     data: dict,
@@ -407,6 +582,10 @@ def _load_component_stack(
         for engine, item in supported.items()
     ):
         raise _fail(path, "field 'supported_services' must map each engine to {driver, url}.")
+    alternatives = _str_map(path, data, "service_alternatives", required=False)
+    overlap = [engine for engine in alternatives if engine in supported]
+    if overlap:
+        raise _fail(path, f"service_alternatives names an engine the stack supports: {', '.join(overlap)}.")
     compatible = tuple(
         topology_id
         for topology_id, topology in sorted(topologies.items())
@@ -441,6 +620,8 @@ def _load_component_stack(
         supported_services={engine: dict(item) for engine, item in supported.items()},
         architecture=_text(path, data, "architecture"),
         template=f"{component}/{data['id']}",
+        data_access=_load_data_access(path, data, supported),
+        service_alternatives=alternatives,
     )
 
 
@@ -589,6 +770,13 @@ def load_catalog(templates_dir: Path) -> Catalog:
                 f"RAPID1401 Invalid catalog sidecar '{entry.id}.json': supported_services names an engine "
                 f"that is not in the catalog: {', '.join(unknown)}."
             )
+        for option in entry.data_access.options if entry.data_access else ():
+            bad = [e for e in option.engines if e not in services or services[e].role != "database"]
+            if services and bad:
+                raise CatalogError(
+                    f"RAPID1401 Invalid catalog sidecar '{entry.id}.json': data_access option '{option.id}' names "
+                    f"an engine that is not a database of the catalog: {', '.join(bad)}."
+                )
     return Catalog(
         stacks=stacks,
         topologies=topologies,

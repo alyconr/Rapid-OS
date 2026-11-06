@@ -131,5 +131,71 @@
       "driver": "php-rdkafka",
       "url": "localhost:9092"
     }
+  },
+  "data_access": {
+    "default": {
+      "relational": "eloquent",
+      "document": "laravel-mongodb"
+    },
+    "options": [
+      {
+        "id": "eloquent",
+        "name": "Eloquent",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql",
+          "mariadb"
+        ],
+        "runtimes": [
+          "php"
+        ],
+        "migrations": {
+          "tool": "artisan migrate",
+          "generate": [
+            "php",
+            "artisan",
+            "make:migration",
+            "<name>"
+          ],
+          "apply": [
+            "php",
+            "artisan",
+            "migrate"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "El ORM de Laravel.",
+        "sources": [
+          "https://laravel.com/docs/12.x/eloquent",
+          "https://laravel.com/docs/12.x/migrations",
+          "https://laravel.com/docs/12.x/database"
+        ]
+      },
+      {
+        "id": "laravel-mongodb",
+        "name": "Laravel MongoDB",
+        "kind": "odm",
+        "models": [
+          "document"
+        ],
+        "engines": [
+          "mongodb"
+        ],
+        "runtimes": [
+          "php"
+        ],
+        "migrations": null,
+        "schema_validation": "Validación de esquema de MongoDB: reglas `$jsonSchema` en cada colección, declaradas en el repositorio.",
+        "notes": "Integración oficial `mongodb/laravel-mongodb`, mantenida por MongoDB, Inc.",
+        "sources": [
+          "https://www.mongodb.com/docs/drivers/php/laravel-mongodb/current/",
+          "https://www.mongodb.com/docs/manual/core/schema-validation/"
+        ]
+      }
+    ]
   }
 }

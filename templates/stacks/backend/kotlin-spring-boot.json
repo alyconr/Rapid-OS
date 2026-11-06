@@ -124,5 +124,168 @@
       "driver": "spring-kafka",
       "url": "localhost:9092"
     }
+  },
+  "data_access": {
+    "default": {
+      "relational": "spring-data-jpa",
+      "document": "spring-data-mongodb"
+    },
+    "options": [
+      {
+        "id": "spring-data-jpa",
+        "name": "Spring Data JPA (Hibernate)",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql",
+          "mariadb"
+        ],
+        "runtimes": [
+          "jvm"
+        ],
+        "migrations": {
+          "tool": "Flyway",
+          "generate": null,
+          "apply": [
+            "flyway",
+            "migrate"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "Repositorios JPA sobre Hibernate. Migraciones SQL versionadas en `db/migration`, que Spring Boot aplica al arrancar con `spring-boot-starter-flyway`; Liquibase (`liquibase update`) es la alternativa.",
+        "sources": [
+          "https://spring.io/projects/spring-data-jpa",
+          "https://docs.spring.io/spring-boot/reference/data/sql.html",
+          "https://hibernate.org/orm/",
+          "https://docs.spring.io/spring-boot/how-to/data-initialization.html",
+          "https://documentation.red-gate.com/flyway/flyway-concepts/migrations",
+          "https://documentation.red-gate.com/fd/migrate-277578887.html",
+          "https://docs.liquibase.com/commands/update/update.html"
+        ]
+      },
+      {
+        "id": "spring-data-jdbc",
+        "name": "Spring Data JDBC",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql",
+          "mariadb"
+        ],
+        "runtimes": [
+          "jvm"
+        ],
+        "migrations": {
+          "tool": "Flyway",
+          "generate": null,
+          "apply": [
+            "flyway",
+            "migrate"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "Repositorios sobre JDBC, sin la capa de JPA. Migraciones SQL versionadas en `db/migration`, que Spring Boot aplica al arrancar con `spring-boot-starter-flyway`; Liquibase (`liquibase update`) es la alternativa.",
+        "sources": [
+          "https://spring.io/projects/spring-data-relational",
+          "https://docs.spring.io/spring-data/relational/reference/jdbc/getting-started.html",
+          "https://docs.spring.io/spring-boot/how-to/data-initialization.html",
+          "https://documentation.red-gate.com/flyway/flyway-concepts/migrations",
+          "https://documentation.red-gate.com/fd/migrate-277578887.html",
+          "https://docs.liquibase.com/commands/update/update.html"
+        ]
+      },
+      {
+        "id": "jooq",
+        "name": "jOOQ",
+        "kind": "query-builder",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql"
+        ],
+        "runtimes": [
+          "jvm"
+        ],
+        "migrations": {
+          "tool": "Flyway",
+          "generate": null,
+          "apply": [
+            "flyway",
+            "migrate"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "SQL con tipos generado desde el esquema; requiere Java 21 o posterior. El catálogo solo declara PostgreSQL: el sitio de jOOQ no se pudo consultar y las otras ediciones y motores quedan sin citar. Spring Boot solo autoconfigura los dialectos de la edición open source. Migraciones SQL versionadas en `db/migration`, que Spring Boot aplica al arrancar con `spring-boot-starter-flyway`; Liquibase (`liquibase update`) es la alternativa.",
+        "sources": [
+          "https://github.com/jOOQ/jOOQ",
+          "https://docs.spring.io/spring-boot/reference/data/sql.html",
+          "https://docs.spring.io/spring-boot/how-to/data-initialization.html",
+          "https://documentation.red-gate.com/flyway/flyway-concepts/migrations",
+          "https://documentation.red-gate.com/fd/migrate-277578887.html",
+          "https://docs.liquibase.com/commands/update/update.html"
+        ]
+      },
+      {
+        "id": "exposed",
+        "name": "Exposed",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql",
+          "mariadb"
+        ],
+        "runtimes": [
+          "jvm"
+        ],
+        "migrations": {
+          "tool": "Flyway",
+          "generate": null,
+          "apply": [
+            "flyway",
+            "migrate"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "Librería SQL de Kotlin con DSL y DAO. No aplica sus scripts de migración: se integran en Flyway o Liquibase (Exposed no ofrece integración propia con Liquibase).",
+        "sources": [
+          "https://www.jetbrains.com/help/exposed/home.html",
+          "https://www.jetbrains.com/help/exposed/migrations.html",
+          "https://github.com/JetBrains/Exposed",
+          "https://documentation.red-gate.com/fd/migrate-277578887.html"
+        ]
+      },
+      {
+        "id": "spring-data-mongodb",
+        "name": "Spring Data MongoDB",
+        "kind": "odm",
+        "models": [
+          "document"
+        ],
+        "engines": [
+          "mongodb"
+        ],
+        "runtimes": [
+          "jvm"
+        ],
+        "migrations": null,
+        "schema_validation": "Validación de esquema de MongoDB: reglas `$jsonSchema` en cada colección, declaradas en el repositorio.",
+        "notes": "Modelo de programación de Spring sobre MongoDB.",
+        "sources": [
+          "https://spring.io/projects/spring-data-mongodb",
+          "https://docs.spring.io/spring-boot/reference/data/nosql.html",
+          "https://www.mongodb.com/docs/manual/core/schema-validation/"
+        ]
+      }
+    ]
   }
 }

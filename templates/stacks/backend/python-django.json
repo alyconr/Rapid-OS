@@ -114,5 +114,82 @@
       "driver": "django-mongodb-backend",
       "url": "mongodb://app:app_local_only@127.0.0.1:27017/app?authSource=admin"
     }
+  },
+  "data_access": {
+    "default": {
+      "relational": "django-orm",
+      "document": "django-mongodb-backend"
+    },
+    "options": [
+      {
+        "id": "django-orm",
+        "name": "Django ORM",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql",
+          "mariadb"
+        ],
+        "runtimes": [
+          "python"
+        ],
+        "migrations": {
+          "tool": "manage.py migrate",
+          "generate": [
+            "python",
+            "manage.py",
+            "makemigrations"
+          ],
+          "apply": [
+            "python",
+            "manage.py",
+            "migrate"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "Viene con Django; las migraciones salen de los modelos.",
+        "sources": [
+          "https://docs.djangoproject.com/en/stable/topics/migrations/",
+          "https://docs.djangoproject.com/en/stable/ref/databases/"
+        ]
+      },
+      {
+        "id": "django-mongodb-backend",
+        "name": "Django MongoDB Backend",
+        "kind": "orm",
+        "models": [
+          "document"
+        ],
+        "engines": [
+          "mongodb"
+        ],
+        "runtimes": [
+          "python"
+        ],
+        "migrations": {
+          "tool": "manage.py migrate",
+          "generate": [
+            "python",
+            "manage.py",
+            "makemigrations"
+          ],
+          "apply": [
+            "python",
+            "manage.py",
+            "migrate"
+          ]
+        },
+        "schema_validation": "El backend aún no soporta la validación de esquema de MongoDB: valida la forma en la aplicación (modelos y formularios de Django).",
+        "notes": "Backend oficial de MongoDB (6.1.0, Production/Stable en PyPI); la versión sigue a la de Django. Las migraciones no tienen transacciones de DDL, soportan los índices solo en parte y no detectan cambios en modelos embebidos.",
+        "sources": [
+          "https://www.mongodb.com/docs/languages/python/django-mongodb/current/",
+          "https://www.mongodb.com/docs/languages/python/django-mongodb/current/limitations-upcoming/",
+          "https://pypi.org/project/django-mongodb-backend/"
+        ]
+      }
+    ]
   }
 }

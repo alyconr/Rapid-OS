@@ -2,7 +2,7 @@
 - **Runtime:** Node.js 24 (Active LTS), TypeScript strict.
 - **Framework:** Fastify 5.
 - **Validation:** JSON Schema with a type provider (TypeBox).
-- **ORM:** Prisma / Drizzle (migrations required).
+- **ORM:** Drizzle ORM + drizzle-kit (migrations).
 - **Database:** PostgreSQL + pg.
 - **Testing:** `node --test` with `fastify.inject()`.
 - **Linting:** ESLint + typescript-eslint.

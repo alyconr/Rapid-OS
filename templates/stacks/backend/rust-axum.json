@@ -120,5 +120,141 @@
       "driver": "rdkafka",
       "url": "localhost:9092"
     }
+  },
+  "data_access": {
+    "default": {
+      "relational": "sqlx",
+      "document": "mongodb-crate"
+    },
+    "options": [
+      {
+        "id": "sqlx",
+        "name": "sqlx",
+        "kind": "driver",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql"
+        ],
+        "runtimes": [
+          "rust"
+        ],
+        "migrations": {
+          "tool": "sqlx-cli",
+          "generate": [
+            "sqlx",
+            "migrate",
+            "add",
+            "<name>"
+          ],
+          "apply": [
+            "sqlx",
+            "migrate",
+            "run"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "Consultas verificadas al compilar, sin DSL; no es un ORM.",
+        "sources": [
+          "https://github.com/launchbadge/sqlx",
+          "https://raw.githubusercontent.com/launchbadge/sqlx/main/sqlx-cli/README.md"
+        ]
+      },
+      {
+        "id": "sea-orm",
+        "name": "SeaORM",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql"
+        ],
+        "runtimes": [
+          "rust"
+        ],
+        "migrations": {
+          "tool": "sea-orm-cli",
+          "generate": [
+            "sea-orm-cli",
+            "migrate",
+            "generate",
+            "<name>"
+          ],
+          "apply": [
+            "sea-orm-cli",
+            "migrate",
+            "up"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "ORM asíncrono y dinámico, construido sobre sqlx (`sea-orm-cli migrate init` crea la carpeta de migraciones).",
+        "sources": [
+          "https://www.sea-ql.org/SeaORM/docs/index/",
+          "https://www.sea-ql.org/SeaORM/docs/install-and-config/database-and-async-runtime/",
+          "https://www.sea-ql.org/SeaORM/docs/migration/setting-up-migration/",
+          "https://www.sea-ql.org/SeaORM/docs/migration/running-migration/"
+        ]
+      },
+      {
+        "id": "diesel",
+        "name": "Diesel",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql"
+        ],
+        "runtimes": [
+          "rust"
+        ],
+        "migrations": {
+          "tool": "diesel_cli",
+          "generate": [
+            "diesel",
+            "migration",
+            "generate",
+            "<name>"
+          ],
+          "apply": [
+            "diesel",
+            "migration",
+            "run"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "ORM y query builder con tipos verificados al compilar.",
+        "sources": [
+          "https://diesel.rs/",
+          "https://diesel.rs/guides/getting-started.html"
+        ]
+      },
+      {
+        "id": "mongodb-crate",
+        "name": "Crate oficial `mongodb`",
+        "kind": "driver",
+        "models": [
+          "document"
+        ],
+        "engines": [
+          "mongodb"
+        ],
+        "runtimes": [
+          "rust"
+        ],
+        "migrations": null,
+        "schema_validation": "Validación de esquema de MongoDB: reglas `$jsonSchema` en cada colección, declaradas en el repositorio.",
+        "notes": "Sin capa de modelos: la forma de cada documento la fija el código y la validación de la colección.",
+        "sources": [
+          "https://www.mongodb.com/docs/drivers/rust/current/",
+          "https://www.mongodb.com/docs/manual/core/schema-validation/"
+        ]
+      }
+    ]
   }
 }
