@@ -1489,7 +1489,10 @@ def doctor_command(args):
         from rapid_os.adapters.shortcut_installer import detect_scope_duplicates
         from rapid_os.domain.shortcuts import detect_folder_overlaps
 
-        for overlap in detect_folder_overlaps(DEFAULT_AGENT_REGISTRY.ids(), CURRENT_DIR):
+        # The agents chosen in this project, the ones setup generates shortcuts for: with every harness of the
+        # registry the warning would show up in any project. Without a configured project there is nothing to compare.
+        chosen_agents = _load_config_with_warning(CONFIG_FILE).get("tools", []) if CONFIG_FILE.exists() else []
+        for overlap in detect_folder_overlaps(chosen_agents, CURRENT_DIR):
             diagnostics.append(Diagnostic(WARNING, "RAPID1321", overlap.message.removeprefix("RAPID1321 ")))
 
         for duplicate in detect_scope_duplicates(Path.home(), CURRENT_DIR, DEFAULT_AGENT_REGISTRY.ids(), TEMPLATES_DIR):
