@@ -112,6 +112,8 @@ rapid doctor
 rapid doctor --json
 ```
 
+`validate` informa la sección que falta en un documento confirmado con un conjunto anterior de secciones obligatorias como `RAPID1403` de nivel INFO, con la indicación `rapid setup doc <id> --reopen`, así que `--strict` no falla tras actualizar. `setup.json` guarda ese conjunto como `confirmed_bank` en cada confirmación; un documento sin él cuenta como anterior.
+
 `doctor` avisa con `RAPID1321` solo sobre los agentes elegidos en el proyecto (`tools` en `.rapid-os/config.json`, para los que setup genera shortcuts): un proyecto solo con `codex` no recibe el aviso, uno con `cursor` y `codex` sí (Cursor lee las dos carpetas), y sin un proyecto configurado no hay nada que avisar.
 
 `doctor` also warns with `RAPID1421` when `standards/security.md` exists and does not mention OWASP ASVS (the project was initialized before the security baseline), with the hint `rapid setup set archetype <current> --refresh`.

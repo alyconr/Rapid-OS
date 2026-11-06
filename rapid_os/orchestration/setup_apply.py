@@ -82,6 +82,7 @@ from rapid_os.domain.project_docs import (
     is_managed,
     mark_story_done,
     mark_story_open,
+    bank_fingerprint,
     render_managed_doc,
     validate_doc_body,
     with_doc_status,
@@ -507,7 +508,7 @@ def confirm_doc(project_root: Path, state: SetupState, bank: SetupDocBank) -> Se
         raise _fail("RAPID1413", f"There is no document written by rapid in {bank.file} to confirm.")
     if fields.get("status") != "confirmed":
         _write_doc_text(project_root, path, with_doc_status(existing, "confirmed"))
-    return _with_doc(state, bank.id, DocState(fields["source"], True, fields.get("sha256", "")))
+    return _with_doc(state, bank.id, DocState(fields["source"], True, fields.get("sha256", ""), bank_fingerprint(bank)))
 
 
 def skip_doc(project_root: Path, state: SetupState, bank: SetupDocBank) -> SetupState:

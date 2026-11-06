@@ -75,6 +75,10 @@ rapid doctor
 
 ---
 
+### Documentos confirmados antes de que una sección fuera obligatoria
+
+Una versión nueva puede exigir secciones que no existían cuando una persona confirmó un documento (por ejemplo, `Tablas` y `Migraciones` en el modelo de datos). `rapid validate` lo informa como `RAPID1403` de nivel INFO, así que `--strict` sigue pasando, e indica `rapid setup doc <id> --reopen` para actualizar el documento. Rapid OS guarda las secciones obligatorias en cada confirmación; un documento sin ese dato cuenta como confirmado antes. Un documento confirmado con las secciones actuales al que le falta una sigue dando el aviso `RAPID1403`.
+
 ## 5. De 3.0 a 3.1
 
 Rapid OS 3.1 añade la capa de intención (`rapid start|next|check|…`), los shortcuts `/rapid-<modo>` y los hooks de Claude Code. Los comandos y flags de v3.0 no cambian y **no hay nada que migrar** en specs, runs, evidencia ni evaluaciones: los reportes de evaluación existentes (ruleset 1) siguen siendo válidos; el ruleset 2 es el predeterminado para evaluaciones nuevas y `--ruleset 1` sigue disponible.
