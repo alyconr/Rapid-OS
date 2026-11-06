@@ -85,7 +85,7 @@ from rapid_os.domain.project_docs import (
     validate_doc_body,
     with_doc_status,
 )
-from rapid_os.orchestration.git import run_git
+from rapid_os.orchestration.git import LINE_ENDINGS_RULE, run_git
 from rapid_os.orchestration.session import git_trust_command, git_work_tree_state
 from rapid_os.domain.setup import (
     ARCHETYPES,
@@ -104,6 +104,9 @@ AI_ANSWERS = {"yes": True, "y": True, "si": True, "sí": True, "true": True, "no
 SECURITY_TEMPLATE = ("security", "baseline.md")
 BASELINE_TITLE = "# SEGURIDAD: BASE OBLIGATORIA"
 MINIMAL_SECURITY_TITLE = "SECURITY STANDARD (MINIMAL)"
+GITATTRIBUTES_BEGIN = "# RAPID-OS:BEGIN"
+GITATTRIBUTES_END = "# RAPID-OS:END"
+GITATTRIBUTES_NOTE = "Regla de finales de línea añadida por Rapid OS: súbela en el primer commit"
 GITIGNORE_ENTRIES = (
     ".rapid-os/session.json",
     ".rapid-os/scratch/",
@@ -644,6 +647,30 @@ def update_gitignore(project_root: Path, extra: Sequence[str] = (), *, create: b
         return missing
     except (OSError, UnicodeDecodeError):
         return []
+
+
+def update_gitattributes(project_root: Path) -> bool:
+    """Create `.gitattributes` or add a managed block to it: git must not change the bytes of `.rapid-os/`.
+
+    Only what lies between the markers is ours. Returns whether the file changed. A file that cannot be written is
+    not fatal: `rapid doctor` keeps reporting the missing rule (RAPID1436)."""
+    path = Path(project_root) / ".gitattributes"
+    block = f"{GITATTRIBUTES_BEGIN}\n{LINE_ENDINGS_RULE}\n{GITATTRIBUTES_END}\n"
+    try:
+        text = path.read_text(encoding="utf-8") if path.exists() else ""
+        begin, end = text.find(GITATTRIBUTES_BEGIN), text.find(GITATTRIBUTES_END)
+        if begin != -1 and end > begin:
+            after = end + len(GITATTRIBUTES_END)
+            current = text[begin:after] + "\n"
+            if current == block:
+                return False
+            safe_write_text(path, text[:begin] + block.rstrip("\n") + text[after:], encoding="utf-8")
+            return True
+        separator = ("\n" if not text.endswith("\n") else "") + "\n" if text else ""
+        safe_append_text(path, separator + block, encoding="utf-8")
+        return True
+    except (OSError, UnicodeDecodeError):
+        return False
 
 
 def _copy_template(source: Path, target: Path, label: str) -> None:

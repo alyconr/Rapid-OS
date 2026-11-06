@@ -24,6 +24,18 @@ PERSON_ACTION_WHY = (
     "El harness ejecuta los comandos con otro usuario de Windows y git exige que el dueño "
     "de la carpeta sea el mismo usuario que lo usa."
 )
+# Evidence is verified byte by byte: git must store and check out `.rapid-os/` exactly as Rapid OS wrote it.
+LINE_ENDINGS_RULE = ".rapid-os/** -text"
+LINE_ENDINGS_CAUSE_CODE = "RAPID1437"
+LINE_ENDINGS_REPAIR = (
+    "Si .rapid-os/ ya está en commits: en la copia donde 'rapid evidence verify' pasa (los bytes que escribió "
+    f"Rapid OS), añade la regla '{LINE_ENDINGS_RULE}', ejecuta 'git add --renormalize .rapid-os/' y haz commit. "
+    "En un clon que ya falla no renormalices (guardaría los bytes convertidos): trae .rapid-os/ de la copia buena."
+)
+LINE_ENDINGS_CAUSE = (
+    f"{LINE_ENDINGS_CAUSE_CODE} Causa probable: git pudo cambiar los finales de línea (core.autocrlf); "
+    f"añade .gitattributes con '{LINE_ENDINGS_RULE}'. {LINE_ENDINGS_REPAIR}"
+)
 LOCAL_SERVICES_TEXT = "Para levantar los servicios locales (base de datos, etc.), ejecuta en tu terminal: {command}"
 PERSON_ACTION_TEXT = "Para usar git tú mismo en esta carpeta, ejecuta en tu terminal: {command}"
 
@@ -60,6 +72,43 @@ def run_git(root: Path | str | None, *args: str) -> subprocess.CompletedProcess:
         check=False,
         shell=False,
     )
+
+
+def in_work_tree(root: Path | str | None) -> bool:
+    """Whether `root` is inside a git work tree (False without git)."""
+    try:
+        result = run_git(root, "rev-parse", "--is-inside-work-tree")
+    except OSError:
+        return False
+    return result.returncode == 0 and result.stdout.strip() == "true"
+
+
+def line_endings_rule_missing(root: Path | str | None) -> bool:
+    """True when `root` is in git and git may still convert the line endings of `.rapid-os/`.
+
+    It asks git instead of reading `.gitattributes`: a broader rule of the person (`* -text`) also counts, and a
+    later line that turns conversion back on counts against it."""
+    if not in_work_tree(root):
+        return False
+    try:
+        result = run_git(root, "check-attr", "text", "--", ".rapid-os/evidence/probe")
+    except OSError:
+        return False
+    return result.returncode == 0 and not result.stdout.rstrip().endswith(": text: unset")
+
+
+def autocrlf_active(root: Path | str | None) -> bool:
+    """`core.autocrlf` is `true` or `input` for this repository: git rewrites line endings when it can."""
+    try:
+        result = run_git(root, "config", "--get", "core.autocrlf")
+    except OSError:
+        return False
+    return result.returncode == 0 and result.stdout.strip().lower() in ("true", "input", "yes", "on", "1")
+
+
+def line_endings_at_risk(root: Path | str | None) -> bool:
+    """A failed byte comparison here may be git's doing: in git, without the rule or with `core.autocrlf` on."""
+    return in_work_tree(root) and (line_endings_rule_missing(root) or autocrlf_active(root))
 
 
 @dataclass(frozen=True)
