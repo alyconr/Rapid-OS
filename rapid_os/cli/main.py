@@ -2907,6 +2907,34 @@ def render_evidence_show_text(evidence: RunEvidence) -> str:
     return "\n".join(lines)
 
 
+DEFAULT_RUN_HELP = "Target run identifier (default: the active run or, without one, the last one closed)."
+
+
+def _default_run_id(*, error, as_json):
+    """The run a read-only command means without `--run`: the active one or, without it, the last one closed.
+
+    The text output starts with `Run: <id>`; the JSON output already carries `run_id`. Without runs, `error`."""
+    from rapid_os.domain.execution import RunStatus
+    from rapid_os.orchestration.session import load_session
+
+    registry = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+    session = load_session(PROJECT_RAPID_DIR)
+    run_id = None
+    if session and session.active_run_id and registry.exists(session.active_run_id):
+        if not registry.get_state(session.active_run_id).status.is_terminal:
+            run_id = session.active_run_id
+    if run_id is None:
+        closed = [record.id for record in registry.list_runs() if registry.get_state(record.id).status.is_terminal]
+        if not closed:
+            raise error
+        # Runs keep no clock and their ids sort by spec: `run.json` is rewritten with each state. A fresh clone has
+        # similar times, so the id breaks ties; the `Run:` line says which one was taken.
+        run_id = max(closed, key=lambda item: ((registry.runs_dir / item / "run.json").stat().st_mtime_ns, item))
+    if not as_json:
+        print(f"Run: {run_id}")
+    return run_id
+
+
 def evidence_command(args):
     """Execute `rapid evidence` subcommands (`list`, `show`, `add`, `verify`)."""
     action = getattr(args, "evidence_action", None) or getattr(args, "action", None)
@@ -2916,8 +2944,9 @@ def evidence_command(args):
         if action == "list":
             run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
             if not run_id or not str(run_id).strip():
-                raise InvalidRunEvidenceError(
-                    "Option '--run' is required to list evidence records."
+                run_id = _default_run_id(
+                    error=InvalidRunEvidenceError("No runs to list evidence for: pass --run or start one with 'rapid start'."),
+                    as_json=getattr(args, "json", False),
                 )
             records = registry.list(run_id)
             set_digest = compute_evidence_set_digest(run_id, records)
@@ -2986,8 +3015,9 @@ def evidence_command(args):
         if action == "verify":
             run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
             if not run_id or not str(run_id).strip():
-                raise InvalidRunEvidenceError(
-                    "Option '--run' is required to verify evidence."
+                run_id = _default_run_id(
+                    error=InvalidRunEvidenceError("No runs to verify evidence for: pass --run or start one with 'rapid start'."),
+                    as_json=getattr(args, "json", False),
                 )
             records = registry.verify(run_id)
             orphans = registry.orphan_artifact_dirs(run_id)
@@ -3179,8 +3209,9 @@ def eval_command(args):
         if action == "show":
             run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
             if not run_id or not str(run_id).strip():
-                raise InvalidEvaluationReportError(
-                    "Option '--run' is required to show an evaluation report."
+                run_id = _default_run_id(
+                    error=InvalidEvaluationReportError("No runs to show an evaluation report for: pass --run or start one with 'rapid start'."),
+                    as_json=getattr(args, "json", False),
                 )
             revision = getattr(args, "revision", None)
             report = registry.get_report(run_id, revision=revision)
@@ -5529,7 +5560,7 @@ def create_parser():
         help="List verified evidence records for a run (read-only).",
         description="List recorded RunEvidence items (E001..E00N) and evidence_set_digest for a run (read-only).",
     )
-    evidence_list.add_argument("--run", dest="run", required=True, help="Target run identifier.")
+    evidence_list.add_argument("--run", dest="run", help=DEFAULT_RUN_HELP)
     evidence_list.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
 
     evidence_show = evidence_subparsers.add_parser(
@@ -5555,7 +5586,7 @@ def create_parser():
         help="Verify all evidence records, bindings, sequence continuity, and artifact digests (read-only).",
         description="Verify integrity of all RunEvidence records and copied artifacts for a run (read-only).",
     )
-    evidence_verify.add_argument("--run", dest="run", required=True, help="Target run identifier.")
+    evidence_verify.add_argument("--run", dest="run", help=DEFAULT_RUN_HELP)
     evidence_verify.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
 
     eval_parser = subparsers.add_parser(
@@ -5598,7 +5629,7 @@ def create_parser():
         help="Show the latest or pinned persisted EvaluationReport (read-only).",
         description="Load, replay-verify, and display a persisted EvaluationReport for a run (read-only).",
     )
-    eval_show.add_argument("--run", dest="run", required=True, help="Target run identifier.")
+    eval_show.add_argument("--run", dest="run", help=DEFAULT_RUN_HELP)
     eval_show.add_argument("--revision", type=int, help="Specific report revision number (defaults to latest).")
     eval_show.add_argument("--json", action="store_true", help="Emit pure EvaluationReport JSON on stdout.")
 
