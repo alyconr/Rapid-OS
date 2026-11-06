@@ -202,7 +202,7 @@ Each topology component has its own stack (see [Stacks and components](../concep
 
 | Component | Stacks |
 | :--- | :--- |
-| `backend` | `python-fastapi`, `python-django`, `node-nestjs`, `node-fastify`, `go`, `rust-axum`, `ruby-rails`, `dotnet-aspnetcore`, `java-spring-boot`, `kotlin-spring-boot`, `php-laravel` |
+| `backend` | `python-fastapi`, `python-django`, `node-nestjs`, `node-fastify`, `hono`, `go`, `rust-axum`, `ruby-rails`, `dotnet-aspnetcore`, `java-spring-boot`, `kotlin-spring-boot`, `php-laravel` |
 | `frontend` | `react-vite`, `nextjs`, `angular`, `vue-vite`, `nuxt`, `svelte-vite`, `sveltekit`, `astro` |
 | `docs` | `docs-modern` (Docusaurus), compatible only with `doc-site` |
 | all | `generic` (no template: generated from what the scanner detects) and `custom` (the `tech-stack.md` written by the agent) |

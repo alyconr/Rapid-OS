@@ -18,6 +18,17 @@ rapid setup set services none
 - Un rol o motor desconocido, o una pareja incompatible, es `RAPID1413`; un motor que el stack no soporta es `RAPID1402`.
 - Después de `setup finish`, `rapid setup set services ...` se aplica al instante y no reabre el onboarding.
 
+## Acceso a datos
+
+Con una base de datos decidida, `rapid setup next` devuelve `choose_data_access` antes del documento `data-model` cuando el stack del backend ofrece más de una opción para ese motor: `options[]` (solo las compatibles, con sus notas y fuentes), `recommended`, `instruction`, `delegation`, `command` y `alt_command`.
+
+```bash
+rapid setup set data-access drizzle --component backend
+rapid setup set data-access --recommended
+```
+
+Con una sola opción compatible, Rapid OS la fija y lo dice en una nota (`decided_by: auto`), sin preguntar a la persona. La decisión se guarda en `.rapid-os/setup.json` como `data_access`; un archivo sin ese campo sigue siendo válido, y un proyecto terminado antes de este paso no se reabre. Cambiar el stack o el motor deja sin decidir una elección que ya no encaja. Consulta [Acceso a datos](./stacks.md#acceso-a-datos).
+
 ## Catálogo
 
 Cada motor es un archivo `templates/services/<motor>.json` validado por `rapid_os.domain.catalog` (`RAPID1401`) con rol, imagen oficial con versión mayor fijada, puertos, variables, healthcheck, volumen, variable de conexión, drivers por lenguaje y las `sources` oficiales.

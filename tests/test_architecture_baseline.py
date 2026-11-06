@@ -365,6 +365,7 @@ class CompositionMessageTests(unittest.TestCase):
         samples = {
             "python-fastapi": python_sample,
             "node-fastify": ts("src/modules"),
+            "hono": ts("src/modules"),
             "node-nestjs": ts("src/modules"),
             "nextjs": ts("src/modules"),
             "nuxt": ts("server/modules"),

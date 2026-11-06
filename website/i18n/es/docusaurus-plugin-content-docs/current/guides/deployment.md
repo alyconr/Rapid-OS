@@ -20,8 +20,11 @@ Las plantillas citan las páginas oficiales consultadas. Donde la documentación
 | aws | ECS con Fargate (App Runner ya no admite clientes nuevos) | RDS (PostgreSQL, MySQL, MariaDB); DocumentDB es compatible con MongoDB | ElastiCache (Valkey, Redis OSS) | Amazon MQ (RabbitMQ) | MSK (Kafka) |
 | azure | Container Apps o App Service | PostgreSQL y MySQL flexible server; Cosmos DB for MongoDB | Azure Managed Redis | Service Bus (no es RabbitMQ) | Event Hubs con endpoint Kafka |
 | vercel | Frontend y funciones; no una API con conexiones persistentes | Marketplace (Neon, Supabase, MongoDB Atlas...) | Marketplace (Upstash, Redis Cloud) | fuera de Vercel | fuera de Vercel |
+| cloudflare | Workers con Static Assets; API en Workers (Hono), FastAPI en Python Workers solo con acceso a datos síncrono | Hyperdrive hacia un PostgreSQL o MySQL externo; D1 para SQLite | KV (no es Redis) | Queues (no es RabbitMQ) | fuera de Cloudflare |
 | render | Web service Docker y private services | Render Postgres | Render Key Value (Valkey) | contenedor con disco | contenedor con disco |
 | railway | Servicios en un proyecto con red privada | Plantilla de PostgreSQL (un nodo) | contenedor con volumen | contenedor con volumen | contenedor con volumen |
 | dokploy | Servidor propio con Docker y Traefik | PostgreSQL, MySQL, MariaDB, MongoDB | Redis | compose | compose |
 
 **Vercel** sirve frontend y funciones con duración máxima por invocación; una API con WebSockets o procesos largos va en otra plataforma. Los secretos viven siempre en el gestor de la plataforma, nunca en el repositorio.
+
+**Cloudflare** recomienda Workers con Static Assets para proyectos nuevos; Pages sigue funcionando. Un Worker se ejecuta por petición, no como un proceso persistente, así que un stack que lo necesita va a otra plataforma o a Cloudflare Containers, con el frontend en Cloudflare. FastAPI corre en Python Workers solo con acceso a datos síncrono: cuando el stack y la opción de acceso a datos decididos no encajan en Workers, la acción de `deployment` trae una nota en `platform_notes.cloudflare`, que informa y no bloquea nada. `rapid deploy --target cloudflare` imprime la plantilla, y el escáner reporta `wrangler.toml`, `wrangler.json` y `wrangler.jsonc` como el proveedor `cloudflare`.

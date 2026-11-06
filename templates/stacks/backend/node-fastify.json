@@ -126,5 +126,170 @@
       "driver": "kafkajs",
       "url": "localhost:9092"
     }
+  },
+  "data_access": {
+    "default": {
+      "relational": "drizzle",
+      "document": "mongodb-driver"
+    },
+    "options": [
+      {
+        "id": "drizzle",
+        "name": "Drizzle ORM",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql"
+        ],
+        "runtimes": [
+          "node"
+        ],
+        "migrations": {
+          "tool": "drizzle-kit",
+          "generate": [
+            "pnpm",
+            "drizzle-kit",
+            "generate"
+          ],
+          "apply": [
+            "pnpm",
+            "drizzle-kit",
+            "migrate"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "ORM de TypeScript sin motor propio: el esquema es código y drizzle-kit genera migraciones SQL.",
+        "sources": [
+          "https://orm.drizzle.team/docs/overview",
+          "https://orm.drizzle.team/docs/drizzle-kit-generate",
+          "https://orm.drizzle.team/docs/drizzle-kit-migrate"
+        ]
+      },
+      {
+        "id": "prisma",
+        "name": "Prisma ORM 7",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql",
+          "mariadb"
+        ],
+        "runtimes": [
+          "node"
+        ],
+        "migrations": {
+          "tool": "prisma migrate",
+          "generate": [
+            "pnpm",
+            "prisma",
+            "migrate",
+            "dev",
+            "--name",
+            "<name>"
+          ],
+          "apply": [
+            "pnpm",
+            "prisma",
+            "migrate",
+            "deploy"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "Fija Prisma ORM 7: el tag `latest` de npm apunta a la prerelease 8 (8.0.0-rc), que cambia estos comandos por `prisma migration plan` y `prisma db migrate` y aún no da soporte estable a MySQL ni a MariaDB. Prisma 7 tampoco admite MongoDB (usa `mongodb` o Mongoose). `migrate dev` nunca se ejecuta en producción.",
+        "sources": [
+          "https://www.prisma.io/docs/orm/v7/prisma-migrate/getting-started",
+          "https://www.prisma.io/docs/orm/v7/prisma-migrate/workflows/development-and-production",
+          "https://www.prisma.io/docs/orm/v7/core-concepts/supported-databases",
+          "https://www.prisma.io/docs/orm/coming-from-prisma-orm-7"
+        ]
+      },
+      {
+        "id": "kysely",
+        "name": "Kysely",
+        "kind": "query-builder",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql"
+        ],
+        "runtimes": [
+          "node"
+        ],
+        "migrations": {
+          "tool": "kysely-ctl",
+          "generate": [
+            "pnpm",
+            "kysely",
+            "migrate",
+            "make",
+            "<name>"
+          ],
+          "apply": [
+            "pnpm",
+            "kysely",
+            "migrate",
+            "latest"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "Query builder de SQL con tipos, no un ORM: las migraciones se escriben a mano y corren con su `Migrator` o con la CLI opcional kysely-ctl (`kysely init` crea su configuración). MariaDB solo tiene dialecto de terceros: fuera.",
+        "sources": [
+          "https://kysely.dev/docs/intro",
+          "https://kysely.dev/docs/migrations",
+          "https://kysely.dev/docs/dialects",
+          "https://github.com/kysely-org/kysely-ctl"
+        ]
+      },
+      {
+        "id": "mongodb-driver",
+        "name": "Driver oficial de MongoDB para Node.js",
+        "kind": "driver",
+        "models": [
+          "document"
+        ],
+        "engines": [
+          "mongodb"
+        ],
+        "runtimes": [
+          "node"
+        ],
+        "migrations": null,
+        "schema_validation": "Validación de esquema de MongoDB: reglas `$jsonSchema` en cada colección, declaradas en el repositorio.",
+        "notes": "Sin capa de modelos: la forma de cada documento la fija el código y la validación de la colección.",
+        "sources": [
+          "https://www.mongodb.com/docs/drivers/node/current/",
+          "https://www.mongodb.com/docs/manual/core/schema-validation/"
+        ]
+      },
+      {
+        "id": "mongoose",
+        "name": "Mongoose",
+        "kind": "odm",
+        "models": [
+          "document"
+        ],
+        "engines": [
+          "mongodb"
+        ],
+        "runtimes": [
+          "node"
+        ],
+        "migrations": null,
+        "schema_validation": "Esquemas de Mongoose: los validadores se declaran en cada `SchemaType` y corren en la aplicación.",
+        "notes": "Modela cada colección con un esquema.",
+        "sources": [
+          "https://mongoosejs.com/docs/",
+          "https://mongoosejs.com/docs/validation.html"
+        ]
+      }
+    ]
   }
 }

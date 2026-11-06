@@ -134,5 +134,215 @@
       "driver": "aiokafka",
       "url": "localhost:9092"
     }
+  },
+  "data_access": {
+    "default": {
+      "relational": "sqlalchemy-async",
+      "document": "pymongo-async"
+    },
+    "options": [
+      {
+        "id": "sqlalchemy-async",
+        "name": "SQLAlchemy 2 (async)",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql",
+          "mariadb"
+        ],
+        "runtimes": [
+          "python"
+        ],
+        "migrations": {
+          "tool": "Alembic",
+          "generate": [
+            "uv",
+            "run",
+            "alembic",
+            "revision",
+            "--autogenerate",
+            "-m",
+            "<name>"
+          ],
+          "apply": [
+            "uv",
+            "run",
+            "alembic",
+            "upgrade",
+            "head"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "AsyncSession sobre asyncpg o asyncmy; Alembic trae la plantilla `alembic init -t async`. No corre en Python Workers: SQLAlchemy async necesita greenlet, que ese entorno no tiene.",
+        "sources": [
+          "https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html",
+          "https://alembic.sqlalchemy.org/en/latest/tutorial.html",
+          "https://alembic.sqlalchemy.org/en/latest/cookbook.html",
+          "https://docs.sqlalchemy.org/en/20/dialects/",
+          "https://developers.cloudflare.com/hyperdrive/examples/python-workers/"
+        ]
+      },
+      {
+        "id": "sqlalchemy-sync",
+        "name": "SQLAlchemy 2 (síncrono)",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql",
+          "mariadb"
+        ],
+        "runtimes": [
+          "python",
+          "python-workers"
+        ],
+        "migrations": {
+          "tool": "Alembic",
+          "generate": [
+            "uv",
+            "run",
+            "alembic",
+            "revision",
+            "--autogenerate",
+            "-m",
+            "<name>"
+          ],
+          "apply": [
+            "uv",
+            "run",
+            "alembic",
+            "upgrade",
+            "head"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "En Python Workers es la única variante admitida («only synchronous SQLAlchemy ORMs are supported»), con `compatibility_date` 2026-09-08 o posterior y serializando las operaciones con un `asyncio.Lock`. Hyperdrive probó psycopg y pg8000 en PostgreSQL y pymysql en MySQL. Alembic corre desde CI o local, no desde el Worker.",
+        "sources": [
+          "https://docs.sqlalchemy.org/en/20/orm/quickstart.html",
+          "https://docs.sqlalchemy.org/en/20/dialects/",
+          "https://alembic.sqlalchemy.org/en/latest/tutorial.html",
+          "https://developers.cloudflare.com/hyperdrive/examples/python-workers/",
+          "https://developers.cloudflare.com/workers/languages/python/packages/fastapi/"
+        ],
+        "drivers": {
+          "postgresql": {
+            "driver": "psycopg",
+            "url": "postgresql+psycopg://app:app_local_only@127.0.0.1:5432/app"
+          },
+          "mysql": {
+            "driver": "pymysql",
+            "url": "mysql+pymysql://app:app_local_only@127.0.0.1:3306/app"
+          },
+          "mariadb": {
+            "driver": "pymysql",
+            "url": "mysql+pymysql://app:app_local_only@127.0.0.1:3306/app"
+          }
+        }
+      },
+      {
+        "id": "sqlmodel",
+        "name": "SQLModel",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql",
+          "mariadb"
+        ],
+        "runtimes": [
+          "python"
+        ],
+        "migrations": {
+          "tool": "Alembic",
+          "generate": [
+            "uv",
+            "run",
+            "alembic",
+            "revision",
+            "--autogenerate",
+            "-m",
+            "<name>"
+          ],
+          "apply": [
+            "uv",
+            "run",
+            "alembic",
+            "upgrade",
+            "head"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "Basado en SQLAlchemy y Pydantic, del mismo autor que FastAPI; admite las bases de SQLAlchemy. FastAPI indica usar Alembic directamente para las migraciones.",
+        "sources": [
+          "https://sqlmodel.tiangolo.com/",
+          "https://fastapi.tiangolo.com/tutorial/sql-databases/",
+          "https://alembic.sqlalchemy.org/en/latest/tutorial.html"
+        ],
+        "drivers": {
+          "postgresql": {
+            "driver": "psycopg",
+            "url": "postgresql+psycopg://app:app_local_only@127.0.0.1:5432/app"
+          },
+          "mysql": {
+            "driver": "pymysql",
+            "url": "mysql+pymysql://app:app_local_only@127.0.0.1:3306/app"
+          },
+          "mariadb": {
+            "driver": "pymysql",
+            "url": "mysql+pymysql://app:app_local_only@127.0.0.1:3306/app"
+          }
+        }
+      },
+      {
+        "id": "pymongo-async",
+        "name": "PyMongo Async",
+        "kind": "driver",
+        "models": [
+          "document"
+        ],
+        "engines": [
+          "mongodb"
+        ],
+        "runtimes": [
+          "python"
+        ],
+        "migrations": null,
+        "schema_validation": "Validación de esquema de MongoDB: reglas `$jsonSchema` en cada colección, declaradas en el repositorio.",
+        "notes": "Driver oficial; su API async sustituye a Motor, que MongoDB deprecó el 14 de mayo de 2026.",
+        "sources": [
+          "https://www.mongodb.com/docs/languages/python/pymongo-driver/current/",
+          "https://www.mongodb.com/docs/languages/python/pymongo-driver/current/reference/migration/",
+          "https://www.mongodb.com/docs/manual/core/schema-validation/"
+        ]
+      },
+      {
+        "id": "beanie",
+        "name": "Beanie",
+        "kind": "odm",
+        "models": [
+          "document"
+        ],
+        "engines": [
+          "mongodb"
+        ],
+        "runtimes": [
+          "python"
+        ],
+        "migrations": null,
+        "schema_validation": "Modelos Pydantic: la forma se valida en la aplicación al leer y escribir.",
+        "notes": "ODM asíncrono sobre PyMongo; incluye migraciones de datos y de esquema.",
+        "sources": [
+          "https://beanie-odm.dev/",
+          "https://github.com/BeanieODM/beanie"
+        ]
+      }
+    ]
   }
 }
