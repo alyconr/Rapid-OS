@@ -739,6 +739,8 @@ def init_project(args):
     from rapid_os.orchestration import setup_apply as _setup_apply
 
     _ensure_git_repository_for_setup(_setup_apply)
+    if _setup_apply.update_gitattributes(CURRENT_DIR):
+        print(f"{_setup_apply.GITATTRIBUTES_NOTE}: .gitattributes")
 
     # Update .gitignore if present in project root
     gitignore_path = CURRENT_DIR / ".gitignore"
@@ -1492,6 +1494,23 @@ def doctor_command(args):
 
         for duplicate in detect_scope_duplicates(Path.home(), CURRENT_DIR, DEFAULT_AGENT_REGISTRY.ids(), TEMPLATES_DIR):
             diagnostics.append(Diagnostic(WARNING, "RAPID1321", duplicate.message.removeprefix("RAPID1321 ")))
+
+        from rapid_os.orchestration.git import LINE_ENDINGS_REPAIR, LINE_ENDINGS_RULE, line_endings_rule_missing
+
+        if PROJECT_RAPID_DIR.exists() and line_endings_rule_missing(CURRENT_DIR):
+            diagnostics.append(
+                Diagnostic(
+                    WARNING,
+                    "RAPID1436",
+                    f"Este proyecto está en git y falta la regla '{LINE_ENDINGS_RULE}' en .gitattributes: con "
+                    "core.autocrlf git cambia los finales de línea de la evidencia y un clon falla con RAPID1205.",
+                    CURRENT_DIR / ".gitattributes",
+                    hint=(
+                        "Ejecuta 'rapid setup finish' para añadirla (con decisiones abiertas, añade esa línea a "
+                        f".gitattributes a mano). {LINE_ENDINGS_REPAIR}"
+                    ),
+                )
+            )
 
         if sys.platform == "win32":
             from rapid_os.orchestration.git import run_git
@@ -4154,6 +4173,10 @@ def setup_command(args):
             # Every `finish`, not only the first: it is what RAPID1416 tells the person to run
             # when the repository was removed after the onboarding.
             _ensure_git_repository_for_setup(apply)
+            # Also every `finish`: it is what RAPID1436 tells the person to run in a project without the rule.
+            if apply.update_gitattributes(CURRENT_DIR):
+                added_files.append({"file": ".gitattributes", "note": apply.GITATTRIBUTES_NOTE})
+                print(f"{apply.GITATTRIBUTES_NOTE}: .gitattributes")
             if not state.finished:
                 result = apply.apply_setup(
                     CURRENT_DIR,

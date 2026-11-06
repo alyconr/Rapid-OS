@@ -114,6 +114,8 @@ rapid doctor --json
 
 `doctor` also warns with `RAPID1421` when `standards/security.md` exists and does not mention OWASP ASVS (the project was initialized before the security baseline), with the hint `rapid setup set archetype <current> --refresh`.
 
+`rapid setup finish` and `rapid init` write `.rapid-os/** -text` to `.gitattributes`, in a managed block between `RAPID-OS:BEGIN` and `RAPID-OS:END`, so that git does not change the bytes of the evidence. `doctor` warns with `RAPID1436` when the project is in git without that rule; see [Windows: line endings](installation/windows.md#line-endings-in-git).
+
 When the folder is a git repository that Git refuses for the person's own terminal ("dubious ownership") but accepts for Rapid OS, `doctor` adds the optional `person_actions` list (see `rapid setup`): `[{"id": "git-safe-directory", "why": ..., "command": ...}]` in `--json`; otherwise, it prints `To use Git yourself in this folder, run this in your terminal: <command>` plus the reason. Nothing is added for a repository the person owns.
 
 ### `rapid inspect-context`

@@ -106,7 +106,28 @@ Continúa a la sección de [Verificación detallada](./verification.md).
 
 ---
 
-## 6. Empieza a usar los shortcuts
+<a id="line-endings-in-git"></a>
+
+## 6. Finales de línea en git
+
+Rapid OS verifica la evidencia byte a byte. Git para Windows trae `core.autocrlf=true`, que cambia los finales de línea en los dos sentidos: `git add` guarda como LF un archivo con algún CRLF, y un checkout convierte LF en CRLF. Sin protección, `rapid evidence verify`, `rapid eval show` y `rapid validate` fallan en un clon con `RAPID1205` y `RAPID1223`.
+
+`rapid setup finish` y `rapid init` añaden esta regla a `.gitattributes`, en un bloque gestionado que no toca el resto del archivo. Súbelo junto con `.rapid-os/`:
+
+```text
+# RAPID-OS:BEGIN
+.rapid-os/** -text
+# RAPID-OS:END
+```
+
+`rapid doctor` avisa con `RAPID1436` cuando falta la regla. Ejecuta `rapid setup finish` para añadirla. Si `.rapid-os/` ya está en commits:
+
+- **En la copia donde `rapid evidence verify` pasa** (tiene los bytes que escribió Rapid OS): añade la regla, ejecuta `git add --renormalize .rapid-os/` y haz commit.
+- **En un clon que ya falla:** no renormalices, porque guardaría los bytes convertidos. Trae `.rapid-os/` de la copia buena.
+
+La verificación sigue siendo estricta: no acepta un archivo convertido. Con finales mezclados el original no se puede reconstruir a partir del convertido, así que `RAPID1437` indica la causa probable sin intentar demostrarla.
+
+## 7. Empieza a usar los shortcuts
 
 Si respondiste con tu agente a la pregunta final del instalador, ya está: abre tu agente en la carpeta de tu proyecto y escribe:
 

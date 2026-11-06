@@ -9,6 +9,8 @@ Standard library only. It drives the `rapid` executable of a clean venv, in a te
 3. H-29: `rapid start research --spec-file -` with a spec with accents and an n with tilde sent through a pipe; the id
    and the text must be stored intact.
 4. H-32: `rapid check` with an executable that only exists as a `.cmd` on the PATH, typed without its extension.
+5. H-51: evidence with LF and with mixed line endings, committed and cloned with core.autocrlf=true: the clone verifies
+   with the `.gitattributes` of `rapid setup finish`; without it, verification fails and names the cause.
 
 PYTHONUTF8 and PYTHONIOENCODING are removed from the environment, because either of them hides H-29: the point is to
 run with the console code page of a real Windows machine.
@@ -20,6 +22,7 @@ import json
 import locale
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -122,6 +125,46 @@ def main(argv: list[str]) -> int:
         if result.get("exit_code") != 0:
             fail(f"H-32: unexpected result of rapid check: {result}")
         print("ok  H-32: rapid check ran the .cmd shim")
+
+        # 5. H-51: what git for Windows does by default (core.autocrlf=true) must not break the evidence of a clone.
+        if ".rapid-os/** -text" not in (project / ".gitattributes").read_text(encoding="utf-8"):
+            fail("H-51: rapid setup finish did not write the rule to .gitattributes")
+        experiments = project / "experiments"
+        experiments.mkdir()
+        (experiments / "lf.md").write_bytes(b"uno\ndos\n")
+        (experiments / "mixed.md").write_bytes(b"uno\r\ndos\n")
+        rapid("attach", "experiments/lf.md", "--label", "lf")
+        rapid("attach", "experiments/mixed.md", "--label", "mixed")
+
+        def git(cwd: Path, *args: str) -> None:
+            result = subprocess.run(["git", *args], cwd=cwd, env=env, capture_output=True, timeout=120)
+            if result.returncode != 0:
+                fail(f"git {' '.join(args)} exited {result.returncode}: {result.stderr.decode('utf-8', 'replace')}")
+
+        run_id = next((project / ".rapid-os" / "runs").iterdir()).name
+
+        def verify_clone(source: Path, name: str) -> subprocess.CompletedProcess:
+            git(source, "-c", "core.autocrlf=true", "add", "-A")
+            git(source, "-c", "core.autocrlf=true", "commit", "-q", "-m", name)
+            git(base, "clone", "-q", "-c", "core.autocrlf=true", str(source), name)
+            return subprocess.run(
+                [rapid_exe, "evidence", "verify", "--run", run_id], cwd=base / name, env=env, capture_output=True, timeout=120,
+                stdin=subprocess.DEVNULL,
+            )
+
+        kept = verify_clone(project, "with-rule")
+        if kept.returncode != 0:
+            fail(f"H-51: the clone does not verify with the rule:\n{kept.stderr.decode('utf-8', 'replace')}")
+
+        # The same files, in a repository that never had the rule.
+        no_rule = base / "no-rule"
+        shutil.copytree(project, no_rule, ignore=shutil.ignore_patterns(".git", ".gitattributes"))
+        git(no_rule, "init", "-q")
+        broken = verify_clone(no_rule, "without-rule")
+        stderr = broken.stderr.decode("utf-8", "replace")
+        if broken.returncode == 0 or "RAPID1205" not in stderr or "RAPID1437" not in stderr:
+            fail(f"H-51: expected RAPID1205 and RAPID1437 without the rule, got exit {broken.returncode}:\n{stderr}")
+        print("ok  H-51: the clone verifies with the rule and names the cause without it")
     print("Windows smoke test passed.")
     return 0
 
