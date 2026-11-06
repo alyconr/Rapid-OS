@@ -44,7 +44,7 @@ TEMPLATES = ROOT / "templates"
 CATALOG = load_catalog(TEMPLATES)
 BANKS = load_setup_doc_banks(TEMPLATES)
 QUESTIONS = load_stack_questions(TEMPLATES)
-BACKENDS = ("python-fastapi", "python-django", "node-nestjs", "node-fastify", "go", "rust-axum", "ruby-rails",
+BACKENDS = ("python-fastapi", "python-django", "node-nestjs", "node-fastify", "hono", "go", "rust-axum", "ruby-rails",
             "dotnet-aspnetcore", "java-spring-boot", "kotlin-spring-boot", "php-laravel")
 FRONTENDS = ("react-vite", "nextjs", "angular", "vue-vite", "nuxt", "svelte-vite", "sveltekit", "astro")
 
@@ -78,10 +78,10 @@ class CatalogTests(unittest.TestCase):
                 for needed in ("Runtime", "Framework", "Testing"):
                     self.assertIn(f"**{needed}:**", text, stack_id)
 
-    def test_hosting_fit_uses_the_three_values(self):
+    def test_hosting_fit_uses_the_known_values(self):
         for stack_id in (*BACKENDS, *FRONTENDS):
             tokens = {t.strip() for t in CATALOG.stacks[stack_id].factors["hosting_fit"].split(",")}
-            self.assertTrue(tokens <= {"serverless", "containers", "PaaS"}, stack_id)
+            self.assertTrue(tokens <= {"serverless", "containers", "PaaS", "edge"}, stack_id)
 
     def test_a_sidecar_without_factors_is_rapid1401(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -46,7 +46,7 @@ _NO = []
 _BACKEND = {"backend-only": _NO, "doc-site": ["RAPID403"], "front-end-only": ["RAPID404"], "fullstack-baas": ["RAPID404"], "fullstack-separated": _NO}
 _FRONTEND = {"backend-only": ["RAPID404"], "doc-site": ["RAPID403"], "front-end-only": _NO, "fullstack-baas": _NO, "fullstack-separated": _NO}
 EXPECTED_STACK_TOPOLOGY = {}
-for _stack in ("python-fastapi", "python-django", "node-nestjs", "node-fastify", "go", "rust-axum", "ruby-rails",
+for _stack in ("python-fastapi", "python-django", "node-nestjs", "node-fastify", "hono", "go", "rust-axum", "ruby-rails",
                "dotnet-aspnetcore", "java-spring-boot", "kotlin-spring-boot", "php-laravel"):
     for _topology, _codes in _BACKEND.items():
         EXPECTED_STACK_TOPOLOGY[(_stack, _topology)] = _codes

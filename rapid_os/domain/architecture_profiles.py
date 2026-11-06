@@ -55,8 +55,9 @@ FRONTEND_ROLES = ("ui", "state", "data-access", "model")
 PY_FORBIDDEN = ["fastapi", "sqlalchemy", "starlette", "httpx"]
 DJANGO_FORBIDDEN = ["django", "rest_framework"]
 TS_FORBIDDEN = ["next", "react", "express", "@prisma/client"]
-NEST_FORBIDDEN = ["@nestjs", "typeorm", "@prisma/client", "express"]
-FASTIFY_FORBIDDEN = ["fastify", "@fastify", "@prisma/client", "pg"]
+NEST_FORBIDDEN = ["@nestjs", "typeorm", "@prisma/client", "drizzle-orm", "kysely", "express"]
+FASTIFY_FORBIDDEN = ["fastify", "@fastify", "@prisma/client", "drizzle-orm", "kysely", "pg"]
+HONO_FORBIDDEN = ["hono", "@hono", "@prisma/client", "drizzle-orm", "kysely", "pg", "mysql2"]
 GO_FORBIDDEN = ["net/http", "database/sql", "gorm.io", "github.com/gin-gonic"]
 RUST_FORBIDDEN = ["axum", "sqlx", "diesel", "tokio_postgres", "tower"]
 JAVA_FORBIDDEN = ["org.springframework", "jakarta.persistence", "jakarta.servlet", "javax.persistence"]
@@ -329,6 +330,9 @@ BACKEND_RULES: Mapping[str, RuleSpec] = {
     "node-fastify": _ts_modules(
         "src/modules", "src/shared", FASTIFY_FORBIDDEN, api_dir="routes",
     ),
+    "hono": _ts_modules(
+        "src/modules", "src/shared", HONO_FORBIDDEN, api_dir="routes",
+    ),
     "go": RuleSpec(
         component="backend", language="go", modules_root="internal", shared_root="internal/shared",
         public_entry="(paquete raíz del módulo)",
@@ -494,6 +498,10 @@ BACKEND_COMPOSITION = {
     "node-fastify": (
         "arma las dependencias en el index.ts del módulo o en la composición de la app (app.ts) y pásalas a routes/ "
         "como argumentos"
+    ),
+    "hono": (
+        "arma las dependencias en el index.ts del módulo o en la composición de la app (app.ts), con los bindings de "
+        "c.env, y pásalas a routes/ como argumentos"
     ),
     "go": (
         "construye los adaptadores en cmd/<app>/main.go (o en el paquete raíz del módulo) y pásalos a http/ como "
