@@ -365,7 +365,7 @@ rapid task skip <task-id> --reason <text> [--json]
 
 Subcommands:
 - `start`: Mark a task as `in_progress`. If `<task-id>` is omitted, transitions the first `pending` task.
-- `done`: Mark a task as `done`. Runs verification tests (`test_command`) and records evidence unless `--no-check` is provided. If `<task-id>` is omitted, resolves the current `in_progress` task (`RAPID1306` if none or ambiguous).
+- `done`: Mark a task as `done`. Runs verification tests (`test_command`) and records evidence unless `--no-check` is provided. In a `research` run it never runs them: without the flag it behaves as with `--no-check` and says so in one line, and any `rapid check` evidence of the task counts as usual. If `<task-id>` is omitted, resolves the current `in_progress` task (`RAPID1306` if none or ambiguous).
 - `skip`: Skip a task with a mandatory `--reason` (`RAPID1306` if reason omitted).
 
 ---

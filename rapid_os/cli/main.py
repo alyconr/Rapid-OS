@@ -3403,7 +3403,7 @@ def check_command(args):
 def task_command(args):
     """Execute rapid task start|done|skip command."""
     from rapid_os.orchestration.session import load_session
-    from rapid_os.orchestration.check import run_check
+    from rapid_os.orchestration.check import MODES_WITHOUT_TESTS, run_check
 
     action = getattr(args, "task_action", None)
     if not action:
@@ -3471,8 +3471,20 @@ def task_command(args):
                 sys.exit(1)
             target_task_id = in_prog[0].id
 
-        # Run check unless --no-check
+        # Run check unless --no-check. A research spike has no tests to run (often no code yet): closing a task
+        # there is the same as with --no-check, and any `rapid check` evidence of the task counts as it always does.
         no_check = getattr(args, "no_check", False)
+        research_note = None
+        if not no_check and session.mode in MODES_WITHOUT_TESTS:
+            no_check = True
+            has_check_evidence = any(
+                record.producer == "rapid:check" and target_task_id in record.task_ids
+                for record in evidence_reg.list(run_id)
+            )
+            research_note = (
+                f"Nota: en research 'task done' no ejecuta test_command; la tarea '{target_task_id}' se cierra "
+                + ("con la evidencia de 'rapid check' que ya tiene." if has_check_evidence else "como con --no-check (UNVERIFIED).")
+            )
         if not no_check:
             config = load_project_config(CONFIG_FILE)
             test_cmd = config.get("test_command")
@@ -3504,6 +3516,8 @@ def task_command(args):
             if res.exit_code != 0:
                 print(f"Verification tests failed for task '{target_task_id}' (exit {res.exit_code}). Log: {res.log_path}", file=sys.stderr)
                 sys.exit(res.exit_code)
+        elif research_note:
+            print(research_note, file=sys.stderr)
         else:
             print(
                 f"Warning: task '{target_task_id}' marked done with --no-check; "

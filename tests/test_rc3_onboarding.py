@@ -161,5 +161,80 @@ class ConfirmedWithAnEarlierBankTests(Sandbox):
         self.assertEqual([d["level"] for d in self.rapid1403()], ["warning"])
 
 
+class ResearchTaskDoneTests(Sandbox):
+    """H-42: closing a research task never runs the test command, which often cannot pass yet."""
+
+    SPEC = {
+        "title": "Comparar opciones",
+        "mode": "research",
+        "business_objective": "Decidir",
+        "problem_statement": "No hay datos",
+        "scope": ["opciones"],
+        "acceptance_criteria": ["Hay una recomendación"],
+        "tasks": ["T001: Comparar", "T002: Concluir"],
+    }
+
+    def setUp(self):
+        super().setUp()
+        self.onboard()
+        config = self.root / ".rapid-os" / "config.json"
+        data = json.loads(config.read_text(encoding="utf-8"))
+        data["test_command"] = [sys.executable, "-c", "raise SystemExit(2)"]
+        config.write_text(json.dumps(data), encoding="utf-8")
+
+    def start(self, mode="research"):
+        spec = {**self.SPEC, "mode": mode}
+        self.ok("start", mode, "--spec-file", "-", "--json", stdin=json.dumps(spec, ensure_ascii=False))
+
+    def run_id(self):
+        return next((self.root / ".rapid-os" / "runs").iterdir()).name
+
+    def check_records(self):
+        return [
+            record for record in json.loads(self.ok("evidence", "list", "--run", self.run_id(), "--json").stdout)["records"]
+            if record["producer"] == "rapid:check"
+        ]
+
+    def task(self, task_id):
+        state = json.loads(self.ok("run", "show", self.run_id(), "--json").stdout)["state"]
+        task = next(t for t in state["tasks"] if t["id"] == task_id)
+        return {key: value for key, value in task.items() if key != "id"}
+
+    def test_without_the_flag_it_is_the_same_record_as_with_it(self):
+        self.start()
+        self.ok("task", "start", "T001")
+        plain = self.ok("task", "done", "T001")
+        self.assertIn("research", plain.stderr)
+        self.assertIn("UNVERIFIED", plain.stderr)
+        self.assertEqual(len(plain.stderr.strip().splitlines()), 1, plain.stderr)
+        self.ok("task", "start", "T002")
+        flagged = self.ok("task", "done", "T002", "--no-check")
+        self.assertIn("UNVERIFIED", flagged.stderr)
+        self.assertEqual(self.task("T001")["status"], "done")
+        self.assertEqual(self.check_records(), [])
+        self.assertEqual(self.task("T001").keys(), self.task("T002").keys())
+        for key in self.task("T001").keys() - {"description"}:
+            self.assertEqual(
+                str(self.task("T001")[key]).replace("T001", "T00N"), str(self.task("T002")[key]).replace("T002", "T00N"), key
+            )
+
+    def test_existing_check_evidence_is_kept_and_the_tests_do_not_run_again(self):
+        self.start()
+        self.ok("task", "start", "T001")
+        self.ok("check", "--task", "T001", "--", sys.executable, "-c", "pass")
+        self.assertEqual(len(self.check_records()), 1)
+        done = self.ok("task", "done", "T001")
+        self.assertIn("rapid check", done.stderr)
+        self.assertNotIn("UNVERIFIED", done.stderr)
+        self.assertEqual(len(self.check_records()), 1)
+
+    def test_a_feature_run_still_runs_the_tests(self):
+        self.start("feature")
+        self.ok("task", "start", "T001")
+        done = self.rapid("task", "done", "T001")
+        self.assertEqual(done.returncode, 2, done.stdout + done.stderr)
+        self.assertIn("Verification tests failed", done.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
