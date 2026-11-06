@@ -29,6 +29,7 @@ from rapid_os.core.filesystem import (
 )
 from rapid_os.core.identifiers import validate_identifier
 from rapid_os.domain.agents import generate_agent_contexts
+from rapid_os.domain.data_access import chosen_option, effective_stack, reconcile_data_access, resolve_choice
 from rapid_os.domain.services import (
     COMPOSE_FILE_NAMES,
     DEFAULT_COMPOSE_FILE,
@@ -98,7 +99,7 @@ from rapid_os.domain.setup import (
     StackChoice,
 )
 
-DECISION_KEYS = ("stack", "topology", "archetype", "ai", "services", "agents", "test-command")
+DECISION_KEYS = ("stack", "topology", "archetype", "ai", "services", "data-access", "agents", "test-command")
 NO_TEST_COMMAND = "none"
 AI_ANSWERS = {"yes": True, "y": True, "si": True, "sí": True, "true": True, "no": False, "n": False, "false": False}
 SECURITY_TEMPLATE = ("security", "baseline.md")
@@ -223,15 +224,23 @@ def set_decision(
         raise _fail("RAPID1413", f"Unknown setup key '{key}'. Use one of: {', '.join(DECISION_KEYS)}.")
     if decided_by not in DECIDED_BY:
         raise _fail("RAPID1413", f"Unknown value '{decided_by}' for --decided-by. Use one of: {', '.join(DECIDED_BY)}.")
-    if decided_by != "person" and key != "stack":
-        raise _fail("RAPID1413", "--decided-by only goes with 'rapid setup set stack <id>'.")
+    if decided_by != "person" and key not in ("stack", "data-access"):
+        raise _fail("RAPID1413", "--decided-by only goes with 'rapid setup set stack <id>' or 'set data-access <id>'.")
     if value is None or not value.strip():
         raise _fail("RAPID1413", f"Missing value for 'rapid setup set {key}'.")
     value = value.strip()
     notes: list[str] = []
 
-    if component is not None and key != "stack":
-        raise _fail("RAPID1413", "--component only goes with 'rapid setup set stack <id>'.")
+    if component is not None and key not in ("stack", "data-access"):
+        raise _fail("RAPID1413", "--component only goes with 'rapid setup set stack <id>' or 'set data-access <id>'.")
+
+    if key == "data-access":
+        try:
+            target, choice = resolve_choice(state, catalog, value, component=component or "backend", decided_by=decided_by)
+        except ValueError as exc:
+            code, _, message = str(exc).partition(" ")
+            raise _fail(code, message) from exc
+        return replace(state, data_access={**state.data_access, target: choice}, finished=False), ()
 
     if key == "stack":
         stack_id = _identifier(value, "stack")
@@ -258,7 +267,8 @@ def set_decision(
             except ServiceInputError:
                 notes.append(f"The services do not fit stack '{stack_id}'; they are undecided again.")
                 services = None
-        return replace(updated, services=services), tuple(notes)
+        reconciled, access_notes = reconcile_data_access(replace(updated, services=services), catalog)
+        return reconciled, (*notes, *access_notes)
 
     if key == "topology":
         topology_id = _identifier(value, "topology")
@@ -295,7 +305,8 @@ def set_decision(
                 f"El proveedor {provider.id} ya da la base de datos de la app: un servicio database aparte es una "
                 "segunda fuente de datos. Mantenlo solo si algo fuera del proveedor lo necesita."
             )
-        return replace(state, services=choices, finished=False), tuple(notes)
+        reconciled, access_notes = reconcile_data_access(replace(state, services=choices, finished=False), catalog)
+        return reconciled, (*notes, *access_notes)
 
     if key == "ai":
         answer = value.strip().lower()
@@ -384,7 +395,7 @@ def write_custom_stack(
         topology = None
     custom = StackChoice(CUSTOM_STACK_ID, "custom")
     return replace(
-        state, stacks={c: custom for c in STACK_COMPONENTS}, topology=topology, finished=False
+        state, stacks={c: custom for c in STACK_COMPONENTS}, topology=topology, data_access={}, finished=False
     )
 
 
@@ -667,8 +678,9 @@ def is_rapid_security(path: Path) -> bool:
 
 
 def services_stack_entry(state: SetupState, catalog: Catalog):
-    """The catalog entry of the stack the services are judged against: the project's primary stack."""
-    return catalog.entry(state.stack.id) if state.stack else None
+    """The catalog entry of the stack the services are judged against: the project's primary stack, with the
+    client of the data access option chosen (sync SQLAlchemy does not connect through asyncpg)."""
+    return effective_stack(catalog.entry(state.stack.id), state) if state.stack else None
 
 
 def _services_text(text: str, stack_id: str, state: SetupState, catalog: Catalog) -> str:
@@ -676,7 +688,14 @@ def _services_text(text: str, stack_id: str, state: SetupState, catalog: Catalog
     entry = catalog.entry(stack_id)
     if state.services is None or not catalog.services or (entry is not None and entry.service_roles == ()):
         return text  # undecided (`rapid init`), no catalog, or a static site: the template stays as it is
-    return render_tech_stack(text, stack_language(catalog, stack_id), state.services, catalog, entry)
+    return render_tech_stack(
+        text,
+        stack_language(catalog, stack_id),
+        state.services,
+        catalog,
+        effective_stack(entry, state),
+        chosen_option(state, catalog),
+    )
 
 
 def choice_component(state: SetupState, stack_id: str) -> str | None:

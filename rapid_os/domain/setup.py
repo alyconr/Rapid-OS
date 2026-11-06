@@ -18,6 +18,8 @@ SETUP_DOC_ORDER = ("brief", "business", "data-model", "architecture", "deploymen
 SERVICE_WHEN = ("now", "later")
 # Who took a stack decision: the person, or the agent because the person delegated ("decide tú").
 DECIDED_BY = ("person", "agent")
+# A data access option can also be fixed by Rapid OS: it was the only one compatible with the engine.
+DATA_ACCESS_DECIDED_BY = (*DECIDED_BY, "auto")
 
 
 class SetupStateError(ValueError):
@@ -69,6 +71,17 @@ class ServiceChoice:
 
 
 @dataclass(frozen=True)
+class DataAccessChoice:
+    """The option of the stack's `data_access` a component uses (the ORM, the driver...)."""
+
+    id: str
+    decided_by: str = "person"
+
+    def to_dict(self) -> dict[str, str]:
+        return {"id": self.id, "decided_by": self.decided_by}
+
+
+@dataclass(frozen=True)
 class SetupState:
     """Decisions taken so far. `None` means undecided; `test_command == ()` means "none"."""
 
@@ -90,6 +103,8 @@ class SetupState:
     ai: bool | None = None
     # Infrastructure services. `None` is undecided; `()` is "none" (a project without services).
     services: tuple[ServiceChoice, ...] | None = None
+    # The data access option of each component. Optional: a file without it is still valid.
+    data_access: Mapping[str, DataAccessChoice] = field(default_factory=dict)
 
     def doc(self, doc_id: str) -> DocState:
         return self.docs.get(doc_id, DocState())
@@ -132,6 +147,8 @@ class SetupState:
             payload["ai"] = self.ai
         if self.services is not None:
             payload["services"] = [s.to_dict() for s in self.services]
+        if self.data_access:
+            payload["data_access"] = {c: self.data_access[c].to_dict() for c in sorted(self.data_access)}
         return payload
 
     @classmethod
@@ -210,6 +227,7 @@ class SetupState:
                     raise _fail(f"each service must be {{role, engine, when}} with when in {list(SERVICE_WHEN)}.")
                 parsed.append(ServiceChoice(item["role"], item["engine"], item.get("when", "now")))
             services = tuple(parsed)
+        data_access = _read_data_access(data.get("data_access", {}))
 
         return cls(
             schema_version=SETUP_SCHEMA_VERSION,
@@ -223,7 +241,26 @@ class SetupState:
             drafts_reviewed=drafts_reviewed,
             ai=ai,
             services=services,
+            data_access=data_access,
         )
+
+
+def _read_data_access(raw: object) -> dict[str, DataAccessChoice]:
+    if not isinstance(raw, dict):
+        raise _fail("data_access must be an object keyed by component.")
+    choices: dict[str, DataAccessChoice] = {}
+    for component, item in raw.items():
+        if component not in STACK_COMPONENTS:
+            raise _fail(f"unknown component '{component}' in data_access (use {list(STACK_COMPONENTS)}).")
+        if (
+            not isinstance(item, dict)
+            or not isinstance(item.get("id"), str)
+            or not item["id"]
+            or item.get("decided_by", "person") not in DATA_ACCESS_DECIDED_BY
+        ):
+            raise _fail(f"data_access.{component} must be {{id, decided_by}} with decided_by in {list(DATA_ACCESS_DECIDED_BY)}.")
+        choices[component] = DataAccessChoice(item["id"], item.get("decided_by", "person"))
+    return choices
 
 
 def _legacy_id(data: dict) -> str | None:
@@ -282,6 +319,7 @@ class SetupActionKind(str, Enum):
     CHOOSE_ARCHETYPE = "choose_archetype"
     CHOOSE_AI = "choose_ai"
     CHOOSE_SERVICES = "choose_services"
+    CHOOSE_DATA_ACCESS = "choose_data_access"
     CHOOSE_AGENTS = "choose_agents"
     SET_TEST_COMMAND = "set_test_command"
     RESOLVE_DOC = "resolve_doc"

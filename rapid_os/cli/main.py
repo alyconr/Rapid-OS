@@ -3661,6 +3661,14 @@ def _format_setup_action(action) -> list[str]:
             data["instruction"],
             f"Command: {' '.join(data['command'])}",
         ]
+    elif kind == "choose_data_access":
+        lines += [
+            f"Component: {data['component']} ({data['engine']}, {data['model']})",
+            f"Options: {', '.join(o['id'] for o in data['options'])}",
+            f"Recommended: {data['recommended']}",
+            data["instruction"],
+            f"Command: {' '.join(data['command'])}",
+        ]
     elif kind == "set_test_command":
         proposed = display_command(data["recommended"]) if data["recommended"] else "none detected"
         lines.append(f"Suggested test command: {proposed}")
@@ -3749,10 +3757,22 @@ def _setup_write(args, action_name, state, catalog, doc_banks):
             raise apply.SetupApplyError("RAPID1413", "--refresh only goes with 'rapid setup set archetype <id>'.")
         value = getattr(args, "value", None)
         shown = value.strip() if value else value
-        if getattr(args, "recommended", False):
+        recommended = getattr(args, "recommended", False)
+        if recommended and key == "data-access" and not value:
+            from rapid_os.domain.data_access import recommended_id
+
+            value = shown = recommended_id(state, catalog, getattr(args, "component", None) or "backend")
+            if value is None:
+                raise apply.SetupApplyError(
+                    "RAPID1413",
+                    "No hay opción de acceso a datos que recomendar: el componente necesita un stack con 'data_access' "
+                    "y un servicio database decidido.",
+                )
+        elif recommended:
             if key != "test-command" or value:
                 raise apply.SetupApplyError(
-                    "RAPID1413", "--recommended only goes with 'rapid setup set test-command' and takes no value."
+                    "RAPID1413",
+                    "--recommended only goes with 'rapid setup set test-command' or 'set data-access' and takes no value.",
                 )
             from rapid_os.orchestration.setup_conductor import combine_test_commands
 
@@ -4161,7 +4181,15 @@ def setup_command(args):
             print(f"NOTE {note}", file=sys.stderr)
         if action_name == "set" and snapshot.state.finished and not state.finished:
             # The onboarding is over: a later decision takes effect now and does not reopen it.
-            if next_action(state).kind in (SetupActionKind.FINISH, SetupActionKind.DONE):
+            pending = next_action(state).kind
+            # A project finished before the catalog had data access keeps going: another decision does not ask
+            # it. Changing the stack or the services does, like any other decision they reopen.
+            legacy_project = (
+                pending == SetupActionKind.CHOOSE_DATA_ACCESS
+                and not snapshot.state.data_access
+                and getattr(args, "key", None) not in ("stack", "services")
+            )
+            if legacy_project or pending in (SetupActionKind.FINISH, SetupActionKind.DONE):
                 result = apply.apply_setup(
                     CURRENT_DIR,
                     PROJECT_RAPID_DIR,
@@ -4172,7 +4200,7 @@ def setup_command(args):
                     scan_model=project_model,
                     scanned=True,
                     only_changes=True,
-                    services_changed=getattr(args, "key", None) == "services",
+                    services_changed=getattr(args, "key", None) in ("services", "data-access"),
                 )
                 for warning in result.warnings:
                     print(f"WARNING {warning}", file=sys.stderr)
@@ -5579,7 +5607,7 @@ def create_parser():
     deploy.add_argument(
         "--target",
         dest="target_option",
-        help="Platform: aws, azure, vercel, netlify, firebase-hosting, render, railway or dokploy.",
+        help="Platform: aws, azure, vercel, netlify, cloudflare, firebase-hosting, render, railway or dokploy.",
     )
 
     vision = subparsers.add_parser(
@@ -5781,30 +5809,31 @@ def create_parser():
 
     _sp = setup_sub.add_parser(
         "set",
-        help="Record a decision: stack, topology, archetype, ai, agents or test-command (writes state).",
+        help="Record a decision: stack, topology, archetype, ai, services, data-access, agents or test-command (writes state).",
         description=(
             "Record one onboarding decision in .rapid-os/setup.json. Standards are written by 'rapid setup finish'. "
-            "Keys: stack <id> [--component frontend|backend|baas] [--decided-by person|agent], topology <id>, archetype <mvp|corporate>, ai <yes|no>, agents <id,id>, "
+            "Keys: stack <id> [--component frontend|backend|baas] [--decided-by person|agent], topology <id>, archetype <mvp|corporate>, ai <yes|no>, services <role>:<engine>[@now|@later],..., "
+            "data-access <id> [--component backend] [--recommended] [--decided-by person|agent], agents <id,id>, "
             "test-command '<cmd>' ('none' for no command)."
         ),
     )
-    _sp.add_argument("key", nargs="?", help="stack, topology, archetype, ai, agents or test-command.")
+    _sp.add_argument("key", nargs="?", help="stack, topology, archetype, ai, services, data-access, agents or test-command.")
     _sp.add_argument("value", nargs="?", help="Value of the decision.")
     _sp.add_argument(
         "--recommended",
         action="store_true",
-        help="With 'test-command': apply the command the stack catalog proposes for the decided stacks.",
+        help="With 'test-command': apply the command the stack catalog proposes. With 'data-access': apply the recommended option.",
     )
     _sp.add_argument(
         "--component",
         choices=["frontend", "backend", "baas", "docs"],
-        help="With 'stack <id>': fill only this component of the topology (a stack that covers several fills them all).",
+        help="With 'stack <id>': fill only this component of the topology (a stack that covers several fills them all). With 'data-access': the component (default backend).",
     )
     _sp.add_argument(
         "--decided-by",
         dest="decided_by",
         choices=["person", "agent"],
-        help="With 'stack <id>': who took the decision. 'agent' when the person delegated it ('decide tú'); default person.",
+        help="With 'stack <id>' or 'data-access': who took the decision. 'agent' when the person delegated it ('decide tú'); default person.",
     )
     _sp.add_argument(
         "--refresh",
