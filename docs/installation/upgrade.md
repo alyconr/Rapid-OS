@@ -65,6 +65,10 @@ rapid --version
 rapid doctor
 ```
 
+### Documents confirmed before a section was required
+
+A new version can require sections that did not exist when a person confirmed a document (for example, `Tablas` and `Migraciones` in the data model). `rapid validate` reports that as `RAPID1403` at INFO level, so `--strict` keeps passing, and tells you to run `rapid setup doc <id> --reopen` to bring the document up to date. Rapid OS records the required sections at each confirmation; a document with no record counts as confirmed earlier. A document confirmed with the current sections that lacks one still gets the `RAPID1403` warning.
+
 ## 5. From 3.0 to 3.1
 
 Rapid OS 3.1 adds the intent layer (`rapid start|next|check|...`), `/rapid-<mode>` shortcuts, and Claude Code hooks. The v3.0 commands and flags are unchanged, and **nothing needs to be migrated** in specs, runs, evidence, or evaluations. Existing evaluation reports (ruleset 1) remain valid; ruleset 2 is the default for new evaluations, and `--ruleset 1` remains available.

@@ -739,6 +739,8 @@ def init_project(args):
     from rapid_os.orchestration import setup_apply as _setup_apply
 
     _ensure_git_repository_for_setup(_setup_apply)
+    if _setup_apply.update_gitattributes(CURRENT_DIR):
+        print(f"{_setup_apply.GITATTRIBUTES_NOTE}: .gitattributes")
 
     # Update .gitignore if present in project root
     gitignore_path = CURRENT_DIR / ".gitignore"
@@ -1487,11 +1489,31 @@ def doctor_command(args):
         from rapid_os.adapters.shortcut_installer import detect_scope_duplicates
         from rapid_os.domain.shortcuts import detect_folder_overlaps
 
-        for overlap in detect_folder_overlaps(DEFAULT_AGENT_REGISTRY.ids(), CURRENT_DIR):
+        # The agents chosen in this project, the ones setup generates shortcuts for: with every harness of the
+        # registry the warning would show up in any project. Without a configured project there is nothing to compare.
+        chosen_agents = _load_config_with_warning(CONFIG_FILE).get("tools", []) if CONFIG_FILE.exists() else []
+        for overlap in detect_folder_overlaps(chosen_agents, CURRENT_DIR):
             diagnostics.append(Diagnostic(WARNING, "RAPID1321", overlap.message.removeprefix("RAPID1321 ")))
 
         for duplicate in detect_scope_duplicates(Path.home(), CURRENT_DIR, DEFAULT_AGENT_REGISTRY.ids(), TEMPLATES_DIR):
             diagnostics.append(Diagnostic(WARNING, "RAPID1321", duplicate.message.removeprefix("RAPID1321 ")))
+
+        from rapid_os.orchestration.git import LINE_ENDINGS_REPAIR, LINE_ENDINGS_RULE, line_endings_rule_missing
+
+        if PROJECT_RAPID_DIR.exists() and line_endings_rule_missing(CURRENT_DIR):
+            diagnostics.append(
+                Diagnostic(
+                    WARNING,
+                    "RAPID1436",
+                    f"Este proyecto está en git y falta la regla '{LINE_ENDINGS_RULE}' en .gitattributes: con "
+                    "core.autocrlf git cambia los finales de línea de la evidencia y un clon falla con RAPID1205.",
+                    CURRENT_DIR / ".gitattributes",
+                    hint=(
+                        "Ejecuta 'rapid setup finish' para añadirla (con decisiones abiertas, añade esa línea a "
+                        f".gitattributes a mano). {LINE_ENDINGS_REPAIR}"
+                    ),
+                )
+            )
 
         if sys.platform == "win32":
             from rapid_os.orchestration.git import run_git
@@ -2885,6 +2907,34 @@ def render_evidence_show_text(evidence: RunEvidence) -> str:
     return "\n".join(lines)
 
 
+DEFAULT_RUN_HELP = "Target run identifier (default: the active run or, without one, the last one closed)."
+
+
+def _default_run_id(*, error, as_json):
+    """The run a read-only command means without `--run`: the active one or, without it, the last one closed.
+
+    The text output starts with `Run: <id>`; the JSON output already carries `run_id`. Without runs, `error`."""
+    from rapid_os.domain.execution import RunStatus
+    from rapid_os.orchestration.session import load_session
+
+    registry = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+    session = load_session(PROJECT_RAPID_DIR)
+    run_id = None
+    if session and session.active_run_id and registry.exists(session.active_run_id):
+        if not registry.get_state(session.active_run_id).status.is_terminal:
+            run_id = session.active_run_id
+    if run_id is None:
+        closed = [record.id for record in registry.list_runs() if registry.get_state(record.id).status.is_terminal]
+        if not closed:
+            raise error
+        # Runs keep no clock and their ids sort by spec: `run.json` is rewritten with each state. A fresh clone has
+        # similar times, so the id breaks ties; the `Run:` line says which one was taken.
+        run_id = max(closed, key=lambda item: ((registry.runs_dir / item / "run.json").stat().st_mtime_ns, item))
+    if not as_json:
+        print(f"Run: {run_id}")
+    return run_id
+
+
 def evidence_command(args):
     """Execute `rapid evidence` subcommands (`list`, `show`, `add`, `verify`)."""
     action = getattr(args, "evidence_action", None) or getattr(args, "action", None)
@@ -2894,8 +2944,9 @@ def evidence_command(args):
         if action == "list":
             run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
             if not run_id or not str(run_id).strip():
-                raise InvalidRunEvidenceError(
-                    "Option '--run' is required to list evidence records."
+                run_id = _default_run_id(
+                    error=InvalidRunEvidenceError("No runs to list evidence for: pass --run or start one with 'rapid start'."),
+                    as_json=getattr(args, "json", False),
                 )
             records = registry.list(run_id)
             set_digest = compute_evidence_set_digest(run_id, records)
@@ -2964,8 +3015,9 @@ def evidence_command(args):
         if action == "verify":
             run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
             if not run_id or not str(run_id).strip():
-                raise InvalidRunEvidenceError(
-                    "Option '--run' is required to verify evidence."
+                run_id = _default_run_id(
+                    error=InvalidRunEvidenceError("No runs to verify evidence for: pass --run or start one with 'rapid start'."),
+                    as_json=getattr(args, "json", False),
                 )
             records = registry.verify(run_id)
             orphans = registry.orphan_artifact_dirs(run_id)
@@ -3157,8 +3209,9 @@ def eval_command(args):
         if action == "show":
             run_id = getattr(args, "run", None) or getattr(args, "run_id", None)
             if not run_id or not str(run_id).strip():
-                raise InvalidEvaluationReportError(
-                    "Option '--run' is required to show an evaluation report."
+                run_id = _default_run_id(
+                    error=InvalidEvaluationReportError("No runs to show an evaluation report for: pass --run or start one with 'rapid start'."),
+                    as_json=getattr(args, "json", False),
                 )
             revision = getattr(args, "revision", None)
             report = registry.get_report(run_id, revision=revision)
@@ -3381,7 +3434,7 @@ def check_command(args):
 def task_command(args):
     """Execute rapid task start|done|skip command."""
     from rapid_os.orchestration.session import load_session
-    from rapid_os.orchestration.check import run_check
+    from rapid_os.orchestration.check import MODES_WITHOUT_TESTS, run_check
 
     action = getattr(args, "task_action", None)
     if not action:
@@ -3449,8 +3502,20 @@ def task_command(args):
                 sys.exit(1)
             target_task_id = in_prog[0].id
 
-        # Run check unless --no-check
+        # Run check unless --no-check. A research spike has no tests to run (often no code yet): closing a task
+        # there is the same as with --no-check, and any `rapid check` evidence of the task counts as it always does.
         no_check = getattr(args, "no_check", False)
+        research_note = None
+        if not no_check and session.mode in MODES_WITHOUT_TESTS:
+            no_check = True
+            has_check_evidence = any(
+                record.producer == "rapid:check" and target_task_id in record.task_ids
+                for record in evidence_reg.list(run_id)
+            )
+            research_note = (
+                f"Nota: en research 'task done' no ejecuta test_command; la tarea '{target_task_id}' se cierra "
+                + ("con la evidencia de 'rapid check' que ya tiene." if has_check_evidence else "como con --no-check (UNVERIFIED).")
+            )
         if not no_check:
             config = load_project_config(CONFIG_FILE)
             test_cmd = config.get("test_command")
@@ -3482,6 +3547,8 @@ def task_command(args):
             if res.exit_code != 0:
                 print(f"Verification tests failed for task '{target_task_id}' (exit {res.exit_code}). Log: {res.log_path}", file=sys.stderr)
                 sys.exit(res.exit_code)
+        elif research_note:
+            print(research_note, file=sys.stderr)
         else:
             print(
                 f"Warning: task '{target_task_id}' marked done with --no-check; "
@@ -3567,6 +3634,13 @@ def attach_command(args):
     return 0
 
 
+def _print_unconfirmed_docs(action):
+    """One line for the person: what is still an assumption and the command that changes it."""
+    if action.unconfirmed_docs:
+        documents = ", ".join(f"{doc['id']} ({doc['file']})" for doc in action.unconfirmed_docs)
+        print(f"Borradores sin confirmar: {documents}. Para confirmar uno: rapid setup doc <id> --confirm")
+
+
 def start_command(args):
     """Execute rapid start command."""
     from rapid_os.orchestration.lifecycle import execute_start
@@ -3613,6 +3687,7 @@ def start_command(args):
     print(f"Next: {res.kind.value}{cmd_str}")
     for note in res.notes:
         print(f"Nota: {note}")
+    _print_unconfirmed_docs(res)
     return 0
 
 
@@ -4134,6 +4209,10 @@ def setup_command(args):
             # Every `finish`, not only the first: it is what RAPID1416 tells the person to run
             # when the repository was removed after the onboarding.
             _ensure_git_repository_for_setup(apply)
+            # Also every `finish`: it is what RAPID1436 tells the person to run in a project without the rule.
+            if apply.update_gitattributes(CURRENT_DIR):
+                added_files.append({"file": ".gitattributes", "note": apply.GITATTRIBUTES_NOTE})
+                print(f"{apply.GITATTRIBUTES_NOTE}: .gitattributes")
             if not state.finished:
                 result = apply.apply_setup(
                     CURRENT_DIR,
@@ -4276,6 +4355,7 @@ def next_command(args):
     else:
         cmd_str = f" -> {' '.join(action.command)}" if action.command else ""
         print(f"Next: {action.kind.value}{cmd_str}")
+    _print_unconfirmed_docs(action)
     return 0
 
 
@@ -5480,7 +5560,7 @@ def create_parser():
         help="List verified evidence records for a run (read-only).",
         description="List recorded RunEvidence items (E001..E00N) and evidence_set_digest for a run (read-only).",
     )
-    evidence_list.add_argument("--run", dest="run", required=True, help="Target run identifier.")
+    evidence_list.add_argument("--run", dest="run", help=DEFAULT_RUN_HELP)
     evidence_list.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
 
     evidence_show = evidence_subparsers.add_parser(
@@ -5506,7 +5586,7 @@ def create_parser():
         help="Verify all evidence records, bindings, sequence continuity, and artifact digests (read-only).",
         description="Verify integrity of all RunEvidence records and copied artifacts for a run (read-only).",
     )
-    evidence_verify.add_argument("--run", dest="run", required=True, help="Target run identifier.")
+    evidence_verify.add_argument("--run", dest="run", help=DEFAULT_RUN_HELP)
     evidence_verify.add_argument("--json", action="store_true", help="Emit pure JSON output on stdout.")
 
     eval_parser = subparsers.add_parser(
@@ -5549,7 +5629,7 @@ def create_parser():
         help="Show the latest or pinned persisted EvaluationReport (read-only).",
         description="Load, replay-verify, and display a persisted EvaluationReport for a run (read-only).",
     )
-    eval_show.add_argument("--run", dest="run", required=True, help="Target run identifier.")
+    eval_show.add_argument("--run", dest="run", help=DEFAULT_RUN_HELP)
     eval_show.add_argument("--revision", type=int, help="Specific report revision number (defaults to latest).")
     eval_show.add_argument("--json", action="store_true", help="Emit pure EvaluationReport JSON on stdout.")
 

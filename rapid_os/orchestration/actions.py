@@ -54,6 +54,8 @@ class NextAction:
     notes: tuple[str, ...] = ()
     # `blocked` by a rejected human review: who rejected which gates and why (the `--reason` text).
     rejection: dict[str, object] | None = None
+    # Onboarding documents an agent drafted and no person has confirmed: `{"id", "file"}` of each.
+    unconfirmed_docs: tuple[dict[str, str], ...] = ()
 
     def __post_init__(self):
         coerced_kind = ActionKind.coerce(self.kind)
@@ -89,6 +91,8 @@ class NextAction:
             payload["seed"] = dict(self.seed)
         if self.rejection is not None:
             payload["rejection"] = dict(self.rejection)
+        if self.unconfirmed_docs:
+            payload["unconfirmed_docs"] = [dict(doc) for doc in self.unconfirmed_docs]
         return payload
 
     def to_dict(self) -> dict[str, object]:

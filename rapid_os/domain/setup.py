@@ -51,9 +51,14 @@ class DocState:
     status: str = "pending"
     confirmed: bool = False
     sha256: str = ""
+    # Fingerprint of the required sections when a person confirmed it; "" means confirmed before they were recorded.
+    confirmed_bank: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {"status": self.status, "confirmed": self.confirmed, "sha256": self.sha256}
+        payload: dict[str, Any] = {"status": self.status, "confirmed": self.confirmed, "sha256": self.sha256}
+        if self.confirmed_bank:
+            payload["confirmed_bank"] = self.confirmed_bank
+        return payload
 
 
 @dataclass(frozen=True)
@@ -173,9 +178,10 @@ class SetupState:
                 or raw.get("status") not in DOC_STATUSES
                 or not isinstance(raw.get("confirmed"), bool)
                 or not isinstance(raw.get("sha256", ""), str)
+                or not isinstance(raw.get("confirmed_bank", ""), str)
             ):
                 raise _fail(f"docs.{doc_id} must be {{status, confirmed, sha256}} with status in {list(DOC_STATUSES)}.")
-            docs[doc_id] = DocState(raw["status"], raw["confirmed"], raw.get("sha256", ""))
+            docs[doc_id] = DocState(raw["status"], raw["confirmed"], raw.get("sha256", ""), raw.get("confirmed_bank", ""))
 
         finished = data.get("finished", False)
         if not isinstance(finished, bool):

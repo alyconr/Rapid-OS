@@ -281,6 +281,16 @@ class EvidenceRegistry:
                 f"Cannot bind evidence to state s{state_revision} of run '{run_id}': {exc}"
             ) from exc
 
+    def _line_endings_cause(self, raw_bytes: bytes) -> str:
+        """What to add to a failed comparison of a text artifact in a repository where git may have converted it.
+
+        It only explains the failure: the file stays rejected. With mixed line endings the original cannot be
+        rebuilt, so the variants are not compared to guess."""
+        from rapid_os.orchestration.git import LINE_ENDINGS_CAUSE, line_endings_at_risk
+
+        is_text = b"\n" in raw_bytes and b"\0" not in raw_bytes
+        return f" {LINE_ENDINGS_CAUSE}" if is_text and line_endings_at_risk(self.root) else ""
+
     def _verify_artifacts_for_record(
         self,
         run_ev_dir: Path,
@@ -349,13 +359,15 @@ class EvidenceRegistry:
             actual_size = len(raw_bytes)
             if actual_size != artifact.size_bytes:
                 raise EvidenceArtifactIntegrityError(
-                    f"Evidence artifact '{artifact.path}' size mismatch: expected {artifact.size_bytes} bytes, got {actual_size} bytes.",
+                    f"Evidence artifact '{artifact.path}' size mismatch: expected {artifact.size_bytes} bytes, got {actual_size} bytes."
+                    f"{self._line_endings_cause(raw_bytes)}",
                     path=art_file,
                 )
             actual_sha256 = sha256_bytes(raw_bytes)
             if actual_sha256 != artifact.sha256:
                 raise EvidenceArtifactIntegrityError(
-                    f"Evidence artifact '{artifact.path}' SHA-256 digest mismatch: expected '{artifact.sha256}', got '{actual_sha256}'.",
+                    f"Evidence artifact '{artifact.path}' SHA-256 digest mismatch: expected '{artifact.sha256}', got '{actual_sha256}'."
+                    f"{self._line_endings_cause(raw_bytes)}",
                     path=art_file,
                 )
 

@@ -112,7 +112,13 @@ rapid doctor
 rapid doctor --json
 ```
 
+`validate` reports a missing section of a document confirmed with an earlier set of required sections as `RAPID1403` at INFO level, with the hint `rapid setup doc <id> --reopen`, so `--strict` does not fail after an update. `setup.json` stores that set as `confirmed_bank` at each confirmation; a document without it counts as earlier.
+
+`doctor` warns with `RAPID1321` only about the agents chosen in the project (`tools` in `.rapid-os/config.json`, the ones setup generates shortcuts for): a project with only `codex` gets no warning, one with `cursor` and `codex` does (Cursor reads both folders), and without a configured project there is nothing to warn about.
+
 `doctor` also warns with `RAPID1421` when `standards/security.md` exists and does not mention OWASP ASVS (the project was initialized before the security baseline), with the hint `rapid setup set archetype <current> --refresh`.
+
+`rapid setup finish` and `rapid init` write `.rapid-os/** -text` to `.gitattributes`, in a managed block between `RAPID-OS:BEGIN` and `RAPID-OS:END`, so that git does not change the bytes of the evidence. `doctor` warns with `RAPID1436` when the project is in git without that rule; see [Windows: line endings](installation/windows.md#line-endings-in-git).
 
 When the folder is a git repository that Git refuses for the person's own terminal ("dubious ownership") but accepts for Rapid OS, `doctor` adds the optional `person_actions` list (see `rapid setup`): `[{"id": "git-safe-directory", "why": ..., "command": ...}]` in `--json`; otherwise, it prints `To use Git yourself in this folder, run this in your terminal: <command>` plus the reason. Nothing is added for a repository the person owns.
 
@@ -285,16 +291,18 @@ Options for `rapid harness resolve`:
 
 Ingest, inspect, and verify append-only, immutable execution evidence (`RunEvidence`, `schema_version = 1`: `id`, `run_id`, `contract_digest`, `state_revision`, `state_digest`, `kind`, `producer`, `summary`, `task_ids`, `gate_ids`, `capability_ids`, `payload`, `artifacts`, `content_digest` — contains no wall-clock timestamps) and copied SHA-256-verified artifacts (`EvidenceArtifact`: `path`, `sha256`, `size_bytes`) under `.rapid-os/evidence/<run-id>/`.
 
+Without `--run`, `eval show`, `evidence list`, and `evidence verify` use the active run or, if there is none, the last one closed, and the text output starts with `Run: <id>` (the JSON output already carries `run_id`). Without runs they fail with `RAPID1221` (`eval show`) or `RAPID1202` (`evidence`). In the other subcommands `--run` stays required.
+
 - **Read-only subcommands**: `list`, `show`, `verify`
 - **State-writing subcommand**: `add`
 
 > **Product Truth**: Evidence authenticity is local integrity verification (`content_digest`, artifact `sha256` and `size_bytes`, sequence continuity `E001..E00N`, and Run/Contract/`RunState` binding), not cryptographic external attestation. Adding evidence never mutates `.rapid-os/runs/<run-id>/`.
 
 ```bash
-rapid evidence list --run <run-id> [--json]
+rapid evidence list [--run <run-id>] [--json]
 rapid evidence show --run <run-id> <evidence-id> [--json]
 rapid evidence add --run <run-id> --input <file> [--json]
-rapid evidence verify --run <run-id> [--json]
+rapid evidence verify [--run <run-id>] [--json]
 ```
 
 `rapid evidence add` records evidence produced outside Rapid OS (`harness:<id>`, `ci:<name>`, `external:<name>`). It refuses with `RAPID1430` the producers reserved to Rapid OS (`rapid:check`, `rapid:start`, `rapid:finish`, `rapid:attach`, any `rapid:*`), a `review` with producer `user` (only `rapid approve` writes it), and the review fields `via`, `tree` and `accepts`. Reading the ledger still accepts all of them. In ruleset 3, evidence added this way never satisfies a test gate (`gate.tests`, `gate.baseline`) or a human gate.
@@ -313,7 +321,7 @@ Run deterministic, offline behavioral evaluations (`BehavioralEvaluator` → `Ev
 ```bash
 rapid eval run --run <run-id> [--ruleset {1,2,3}] [--require <capability-id>] [--write] [--require-pass] [--json]
 rapid eval list --run <run-id> [--json]
-rapid eval show --run <run-id> [--revision <n>] [--json]
+rapid eval show [--run <run-id>] [--revision <n>] [--json]
 ```
 
 Options for `run`:
@@ -359,7 +367,7 @@ rapid task skip <task-id> --reason <text> [--json]
 
 Subcommands:
 - `start`: Mark a task as `in_progress`. If `<task-id>` is omitted, transitions the first `pending` task.
-- `done`: Mark a task as `done`. Runs verification tests (`test_command`) and records evidence unless `--no-check` is provided. If `<task-id>` is omitted, resolves the current `in_progress` task (`RAPID1306` if none or ambiguous).
+- `done`: Mark a task as `done`. Runs verification tests (`test_command`) and records evidence unless `--no-check` is provided. In a `research` run it never runs them: without the flag it behaves as with `--no-check` and says so in one line, and any `rapid check` evidence of the task counts as usual. If `<task-id>` is omitted, resolves the current `in_progress` task (`RAPID1306` if none or ambiguous).
 - `skip`: Skip a task with a mandatory `--reason` (`RAPID1306` if reason omitted).
 
 ---
@@ -415,6 +423,7 @@ With no active run, `rapid next` (and `rapid start feature` without a spec) retu
 
 - `seed.source`: the brief (`docs/PRODUCT_BRIEF.md`).
 - `seed.confirmed`: `false` while the brief is an unconfirmed draft (an assumption), `true` when a person provided or confirmed it.
+- `action.unconfirmed_docs[]` (`rapid next` and `rapid start`, in any action): `{id, file}` of each onboarding document drafted by the agent that no person has confirmed; absent when there are none. The text output says it in one line with `rapid setup doc <id> --confirm`. The work shortcuts mention it once at the start of the run and ask before implementing anything that depends on those assumptions.
 - `seed.stories[]`: `{id, text}` for every unchecked story (`- [ ] H001: ...`) of the stories section, in order. They are all listed, not only the first, so the agent can pick the one that makes sense to start with (for dependencies).
 - `seed.business_doc`, `seed.data_model_doc`: `docs/BUSINESS_RULES.md` and `docs/DATA_MODEL.md` when those documents exist, otherwise `null`.
 
