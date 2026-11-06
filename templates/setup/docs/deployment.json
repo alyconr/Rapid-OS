@@ -44,6 +44,7 @@
         "aws",
         "azure",
         "vercel",
+        "cloudflare",
         "render",
         "railway",
         "dokploy",

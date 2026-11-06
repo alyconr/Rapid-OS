@@ -228,6 +228,8 @@ def suggest_init_choices(scan: ProjectModel | ProjectScan) -> InitSuggestions:
         backends.append(("node-nestjs", suggestion("node-nestjs", Confidence.HIGH, "NestJS project detected.", "framework", "nestjs")))
     if "fastify" in frameworks:
         backends.append(("node-fastify", suggestion("node-fastify", Confidence.HIGH, "Fastify project detected.", "framework", "fastify")))
+    if "hono" in frameworks:
+        backends.append(("hono", suggestion("hono", Confidence.HIGH, "Hono project detected.", "framework", "hono")))
     if "go" in languages:
         backends.append(("go", suggestion("go", Confidence.HIGH, "Go module detected.", "language", "go")))
     if "axum" in frameworks:
@@ -533,6 +535,7 @@ def _detect_frameworks(files, root, package_manifests, text_cache):
             "@angular/core": "angular",
             "@nestjs/core": "nestjs",
             "fastify": "fastify",
+            "hono": "hono",
         }
         for dependency, framework in dependency_map.items():
             if dependency in dependencies:
@@ -1016,7 +1019,7 @@ def _detect_deploy_providers(files, root):
                     source_type=SourceType.CONFIG,
                 )
             )
-        if path.name == "wrangler.toml":
+        if path.name in ("wrangler.toml", "wrangler.json", "wrangler.jsonc"):
             facts.append(
                 _fact(
                     "deploy_provider",
