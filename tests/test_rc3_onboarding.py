@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from rapid_os.adapters.agents.base import AGENT_BACKUPS_KEPT
 from rapid_os.adapters.project_docs import load_banks
 from rapid_os.domain.project_docs import bank_fingerprint, render_managed_doc
 from rapid_os.orchestration.setup_conductor import REVIEW_CONSEQUENCES
@@ -380,6 +381,51 @@ class DefaultRunTests(Sandbox):
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertTrue(result.stderr.startswith(code), result.stderr)
                 self.assertIn("rapid start", result.stderr)
+
+
+class DraftBackupTests(Sandbox):
+    """H-50: the copy of a replaced draft stays out of the first commit; a person's content stays in sight."""
+
+    def setUp(self):
+        super().setUp()
+        self.bank = load_banks(None)["business"]
+        self.document = self.root / self.bank.file
+        self.body = draft_body(self.bank.required_sections)
+
+    def write(self, source, *extra, body=None):
+        return self.ok("setup", "doc", "business", "--source", source, "--file", "-", *extra, stdin=body or self.body)
+
+    def beside(self):
+        return sorted(p.name for p in self.document.parent.glob("*.bak"))
+
+    def in_backups(self):
+        return sorted(p.name for p in (self.root / ".rapid-os" / "backups").glob("*.bak"))
+
+    def test_a_replaced_draft_goes_to_the_backups(self):
+        self.write("drafted")
+        self.write("drafted", "--replace", body=self.body + "\nOtra línea.\n")
+        self.assertEqual(self.beside(), [])
+        self.assertEqual(len(self.in_backups()), 1, self.in_backups())
+
+    def test_at_most_the_kept_number_of_copies_stay(self):
+        self.write("drafted")
+        for number in range(AGENT_BACKUPS_KEPT + 2):
+            self.write("drafted", "--replace", body=f"{self.body}\nVersión {number}.\n")
+        self.assertEqual(self.beside(), [])
+        self.assertEqual(len(self.in_backups()), AGENT_BACKUPS_KEPT)
+
+    def test_a_provided_document_keeps_its_copy_beside_it(self):
+        self.write("provided")
+        self.write("drafted", "--replace")
+        self.assertEqual(len(self.beside()), 1, self.beside())
+        self.assertEqual(self.in_backups(), [])
+
+    def test_a_file_rapid_did_not_write_keeps_its_copy_beside_it(self):
+        self.document.parent.mkdir(parents=True, exist_ok=True)
+        self.document.write_text("# Mis reglas\n", encoding="utf-8")
+        self.write("drafted", "--replace")
+        self.assertEqual(len(self.beside()), 1, self.beside())
+        self.assertEqual(self.in_backups(), [])
 
 
 if __name__ == "__main__":

@@ -461,7 +461,14 @@ def write_doc(
                 "Pass --replace to do it (the previous file is kept as .bak).",
             )
     status = "confirmed" if source == "provided" else "draft"
-    safe_write_text(path, render_managed_doc(bank.id, source, status, body), encoding="utf-8", backup=True)
+    rendered = render_managed_doc(bank.id, source, status, body)
+    previous_fields, _previous_body = parse_doc_frontmatter(existing or "")
+    if is_managed(previous_fields, bank.id) and previous_fields["source"] == "drafted":
+        # An agent's draft: its previous copy must not reach the first commit.
+        _write_doc_text(project_root, path, rendered)
+    else:
+        # What a person wrote keeps its copy in sight, beside the document.
+        safe_write_text(path, rendered, encoding="utf-8", backup=True)
     doc = DocState(source, source == "provided", body_sha256(body))
     new_state = _with_doc(state, bank.id, doc)
     # A new draft is something the person has not seen yet: the review is due again.
@@ -484,9 +491,9 @@ def import_legacy_business(
 
 
 def _write_doc_text(project_root: Path, path: Path, text: str) -> None:
-    """Change the status of a managed document; the previous copy goes to `.rapid-os/backups/` (ignored by
-    git), not to `docs/<name>.md.<n>.bak`, which would reach the first commit. (Writing new content keeps its
-    copy beside the document: it can be what a person wrote.)"""
+    """Rewrite a document whose previous content is ours (a new status, or a draft replacing a draft): the previous
+    copy goes to `.rapid-os/backups/` (ignored by git), not to `docs/<name>.md.<n>.bak`, which would reach the first
+    commit. Content from a person keeps its copy beside the document (see `write_doc`)."""
     from rapid_os.adapters.agents.base import AGENT_BACKUP_DIR, AGENT_BACKUPS_KEPT
 
     safe_write_text(
