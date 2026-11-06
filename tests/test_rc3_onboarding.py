@@ -12,6 +12,7 @@ from pathlib import Path
 
 from rapid_os.adapters.project_docs import load_banks
 from rapid_os.domain.project_docs import bank_fingerprint, render_managed_doc
+from rapid_os.orchestration.setup_conductor import REVIEW_CONSEQUENCES
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -246,6 +247,65 @@ class InitShortcutTests(unittest.TestCase):
         self.assertIn("diciendo de dónde sale", text)
         self.assertIn("distinto de lo que recomienda el catálogo", text)
         self.assertIn("ofrece primero `rapid setup set test-command --recommended`", text)
+
+
+class UnconfirmedDocsDuringRunsTests(Sandbox):
+    """H-47: `rapid start` and `rapid next` say which drafts no person has confirmed."""
+
+    SPEC = {
+        "title": "Crear taller",
+        "mode": "research",
+        "business_objective": "Decidir",
+        "problem_statement": "No hay datos",
+        "scope": ["talleres"],
+        "acceptance_criteria": ["Hay una recomendación"],
+        "tasks": ["T001: Comparar"],
+    }
+    EXPECTED = [{"id": "business", "file": "docs/BUSINESS_RULES.md"}]
+
+    def start(self, *extra):
+        return self.ok("start", "research", "--spec-file", "-", *extra, stdin=json.dumps(self.SPEC, ensure_ascii=False))
+
+    def test_start_and_next_list_a_draft(self):
+        self.onboard(drafted=("business",))
+        action = json.loads(self.start("--json").stdout)["action"]
+        self.assertEqual(action["unconfirmed_docs"], self.EXPECTED)
+        action = json.loads(self.ok("next", "--json").stdout)["action"]
+        self.assertEqual(action["unconfirmed_docs"], self.EXPECTED)
+
+    def test_the_author_spec_action_lists_it_too(self):
+        self.onboard(drafted=("business",))
+        action = json.loads(self.ok("next", "--json").stdout)["action"]
+        self.assertEqual(action["kind"], "author_spec")
+        self.assertEqual(action["unconfirmed_docs"], self.EXPECTED)
+
+    def test_the_text_output_says_it_in_one_line_with_the_command(self):
+        self.onboard(drafted=("business",))
+        for output in (self.start().stdout, self.ok("next").stdout):
+            [line] = [line for line in output.splitlines() if "sin confirmar" in line]
+            self.assertIn("business (docs/BUSINESS_RULES.md)", line)
+            self.assertIn("rapid setup doc <id> --confirm", line)
+
+    def test_a_confirmed_document_is_not_listed(self):
+        self.onboard(drafted=("business",))
+        self.ok("setup", "doc", "business", "--confirm")
+        self.assertNotIn("unconfirmed_docs", json.loads(self.start("--json").stdout)["action"])
+        self.assertNotIn("unconfirmed_docs", json.loads(self.ok("next", "--json").stdout)["action"])
+        self.assertNotIn("sin confirmar", self.ok("next").stdout)
+
+    def test_the_review_describes_what_happens(self):
+        text = REVIEW_CONSEQUENCES["keep_draft"]
+        self.assertNotIn("cada run te recuerda", text)
+        for needle in ("rapid start", "rapid next", "RAPID1408", "rapid setup doc <id> --confirm"):
+            self.assertIn(needle, text)
+
+    def test_the_work_shortcuts_ask_and_never_confirm(self):
+        for mode in ("feature", "bugfix", "refactor", "hardening", "research", "next"):
+            text = (ROOT / "templates" / "shortcuts" / f"rapid-{mode}.md").read_text(encoding="utf-8")
+            with self.subTest(mode=mode):
+                self.assertIn("`action.unconfirmed_docs`", text)
+                self.assertIn("una vez al empezar el run", text)
+                self.assertIn("No los trates como reglas ni los confirmes por tu cuenta", text)
 
 
 if __name__ == "__main__":

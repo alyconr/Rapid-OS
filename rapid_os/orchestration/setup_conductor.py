@@ -66,8 +66,9 @@ REVIEW_CONSEQUENCES = {
     ),
     "keep_draft": (
         "Queda como supuesto: el agente la recibe bajo el aviso 'Supuestos redactados por el agente, "
-        "no confirmados por la persona', puede cuestionarla y preguntarte, y cada run te recuerda que "
-        "está sin confirmar (RAPID1408). La confirmas cuando quieras con rapid setup doc <id> --confirm."
+        "no confirmados por la persona', puede cuestionarla, te avisa al empezar cada run y te pregunta antes de "
+        "implementar algo que dependa de ella. rapid start y rapid next la listan como sin confirmar, y rapid "
+        "validate y rapid doctor avisan con RAPID1408. La confirmas cuando quieras con rapid setup doc <id> --confirm."
     ),
 }
 ARCHETYPE_SUMMARIES = {

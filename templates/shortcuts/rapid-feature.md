@@ -11,7 +11,7 @@ allowed-commands: next start check task finish status
 
 Conduces un run gobernado de Rapid OS en modo `feature`. El objetivo es lo que la persona escribió al invocar este comando. Sigue este bucle:
 
-1. Ejecuta `rapid next --json`.
+1. Ejecuta `rapid next --json`. Si `action.unconfirmed_docs` existe, díselo a la persona una vez al empezar el run (qué documentos siguen como borrador) y pregúntale antes de implementar algo de la tarea que dependa de un supuesto de esos documentos. No los trates como reglas ni los confirmes por tu cuenta: solo la persona los confirma.
 2. Si `action.kind` es `author_spec`, decide la historia y redacta la spec:
    - Si el argumento es un id de historia (por ejemplo `H002`) y existe `action.seed`, úsalo: el texto está en `seed.stories`.
    - Si no hay argumentos y existe `action.seed`, propón la historia que conviene empezar entre `seed.stories` (son todas las historias sin marcar del brief, en orden). Si no es la primera, explica en una frase por qué (por ejemplo, por dependencias). Pide confirmación a la persona antes de redactar la spec. Si `seed.confirmed` es `false`, avisa que el brief sigue como supuesto: lo redactó el agente y nadie lo confirmó.

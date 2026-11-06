@@ -3603,6 +3603,13 @@ def attach_command(args):
     return 0
 
 
+def _print_unconfirmed_docs(action):
+    """One line for the person: what is still an assumption and the command that changes it."""
+    if action.unconfirmed_docs:
+        documents = ", ".join(f"{doc['id']} ({doc['file']})" for doc in action.unconfirmed_docs)
+        print(f"Borradores sin confirmar: {documents}. Para confirmar uno: rapid setup doc <id> --confirm")
+
+
 def start_command(args):
     """Execute rapid start command."""
     from rapid_os.orchestration.lifecycle import execute_start
@@ -3649,6 +3656,7 @@ def start_command(args):
     print(f"Next: {res.kind.value}{cmd_str}")
     for note in res.notes:
         print(f"Nota: {note}")
+    _print_unconfirmed_docs(res)
     return 0
 
 
@@ -4316,6 +4324,7 @@ def next_command(args):
     else:
         cmd_str = f" -> {' '.join(action.command)}" if action.command else ""
         print(f"Next: {action.kind.value}{cmd_str}")
+    _print_unconfirmed_docs(action)
     return 0
 
 

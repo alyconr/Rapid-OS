@@ -421,6 +421,7 @@ With no active run, `rapid next` (and `rapid start feature` without a spec) retu
 
 - `seed.source`: the brief (`docs/PRODUCT_BRIEF.md`).
 - `seed.confirmed`: `false` while the brief is an unconfirmed draft (an assumption), `true` when a person provided or confirmed it.
+- `action.unconfirmed_docs[]` (`rapid next` and `rapid start`, in any action): `{id, file}` of each onboarding document drafted by the agent that no person has confirmed; absent when there are none. The text output says it in one line with `rapid setup doc <id> --confirm`. The work shortcuts mention it once at the start of the run and ask before implementing anything that depends on those assumptions.
 - `seed.stories[]`: `{id, text}` for every unchecked story (`- [ ] H001: ...`) of the stories section, in order. They are all listed, not only the first, so the agent can pick the one that makes sense to start with (for dependencies).
 - `seed.business_doc`, `seed.data_model_doc`: `docs/BUSINESS_RULES.md` and `docs/DATA_MODEL.md` when those documents exist, otherwise `null`.
 
