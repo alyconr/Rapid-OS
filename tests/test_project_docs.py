@@ -258,8 +258,14 @@ class ValidateDocsTests(unittest.TestCase):
             root = make_project(Path(tmp))
             write_doc(root, "brief", body, source="drafted", status="confirmed")
             report = validate_project_docs(root / ".rapid-os", root, TEMPLATES)
-            self.assertIn(("warning", "RAPID1403"), codes(report))
+            # Confirmed with no record of its sections: it counts as confirmed before they were required (H-41).
+            self.assertIn(("info", "RAPID1403"), codes(report))
             self.assertNotIn("RAPID1408", [c for _l, c in codes(report)])  # confirmed
+        with tempfile.TemporaryDirectory() as tmp:
+            root = make_project(Path(tmp))
+            write_doc(root, "brief", body, source="drafted", status="draft")
+            report = validate_project_docs(root / ".rapid-os", root, TEMPLATES)
+            self.assertIn(("warning", "RAPID1403"), codes(report))
         with tempfile.TemporaryDirectory() as tmp:
             root = make_project(Path(tmp))
             write_doc(root, "brief", body, source="provided", status="draft")

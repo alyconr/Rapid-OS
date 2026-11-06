@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The README no longer says that `main` is at `3.2.0.dev0`.
 - With `core.autocrlf=true` (the default of Git for Windows) git changed the line endings of evidence artifacts when adding and when checking out, and `rapid evidence verify`, `rapid eval show` and `rapid validate` failed in a clone with `RAPID1205` and `RAPID1223`. `rapid setup finish` and `rapid init` now write `.rapid-os/** -text` to `.gitattributes` (a managed block between `RAPID-OS:BEGIN` and `RAPID-OS:END`; the rest of the file is not touched), `rapid doctor` warns when the rule is missing (`RAPID1436`), and a failed comparison of a text artifact names the probable cause and the repair (`RAPID1437`). Verification stays strict: a converted file is still rejected.
 - `rapid doctor` gave `RAPID1321` in every project because it compared all the harnesses Rapid OS knows. It now compares the agents chosen in the project; without a configured project it does not warn.
+- Updating Rapid OS made `rapid validate --strict` fail with `RAPID1403` on documents confirmed before a section was required. For a document confirmed with an earlier set of required sections the diagnostic is now informational and points to `rapid setup doc <id> --reopen`. `setup.json` records that set (`confirmed_bank`) at each confirmation, and a document without it counts as earlier; one confirmed with the current sections keeps the warning.
 
 ---
 

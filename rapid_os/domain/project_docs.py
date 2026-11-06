@@ -6,6 +6,7 @@ Pure: no I/O. A document counts as managed only when its frontmatter says `rapid
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from dataclasses import dataclass
 from typing import Mapping
@@ -119,6 +120,13 @@ def has_lost_characters(body: str) -> bool:
 
 def normalize_newlines(text: str) -> str:
     return text.replace("\r\n", "\n")
+
+
+def bank_fingerprint(bank: SetupDocBank) -> str:
+    """The sections a document of this bank must have: what a confirmation was made against."""
+    sections = [[section.id, list(section.titles)] for section in bank.required_sections]
+    conditional = [[section.id, list(section.titles), section.when] for section in bank.conditional_sections]
+    return hashlib.sha256(json.dumps([sections, conditional], sort_keys=True).encode("utf-8")).hexdigest()
 
 
 def body_sha256(body: str) -> str:

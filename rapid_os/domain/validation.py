@@ -334,7 +334,7 @@ def validate_project_docs(
     """setup.json validity (RAPID1400/1406) and the onboarding documents (RAPID1403/1404/1408/1410)."""
     # Lazy: the adapters import this module.
     from rapid_os.adapters.project_docs import load_project_docs
-    from rapid_os.domain.project_docs import normalize_body, validate_doc_body
+    from rapid_os.domain.project_docs import bank_fingerprint, normalize_body, validate_doc_body
     from rapid_os.domain.services import active_conditions
 
     root, rapid_dir = _resolve_root_and_rapid_dir(project_rapid_dir, current_dir)
@@ -366,8 +366,23 @@ def validate_project_docs(
                 docs.setup_state.services if docs.setup_state else None,
                 docs.setup_state.stacks if docs.setup_state else None,
             )
+            recorded = docs.setup_state.doc(doc_id).confirmed_bank if docs.setup_state else ""
+            # A person confirmed it against sections that have changed since (or before they were recorded): updating
+            # Rapid OS must not turn a confirmed document into a failure of `validate --strict`.
+            older_bank = not doc.unconfirmed_draft and recorded != bank_fingerprint(doc.bank)
             for issue in validate_doc_body(doc.body, doc.bank, conditions):
-                diagnostics.append(Diagnostic(WARNING, issue.code, issue.message, doc.path))
+                if older_bank and issue.code == "RAPID1403":
+                    diagnostics.append(
+                        Diagnostic(
+                            INFO,
+                            issue.code,
+                            f"{issue.message} It was confirmed before that section was required.",
+                            doc.path,
+                            hint=f"To bring it up to date, run 'rapid setup doc {doc_id} --reopen'.",
+                        )
+                    )
+                else:
+                    diagnostics.append(Diagnostic(WARNING, issue.code, issue.message, doc.path))
 
     business = docs.managed.get("business")
     legacy = rapid_dir / "standards" / "business.md"
