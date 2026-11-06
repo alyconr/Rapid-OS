@@ -112,6 +112,8 @@ rapid doctor
 rapid doctor --json
 ```
 
+`doctor` avisa con `RAPID1321` solo sobre los agentes elegidos en el proyecto (`tools` en `.rapid-os/config.json`, para los que setup genera shortcuts): un proyecto solo con `codex` no recibe el aviso, uno con `cursor` y `codex` sí (Cursor lee las dos carpetas), y sin un proyecto configurado no hay nada que avisar.
+
 `doctor` also warns with `RAPID1421` when `standards/security.md` exists and does not mention OWASP ASVS (the project was initialized before the security baseline), with the hint `rapid setup set archetype <current> --refresh`.
 
 `rapid setup finish` y `rapid init` escriben `.rapid-os/** -text` en `.gitattributes`, en un bloque gestionado entre `RAPID-OS:BEGIN` y `RAPID-OS:END`, para que git no cambie los bytes de la evidencia. `doctor` avisa con `RAPID1436` cuando el proyecto está en git sin esa regla; consulta [Windows: finales de línea](installation/windows.md#line-endings-in-git).
