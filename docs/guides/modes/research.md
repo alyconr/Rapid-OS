@@ -23,7 +23,7 @@ What its playbook does (`templates/modes/research.json` and the Conductor's rule
 - Rapid OS does not search anything itself: the harness brings the research tools (web search and reading, connected MCP servers such as Context7 for library docs). When an experiment in the repo can answer the question, the agent prefers it to an article's opinion.
 - A search result is not a file: the agent saves each task's findings in `experiments/<spec-id>/T00N.md` with the question, what it found, its sources (URL or path and date consulted) and what was tested here versus only read, and then attaches that file. A finding without a source says so; sources are never invented.
 - Findings are recorded with `rapid attach <path> --label "…"` (an `artifact` evidence, producer `rapid:attach`), linked to the task in progress (or to the one you indicate with `--task`).
-- Tasks are closed with `rapid task done T00N --no-check`, because there are no tests to run.
+- Tasks are closed with `rapid task done T00N --no-check`, because there are no tests to run. Without the flag it does the same in this mode and says so in one line: it does not run the test command and the task stays `UNVERIFIED`. If the task has `rapid check` evidence, that evidence counts as usual.
 
 The rest of this guide describes the same cycle with v3 commands (**Advanced mode**), useful for CI, debugging, and auditing.
 
