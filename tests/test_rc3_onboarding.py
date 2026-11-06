@@ -236,5 +236,17 @@ class ResearchTaskDoneTests(Sandbox):
         self.assertIn("Verification tests failed", done.stderr)
 
 
+class InitShortcutTests(unittest.TestCase):
+    """H-43: the decisions of a project are not taken from what the agent remembers of other projects."""
+
+    def test_the_decisions_are_the_persons_in_each_project(self):
+        text = (ROOT / "templates" / "shortcuts" / "rapid-init.md").read_text(encoding="utf-8")
+        self.assertIn("Agentes, arquetipo, topología, IA y comando de test son decisiones de la persona", text)
+        self.assertIn("memorias u otros proyectos solo puedes ofrecerlo como opción recomendada", text)
+        self.assertIn("diciendo de dónde sale", text)
+        self.assertIn("distinto de lo que recomienda el catálogo", text)
+        self.assertIn("ofrece primero `rapid setup set test-command --recommended`", text)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `rapid doctor` gave `RAPID1321` in every project because it compared all the harnesses Rapid OS knows. It now compares the agents chosen in the project; without a configured project it does not warn.
 - Updating Rapid OS made `rapid validate --strict` fail with `RAPID1403` on documents confirmed before a section was required. For a document confirmed with an earlier set of required sections the diagnostic is now informational and points to `rapid setup doc <id> --reopen`. `setup.json` records that set (`confirmed_bank`) at each confirmation, and a document without it counts as earlier; one confirmed with the current sections keeps the warning.
 - `rapid task done T00N` without `--no-check` ran the test command in a `research` run and exited 2 when there was no code yet. In that mode it now behaves as with `--no-check` (same record, `UNVERIFIED`) and says so in one line; `rapid check` evidence of the task counts as usual. Other modes do not change.
+- `/rapid-init` let an agent take the agents, the archetype and the topology from its memory of other projects without asking. The shortcut now says that agents, archetype, topology, AI and test command are the person's decisions in each project: a remembered preference can only be offered as a recommendation that names its origin, a choice different from the catalog's is said and asked, and `rapid setup set test-command --recommended` comes first for the test command.
 
 ---
 
