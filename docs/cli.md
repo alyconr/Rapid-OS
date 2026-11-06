@@ -291,16 +291,18 @@ Options for `rapid harness resolve`:
 
 Ingest, inspect, and verify append-only, immutable execution evidence (`RunEvidence`, `schema_version = 1`: `id`, `run_id`, `contract_digest`, `state_revision`, `state_digest`, `kind`, `producer`, `summary`, `task_ids`, `gate_ids`, `capability_ids`, `payload`, `artifacts`, `content_digest` — contains no wall-clock timestamps) and copied SHA-256-verified artifacts (`EvidenceArtifact`: `path`, `sha256`, `size_bytes`) under `.rapid-os/evidence/<run-id>/`.
 
+Without `--run`, `eval show`, `evidence list`, and `evidence verify` use the active run or, if there is none, the last one closed, and the text output starts with `Run: <id>` (the JSON output already carries `run_id`). Without runs they fail with `RAPID1221` (`eval show`) or `RAPID1202` (`evidence`). In the other subcommands `--run` stays required.
+
 - **Read-only subcommands**: `list`, `show`, `verify`
 - **State-writing subcommand**: `add`
 
 > **Product Truth**: Evidence authenticity is local integrity verification (`content_digest`, artifact `sha256` and `size_bytes`, sequence continuity `E001..E00N`, and Run/Contract/`RunState` binding), not cryptographic external attestation. Adding evidence never mutates `.rapid-os/runs/<run-id>/`.
 
 ```bash
-rapid evidence list --run <run-id> [--json]
+rapid evidence list [--run <run-id>] [--json]
 rapid evidence show --run <run-id> <evidence-id> [--json]
 rapid evidence add --run <run-id> --input <file> [--json]
-rapid evidence verify --run <run-id> [--json]
+rapid evidence verify [--run <run-id>] [--json]
 ```
 
 `rapid evidence add` records evidence produced outside Rapid OS (`harness:<id>`, `ci:<name>`, `external:<name>`). It refuses with `RAPID1430` the producers reserved to Rapid OS (`rapid:check`, `rapid:start`, `rapid:finish`, `rapid:attach`, any `rapid:*`), a `review` with producer `user` (only `rapid approve` writes it), and the review fields `via`, `tree` and `accepts`. Reading the ledger still accepts all of them. In ruleset 3, evidence added this way never satisfies a test gate (`gate.tests`, `gate.baseline`) or a human gate.
@@ -319,7 +321,7 @@ Run deterministic, offline behavioral evaluations (`BehavioralEvaluator` → `Ev
 ```bash
 rapid eval run --run <run-id> [--ruleset {1,2,3}] [--require <capability-id>] [--write] [--require-pass] [--json]
 rapid eval list --run <run-id> [--json]
-rapid eval show --run <run-id> [--revision <n>] [--json]
+rapid eval show [--run <run-id>] [--revision <n>] [--json]
 ```
 
 Options for `run`:

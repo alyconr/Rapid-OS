@@ -308,5 +308,79 @@ class UnconfirmedDocsDuringRunsTests(Sandbox):
                 self.assertIn("No los trates como reglas ni los confirmes por tu cuenta", text)
 
 
+class DefaultRunTests(Sandbox):
+    """H-48: the read-only commands find the run by themselves."""
+
+    def start_and_abort(self, title):
+        spec = {
+            "title": title,
+            "mode": "research",
+            "business_objective": "Decidir",
+            "problem_statement": "No hay datos",
+            "scope": ["talleres"],
+            "acceptance_criteria": ["Hay una recomendación"],
+            "tasks": ["T001: Comparar"],
+        }
+        self.start(spec)
+        session = json.loads((self.root / ".rapid-os" / "session.json").read_text(encoding="utf-8"))
+        self.ok("abort", "--reason", "fin de la prueba")
+        return session["active_run_id"]
+
+    def start(self, spec):
+        self.ok("start", "research", "--spec-file", "-", "--json", stdin=json.dumps(spec, ensure_ascii=False))
+
+    COMMANDS = (("evidence", "list"), ("evidence", "verify"))
+
+    def test_a_closed_run_is_found_and_named(self):
+        self.onboard()
+        run_id = self.start_and_abort("Zeta primero")
+        for command in self.COMMANDS:
+            result = self.ok(*command)
+            self.assertEqual(result.stdout.splitlines()[0], f"Run: {run_id}", command)
+
+    def test_eval_show_finds_the_closed_run(self):
+        self.onboard()
+        run_id = self.start_and_abort("Zeta primero")
+        result = self.rapid("eval", "show")
+        self.assertNotIn("required: --run", result.stderr)
+        self.assertEqual(result.stdout.splitlines()[0], f"Run: {run_id}", result.stderr)
+
+    def test_with_run_the_output_is_as_it_was(self):
+        self.onboard()
+        run_id = self.start_and_abort("Zeta primero")
+        result = self.ok("evidence", "list", "--run", run_id)
+        self.assertNotIn("Run: ", result.stdout)
+
+    def test_the_json_output_stays_json(self):
+        self.onboard()
+        run_id = self.start_and_abort("Zeta primero")
+        self.assertEqual(json.loads(self.ok("evidence", "verify", "--json").stdout)["run_id"], run_id)
+
+    def test_the_active_run_comes_first(self):
+        self.onboard()
+        self.start_and_abort("Zeta primero")
+        self.start({
+            "title": "Alfa activo", "mode": "research", "business_objective": "Decidir", "problem_statement": "No hay datos",
+            "scope": ["talleres"], "acceptance_criteria": ["Hay una recomendación"], "tasks": ["T001: Comparar"],
+        })
+        active = json.loads((self.root / ".rapid-os" / "session.json").read_text(encoding="utf-8"))["active_run_id"]
+        self.assertEqual(self.ok("evidence", "list").stdout.splitlines()[0], f"Run: {active}")
+
+    def test_the_last_closed_run_wins_whatever_its_id_says(self):
+        self.onboard()
+        self.start_and_abort("Zeta primero")
+        last = self.start_and_abort("Alfa después")  # sorts first by id, closed last
+        self.assertEqual(self.ok("evidence", "list").stdout.splitlines()[0], f"Run: {last}")
+
+    def test_without_runs_the_error_is_clear(self):
+        self.onboard()
+        for command, code in ((("evidence", "list"), "RAPID1202"), (("evidence", "verify"), "RAPID1202"), (("eval", "show"), "RAPID1221")):
+            result = self.rapid(*command)
+            with self.subTest(command=command):
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertTrue(result.stderr.startswith(code), result.stderr)
+                self.assertIn("rapid start", result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
