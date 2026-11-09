@@ -131,5 +131,153 @@
       "driver": "franz-go",
       "url": "localhost:9092"
     }
+  },
+  "data_access": {
+    "default": {
+      "relational": "pgx-sqlc",
+      "document": "mongo-go-driver"
+    },
+    "options": [
+      {
+        "id": "pgx-sqlc",
+        "name": "pgx + sqlc",
+        "kind": "driver",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql"
+        ],
+        "runtimes": [
+          "go"
+        ],
+        "migrations": {
+          "tool": "goose",
+          "generate": [
+            "goose",
+            "create",
+            "<name>",
+            "sql"
+          ],
+          "apply": [
+            "goose",
+            "up"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "pgx es el driver de PostgreSQL y sqlc genera código con tipos desde el SQL. Migraciones con goose (`GOOSE_DRIVER` y `GOOSE_DBSTRING` dan el motor y la conexión); golang-migrate es la alternativa.",
+        "sources": [
+          "https://github.com/jackc/pgx",
+          "https://docs.sqlc.dev/en/latest/index.html",
+          "https://docs.sqlc.dev/en/latest/howto/ddl.html",
+          "https://github.com/pressly/goose",
+          "https://github.com/golang-migrate/migrate"
+        ]
+      },
+      {
+        "id": "gorm",
+        "name": "GORM",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql"
+        ],
+        "runtimes": [
+          "go"
+        ],
+        "migrations": {
+          "tool": "goose",
+          "generate": [
+            "goose",
+            "create",
+            "<name>",
+            "sql"
+          ],
+          "apply": [
+            "goose",
+            "up"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "ORM completo. `AutoMigrate` no borra columnas ni versiona: usa migraciones versionadas. Migraciones con goose (`GOOSE_DRIVER` y `GOOSE_DBSTRING` dan el motor y la conexión); golang-migrate es la alternativa.",
+        "sources": [
+          "https://gorm.io/docs/",
+          "https://gorm.io/docs/connecting_to_the_database.html",
+          "https://gorm.io/docs/migration.html",
+          "https://github.com/pressly/goose",
+          "https://github.com/golang-migrate/migrate"
+        ]
+      },
+      {
+        "id": "ent",
+        "name": "ent",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql",
+          "mariadb"
+        ],
+        "runtimes": [
+          "go"
+        ],
+        "migrations": {
+          "tool": "Atlas",
+          "generate": [
+            "atlas",
+            "migrate",
+            "diff",
+            "<name>",
+            "--dir",
+            "file://ent/migrate/migrations",
+            "--to",
+            "ent://ent/schema",
+            "--dev-url",
+            "<dev-url>"
+          ],
+          "apply": [
+            "atlas",
+            "migrate",
+            "apply",
+            "--dir",
+            "file://ent/migrate/migrations",
+            "--url",
+            "<url>"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "Framework de entidades cuyo esquema es código Go; sus migraciones versionadas se generan con Atlas.",
+        "sources": [
+          "https://entgo.io/docs/getting-started",
+          "https://entgo.io/docs/versioned-migrations"
+        ]
+      },
+      {
+        "id": "mongo-go-driver",
+        "name": "Driver oficial de MongoDB para Go",
+        "kind": "driver",
+        "models": [
+          "document"
+        ],
+        "engines": [
+          "mongodb"
+        ],
+        "runtimes": [
+          "go"
+        ],
+        "migrations": null,
+        "schema_validation": "Validación de esquema de MongoDB: reglas `$jsonSchema` en cada colección, declaradas en el repositorio.",
+        "notes": "Sin capa de modelos: la forma de cada documento la fija el código y la validación de la colección.",
+        "sources": [
+          "https://www.mongodb.com/docs/drivers/go/current/",
+          "https://www.mongodb.com/docs/manual/core/schema-validation/"
+        ]
+      }
+    ]
   }
 }

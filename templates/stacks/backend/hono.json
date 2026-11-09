@@ -1,0 +1,251 @@
+{
+  "schema_version": 1,
+  "id": "hono",
+  "component": "backend",
+  "covers": [
+    "backend"
+  ],
+  "summary": "API en TypeScript con Hono sobre Cloudflare Workers: Web Standards, pocas dependencias y despliegue en el edge.",
+  "language": "TypeScript",
+  "fits": [
+    "APIs en el edge sobre Cloudflare Workers",
+    "servicios de agentes de IA en TypeScript (con ai=yes)",
+    "código que quiere poder moverse a Node.js, Bun o Deno"
+  ],
+  "avoid_if": [
+    "la API necesita un proceso persistente, RabbitMQ o Kafka",
+    "los datos viven en MongoDB o Redis",
+    "el equipo no usa TypeScript"
+  ],
+  "suggested_services": [
+    "database:postgresql"
+  ],
+  "package_manager": "pnpm",
+  "default_test_command": [
+    "pnpm",
+    "test"
+  ],
+  "test_commands": {
+    "root": [
+      "pnpm",
+      "test"
+    ],
+    "subdir": [
+      "pnpm",
+      "--dir",
+      "{root}",
+      "test"
+    ]
+  },
+  "gitignore": [
+    "node_modules/",
+    "dist/",
+    ".wrangler/",
+    ".dev.vars*",
+    ".env"
+  ],
+  "architecture": "hono",
+  "factors": {
+    "performance": "alto en enrutado: RegExpRouter evita los bucles lineales; la documentación publica sus benchmarks de routers y frameworks",
+    "memory_footprint": "bajo: el preset hono/tiny pesa menos de 14 kB, sin dependencias; un Worker tiene un límite de 128 MB",
+    "cold_start": "bajo: isolates de V8, sin contenedor por función; el arranque de un Worker tiene un límite de 1 segundo",
+    "concurrency_model": "isolates de V8 con cómputo por petición y E/S asíncrona; no hay un proceso persistente",
+    "typing": "TypeScript de primera clase; el RPC comparte los tipos de la API con el cliente",
+    "productivity": "medio a alto: middleware integrado y helpers; la validación se compone con una librería de terceros",
+    "learning_curve": "baja a media: se apoya en Web Standards (Request, Response); los bindings de Workers son lo propio de la plataforma",
+    "maintainability": "alta si la app se divide con app.route(); con muchas rutas, los tipos del RPC ralentizan el IDE",
+    "ecosystem_maturity": "medio: middleware propio y de terceros, y el mismo código corre en varios runtimes",
+    "hiring_pool": "medio: TypeScript lo usa el 48,8 % de los desarrolladores profesionales; Hono no figura entre los frameworks listados en Stack Overflow 2025",
+    "hosting_fit": "edge, serverless"
+  },
+  "sources": {
+    "performance": [
+      "https://hono.dev/docs/concepts/benchmarks",
+      "https://hono.dev/docs/"
+    ],
+    "memory_footprint": [
+      "https://hono.dev/docs/",
+      "https://developers.cloudflare.com/workers/platform/limits/"
+    ],
+    "cold_start": [
+      "https://developers.cloudflare.com/workers/reference/how-workers-works/",
+      "https://developers.cloudflare.com/workers/platform/limits/"
+    ],
+    "concurrency_model": [
+      "https://developers.cloudflare.com/workers/reference/how-workers-works/"
+    ],
+    "typing": [
+      "https://hono.dev/docs/",
+      "https://hono.dev/docs/guides/rpc"
+    ],
+    "productivity": [
+      "https://hono.dev/docs/guides/middleware",
+      "https://hono.dev/docs/guides/validation"
+    ],
+    "learning_curve": [
+      "https://hono.dev/docs/concepts/web-standard",
+      "https://hono.dev/docs/getting-started/cloudflare-workers"
+    ],
+    "maintainability": [
+      "https://hono.dev/docs/guides/best-practices",
+      "https://hono.dev/docs/guides/rpc"
+    ],
+    "ecosystem_maturity": [
+      "https://hono.dev/docs/",
+      "https://hono.dev/docs/guides/middleware"
+    ],
+    "hiring_pool": [
+      "https://survey.stackoverflow.co/2025/technology"
+    ],
+    "hosting_fit": [
+      "https://hono.dev/docs/getting-started/cloudflare-workers",
+      "https://developers.cloudflare.com/workers/reference/how-workers-works/"
+    ]
+  },
+  "supported_services": {
+    "postgresql": {
+      "driver": "pg",
+      "url": "postgresql://app:app_local_only@127.0.0.1:5432/app"
+    },
+    "mysql": {
+      "driver": "mysql2",
+      "url": "mysql://app:app_local_only@127.0.0.1:3306/app"
+    }
+  },
+  "service_alternatives": {
+    "rabbitmq": "Cloudflare Queues, con otra semántica: entrega al menos una vez, en lotes y con reintentos; el consumidor debe ser idempotente. Si necesitas RabbitMQ, usa un backend con proceso persistente (node-fastify).",
+    "kafka": "Cloudflare Queues, con otra semántica: entrega al menos una vez, en lotes y con reintentos; el consumidor debe ser idempotente. Si necesitas Kafka, usa un backend con proceso persistente (node-fastify).",
+    "redis": "Workers KV para clave-valor de lectura frecuente: consistencia eventual y sin operaciones atómicas; no es Redis. Si necesitas Redis, usa un backend con proceso persistente (node-fastify).",
+    "valkey": "Workers KV para clave-valor de lectura frecuente: consistencia eventual y sin operaciones atómicas; no es Redis. Si necesitas Valkey, usa un backend con proceso persistente (node-fastify).",
+    "mongodb": "Cloudflare no tiene servicio propio de MongoDB documentado y Hyperdrive solo conecta PostgreSQL y MySQL: fuera de Cloudflare. Usa uno de esos motores o un backend con proceso persistente (node-fastify).",
+    "mariadb": "Hyperdrive admite MariaDB, pero ninguna opción de acceso a datos de este catálogo la cita desde Workers: usa mysql o postgresql."
+  },
+  "data_access": {
+    "default": {
+      "relational": "drizzle"
+    },
+    "options": [
+      {
+        "id": "drizzle",
+        "name": "Drizzle ORM",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql"
+        ],
+        "runtimes": [
+          "workers",
+          "node"
+        ],
+        "migrations": {
+          "tool": "drizzle-kit",
+          "generate": [
+            "pnpm",
+            "drizzle-kit",
+            "generate"
+          ],
+          "apply": [
+            "pnpm",
+            "drizzle-kit",
+            "migrate"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "ORM de TypeScript sin motor propio: el esquema es código y drizzle-kit genera migraciones SQL. En Workers conecta por Hyperdrive con `pg` ≥ 8.16.3 o `mysql2` ≥ 3.13.0 (Drizzle ≥ 0.26.2 en PostgreSQL). Las migraciones corren desde CI o local contra la cadena directa (`DATABASE_URL`), no desde el Worker.",
+        "sources": [
+          "https://orm.drizzle.team/docs/overview",
+          "https://orm.drizzle.team/docs/drizzle-kit-generate",
+          "https://orm.drizzle.team/docs/drizzle-kit-migrate",
+          "https://developers.cloudflare.com/hyperdrive/examples/connect-to-postgres/",
+          "https://developers.cloudflare.com/hyperdrive/examples/connect-to-mysql/"
+        ]
+      },
+      {
+        "id": "prisma",
+        "name": "Prisma ORM 7",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql"
+        ],
+        "runtimes": [
+          "workers",
+          "node"
+        ],
+        "migrations": {
+          "tool": "prisma migrate",
+          "generate": [
+            "pnpm",
+            "prisma",
+            "migrate",
+            "dev",
+            "--name",
+            "<name>"
+          ],
+          "apply": [
+            "pnpm",
+            "prisma",
+            "migrate",
+            "deploy"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "Fija Prisma ORM 7: el tag `latest` de npm apunta a la prerelease 8 (8.0.0-rc), que cambia estos comandos por `prisma migration plan` y `prisma db migrate` y aún no da soporte estable a MySQL ni a MariaDB. Prisma 7 tampoco admite MongoDB (usa `mongodb` o Mongoose). `migrate dev` nunca se ejecuta en producción. En Workers conecta por Hyperdrive con `pg` ≥ 8.16.3 y `@prisma/adapter-pg`; la guía de Cloudflare solo cubre PostgreSQL.",
+        "sources": [
+          "https://www.prisma.io/docs/orm/v7/prisma-migrate/getting-started",
+          "https://www.prisma.io/docs/orm/v7/prisma-migrate/workflows/development-and-production",
+          "https://www.prisma.io/docs/orm/v7/core-concepts/supported-databases",
+          "https://www.prisma.io/docs/orm/coming-from-prisma-orm-7",
+          "https://developers.cloudflare.com/hyperdrive/examples/connect-to-postgres/postgres-drivers-and-libraries/prisma-orm/"
+        ]
+      },
+      {
+        "id": "kysely",
+        "name": "Kysely",
+        "kind": "query-builder",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql"
+        ],
+        "runtimes": [
+          "workers",
+          "node"
+        ],
+        "migrations": {
+          "tool": "kysely-ctl",
+          "generate": [
+            "pnpm",
+            "kysely",
+            "migrate",
+            "make",
+            "<name>"
+          ],
+          "apply": [
+            "pnpm",
+            "kysely",
+            "migrate",
+            "latest"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "Query builder de SQL con tipos, no un ORM: las migraciones se escriben a mano y corren con su `Migrator` o con la CLI opcional kysely-ctl (`kysely init` crea su configuración). MariaDB solo tiene dialecto de terceros: fuera. En Workers conecta por Hyperdrive con `pg` ≥ 8.16.3 o `mysql2` ≥ 3.13.0 (Kysely ≥ 0.26.3 en PostgreSQL).",
+        "sources": [
+          "https://kysely.dev/docs/intro",
+          "https://kysely.dev/docs/migrations",
+          "https://kysely.dev/docs/dialects",
+          "https://github.com/kysely-org/kysely-ctl",
+          "https://developers.cloudflare.com/hyperdrive/examples/connect-to-postgres/",
+          "https://developers.cloudflare.com/hyperdrive/examples/connect-to-mysql/"
+        ]
+      }
+    ]
+  }
+}

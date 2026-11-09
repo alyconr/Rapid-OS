@@ -547,6 +547,7 @@ class InitSharesTheSetupTests(unittest.TestCase):
         self.addCleanup(lambda: __import__("shutil").rmtree(other, ignore_errors=True))
         decide_everything(other)
         rapid(other, "setup", "set", "services", "database:postgresql")  # what the stack template says
+        rapid(other, "setup", "set", "data-access", "--recommended")
         for doc_id in FILES:
             rapid(other, "setup", "doc", doc_id, "--skip")
         self.assertEqual(rapid(other, "setup", "finish").returncode, 0)

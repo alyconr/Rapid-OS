@@ -1,0 +1,13 @@
+# 📦 TECH STACK: HONO
+- **Runtime:** Cloudflare Workers (`compatibility_date` set to the day the project starts), TypeScript strict.
+- **Framework:** Hono 4.
+- **Validation:** `hono/validator` with a third-party validator.
+- **ORM:** Drizzle ORM + drizzle-kit (migrations).
+- **Database:** PostgreSQL + pg.
+- **Connections:** Hyperdrive binding in production; `localConnectionString` (or `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<BINDING>`) with `wrangler dev`. Migrations run from CI or locally against the direct connection string, not from the Worker.
+- **Alternative database:** D1 (SQLite semantics), with its own `wrangler d1 migrations`. It is not a service of the catalog yet.
+- **Testing:** Vitest with `@cloudflare/vitest-plugin` (Vitest 4.1 or later) for bindings and `app.request()` for routes.
+- **Linting:** ESLint + typescript-eslint.
+- **Package manager:** pnpm.
+- **Alternative runtimes:** the same code runs on Node.js (`@hono/node-server`), Bun and Deno; only the bindings are Cloudflare's.
+- **Version Control:** Git.

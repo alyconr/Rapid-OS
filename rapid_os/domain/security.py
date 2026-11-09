@@ -17,7 +17,7 @@ AI_STACKS = frozenset({"python-ai", "nodejs-ai"})
 API_STACKS = frozenset(
     {
         "python-api", "python-ai", "nodejs-ai", "web-modern",
-        "python-fastapi", "python-django", "node-nestjs", "node-fastify", "go", "rust-axum", "ruby-rails",
+        "python-fastapi", "python-django", "node-nestjs", "node-fastify", "hono", "go", "rust-axum", "ruby-rails",
         "dotnet-aspnetcore", "java-spring-boot", "kotlin-spring-boot", "php-laravel",
         "nextjs", "nuxt", "sveltekit",
         # A BaaS exposes its data API to the browser: the API Security Top 10 applies.
@@ -43,6 +43,7 @@ CI_LANGUAGE_BY_STACK: Mapping[str, str] = {
     "python-django": "python",
     "node-nestjs": "typescript",
     "node-fastify": "typescript",
+    "hono": "typescript",
     "nextjs": "typescript",
     "nuxt": "typescript",
     "sveltekit": "typescript",

@@ -23,6 +23,12 @@ from rapid_os.domain.catalog import (
 from rapid_os.domain.project import ProjectModel
 from rapid_os.domain.scanner import suggest_init_choices
 from rapid_os.domain.stack_aliases import LEGACY_STACKS
+from rapid_os.domain.data_access import (
+    data_access_action_payload,
+    data_access_doc_payload,
+    needs_data_access_choice,
+    platform_notes,
+)
 from rapid_os.domain.services import active_conditions, describe_services
 from rapid_os.domain.baas import BAAS_PROVIDERS, RULES_TEST_NOTE, rules_test_command
 from rapid_os.domain.setup import (
@@ -113,8 +119,8 @@ def next_setup_action(
     detected_agent: str | None = None,
     legacy_business: str | None = None,
 ) -> SetupAction:
-    """Order: stack, topology, archetype, ai, agents, test command, docs (brief, business), services,
-    docs (data-model, architecture, deployment), review of the drafts, finish, done.
+    """Order: stack, topology, archetype, ai, agents, test command, docs (brief, business), services, data
+    access, docs (data-model, architecture, deployment), review of the drafts, finish, done.
 
     Everything that needs the filesystem or the environment (the proposed test command, the
     detected harness) arrives as an argument: this function reads nothing.
@@ -184,9 +190,13 @@ def next_setup_action(
         if state.doc(doc_id).status == "pending":
             if doc_id in AFTER_SERVICES_DOCS and state.services is None:
                 return _choose_services(state, catalog)
+            if doc_id in AFTER_SERVICES_DOCS and needs_data_access_choice(state, catalog):
+                return _action(SetupActionKind.CHOOSE_DATA_ACCESS, **data_access_action_payload(state, catalog))
             return _resolve_doc(doc_id, doc_banks[doc_id], legacy_business, state, catalog)
     if state.services is None:
         return _choose_services(state, catalog)
+    if needs_data_access_choice(state, catalog):
+        return _action(SetupActionKind.CHOOSE_DATA_ACCESS, **data_access_action_payload(state, catalog))
     unconfirmed = _unconfirmed_docs(state)
     if unconfirmed and not state.drafts_reviewed and not state.finished:
         return _review_drafts(unconfirmed, doc_banks)
@@ -479,6 +489,14 @@ def _resolve_doc(
                 for s in bank.conditional_sections
                 if s.when in conditions
             ]
+    if doc_id == "data-model" and state is not None and catalog is not None:
+        access = data_access_doc_payload(state, catalog)
+        if access:
+            extra["data_access"] = access
+    if doc_id == "deployment" and state is not None and catalog is not None:
+        notes = platform_notes(state, catalog)
+        if notes:
+            extra["platform_notes"] = notes
     if doc_id == "architecture" and state is not None:
         standard = architecture_standard({component: choice.id for component, choice in state.stacks.items()})
         if standard:

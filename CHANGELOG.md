@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Data access per stack: every backend stack declares `data_access` (ORM, query builder, driver or ODM, with engines, runtimes, migration commands or schema validation, notes and official sources). New onboarding step `choose_data_access`, `rapid setup set data-access <id> [--component backend]` and `--recommended`; a single compatible option is fixed and reported. It is stored in `setup.json` as an optional field. `tech-stack.md` names the option chosen and the `data-model` action carries its commands.
+- Stack `hono`: Hono on Cloudflare Workers, with PostgreSQL and MySQL through Hyperdrive. `rapid setup set services` rejects RabbitMQ, Kafka and other engines it cannot use, naming the platform's alternative. The scanner suggests it from the `hono` dependency.
+- Deployment template `cloudflare` (`rapid deploy --target cloudflare`). The scanner detects `wrangler.json` and `wrangler.jsonc` as well as `wrangler.toml`. The `deployment` action carries `platform_notes.cloudflare` when the backend's data access option (the recommended one if none was chosen) or a decided service (`@now` or `@later`) has no equivalent in Workers, with the platform's alternative and without blocking. One map in `rapid_os/domain/data_access.py` gives those alternatives, and a test checks that `hono.json` and the Cloudflare template say the same.
+
+### Changed
+
+- The stack templates name one data access option instead of several (`Prisma / Drizzle`, `TypeORM / Prisma / Drizzle`, `Spring Data JPA / JDBC`). `hosting_fit` accepts `edge`. `gate.architecture` also forbids `drizzle-orm` and `kysely` in the domain layer of `node-fastify` and `node-nestjs`.
+
 ### Fixed
 
 - The live smoke test of `docs-deploy.yml` looked for the Spanish heading at the English route `/tutorials`, so every deployment ended in failure after publishing the site. It now checks each language at its own route, and a test without network access compares those headings with their source pages.

@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass
 from typing import Iterable, Mapping
 
-from rapid_os.domain.catalog import SERVICE_ROLES, Catalog, ServiceEntry, StackEntry
+from rapid_os.domain.catalog import SERVICE_ROLES, Catalog, DataAccessOption, ServiceEntry, StackEntry
 from rapid_os.domain.setup import SERVICE_WHEN, ServiceChoice
 
 NO_SERVICES = "none"
@@ -133,10 +133,11 @@ def check_stack_compatibility(choices: Iterable[ServiceChoice], stack_id: str | 
         if entry.supported_services is not None:
             if choice.engine not in entry.supported_services:
                 supported = ", ".join(sorted(entry.supported_services)) or "none"
+                alternative = entry.service_alternatives.get(choice.engine)
                 raise ServiceInputError(
                     "RAPID1402",
                     f"Stack '{entry.id}' ({entry.language}) has no driver for '{choice.engine}'. "
-                    f"Engines it supports: {supported}.",
+                    f"Engines it supports: {supported}." + (f" Alternative: {alternative}" if alternative else ""),
                 )
             continue
         service = catalog.services.get(choice.engine)
@@ -441,14 +442,35 @@ _ROLE_LABEL = {
 }
 
 
+_DATA_ACCESS_LABEL = {"orm": "ORM", "odm": "ODM", "query-builder": "Query builder", "driver": "Data access"}
+
+
+def _data_access_lines(option: DataAccessOption) -> list[str]:
+    """The lines that name the chosen option: its name, the migrations tool or the schema validation."""
+    label = _DATA_ACCESS_LABEL[option.kind]
+    if option.migrations is not None:
+        lines = [f"- **{label}:** {option.name} + {option.migrations.tool} (migrations)."]
+    else:
+        lines = [f"- **{label}:** {option.name}."]
+    if option.schema_validation:
+        lines.append(f"- **Schema validation:** {option.schema_validation}")
+    return lines
+
+
 def render_tech_stack(
-    text: str, language: str, choices: Iterable[ServiceChoice] | None, catalog: Catalog, stack: StackEntry | None = None
+    text: str,
+    language: str,
+    choices: Iterable[ServiceChoice] | None,
+    catalog: Catalog,
+    stack: StackEntry | None = None,
+    data_access: DataAccessOption | None = None,
 ) -> str:
     """The database and driver lines of a stack's `tech-stack.md`, from the services decision.
 
     The stack no longer imposes the engine: `- **Database:**` (and the `- **ORM:**` line, which only
     SQL engines keep) are rewritten, and the other roles add a line each. Text without those lines
-    keeps them out unless a database was chosen."""
+    keeps them out unless a database was chosen. With a data access decision, its option replaces the
+    `- **ORM:**` and `- **Data access:**` lines of the template."""
     chosen = tuple(choices or ())
     database = next((c for c in chosen if c.role == "database"), None)
     entry = catalog.services.get(database.engine) if database else None
@@ -458,14 +480,18 @@ def render_tech_stack(
     lines = text.split("\n")
     had_database_line = any(ln.startswith("- **Database:**") for ln in lines)
     kept = [ln for ln in lines if not ln.startswith("- **ORM:**") and not ln.startswith("- **Database:**")]
+    if data_access is not None:
+        kept = [ln for ln in kept if not ln.startswith("- **Data access:**")]
     new: list[str] = []
     if entry is not None and driver is not None:
         orm = driver.get("orm")
-        if orm:
+        if data_access is not None:
+            new += _data_access_lines(data_access)
+        elif orm:
             new.append(f"- **ORM:** {orm}.")
         label = f"{_DISPLAY.get(entry.id, entry.id)} {entry.version}{' LTS' if entry.lts else ''}"
         new.append(f"- **Database:** {label} + {driver['package']}{when}.")
-        if not orm and language == "python" and (stack is None or stack.language.lower() == "python"):
+        if data_access is None and not orm and language == "python" and (stack is None or stack.language.lower() == "python"):
             new.append("- **Migrations:** versioned scripts (no SQL ORM for this engine).")
     elif had_database_line:
         new.append("- **Database:** none (no database service was decided).")

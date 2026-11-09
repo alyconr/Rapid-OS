@@ -22,7 +22,8 @@ from rapid_os.domain.services import (
     render_env_example,
     render_tech_stack,
 )
-from rapid_os.domain.setup import DocState, ServiceChoice, SetupActionKind, SetupState, StackChoice
+from rapid_os.domain.data_access import recommended_id
+from rapid_os.domain.setup import DataAccessChoice, DocState, ServiceChoice, SetupActionKind, SetupState, StackChoice
 from rapid_os.orchestration.setup_conductor import next_setup_action
 from tests.stack_helpers import complete_stacks
 from tests.test_no_git import GitIsolated, approve
@@ -43,12 +44,20 @@ def next_action(state):
     )
 
 
+def with_data_access(state: SetupState) -> SetupState:
+    """The data access recommended for the decided database: those decisions are not what these tests look at."""
+    recommended = recommended_id(state, CATALOG)
+    if recommended is None:
+        return state
+    return SetupState.from_dict({**state.to_dict(), "data_access": {"backend": DataAccessChoice(recommended).to_dict()}})
+
+
 def decided(services=None, skipped=("brief", "business"), stack="python-api") -> SetupState:
-    return SetupState(
+    return with_data_access(SetupState(
         stacks=complete_stacks(stack), topology="fullstack-separated", archetype="mvp", ai=False,
         agents=("codex",), test_command=(), services=services,
         docs={doc: DocState("skipped") for doc in skipped},
-    )
+    ))
 
 
 class CatalogTests(unittest.TestCase):
@@ -218,6 +227,7 @@ class Project(GitIsolated):
             agents=("codex",), test_command=(), services=tuple(ServiceChoice(**s) for s in services),
             docs={doc: DocState("skipped") for doc in ALL_DOCS},
         )
+        state = with_data_access(state)
         path = self.root / ".rapid-os" / "setup.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(state.to_dict(), indent=2), encoding="utf-8")
@@ -387,6 +397,7 @@ class ConfigTests(unittest.TestCase):
             ("stack", "python-api"), ("topology", "fullstack-separated"), ("stack", "react-vite"),
             ("archetype", "mvp"), ("ai", "no"),
             ("agents", "codex"), ("test-command", self.TEST_COMMAND), ("services", "database:mysql@now"),
+            ("data-access", "sqlalchemy-async"),
         ):
             self.assertEqual(self.rapid("setup", "set", key, value).returncode, 0)
         for doc in ALL_DOCS:

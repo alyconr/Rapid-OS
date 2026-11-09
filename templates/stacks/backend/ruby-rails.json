@@ -125,5 +125,70 @@
       "driver": "rdkafka",
       "url": "localhost:9092"
     }
+  },
+  "data_access": {
+    "default": {
+      "relational": "active-record",
+      "document": "mongoid"
+    },
+    "options": [
+      {
+        "id": "active-record",
+        "name": "Active Record",
+        "kind": "orm",
+        "models": [
+          "relational"
+        ],
+        "engines": [
+          "postgresql",
+          "mysql",
+          "mariadb"
+        ],
+        "runtimes": [
+          "ruby"
+        ],
+        "migrations": {
+          "tool": "rails db:migrate",
+          "generate": [
+            "bin/rails",
+            "generate",
+            "migration",
+            "<name>"
+          ],
+          "apply": [
+            "bin/rails",
+            "db:migrate"
+          ]
+        },
+        "schema_validation": null,
+        "notes": "El ORM de Rails.",
+        "sources": [
+          "https://guides.rubyonrails.org/active_record_basics.html",
+          "https://guides.rubyonrails.org/active_record_migrations.html",
+          "https://guides.rubyonrails.org/configuring.html"
+        ]
+      },
+      {
+        "id": "mongoid",
+        "name": "Mongoid",
+        "kind": "odm",
+        "models": [
+          "document"
+        ],
+        "engines": [
+          "mongodb"
+        ],
+        "runtimes": [
+          "ruby"
+        ],
+        "migrations": null,
+        "schema_validation": "Validaciones de ActiveModel en cada modelo: aplican en la aplicación, no a las escrituras hechas fuera de ella.",
+        "notes": "El ODM con soporte oficial de MongoDB para Ruby.",
+        "sources": [
+          "https://www.mongodb.com/docs/mongoid/current/",
+          "https://www.mongodb.com/docs/mongoid/current/data-modeling/validation/"
+        ]
+      }
+    ]
   }
 }
