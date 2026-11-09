@@ -243,6 +243,14 @@ class ManagedBlockTests(unittest.TestCase):
         self.assertTrue(text.startswith("*.png binary\n* text=auto\n\n"), text)
         self.assertTrue(text.endswith(f"{GITATTRIBUTES_BEGIN}\n{LINE_ENDINGS_RULE}\n{GITATTRIBUTES_END}\n"), text)
 
+    def test_a_rule_added_by_hand_outside_the_block_is_enough(self):
+        original = f"* text=auto\n{LINE_ENDINGS_RULE}\n*.png binary\n"
+        self.path.write_bytes(original.replace("\n", "\r\n").encode("utf-8"))
+        before = self.path.read_bytes()
+        self.assertFalse(update_gitattributes(self.root))
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertNotIn(GITATTRIBUTES_BEGIN, self.path.read_text(encoding="utf-8"))
+
     def test_only_the_block_is_rewritten(self):
         self.path.write_text(
             f"antes -text\n{GITATTRIBUTES_BEGIN}\nviejo -text\n{GITATTRIBUTES_END}\ndespues -text\n", encoding="utf-8"
