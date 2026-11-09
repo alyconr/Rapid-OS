@@ -6,6 +6,7 @@ using domain models and registries without direct CLI dependence.
 
 from __future__ import annotations
 
+from functools import wraps
 from dataclasses import replace
 import json
 from pathlib import Path
@@ -333,6 +334,27 @@ def verification_warning(project_root: Path, project_rapid_dir: Path) -> str | N
         return None
 
 
+def _unconfirmed_docs(project_root: Path, project_rapid_dir: Path, templates_dir: Path | None) -> tuple[dict[str, str], ...]:
+    from rapid_os.adapters.project_docs import load_project_docs
+
+    docs = load_project_docs(project_root, project_rapid_dir, templates_dir)
+    return tuple({"id": doc.id, "file": doc.bank.file} for doc in docs.managed.values() if doc.unconfirmed_draft)
+
+
+def _reports_unconfirmed_docs(execute):
+    """Every action of `rapid start` and `rapid next` says which drafts no person has confirmed."""
+
+    @wraps(execute)
+    def wrapper(project_root, project_rapid_dir, *args, **kwargs):
+        code, result = execute(project_root, project_rapid_dir, *args, **kwargs)
+        if isinstance(result, NextAction):
+            pending = _unconfirmed_docs(project_root, project_rapid_dir, kwargs.get("templates_dir"))
+            result = replace(result, unconfirmed_docs=pending)
+        return code, result
+
+    return wrapper
+
+
 def _decorate_action(action: NextAction, sess: Session | None) -> NextAction:
     """Tell the agent where to work when the run has an isolated worktree."""
     if sess is None or not sess.workspace_path:
@@ -350,6 +372,7 @@ def _decorate_action(action: NextAction, sess: Session | None) -> NextAction:
     )
 
 
+@_reports_unconfirmed_docs
 def execute_start(
     project_root: Path,
     project_rapid_dir: Path,
@@ -810,6 +833,7 @@ def execute_start(
     return 0, _decorate_action(action, sess)
 
 
+@_reports_unconfirmed_docs
 def execute_next(
     project_root: Path,
     project_rapid_dir: Path,

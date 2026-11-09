@@ -351,10 +351,10 @@ class CiWorkflowTests(Project):
         done = self.rapid("setup", "finish", "--json")
         self.assertEqual(done.returncode, 0, done.stderr)
         payload = json.loads(done.stdout)
-        self.assertEqual(
-            payload["added_files"],
-            [{"file": ci_workflow_path("python"), "note": "Rapid OS añadió este workflow; revísalo antes del primer commit"}],
-        )
+        added = {item["file"]: item["note"] for item in payload["added_files"]}
+        self.assertEqual(added.pop(ci_workflow_path("python")), "Rapid OS añadió este workflow; revísalo antes del primer commit")
+        self.assertIn("finales de línea", added.pop(".gitattributes"))
+        self.assertEqual(added, {})
 
     def test_the_review_of_the_drafts_announces_it_beforehand(self):
         self.decide("python-api", "fullstack-separated", "mvp", "no")

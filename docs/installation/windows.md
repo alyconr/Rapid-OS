@@ -93,7 +93,26 @@ rapid doctor
 
 Continue to [Detailed installation verification](./verification.md).
 
-## 6. Start using shortcuts
+## 6. Line endings in git {#line-endings-in-git}
+
+Rapid OS verifies evidence byte by byte. Git for Windows comes with `core.autocrlf=true`, which changes line endings in both directions: `git add` stores LF for a file that has some CRLF, and a checkout turns LF into CRLF. Without protection, `rapid evidence verify`, `rapid eval show`, and `rapid validate` fail in a clone with `RAPID1205` and `RAPID1223`.
+
+`rapid setup finish` and `rapid init` add this rule to `.gitattributes`, in a managed block that leaves the rest of the file alone. Commit the file together with `.rapid-os/`:
+
+```text
+# RAPID-OS:BEGIN
+.rapid-os/** -text
+# RAPID-OS:END
+```
+
+`rapid doctor` warns with `RAPID1436` when the rule is missing. Run `rapid setup finish` to add it. If `.rapid-os/` is already committed:
+
+- **In the copy where `rapid evidence verify` passes** (it holds the bytes Rapid OS wrote): add the rule, run `git add --renormalize .rapid-os/`, and commit.
+- **In a clone that already fails:** do not renormalize, because it would store the converted bytes. Bring `.rapid-os/` from the good copy.
+
+Verification stays strict: it does not accept a converted file. With mixed line endings the original cannot be rebuilt from the converted one, so `RAPID1437` names the probable cause without trying to prove it.
+
+## 7. Start using shortcuts
 
 If you selected your agent in the installer's final prompt, open it in your project folder and enter:
 ```text
