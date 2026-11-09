@@ -113,12 +113,12 @@
     }
   },
   "service_alternatives": {
-    "rabbitmq": "Cloudflare Queues, con otra semántica: entrega al menos una vez, en lotes y con reintentos. Si necesitas RabbitMQ, usa un backend con proceso persistente (node-fastify).",
-    "kafka": "Cloudflare Queues, con otra semántica: entrega al menos una vez, en lotes y con reintentos. Si necesitas Kafka, usa un backend con proceso persistente (node-fastify).",
-    "redis": "Workers KV para clave-valor de lectura frecuente (consistencia eventual: no es Redis), o un backend con proceso persistente (node-fastify).",
-    "valkey": "Workers KV para clave-valor de lectura frecuente (consistencia eventual: no es Redis), o un backend con proceso persistente (node-fastify).",
-    "mongodb": "Cloudflare no tiene servicio propio de MongoDB documentado y Hyperdrive solo conecta PostgreSQL y MySQL: usa uno de esos motores o un backend con proceso persistente (node-fastify).",
-    "mariadb": "Hyperdrive admite MariaDB, pero ninguna opción de acceso a datos de este catálogo lo cita desde Workers: usa mysql o postgresql."
+    "rabbitmq": "Cloudflare Queues, con otra semántica: entrega al menos una vez, en lotes y con reintentos; el consumidor debe ser idempotente. Si necesitas RabbitMQ, usa un backend con proceso persistente (node-fastify).",
+    "kafka": "Cloudflare Queues, con otra semántica: entrega al menos una vez, en lotes y con reintentos; el consumidor debe ser idempotente. Si necesitas Kafka, usa un backend con proceso persistente (node-fastify).",
+    "redis": "Workers KV para clave-valor de lectura frecuente: consistencia eventual y sin operaciones atómicas; no es Redis. Si necesitas Redis, usa un backend con proceso persistente (node-fastify).",
+    "valkey": "Workers KV para clave-valor de lectura frecuente: consistencia eventual y sin operaciones atómicas; no es Redis. Si necesitas Valkey, usa un backend con proceso persistente (node-fastify).",
+    "mongodb": "Cloudflare no tiene servicio propio de MongoDB documentado y Hyperdrive solo conecta PostgreSQL y MySQL: fuera de Cloudflare. Usa uno de esos motores o un backend con proceso persistente (node-fastify).",
+    "mariadb": "Hyperdrive admite MariaDB, pero ninguna opción de acceso a datos de este catálogo la cita desde Workers: usa mysql o postgresql."
   },
   "data_access": {
     "default": {

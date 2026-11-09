@@ -18,12 +18,13 @@ Plantilla de partida para `docs/DEPLOYMENT.md`. Rapid OS no despliega: lo haces 
 | Rol | Opción |
 |---|---|
 | database (postgresql, mysql) | Hyperdrive hacia una base externa (Supabase, Neon...), con conexiones en pool. Desde JS/TS: `pg` ≥ 8.16.3 (recomendado) o `postgres` ≥ 3.4.5; `mysql2` ≥ 3.13.0 |
+| database (mariadb) | Hyperdrive admite MariaDB, pero ninguna opción de acceso a datos de este catálogo la cita desde Workers: usa mysql o postgresql |
 | database (sqlite) | D1, con semántica de SQLite y sus propias migraciones (`wrangler d1 migrations`) |
-| queue | Queues. Semántica distinta de RabbitMQ: entrega al menos una vez, en lotes y con reintentos, así que el consumidor debe ser idempotente |
+| queue (rabbitmq), stream (kafka) | Cloudflare Queues, con otra semántica: entrega al menos una vez, en lotes y con reintentos; el consumidor debe ser idempotente |
 | object-storage | R2 |
-| cache, clave-valor | KV. No es Redis: consistencia eventual (un cambio puede tardar 60 s o más en otras ubicaciones) y sin operaciones atómicas |
+| cache (redis, valkey), clave-valor | Workers KV para clave-valor de lectura frecuente: consistencia eventual y sin operaciones atómicas; no es Redis (un cambio puede tardar 60 s o más en otras ubicaciones) |
 | tiempo real, WebSockets | Durable Objects, con la API de hibernación de WebSockets |
-| mongodb, redis | Sin servicio propio documentado: fuera de Cloudflare |
+| database (mongodb) | Cloudflare no tiene servicio propio de MongoDB documentado y Hyperdrive solo conecta PostgreSQL y MySQL: fuera de Cloudflare |
 
 ## Con Supabase
 - Crea la configuración de Hyperdrive con la cadena **Direct connection** de Supabase, no con las de pool: Hyperdrive ya gestiona el pool. Desde el Worker conecta con `pg` o Postgres.js, no con el cliente JavaScript de Supabase.

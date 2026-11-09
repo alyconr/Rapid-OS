@@ -35,6 +35,29 @@ SCHEMA_VALIDATION_INSTRUCTION = (
 WORKERS_RUNTIMES = frozenset({"workers", "python-workers"})
 PYTHON_WORKERS_URL = "https://developers.cloudflare.com/hyperdrive/examples/python-workers/"
 CONTAINERS_URL = "https://developers.cloudflare.com/containers/"
+# What Cloudflare offers instead of each engine of the catalog that does not run from Workers. The one source of the
+# `deployment` note, of `service_alternatives` in `hono.json` and of `templates/deploy/cloudflare.md` (a test compares).
+QUEUES_ALTERNATIVE = (
+    "Cloudflare Queues, con otra semántica: entrega al menos una vez, en lotes y con reintentos; el consumidor debe "
+    "ser idempotente."
+)
+KV_ALTERNATIVE = "Workers KV para clave-valor de lectura frecuente: consistencia eventual y sin operaciones atómicas; no es Redis."
+CLOUDFLARE_SERVICE_ALTERNATIVES = {
+    "rabbitmq": QUEUES_ALTERNATIVE,
+    "kafka": QUEUES_ALTERNATIVE,
+    "redis": KV_ALTERNATIVE,
+    "valkey": KV_ALTERNATIVE,
+    "mongodb": "Cloudflare no tiene servicio propio de MongoDB documentado y Hyperdrive solo conecta PostgreSQL y MySQL: fuera de Cloudflare.",
+    "mariadb": "Hyperdrive admite MariaDB, pero ninguna opción de acceso a datos de este catálogo la cita desde Workers: usa mysql o postgresql.",
+}
+CLOUDFLARE_SERVICE_SOURCES = {
+    "rabbitmq": "https://developers.cloudflare.com/queues/reference/delivery-guarantees/",
+    "kafka": "https://developers.cloudflare.com/queues/reference/delivery-guarantees/",
+    "redis": "https://developers.cloudflare.com/kv/concepts/how-kv-works/",
+    "valkey": "https://developers.cloudflare.com/kv/concepts/how-kv-works/",
+    "mongodb": "https://developers.cloudflare.com/hyperdrive/reference/supported-databases-and-features/",
+    "mariadb": "https://developers.cloudflare.com/hyperdrive/reference/supported-databases-and-features/",
+}
 ASYNC_SQLALCHEMY = "sqlalchemy-async"
 SYNC_SQLALCHEMY = "sqlalchemy-sync"
 
@@ -184,35 +207,63 @@ def data_access_doc_payload(state: SetupState, catalog: Catalog) -> dict | None:
     }
 
 
-def _cloudflare_note(state: SetupState, catalog: Catalog) -> dict | None:
-    """Whether the backend decided runs in Workers. It informs and blocks nothing; None when it fits."""
+def _judged_option(state: SetupState, catalog: Catalog, entry: StackEntry) -> DataAccessOption | None:
+    """The option chosen; without a choice (a project finished before this step) the one recommended for the
+    engine, which is the one `tech-stack.md` describes. None without a database."""
+    option = chosen_option(state, catalog)
+    if option is None:
+        engine = database_engine(state)
+        option = recommended_option(entry, engine) if engine else None
+    return option
+
+
+def _cloudflare_backend_line(state: SetupState, catalog: Catalog) -> tuple[str, str] | None:
+    """Whether the backend decided runs in Workers: `(line, source)`, or None when it fits."""
     entry = _stack_entry(state, catalog, BACKEND)
     if entry is None or entry.data_access is None:
         return None
-    option = chosen_option(state, catalog)
+    option = _judged_option(state, catalog, entry)
     if option is None:
-        runs_in_workers = any(WORKERS_RUNTIMES & set(o.runtimes) for o in entry.data_access.options)
-        if runs_in_workers:
+        if any(WORKERS_RUNTIMES & set(o.runtimes) for o in entry.data_access.options):
             return None
     elif WORKERS_RUNTIMES & set(option.runtimes):
         return None
     if option is not None and option.id == ASYNC_SQLALCHEMY:
-        return {
-            "note": (
-                f"{entry.id} + {option.name} no corre en Python Workers: Cloudflare solo admite ORMs síncronos de "
-                "SQLAlchemy, por falta de greenlet. Usa la variante síncrona "
-                f"(`rapid setup set data-access {SYNC_SQLALCHEMY}`) o aloja la API fuera de Workers."
-            ),
-            "source": PYTHON_WORKERS_URL,
-        }
+        return (
+            f"{entry.id} + {option.name} no corre en Python Workers: Cloudflare solo admite ORMs síncronos de "
+            "SQLAlchemy, por falta de greenlet. Usa la variante síncrona "
+            f"(`rapid setup set data-access {SYNC_SQLALCHEMY}`) o aloja la API fuera de Workers.",
+            PYTHON_WORKERS_URL,
+        )
     shown = f"{entry.id} + {option.name}" if option is not None else entry.id
-    return {
-        "note": (
-            f"Este catálogo no documenta {shown} en Workers: aloja la API en otra plataforma o en Cloudflare "
-            "Containers, y deja el frontend en Cloudflare."
-        ),
-        "source": CONTAINERS_URL,
-    }
+    return (
+        f"Este catálogo no documenta {shown} en Workers: aloja la API en otra plataforma o en Cloudflare "
+        "Containers, y deja el frontend en Cloudflare.",
+        CONTAINERS_URL,
+    )
+
+
+def _cloudflare_note(state: SetupState, catalog: Catalog) -> dict | None:
+    """The backend and every decided service (`@now` or `@later`) without an equivalent in Workers, with the
+    platform's alternative. It informs and blocks nothing; None when everything fits."""
+    lines: list[str] = []
+    sources: list[str] = []
+    backend = _cloudflare_backend_line(state, catalog)
+    if backend is not None:
+        lines.append(backend[0])
+        sources.append(backend[1])
+    seen: set[str] = set()
+    for choice in state.services or ():
+        alternative = CLOUDFLARE_SERVICE_ALTERNATIVES.get(choice.engine)
+        if alternative is None or choice.engine in seen:
+            continue
+        seen.add(choice.engine)
+        lines.append(f"{choice.role}:{choice.engine}@{choice.when} no corre en Workers. Alternativa: {alternative}")
+        if CLOUDFLARE_SERVICE_SOURCES[choice.engine] not in sources:
+            sources.append(CLOUDFLARE_SERVICE_SOURCES[choice.engine])
+    if not lines:
+        return None
+    return {"note": "\n".join(lines), "lines": lines, "sources": sources}
 
 
 def platform_notes(state: SetupState, catalog: Catalog) -> dict[str, dict]:

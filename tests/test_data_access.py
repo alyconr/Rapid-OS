@@ -21,6 +21,7 @@ from rapid_os.domain.data_access import (
     chosen_option,
     effective_stack,
     needs_data_access_choice,
+    CLOUDFLARE_SERVICE_ALTERNATIVES,
     platform_notes,
     reconcile_data_access,
 )
@@ -329,7 +330,7 @@ class CloudflareTests(Project):
         notes = platform_notes(state_for("python-fastapi", "postgresql", choice="sqlalchemy-async"), CATALOG)
         self.assertIn("no corre en Python Workers", notes["cloudflare"]["note"])
         self.assertIn("sqlalchemy-sync", notes["cloudflare"]["note"])
-        self.assertTrue(notes["cloudflare"]["source"].startswith("https://developers.cloudflare.com/"))
+        self.assertTrue(all(s.startswith("https://developers.cloudflare.com/") for s in notes["cloudflare"]["sources"]))
 
     def test_no_note_when_it_fits(self):
         self.assertEqual(platform_notes(state_for("hono", "postgresql", choice="drizzle"), CATALOG), {})
@@ -340,6 +341,52 @@ class CloudflareTests(Project):
         self.assertIn("Containers", note)
         beanie = platform_notes(state_for("python-fastapi", "mongodb", choice="beanie"), CATALOG)["cloudflare"]["note"]
         self.assertNotIn("sqlalchemy", beanie)
+
+    def test_a_project_finished_without_a_choice_is_judged_by_its_recommended_option(self):
+        finished = replace(state_for("python-fastapi", "postgresql"), finished=True)
+        note = platform_notes(finished, CATALOG)["cloudflare"]["note"]
+        self.assertIn("SQLAlchemy 2 (async)", note)
+        self.assertIn("no corre en Python Workers", note)
+        sync = replace(finished, data_access={"backend": DataAccessChoice("sqlalchemy-sync")})
+        self.assertEqual(platform_notes(sync, CATALOG), {})
+        # Without a database the stack is judged as a whole: FastAPI does run in Python Workers.
+        self.assertEqual(platform_notes(replace(finished, services=()), CATALOG), {})
+
+    def test_a_service_without_an_equivalent_adds_a_line_with_the_alternative(self):
+        state = replace(
+            state_for("python-fastapi", "postgresql", choice="sqlalchemy-sync"),
+            services=(ServiceChoice("database", "postgresql"), ServiceChoice("queue", "rabbitmq")),
+        )
+        note = platform_notes(state, CATALOG)["cloudflare"]
+        self.assertEqual(len(note["lines"]), 1)
+        self.assertIn("queue:rabbitmq@now", note["note"])
+        self.assertIn("Cloudflare Queues", note["note"])
+        self.assertIn("idempotente", note["note"])
+
+    def test_a_later_service_counts_too_and_each_engine_has_its_line(self):
+        state = replace(
+            state_for("python-fastapi", "postgresql", choice="sqlalchemy-async"),
+            services=(ServiceChoice("database", "postgresql"), ServiceChoice("cache", "redis", "later"),
+                      ServiceChoice("stream", "kafka", "later")),
+        )
+        note = platform_notes(state, CATALOG)["cloudflare"]
+        self.assertEqual(len(note["lines"]), 3)  # the ORM, redis and kafka
+        self.assertIn("cache:redis@later", note["note"])
+        self.assertIn("no es Redis", note["note"])
+        self.assertIn("stream:kafka@later", note["note"])
+
+    def test_hono_with_postgresql_has_no_note(self):
+        self.assertEqual(platform_notes(state_for("hono", "postgresql"), CATALOG), {})
+
+    def test_the_stack_and_the_template_say_the_same_as_the_note(self):
+        hono = CATALOG.stacks["hono"].service_alternatives
+        template = (TEMPLATES / "deploy" / "cloudflare.md").read_text(encoding="utf-8")
+        self.assertEqual(set(hono), set(CLOUDFLARE_SERVICE_ALTERNATIVES))
+        for engine, alternative in CLOUDFLARE_SERVICE_ALTERNATIVES.items():
+            self.assertTrue(hono[engine].startswith(alternative), engine)
+            self.assertIn(alternative.rstrip("."), template, engine)
+        engines = [s for s in CATALOG.services if CATALOG.services[s].role != "database" or s in ("mongodb", "mariadb")]
+        self.assertEqual(set(engines), set(CLOUDFLARE_SERVICE_ALTERNATIVES))
 
     def test_the_deployment_action_carries_the_note_without_blocking(self):
         state = replace(
