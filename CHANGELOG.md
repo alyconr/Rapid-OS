@@ -8,6 +8,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+---
+
+## [3.2.0rc3] - 2026-11-09 (pre-release)
+
+Third release candidate for 3.2.0 (git tag `v3.2.0-rc.3`, PEP 440 version `3.2.0rc3`). The latest stable release is still `v3.1.1`: the README and the installation docs keep documenting it until the final 3.2.0 release, while the installers pin this tag. If you tried rc2, this is what changes:
+
+- **Data access per stack.** Onboarding has a new step, `choose_data_access`: each backend stack names one ORM, query builder, driver or ODM, and `tech-stack.md` and the `data-model` action carry it.
+- **Hono and Cloudflare.** New stack `hono` (Cloudflare Workers) and deployment template `cloudflare`, with compatibility notes when a data access option or a service has no equivalent in Workers.
+- **Line endings on Windows.** `rapid setup finish` and `rapid init` write `.rapid-os/** -text` to `.gitattributes`, so `core.autocrlf` no longer breaks the evidence when you clone on Windows. `rapid doctor` warns with `RAPID1436` when the rule is missing.
+- **Unconfirmed drafts.** `rapid start` and `rapid next` remind you of onboarding documents that are still drafts, with the command that confirms them.
+- **Research runs.** `rapid task done` in a `research` run no longer runs the test command; the task closes as `UNVERIFIED`.
+
+### Upgrading from rc2
+- In a project that already has `.rapid-os/` in commits, run `rapid setup finish` to add the rule to `.gitattributes`. A `.rapid-os/** -text` line you added by hand also counts.
+- Then, in the copy where `rapid evidence verify` passes, run `git add --renormalize .rapid-os/` and commit. Do not renormalize in a clone that already fails: bring `.rapid-os/` from the good copy. `rapid doctor` warns with `RAPID1436` until the rule is there.
+
+### Known issues
+- Outside Claude Code there are no hooks, so nothing stops an agent with a shell from writing to `.rapid-os/` directly. In Claude Code the hooks block it on a best-effort basis.
+- Evidence is not signed: records written directly under `.rapid-os/` can look valid.
+- Research during onboarding arrives in 3.3 (H-37).
+
+### Detailed changes
+
 ### Added
 
 - Data access per stack: every backend stack declares `data_access` (ORM, query builder, driver or ODM, with engines, runtimes, migration commands or schema validation, notes and official sources). New onboarding step `choose_data_access`, `rapid setup set data-access <id> [--component backend]` and `--recommended`; a single compatible option is fixed and reported. It is stored in `setup.json` as an optional field. `tech-stack.md` names the option chosen and the `data-model` action carries its commands.
@@ -22,7 +45,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The live smoke test of `docs-deploy.yml` looked for the Spanish heading at the English route `/tutorials`, so every deployment ended in failure after publishing the site. It now checks each language at its own route, and a test without network access compares those headings with their source pages.
 - The README no longer says that `main` is at `3.2.0.dev0`.
-- With `core.autocrlf=true` (the default of Git for Windows) git changed the line endings of evidence artifacts when adding and when checking out, and `rapid evidence verify`, `rapid eval show` and `rapid validate` failed in a clone with `RAPID1205` and `RAPID1223`. `rapid setup finish` and `rapid init` now write `.rapid-os/** -text` to `.gitattributes` (a managed block between `RAPID-OS:BEGIN` and `RAPID-OS:END`; the rest of the file is not touched), `rapid doctor` warns when the rule is missing (`RAPID1436`), and a failed comparison of a text artifact names the probable cause and the repair (`RAPID1437`). Verification stays strict: a converted file is still rejected.
+- With `core.autocrlf=true` (the default of Git for Windows) git changed the line endings of evidence artifacts when adding and when checking out, and `rapid evidence verify`, `rapid eval show` and `rapid validate` failed in a clone with `RAPID1205` and `RAPID1223`. `rapid setup finish` and `rapid init` now write `.rapid-os/** -text` to `.gitattributes` (a managed block between `RAPID-OS:BEGIN` and `RAPID-OS:END`; the rest of the file is not touched), `rapid doctor` warns when the rule is missing (`RAPID1436`), and a failed comparison of a text artifact names the probable cause and the repair (`RAPID1437`). Verification stays strict: a converted file is still rejected. A `.rapid-os/** -text` line the person added by hand outside the managed block counts as the rule, and the block is not added again.
 - `rapid doctor` gave `RAPID1321` in every project because it compared all the harnesses Rapid OS knows. It now compares the agents chosen in the project; without a configured project it does not warn.
 - Updating Rapid OS made `rapid validate --strict` fail with `RAPID1403` on documents confirmed before a section was required. For a document confirmed with an earlier set of required sections the diagnostic is now informational and points to `rapid setup doc <id> --reopen`. `setup.json` records that set (`confirmed_bank`) at each confirmation, and a document without it counts as earlier; one confirmed with the current sections keeps the warning.
 - `rapid task done T00N` without `--no-check` ran the test command in a `research` run and exited 2 when there was no code yet. In that mode it now behaves as with `--no-check` (same record, `UNVERIFIED`) and says so in one line; `rapid check` evidence of the task counts as usual. Other modes do not change.

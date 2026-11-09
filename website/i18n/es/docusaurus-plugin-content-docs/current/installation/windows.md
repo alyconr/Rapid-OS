@@ -118,7 +118,7 @@ Rapid OS verifica la evidencia byte a byte. Git para Windows trae `core.autocrlf
 # RAPID-OS:END
 ```
 
-`rapid doctor` avisa con `RAPID1436` cuando falta la regla. Ejecuta `rapid setup finish` para añadirla. Si `.rapid-os/` ya está en commits:
+`rapid doctor` avisa con `RAPID1436` cuando falta la regla. Ejecuta `rapid setup finish` para añadirla; una línea `.rapid-os/** -text` que escribiste tú fuera del bloque también vale, y Rapid OS no añade el bloque otra vez. Si `.rapid-os/` ya está en commits:
 
 - **En la copia donde `rapid evidence verify` pasa** (tiene los bytes que escribió Rapid OS): añade la regla, ejecuta `git add --renormalize .rapid-os/` y haz commit.
 - **En un clon que ya falla:** no renormalices, porque guardaría los bytes convertidos. Trae `.rapid-os/` de la copia buena.

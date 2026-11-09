@@ -671,7 +671,8 @@ def update_gitignore(project_root: Path, extra: Sequence[str] = (), *, create: b
 def update_gitattributes(project_root: Path) -> bool:
     """Create `.gitattributes` or add a managed block to it: git must not change the bytes of `.rapid-os/`.
 
-    Only what lies between the markers is ours. Returns whether the file changed. A file that cannot be written is
+    Only what lies between the markers is ours. Without markers, a rule the person wrote by hand is enough and the
+    block is not added. Returns whether the file changed. A file that cannot be written is
     not fatal: `rapid doctor` keeps reporting the missing rule (RAPID1436)."""
     path = Path(project_root) / ".gitattributes"
     block = f"{GITATTRIBUTES_BEGIN}\n{LINE_ENDINGS_RULE}\n{GITATTRIBUTES_END}\n"
@@ -685,6 +686,8 @@ def update_gitattributes(project_root: Path) -> bool:
                 return False
             safe_write_text(path, text[:begin] + block.rstrip("\n") + text[after:], encoding="utf-8")
             return True
+        if any(line.strip() == LINE_ENDINGS_RULE for line in text.splitlines()):
+            return False  # The person already added the rule by hand (as RAPID1436 tells them): it is satisfied.
         separator = ("\n" if not text.endswith("\n") else "") + "\n" if text else ""
         safe_append_text(path, separator + block, encoding="utf-8")
         return True

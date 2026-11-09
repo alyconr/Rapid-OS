@@ -105,7 +105,7 @@ Rapid OS verifies evidence byte by byte. Git for Windows comes with `core.autocr
 # RAPID-OS:END
 ```
 
-`rapid doctor` warns with `RAPID1436` when the rule is missing. Run `rapid setup finish` to add it. If `.rapid-os/` is already committed:
+`rapid doctor` warns with `RAPID1436` when the rule is missing. Run `rapid setup finish` to add it; a `.rapid-os/** -text` line you wrote yourself outside the block also counts, and Rapid OS does not add the block again. If `.rapid-os/` is already committed:
 
 - **In the copy where `rapid evidence verify` passes** (it holds the bytes Rapid OS wrote): add the rule, run `git add --renormalize .rapid-os/`, and commit.
 - **In a clone that already fails:** do not renormalize, because it would store the converted bytes. Bring `.rapid-os/` from the good copy.
