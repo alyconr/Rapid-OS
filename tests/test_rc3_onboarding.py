@@ -100,6 +100,14 @@ class DoctorOverlapTests(Sandbox):
     def test_without_a_configured_project_there_is_no_warning(self):
         self.assertNotIn("RAPID1321", self.doctor_codes())
 
+    def test_only_codex_with_its_own_shortcuts_installed_gets_no_warning(self):
+        """talleres-rc2: a Codex project with its /rapid-* in .agents/skills."""
+        self.onboard(agents="codex")
+        folder = self.root / ".agents" / "skills" / "rapid-feature"
+        folder.mkdir(parents=True)
+        (folder / "SKILL.md").write_text("skill\n", encoding="utf-8")
+        self.assertNotIn("RAPID1321", self.doctor_codes())
+
 
 class ConfirmedWithAnEarlierBankTests(Sandbox):
     """H-41: a section that became required after the confirmation is not a failure of `validate --strict`."""

@@ -1491,8 +1491,12 @@ def doctor_command(args):
 
         # The agents chosen in this project, the ones setup generates shortcuts for: with every harness of the
         # registry the warning would show up in any project. Without a configured project there is nothing to compare.
+        # The names of the /rapid-* Rapid OS generates: a folder of another harness that holds them is an overlap for
+        # a chosen reader (Cursor reads .claude/skills) even before the reader's own shortcuts are installed.
+        from rapid_os.domain.shortcuts import SHORTCUT_NAMES
+
         chosen_agents = _load_config_with_warning(CONFIG_FILE).get("tools", []) if CONFIG_FILE.exists() else []
-        for overlap in detect_folder_overlaps(chosen_agents, CURRENT_DIR):
+        for overlap in detect_folder_overlaps(chosen_agents, CURRENT_DIR, shortcut_names=SHORTCUT_NAMES):
             diagnostics.append(Diagnostic(WARNING, "RAPID1321", overlap.message.removeprefix("RAPID1321 ")))
 
         for duplicate in detect_scope_duplicates(Path.home(), CURRENT_DIR, DEFAULT_AGENT_REGISTRY.ids(), TEMPLATES_DIR):
