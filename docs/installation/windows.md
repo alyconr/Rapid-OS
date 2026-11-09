@@ -93,9 +93,7 @@ rapid doctor
 
 Continue to [Detailed installation verification](./verification.md).
 
-<a id="line-endings-in-git"></a>
-
-## 6. Line endings in git
+## 6. Line endings in git {#line-endings-in-git}
 
 Rapid OS verifies evidence byte by byte. Git for Windows comes with `core.autocrlf=true`, which changes line endings in both directions: `git add` stores LF for a file that has some CRLF, and a checkout turns LF into CRLF. Without protection, `rapid evidence verify`, `rapid eval show`, and `rapid validate` fail in a clone with `RAPID1205` and `RAPID1223`.
 

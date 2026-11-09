@@ -106,9 +106,7 @@ Continúa a la sección de [Verificación detallada](./verification.md).
 
 ---
 
-<a id="line-endings-in-git"></a>
-
-## 6. Finales de línea en git
+## 6. Finales de línea en git {#line-endings-in-git}
 
 Rapid OS verifica la evidencia byte a byte. Git para Windows trae `core.autocrlf=true`, que cambia los finales de línea en los dos sentidos: `git add` guarda como LF un archivo con algún CRLF, y un checkout convierte LF en CRLF. Sin protección, `rapid evidence verify`, `rapid eval show` y `rapid validate` fallan en un clon con `RAPID1205` y `RAPID1223`.
 
