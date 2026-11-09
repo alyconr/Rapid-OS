@@ -238,6 +238,21 @@ class ResearchTaskDoneTests(Sandbox):
         self.assertNotIn("UNVERIFIED", done.stderr)
         self.assertEqual(len(self.check_records()), 1)
 
+    COUNT_WARNING = "No se pudo leer un conteo de tests"
+
+    def test_an_experiment_in_research_is_not_held_to_a_test_count(self):
+        """H-52."""
+        self.start()
+        self.ok("task", "start", "T001")
+        checked = self.ok("check", "--task", "T001", "--", sys.executable, "-c", "print(1)")
+        self.assertNotIn(self.COUNT_WARNING, checked.stderr)
+
+    def test_a_feature_check_without_a_count_still_warns(self):
+        self.start("feature")
+        self.ok("task", "start", "T001")
+        checked = self.ok("check", "--task", "T001", "--", sys.executable, "-c", "print(1)")
+        self.assertIn(self.COUNT_WARNING, checked.stderr)
+
     def test_a_feature_run_still_runs_the_tests(self):
         self.start("feature")
         self.ok("task", "start", "T001")

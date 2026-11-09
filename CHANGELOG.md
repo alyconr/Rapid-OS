@@ -30,6 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The review of the drafts promised that each run would remind the person of an unconfirmed document, but `RAPID1408` only appeared in `validate` and `doctor`. The action of `rapid start` and `rapid next` now carries `unconfirmed_docs` (id and file) while there are drafts, the text output says so in one line with `rapid setup doc <id> --confirm`, and the work shortcuts tell the agent to mention it once and ask before implementing anything that depends on those assumptions, without treating them as rules or confirming them. The text of the review describes exactly this.
 - `rapid eval show`, `rapid evidence list` and `rapid evidence verify` without `--run` failed with an argparse error. They now use the active run or, if there is none, the last one closed, and the text output starts with `Run: <id>`; without runs they fail with a clear error (`RAPID1221` or `RAPID1202`).
 - Rewriting a draft with `rapid setup doc <id> --source drafted --replace` left `docs/<file>.<ts>.bak` beside the document, and it reached the first commit. When the previous file is an agent's draft, its copy now goes to `.rapid-os/backups/` (the last 5); only content from a person keeps its copy beside the document.
+- `rapid check -- <experiment> --task T00N` in a `research` run warned that it could not read a test count, which does not apply to a spike: the exception for research read a mode the execution contract does not have. The mode now comes from the run's spec revision.
 
 ---
 

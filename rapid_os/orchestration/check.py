@@ -45,6 +45,23 @@ GO_RESULT_RE = re.compile(r"^\s*--- (PASS|FAIL|SKIP):", re.MULTILINE)
 MODES_WITHOUT_TESTS = frozenset({"research"})
 
 
+def _run_mode(project_root: Path, project_rapid_dir: Path, contract) -> str:
+    """The mode of a run: the `ExecutionContract` has none, the spec revision it was created from does.
+
+    Falls back to the session (the active run) when the spec cannot be read; "" when neither says."""
+    from rapid_os.adapters.spec_registry import SpecRegistry
+    from rapid_os.orchestration.session import load_session
+
+    try:
+        revision = SpecRegistry(project_root, project_rapid_dir).get_revision(contract.spec_id, contract.spec_revision)
+        return str(getattr(revision.mode, "value", revision.mode) or "")
+    except Exception:
+        session = load_session(project_rapid_dir)
+        if session is not None and session.active_run_id == contract.run_id:
+            return session.mode or ""
+        return ""
+
+
 @dataclass(frozen=True)
 class CheckResult:
     run_id: str
@@ -216,7 +233,7 @@ def run_check(
     contract = run_reg.get_contract(run_id)
     test_gate_ids = {g.id for g in contract.gates if g.kind in (GateKind.BASELINE_CHECK, GateKind.IMPLEMENTATION_TESTS)}
     tests_expected = bool(set(gate_ids) & test_gate_ids) or (
-        bool(task_ids) and str(getattr(contract, "mode", "") or "") not in MODES_WITHOUT_TESTS
+        bool(task_ids) and _run_mode(project_root, project_rapid_dir, contract) not in MODES_WITHOUT_TESTS
     )
     explicit_command = kind in ("command", "command_result", EvidenceKind.COMMAND_RESULT.value)
     is_test_command = test_command is not None and list(clean_argv) == list(test_command)
