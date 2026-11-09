@@ -234,7 +234,15 @@ class DocTests(SetupWriteBase):
     def test_provided_over_a_draft_keeps_a_backup(self):
         draft(self.root, "business", BUSINESS)
         rapid(self.root, "setup", "doc", "business", "--source", "provided", "--file", "-", stdin="mine\n")
+        # The draft was the agent's: its copy stays out of docs/ (and of the first commit).
+        self.assertTrue(list((self.root / ".rapid-os" / "backups").glob("BUSINESS_RULES.md.*.bak")))
+        self.assertEqual(list((self.root / "docs").glob("*.bak")), [])
+
+    def test_provided_over_a_persons_content_keeps_the_backup_beside_it(self):
+        rapid(self.root, "setup", "doc", "business", "--source", "provided", "--file", "-", stdin="mine\n")
+        rapid(self.root, "setup", "doc", "business", "--source", "provided", "--file", "-", stdin="mine again\n")
         self.assertTrue(list((self.root / "docs").glob("BUSINESS_RULES.md.*.bak")))
+        self.assertEqual(list((self.root / ".rapid-os" / "backups").glob("BUSINESS_RULES.md.*.bak")), [])
 
     def test_confirm_changes_only_the_status(self):
         draft(self.root, "business", BUSINESS)
