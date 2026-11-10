@@ -408,6 +408,120 @@ class WorkShortcutsHandOverOnlyWhatIsReadyTests(unittest.TestCase):
                 self.assertIn("solo cuando action.kind sea await_human_approval", text)
 
 
+# --- H-59: approving without typing phrases ------------------------------------------------------------------
+
+
+class ApproveAsksYesNoTests(Project):
+    CRITERIA = ["La reserva queda guardada"]
+
+    def setUp(self):
+        super().setUp()
+        story = spec(title="Reservas", acceptance_criteria=self.CRITERIA, tasks=["T001: Guardar la reserva"])
+        started = rapid(self.root, "start", "feature", "--spec-file", "-", "--json", stdin=json.dumps(story, ensure_ascii=False))
+        self.assertEqual(started.returncode, 0, started.stderr)
+        self.gate = drive_to_approval(self, self.root)["gate_ids"][0]
+
+    def approve(self, *answers, gate_id=None, is_tty=True, **flags):
+        from rapid_os.core.ancestry import AncestryResult
+        from rapid_os.orchestration.lifecycle import execute_approve
+
+        prompts: list[str] = []
+        queue = list(answers)
+
+        def answer(prompt):
+            prompts.append(prompt)
+            if not queue:
+                raise EOFError
+            return queue.pop(0)
+
+        code, message = execute_approve(
+            self.root, self.root / ".rapid-os", gate_id, reviewer="Ada", is_tty=is_tty, input_func=answer,
+            environ={}, ancestry=AncestryResult(()), **flags,
+        )
+        return code, message, prompts
+
+    def reviews(self):
+        from rapid_os.adapters.evidence_registry import EvidenceRegistry
+
+        run_id = self.runs()[0]
+        return [e for e in EvidenceRegistry(self.root, self.root / ".rapid-os").list(run_id) if e.kind.value == "review"]
+
+    def gate_disposition(self):
+        gates = json.loads(rapid(self.root, "status", "--json").stdout)["run"]["gates"]
+        return next(g["disposition"] for g in gates if g["id"] == self.gate)
+
+    def test_the_only_pending_gate_is_approved_with_s_after_the_summary(self):
+        code, message, prompts = self.approve("s")
+        self.assertEqual(code, 0, message)
+        self.assertEqual(len(prompts), 1)
+        summary = prompts[0]
+        self.assertIn(f"Run:   {self.runs()[0]}", summary)
+        self.assertIn(f"Gate:  {self.gate}", summary)
+        self.assertIn("  - La reserva queda guardada", summary)
+        self.assertIn("Tareas: 1/1 terminadas", summary)
+        self.assertRegex(summary, r"gate\.tests \[(pass|pending · última evidencia: PASS)\]  \(evidencia: E\d+")
+        self.assertTrue(summary.endswith(f"¿Apruebas {self.gate}? [s/N] "), summary)
+        self.assertNotIn("Escribe la frase", summary)
+        self.assertEqual([r.payload["outcome"] for r in self.reviews()], ["approved"])
+        self.assertEqual(self.reviews()[0].payload["reviewer"], "Ada")
+        self.assertEqual(self.gate_disposition(), "acknowledged")
+
+    def test_no_then_a_reason_rejects_with_that_reason(self):
+        code, message, prompts = self.approve("n", "falta validar las fechas", gate_id=self.gate)
+        self.assertEqual(code, 0, message)
+        self.assertEqual(prompts[1], "Para rechazarlo escribe el motivo (Enter para salir sin cambios): ")
+        review = self.reviews()[0]
+        self.assertEqual(review.payload["outcome"], "changes_requested")
+        self.assertEqual(review.payload["reason"], "falta validar las fechas")
+        self.assertEqual(json.loads(rapid(self.root, "next", "--json").stdout)["action"]["command"], ["rapid", "abort"])
+
+    def test_enter_twice_leaves_everything_unchanged(self):
+        code, message, _ = self.approve("", "")
+        self.assertEqual(code, 1)
+        self.assertIn("Sin cambios", message)
+        self.assertEqual(self.reviews(), [])
+        self.assertEqual(self.gate_disposition(), "pending")
+
+    def test_explicit_reject_and_waive_only_confirm(self):
+        code, message, prompts = self.approve("N", gate_id=self.gate, reject=True, reason="no cumple")
+        self.assertEqual(code, 1)
+        self.assertIn("Sin cambios", message)
+        self.assertEqual(len(prompts), 1)  # no second question: the reason is already given
+        self.assertIn(f"¿Rechazas {self.gate} con el motivo «no cumple»? [s/N]", prompts[0])
+        self.assertEqual(self.reviews(), [])
+        code, message, _ = self.approve("sí", gate_id=self.gate, reject=True, reason="no cumple")
+        self.assertEqual(code, 0, message)
+        self.assertEqual(self.reviews()[0].payload["outcome"], "changes_requested")
+
+    def test_without_a_terminal_it_still_only_lists(self):
+        code, message, prompts = self.approve(is_tty=False)
+        self.assertEqual(code, 0)
+        self.assertIn("Pending human gates", message)
+        self.assertIn(self.gate, message)
+        self.assertEqual(prompts, [])
+        self.assertEqual(self.reviews(), [])
+        code, message, _ = self.approve("s", gate_id=self.gate, is_tty=False)
+        self.assertEqual(code, 1)
+        self.assertIn("RAPID1310", message)
+
+    def test_yes_answers(self):
+        from rapid_os.orchestration.lifecycle import is_yes
+
+        for answer in ("s", "S", "si", "sí", "Sí", "y", "YES", " yes ", "“s”"):
+            self.assertTrue(is_yes(answer), answer)
+        for answer in ("", "n", "no", "N", "aprobar gate.final-verification", None):
+            self.assertFalse(is_yes(answer), answer)
+
+
+class ApprovalTextSaysAnswerSTests(unittest.TestCase):
+    def test_shortcuts_say_run_rapid_approve_and_answer_s(self):
+        for name in WORK_SHORTCUTS + ("rapid-next",):
+            text = (SHORTCUTS / f"{name}.md").read_text("utf-8")
+            with self.subTest(shortcut=name):
+                self.assertIn("ejecute `rapid approve` en otra terminal, fuera del agente, y responda `s`", text)
+        self.assertIn("responda `s`", (SHORTCUTS / "rapid-approve.md").read_text("utf-8"))
+
+
 # --- H-57: `rapid check` reads the command's output as UTF-8 -----------------------------------------------
 
 # Vitest prints ✓ (E2 9C 93), ⎯ (E2 8E AF) and ❯ (E2 9D AF); 0x9d is not a cp1252 byte, so decoding with the

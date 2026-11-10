@@ -55,7 +55,7 @@ SHIM = textwrap.dedent(
             "rapid_os.orchestration.lifecycle.read_ancestry",
             return_value=__import__("rapid_os.core.ancestry", fromlist=["x"]).AncestryResult(()),
         ).start()
-        mock.patch("builtins.input", return_value="aprobar " + gate).start()
+        mock.patch("builtins.input", return_value="s").start()
     sys.argv = ["rapid", *sys.argv[1:]]
     import rapid_os.cli.main as m
     sys.exit(m.main())

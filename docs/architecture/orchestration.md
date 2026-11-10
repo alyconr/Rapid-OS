@@ -172,7 +172,7 @@ Approving a human gate requires these checks, from cheapest to strongest:
 1. **TTY:** without an interactive terminal it fails with `RAPID1310` (an EOF during confirmation is treated the same way).
 2. **Session marker:** `CLAUDE_CODE_CHILD_SESSION=1` rejects the execution.
 3. **Ancestry:** if any ancestor process is the Claude Code binary (`claude`/`claude.exe`), it fails with `RAPID1310` even when there is a TTY and no variables remain.
-4. **Textual confirmation:** you must type `aprobar <gate-id>` (`dispensar <gate-id>` for `--waive`).
+4. **Confirmation:** after a summary of what is approved (run, gate, acceptance criteria, tasks, `gate.tests` and `gate.architecture`), it asks `¿Apruebas <gate-id>? [s/N]` (`¿Dispensas …?` for `--waive`, `¿Rechazas …?` for `--reject`). Answering `N` offers to type a reason to reject; Enter leaves everything unchanged.
 5. **Claude Code hooks (optional):** `PreToolUse` denies the agent `rapid approve`, `rapid abort`, `rapid run gate`, `rapid evidence add`, and editing `.rapid-os/`, and denies removing the session variables.
 6. **Evidence:** the approval is stored as a `review` with producer `user`; the evaluator does not accept one from a `harness:*` (ruleset v2).
 

@@ -433,7 +433,7 @@ Criterios de aceptación (acceptance.md de la revisión del run):
   - La reserva queda guardada
   - Una fecha pasada se rechaza con un error claro
 Aprobar: rapid approve gate.final-verification
-  -> Aprobar gate.final-verification permite `rapid finish`.
+  -> Ejecuta `rapid approve gate.final-verification` en tu terminal y responde s: aprobar gate.final-verification permite `rapid finish`.
 Rechazar: rapid approve gate.final-verification --reject --reason "<motivo>"
   -> Rechazar deja gate.final-verification en FAIL para este run; después toca `rapid abort` y un run nuevo que atienda el motivo.
 ```
@@ -457,16 +457,16 @@ rapid finish [--json] [--no-tick] [--merge] [--accept-test-command <reason>] [--
 
 By default `rapid finish` does not commit. It prints the exact `add`, `commit`, `merge rapid/<run-id>`, and `worktree remove` commands for a dirty run worktree only after a `PASS` verdict. While a human gate, task, or verification is pending, it prints at most the worktree path and run branch; it never suggests merging unfinished work. Never use the **--force** option while changes remain; it deletes them. Every `Cannot finish yet` response exits nonzero.
 
-`--merge` is offered only after a `PASS` verdict. Before asking the person to type `integrar <run-id>`, it prints the worktree's short-format `git status` list. If that list includes likely generated artifacts (`__pycache__/`, `*.pyc`, `node_modules/`, `.venv/`, `dist/`, `build/`), it warns the person to add them to `.gitignore` before confirming. After written confirmation, Rapid OS commits on `rapid/<run-id>` with a message derived from the spec and merges that branch into the current source branch, which must be clean. It reports the commit hash and message, the target branch, and the exact `git worktree remove <worktree>` command; removal remains the person's step.
+`--merge` is offered only after a `PASS` verdict. Before asking `¿Integrar el run <run-id>? [s/N]`, it prints the worktree's short-format `git status` list. If that list includes likely generated artifacts (`__pycache__/`, `*.pyc`, `node_modules/`, `.venv/`, `dist/`, `build/`), it warns the person to add them to `.gitignore` before confirming. After `s`, Rapid OS commits on `rapid/<run-id>` with a message derived from the spec and merges that branch into the current source branch, which must be clean. It reports the commit hash and message, the target branch, and the exact `git worktree remove <worktree>` command; removal remains the person's step.
 
 
 
-If the person declines the `integrar <run-id>` phrase, or the commit or merge fails after `PASS`, `rapid finish` still prints the evaluation report and `No se integró` with the reason, then gives manual worktree closure commands and story suggestions. Declining alone exits 0 because the run is already finished; a commit or merge failure exits 1 and says the run finished. Resolve the reported cause, then follow the printed `add`, `commit`, `merge`, and `worktree remove` steps without `--force`.
+If the person answers `N` (or just Enter), or the commit or merge fails after `PASS`, `rapid finish` still prints the evaluation report and `No se integró` with the reason, then gives manual worktree closure commands and story suggestions. Declining alone exits 0 because the run is already finished; a commit or merge failure exits 1 and says the run finished. Resolve the reported cause, then follow the printed `add`, `commit`, `merge`, and `worktree remove` steps without `--force`.
 
 In a run of ruleset 3, `rapid finish` also refuses (and leaves the run open with no verdict) when:
 
 - the code changed after a person approved it with `rapid approve` (`RAPID1433`, naming the files): run the test check again and approve again;
-- the latest test check used another command than the baseline (`RAPID1435`): repeat it with the baseline's command, or let the person accept it with `--accept-test-command <reason>`. That option asks, like `rapid approve`, for an interactive terminal outside any agent (`RAPID1310`) and the typed phrase `aceptar comando de tests`, and records a `review` evidence (`via: rapid:finish`, `accepts: test_command_mismatch`) with the reason and `--reviewer` (default `git config user.name`). In runs before ruleset 3 the different command is only a warning.
+- the latest test check used another command than the baseline (`RAPID1435`): repeat it with the baseline's command, or let the person accept it with `--accept-test-command <reason>`. That option asks, like `rapid approve`, for an interactive terminal outside any agent (`RAPID1310`) and a `[s/N]` answer after saying which command is accepted and with what reason, and records a `review` evidence (`via: rapid:finish`, `accepts: test_command_mismatch`) with the reason and `--reviewer` (default `git config user.name`). In runs before ruleset 3 the different command is only a warning.
 
 The `file_change` evidence it records (capability `repository.write`) lists the files the run changed in the project: tracked changes since the run started plus new untracked files, without `.rapid-os/` and without tool artifacts (`__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `.tox`, `.nox`, `node_modules`, `.venv`, `venv`, `*.pyc`, `*.pyo`, `.coverage*`), even in a project with no `.gitignore`; with no real change no `file_change` is recorded and the verdict is not `pass`.
 
@@ -482,16 +482,24 @@ These lines go to stderr with `--json`, so stdout stays the report. Finishing a 
 Review a human gate. Without arguments it lists the pending human gates of the active run (read-only; no TTY needed). With a gate id it approves it, or with `--waive` / `--reject` waives or rejects it. Changing a gate requires an interactive terminal (TTY) and cannot be executed inside agent child sessions (`CLAUDE_CODE_CHILD_SESSION == 1`) nor under an agent harness: if any ancestor process is Claude Code (`claude`/`claude.exe`), it fails with `RAPID1310` even with a TTY and without the session variables (unreadable ancestry never rejects; `rapid doctor` reports it with `RAPID1319`). Without a TTY every case fails with `RAPID1310` (a stdin closed during the confirmation, EOF, is reported the same way).
 
 ```bash
-rapid approve
+rapid approve [--reviewer <name>]
 rapid approve <gate-id> [--reviewer <name>]
 rapid approve <gate-id> --waive --reason <text> [--reviewer <name>]
 rapid approve <gate-id> --reject --reason <text> [--reviewer <name>]
 ```
 
+Deciding (H-59): before asking, `rapid approve` prints what is being approved: the run, the gate, the acceptance criteria of the run's spec revision, the tasks with their state and evidence, and the result of `gate.tests` and `gate.architecture` with their evidence ids. Then it asks `¿Apruebas <gate-id>? [s/N]`:
+
+- `s`, `si`, `sí`, `y` or `yes` approves.
+- `n` or an empty Enter does not approve and offers `Para rechazarlo escribe el motivo (Enter para salir sin cambios):`. With text, the gate is rejected with that reason (as `--reject --reason`); empty, nothing changes and the exit code is 1.
+- Without a gate id and with exactly one pending human gate (one that was not rejected), that gate is the one decided. With several, or when the caller is not a person at a terminal (an agent, no TTY), it lists them, read-only, as before.
+
+No phrase is typed any more: it did not stop an agent with a pty. The barriers stay: the TTY (`RAPID1310`), the agent ancestry check, the Claude Code hooks, and the reviewer recorded in the review evidence. `rapid finish --merge` and `rapid finish --accept-test-command` ask `[s/N]` in the same way, after saying what will be done.
+
 Options:
 - `--reviewer <name>`: Reviewer recorded in the evidence. Defaults to `git config user.name`; if it is not set, the name is asked on the terminal (`RAPID1331` if left empty).
-- `--waive`: Waive a gate instead of approving it. Only gates that the contract marks as waivable (for example `gate.review`) can be waived, and `--reason` is mandatory. Confirm by typing `dispensar <gate-id>`.
-- `--reject`: Record a `review` evidence with outcome `changes_requested`. This leaves the gate in `FAIL` for the rest of that run: `rapid next` returns `blocked` with the command `rapid abort`, and a new run is needed. `--reason` is mandatory. Confirm by typing `rechazar <gate-id>` (typing `aprobar <gate-id>` does not reject).
+- `--waive`: Waive a gate instead of approving it. Only gates that the contract marks as waivable (for example `gate.review`) can be waived, and `--reason` is mandatory. It asks `¿Dispensas <gate-id> con el motivo «…»? [s/N]`.
+- `--reject`: Record a `review` evidence with outcome `changes_requested`. This leaves the gate in `FAIL` for the rest of that run: `rapid next` returns `blocked` with the command `rapid abort`, and a new run is needed. `--reason` is mandatory. It asks `¿Rechazas <gate-id> con el motivo «…»? [s/N]`.
 - `--reason <text>`: Reason for `--waive` or `--reject` (`RAPID1333` if missing). A rejection keeps it in the evidence (`payload.reason`) and `rapid next` hands it to the agent (see `action.rejection`).
 
 The approval is recorded as `review` evidence with producer `user`, `via: rapid:approve` (a field `rapid evidence add` cannot set) and `tree`, the fingerprint of the working tree that was approved. In ruleset 3 only such a review satisfies a human gate, and `rapid finish` refuses to end a run whose code changed after it (`RAPID1433`); `rapid approve <gate>` then approves the acknowledged gate again on the current code.

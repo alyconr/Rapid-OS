@@ -33,7 +33,7 @@ from rapid_os.orchestration.lifecycle import execute_approve
 gate = sys.argv[1]
 code, message = execute_approve(
     Path.cwd(), Path.cwd() / ".rapid-os", gate, reviewer="Tutorial Reader", is_tty=True,
-    input_func=lambda prompt: f"aprobar {gate}", environ={}, ancestry=AncestryResult(()),
+    input_func=lambda prompt: "s", environ={}, ancestry=AncestryResult(()),
 )
 print(message)
 sys.exit(code)

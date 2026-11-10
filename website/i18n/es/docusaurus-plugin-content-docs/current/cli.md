@@ -429,7 +429,7 @@ Criterios de aceptación (acceptance.md de la revisión del run):
   - La reserva queda guardada
   - Una fecha pasada se rechaza con un error claro
 Aprobar: rapid approve gate.final-verification
-  -> Aprobar gate.final-verification permite `rapid finish`.
+  -> Ejecuta `rapid approve gate.final-verification` en tu terminal y responde s: aprobar gate.final-verification permite `rapid finish`.
 Rechazar: rapid approve gate.final-verification --reject --reason "<motivo>"
   -> Rechazar deja gate.final-verification en FAIL para este run; después toca `rapid abort` y un run nuevo que atienda el motivo.
 ```
@@ -467,19 +467,27 @@ These lines go to stderr with `--json`, so stdout stays the report. Finishing a 
 Review a human gate. Without arguments it lists the pending human gates of the active run (read-only; no TTY needed). With a gate id it approves it, or with `--waive` / `--reject` waives or rejects it. Changing a gate requires an interactive terminal (TTY) and cannot be executed inside agent child sessions (`CLAUDE_CODE_CHILD_SESSION == 1`) nor under an agent harness: if any ancestor process is Claude Code (`claude`/`claude.exe`), it fails with `RAPID1310` even with a TTY and without the session variables (unreadable ancestry never rejects; `rapid doctor` reports it with `RAPID1319`). Without a TTY every case fails with `RAPID1310` (a stdin closed during the confirmation, EOF, is reported the same way).
 
 ```bash
-rapid approve
+rapid approve [--reviewer <name>]
 rapid approve <gate-id> [--reviewer <name>]
 rapid approve <gate-id> --waive --reason <text> [--reviewer <name>]
 rapid approve <gate-id> --reject --reason <text> [--reviewer <name>]
 ```
 
+Deciding (H-59): before asking, `rapid approve` prints what is being approved: the run, the gate, the acceptance criteria of the run's spec revision, the tasks with their state and evidence, and the result of `gate.tests` and `gate.architecture` with their evidence ids. Then it asks `¿Apruebas <gate-id>? [s/N]`:
+
+- `s`, `si`, `sí`, `y` or `yes` approves.
+- `n` or an empty Enter does not approve and offers `Para rechazarlo escribe el motivo (Enter para salir sin cambios):`. With text, the gate is rejected with that reason (as `--reject --reason`); empty, nothing changes and the exit code is 1.
+- Without a gate id and with exactly one pending human gate (one that was not rejected), that gate is the one decided. With several, or when the caller is not a person at a terminal (an agent, no TTY), it lists them, read-only, as before.
+
+No phrase is typed any more: it did not stop an agent with a pty. The barriers stay: the TTY (`RAPID1310`), the agent ancestry check, the Claude Code hooks, and the reviewer recorded in the review evidence. `rapid finish --merge` and `rapid finish --accept-test-command` ask `[s/N]` in the same way, after saying what will be done.
+
 Options:
 - `--reviewer <name>`: Reviewer recorded in the evidence. Defaults to `git config user.name`; if it is not set, the name is asked on the terminal (`RAPID1331` if left empty).
-- `--waive`: Waive a gate instead of approving it. Only gates that the contract marks as waivable (for example `gate.review`) can be waived, and `--reason` is mandatory. Confirm by typing `dispensar <gate-id>`.
-- `--reject`: Record a `review` evidence with outcome `changes_requested`. This leaves the gate in `FAIL` for the rest of that run: `rapid next` returns `blocked` with the command `rapid abort`, and a new run is needed. `--reason` is mandatory. Confirm by typing `rechazar <gate-id>` (typing `aprobar <gate-id>` does not reject).
+- `--waive`: Waive a gate instead of approving it. Only gates that the contract marks as waivable (for example `gate.review`) can be waived, and `--reason` is mandatory. It asks `¿Dispensas <gate-id> con el motivo «…»? [s/N]`.
+- `--reject`: Record a `review` evidence with outcome `changes_requested`. This leaves the gate in `FAIL` for the rest of that run: `rapid next` returns `blocked` with the command `rapid abort`, and a new run is needed. `--reason` is mandatory. It asks `¿Rechazas <gate-id> con el motivo «…»? [s/N]`.
 - `--reason <text>`: Reason for `--waive` or `--reject` (`RAPID1333` if missing). A rejection keeps it in the evidence (`payload.reason`) and `rapid next` hands it to the agent (see `action.rejection`).
 
-La aprobación queda como evidencia `review` con producer `user`, `via: rapid:approve` (un campo que `rapid evidence add` no puede poner) y `tree`, la huella del árbol de trabajo aprobado. En el ruleset 3 solo un review así satisface un gate humano, y `rapid finish` se niega a terminar un run cuyo código cambió después (`RAPID1433`); entonces `rapid approve <gate>` vuelve a aprobar el gate reconocido sobre el código actual. `rapid finish` también se niega cuando el último check de tests usó otro comando que la baseline (`RAPID1435`), salvo que la persona lo acepte en su terminal con `--accept-test-command <motivo>` y la frase `aceptar comando de tests` (las mismas comprobaciones que `rapid approve`, `RAPID1310`); la aceptación queda como evidencia con el motivo. `rapid run gate` no acepta gates humanos (`RAPID1431`).
+La aprobación queda como evidencia `review` con producer `user`, `via: rapid:approve` (un campo que `rapid evidence add` no puede poner) y `tree`, la huella del árbol de trabajo aprobado. En el ruleset 3 solo un review así satisface un gate humano, y `rapid finish` se niega a terminar un run cuyo código cambió después (`RAPID1433`); entonces `rapid approve <gate>` vuelve a aprobar el gate reconocido sobre el código actual. `rapid finish` también se niega cuando el último check de tests usó otro comando que la baseline (`RAPID1435`), salvo que la persona lo acepte en su terminal con `--accept-test-command <motivo>`, respondiendo `s` a `¿Aceptas el comando de tests? [s/N]` (las mismas comprobaciones que `rapid approve`, `RAPID1310`); la aceptación queda como evidencia con el motivo. `rapid run gate` no acepta gates humanos (`RAPID1431`).
 
 After the last pending human gate is approved, `rapid approve` prints `Siguiente: rapid finish (o /rapid-next en tu agente). Tras finish el run ya no se puede cancelar.` Approving, waiving or rejecting a gate that is already decided is `RAPID1332`, and the message says how to take it back: `rapid abort` before `rapid finish`; after `rapid finish`, `git revert` and a new run. The full procedure is in [Undo an approval](./guides/undo-approval.md).
 

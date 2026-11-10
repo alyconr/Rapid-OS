@@ -898,7 +898,7 @@ class FeatureHookScenarioTests(LabScenarioBase):
         self._drive(implement)
         res = self._rapid_tty(
             ["approve", "gate.final-verification", "--reject", "--reason", "needs work"],
-            "rechazar gate.final-verification",
+            "s",
         )
         self.assertEqual(res.returncode, 0, res.stderr)
         self.assertEqual(self._next()["command"], ["rapid", "abort"])

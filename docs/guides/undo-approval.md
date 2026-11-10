@@ -12,7 +12,7 @@ A gate decision is recorded as evidence in the run's ledger, and the ledger is a
 | The gate is approved (or rejected), `rapid finish` has **not** run | [Case A](#case-a-before-rapid-finish): `rapid abort` |
 | `rapid finish` already ran (the run is closed) | [Case B](#case-b-after-rapid-finish): `git revert`, reopen the story, new run |
 
-By default, Rapid OS does not commit for you. `rapid finish --merge` can commit and merge a passing worktree after you type the confirmation phrase; otherwise the code stays in your working tree until you commit it.
+By default, Rapid OS does not commit for you. `rapid finish --merge` can commit and merge a passing worktree after you answer `s` to its question; otherwise the code stays in your working tree until you commit it.
 
 ## Case A: before `rapid finish` {#case-a-before-rapid-finish}
 

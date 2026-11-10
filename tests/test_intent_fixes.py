@@ -214,7 +214,7 @@ class FakeClaudeProcessTests(unittest.TestCase):
             "sys.argv = ['rapid', 'approve', 'gate.final-verification']; "
             "mock.patch('sys.stdin.isatty', return_value=True).start(); "
             "mock.patch('rapid_os.orchestration.lifecycle.stdin_is_windows_nul', return_value=False).start(); "
-            "mock.patch('builtins.input', return_value='aprobar gate.final-verification').start(); "
+            "mock.patch('builtins.input', return_value='s').start(); "
             "sys.exit(m.main())"
         )
         parent_code = (
@@ -412,7 +412,7 @@ class FinishWithWaiversTests(LabScenarioBase):
         self.assertEqual(action["kind"], "await_human_approval")
         waived = self._rapid_tty(
             ["approve", "gate.review", "--waive", "--reason", "covered by the audit"],
-            "dispensar gate.review",
+            "s",
         )
         self.assertEqual(waived.returncode, 0, waived.stderr)
         self.assertEqual(self._approve("gate.final-verification").returncode, 0)

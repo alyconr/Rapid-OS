@@ -209,7 +209,7 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
             "mock.patch('rapid_os.orchestration.lifecycle.stdin_is_windows_nul', return_value=False).start(); "
             "mock.patch('rapid_os.orchestration.lifecycle.read_ancestry', "
             "return_value=__import__('rapid_os.core.ancestry', fromlist=['x']).AncestryResult(())).start(); "
-            f"mock.patch('builtins.input', return_value='aprobar {human_gate_to_approve}').start(); "
+            f"mock.patch('builtins.input', return_value='s').start(); "
             "sys.exit(m.main())"
         )
         env = {
@@ -405,7 +405,7 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
             "mock.patch('rapid_os.orchestration.lifecycle.stdin_is_windows_nul', return_value=False).start(); "
             "mock.patch('rapid_os.orchestration.lifecycle.read_ancestry', "
             "return_value=__import__('rapid_os.core.ancestry', fromlist=['x']).AncestryResult(())).start(); "
-            "mock.patch('builtins.input', return_value='aprobar gate.final-verification').start(); "
+            "mock.patch('builtins.input', return_value='s').start(); "
             "sys.exit(m.main())"
         )
         env = {
@@ -463,7 +463,7 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
             "mock.patch('rapid_os.orchestration.lifecycle.stdin_is_windows_nul', return_value=False).start(); "
             "mock.patch('rapid_os.orchestration.lifecycle.read_ancestry', "
             "return_value=__import__('rapid_os.core.ancestry', fromlist=['x']).AncestryResult(())).start(); "
-            "mock.patch('builtins.input', return_value='aprobar gate.final-verification').start(); "
+            "mock.patch('builtins.input', return_value='s').start(); "
             "sys.exit(m.main())"
         )
         env = {
@@ -603,7 +603,7 @@ class LabScenarioBase(unittest.TestCase):
         )
 
     def _approve(self, gate, *extra):
-        return self._rapid_tty(["approve", gate, *extra], f"aprobar {gate}")
+        return self._rapid_tty(["approve", gate, *extra], "s")
 
     def _start(self, mode, spec, *flags):
         res = self._rapid("start", mode, "--spec-file", "-", "--json", *flags, input_str=json.dumps(spec))
@@ -964,7 +964,7 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertEqual(invalid.returncode, 1)
         self.assertIn("RAPID1332", invalid.stderr)
         self.assertIn("gate.final-verification", invalid.stderr)
-        quoted = self._rapid_tty(["approve", "gate.review"], '“aprobar gate.review”')
+        quoted = self._rapid_tty(["approve", "gate.review"], '“Sí”')
         self.assertEqual(quoted.returncode, 0, quoted.stdout + quoted.stderr)
 
     def test_finish_merge_commits_the_run_branch_and_merges_after_written_confirmation(self):
@@ -985,7 +985,7 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertEqual(action["kind"], "await_human_approval", action)
         self.assertEqual(self._approve("gate.review").returncode, 0)
         self.assertEqual(self._approve("gate.final-verification").returncode, 0)
-        res = self._rapid_tty(["finish", "--merge"], f"integrar {run_id}")
+        res = self._rapid_tty(["finish", "--merge"], "s")
         self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
         self.assertTrue(workspace.is_dir())
         self.assertIn('status --short)', res.stdout)
@@ -1043,7 +1043,7 @@ class HardeningLabScenarioTests(LabScenarioBase):
         (self.project / "profile_mgr.py").write_text("# conflicting source edit\n", encoding="utf-8")
         self._git("add", "profile_mgr.py")
         self._git("commit", "-qm", "conflicting source change")
-        res = self._rapid_tty(["finish", "--merge"], f"integrar {run_id}")
+        res = self._rapid_tty(["finish", "--merge"], "s")
 
         self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
         self.assertIn(f"Evaluation report 0001 for run '{run_id}': verdict PASS", res.stdout)
@@ -1115,19 +1115,19 @@ class HardeningLabScenarioTests(LabScenarioBase):
         # final-verification is not waivable.
         res = self._rapid_tty(
             ["approve", "gate.final-verification", "--waive", "--reason", "skip"],
-            "dispensar gate.final-verification",
+            "s",
         )
         self.assertEqual(res.returncode, 1)
         self.assertIn("not waivable", res.stderr)
 
         # Missing reason is the same error as validate_gate_transition's.
-        res = self._rapid_tty(["approve", "gate.review", "--waive"], "dispensar gate.review")
+        res = self._rapid_tty(["approve", "gate.review", "--waive"], "s")
         self.assertEqual(res.returncode, 1)
         self.assertIn("non-empty '--reason' is required when waiving", res.stderr)
 
         res = self._rapid_tty(
             ["approve", "gate.review", "--waive", "--reason", "covered by the security audit"],
-            "dispensar gate.review",
+            "s",
         )
         self.assertEqual(res.returncode, 0, res.stderr)
         status = json.loads(self._rapid("status", "--json").stdout)
@@ -1146,7 +1146,7 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self._start("hardening", self.SPEC, "--worktree")
         res = self._rapid_tty(
             ["approve", "gate.review", "--reject", "--reason", "validation is incomplete"],
-            "rechazar gate.review",
+            "s",
         )
         self.assertEqual(res.returncode, 0, res.stderr)
 
@@ -1171,13 +1171,13 @@ class HardeningLabScenarioTests(LabScenarioBase):
     def test_rejecting_asks_for_rechazar_and_the_agent_gets_the_reason(self):
         self._start("hardening", self.SPEC, "--worktree")
         reject = ["approve", "gate.review", "--reject", "--reason", "falta validar el teléfono"]
-        # The word of the confirmation is the action's: "aprobar" does not reject.
-        wrong = self._rapid_tty(reject, "aprobar gate.review")
+        # --reject asks [s/N] about the rejection itself: N leaves everything unchanged.
+        wrong = self._rapid_tty(reject, "n")
         self.assertEqual(wrong.returncode, 1)
-        self.assertIn("se esperaba 'rechazar gate.review'", wrong.stdout + wrong.stderr)
+        self.assertIn("Sin cambios", wrong.stdout + wrong.stderr)
         run_id = self._session()["active_run_id"]
         self.assertEqual([e for e in self._registry().list(run_id) if e.kind == EvidenceKind.REVIEW], [])
-        self.assertEqual(self._rapid_tty(reject, "rechazar gate.review").returncode, 0)
+        self.assertEqual(self._rapid_tty(reject, "s").returncode, 0)
 
         action = self._next()
         self.assertEqual(action["kind"], "blocked")
@@ -1208,7 +1208,7 @@ class HardeningLabScenarioTests(LabScenarioBase):
     def test_the_rejected_gate_also_explains_the_way_out(self):
         self._start("hardening", self.SPEC, "--worktree")
         self.assertEqual(
-            self._rapid_tty(["approve", "gate.review", "--reject", "--reason", "no"], "rechazar gate.review").returncode, 0
+            self._rapid_tty(["approve", "gate.review", "--reject", "--reason", "no"], "s").returncode, 0
         )
         again = self._approve("gate.review")
         self.assertEqual(again.returncode, 1)
@@ -1233,7 +1233,7 @@ class HardeningLabScenarioTests(LabScenarioBase):
         res = self._rapid_tty(
             ["approve", "gate.final-verification"],
             "Ada Lovelace",
-            "aprobar gate.final-verification",
+            "s",
             extra_env=isolated_git,
         )
         self.assertEqual(res.returncode, 0, res.stderr)

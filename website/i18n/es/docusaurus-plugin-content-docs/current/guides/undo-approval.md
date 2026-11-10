@@ -12,7 +12,7 @@ La decisión sobre un gate queda registrada como evidencia en el ledger del run,
 | El gate está aprobado (o rechazado) y `rapid finish` **no** se ha ejecutado | [Caso A](#caso-a-antes-de-rapid-finish): `rapid abort` |
 | `rapid finish` ya se ejecutó (el run está cerrado) | [Caso B](#caso-b-después-de-rapid-finish): `git revert`, reabrir la historia, run nuevo |
 
-Por defecto Rapid OS no hace commit por ti. `rapid finish --merge` puede crear el commit e integrar el worktree aprobado despues de que escribas la frase de confirmacion; de lo contrario, el codigo queda en tu directorio de trabajo hasta que hagas commit.
+Por defecto Rapid OS no hace commit por ti. `rapid finish --merge` puede crear el commit e integrar el worktree aprobado después de que respondas `s` a su pregunta; de lo contrario, el codigo queda en tu directorio de trabajo hasta que hagas commit.
 
 ## Caso A: antes de `rapid finish` {#caso-a-antes-de-rapid-finish}
 

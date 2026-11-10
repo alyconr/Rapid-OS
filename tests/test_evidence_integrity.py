@@ -223,7 +223,7 @@ class EvidenceIntegrityTests(LabScenarioBase):
         self.assertIn("--accept-test-command", finish.stderr)
         self.assertEqual(self._reports(run_id), ())
         from_agent = self._rapid_tty(["finish", "--accept-test-command", "same suite, verbose"],
-                                     "aceptar comando de tests", extra_env={"CLAUDE_CODE_CHILD_SESSION": "1"})
+                                     "s", extra_env={"CLAUDE_CODE_CHILD_SESSION": "1"})
         self.assertEqual(from_agent.returncode, 1)
         self.assertIn("RAPID1310", from_agent.stderr)
         self.assertEqual(self._reports(run_id), ())
@@ -231,7 +231,7 @@ class EvidenceIntegrityTests(LabScenarioBase):
     def test_another_test_command_accepted_in_the_terminal_passes_with_the_evidence(self):
         run_id = self._with_other_test_command()
         accepted = self._rapid_tty(["finish", "--accept-test-command", "same suite, verbose"],
-                                   "aceptar comando de tests")
+                                   "s")
         self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
         self.assertIn("verdict PASS", accepted.stdout)
         acceptance = [e for e in self._registry().list(run_id)

@@ -268,7 +268,7 @@ class H27ChangedAfterTheLastCheckTests(Project):
             "mock.patch('rapid_os.orchestration.lifecycle.stdin_is_windows_nul', return_value=False).start(); "
             "mock.patch('rapid_os.orchestration.lifecycle.read_ancestry', "
             "return_value=__import__('rapid_os.core.ancestry', fromlist=['x']).AncestryResult(())).start(); "
-            f"mock.patch('builtins.input', return_value='aprobar {gate}').start(); sys.exit(m.main())"
+            f"mock.patch('builtins.input', return_value='s').start(); sys.exit(m.main())"
         )
         return subprocess.run([sys.executable, "-c", code], cwd=self.root, capture_output=True, text=True, env=self.env)
 
@@ -327,7 +327,7 @@ class H27ChangedAfterTheLastCheckTests(Project):
             "mock.patch('rapid_os.orchestration.lifecycle.stdin_is_windows_nul', return_value=False).start(); "
             "mock.patch('rapid_os.orchestration.lifecycle.read_ancestry', "
             "return_value=__import__('rapid_os.core.ancestry', fromlist=['x']).AncestryResult(())).start(); "
-            f"mock.patch('builtins.input', return_value='rechazar {gate}').start(); sys.exit(m.main())"
+            f"mock.patch('builtins.input', return_value='s').start(); sys.exit(m.main())"
         )
         result = subprocess.run([sys.executable, "-c", code], cwd=self.root, capture_output=True, text=True, env=self.env)
         self.assertEqual(result.returncode, 0, result.stderr)

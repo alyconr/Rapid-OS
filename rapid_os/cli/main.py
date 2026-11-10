@@ -4429,7 +4429,9 @@ def approval_commands(gate_ids) -> list[dict[str, object]]:
                 "gate_id": gate_id,
                 "command": ["rapid", "approve", gate_id],
                 "display": f"rapid approve {gate_id}",
-                "consequence": f"Aprobar {gate_id} {after_approve}.",
+                "consequence": (
+                    f"Ejecuta `rapid approve {gate_id}` en tu terminal y responde s: aprobar {gate_id} {after_approve}."
+                ),
             }
         )
         commands.append(
@@ -4629,16 +4631,19 @@ def finish_command(args):
                     file=output,
                 )
 
-            phrase = f"integrar {run_id}"
-            print("Escribe la frase siguiente para confirmar el commit y merge:", file=output)
-            print(phrase, file=output)
+            from rapid_os.orchestration.lifecycle import is_yes
+
+            print(
+                f"Se hará commit de estos cambios en la rama rapid/{run_id} y merge en el checkout de origen.",
+                file=output,
+            )
             try:
-                answer = input("> ").strip().strip("'\"" + "\u201c\u201d\u2018\u2019").strip()
+                answer = input(f"¿Integrar el run {run_id}? [s/N] ")
             except EOFError:
-                merge_declined_reason = "no se recibió la frase de confirmación"
+                merge_declined_reason = "no se recibió la confirmación"
             else:
-                if answer != phrase:
-                    merge_declined_reason = f"se rechazó la frase de confirmación «{phrase}»"
+                if not is_yes(answer):
+                    merge_declined_reason = "no se confirmó el commit y merge"
 
             if merge_declined_reason is None:
                 source = CURRENT_DIR
@@ -5901,7 +5906,7 @@ def create_parser():
     finish_p.add_argument(
         "--accept-test-command",
         metavar="MOTIVO",
-        help="Accept, typing a phrase in your own terminal, that the last test check used another command than the baseline (RAPID1435); the reason is recorded as evidence. An agent cannot do it.",
+        help="Accept, answering s in your own terminal, that the last test check used another command than the baseline (RAPID1435); the reason is recorded as evidence. An agent cannot do it.",
     )
     finish_p.add_argument("--reviewer", help="Name recorded with --accept-test-command (default: git config user.name).")
     finish_p.add_argument(
