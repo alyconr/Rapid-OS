@@ -766,7 +766,9 @@ class SpecRegistry:
             return None
         record = self.get(candidate.spec_id)
         stored = self.get_revision(candidate.spec_id, record.current_revision)
-        candidate = dataclass_replace(candidate, revision=record.current_revision)
+        candidate = dataclass_replace(
+            candidate, revision=record.current_revision, tasks_status_note=stored.tasks_status_note
+        )
         return record, candidate.content_digest == stored.content_digest
 
     def revise(

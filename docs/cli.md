@@ -505,6 +505,28 @@ Display active session, run state, tasks, gates, and last evaluation verdict.
 rapid status [--json]
 ```
 
+The task list is the progress of the story: one line per task with its state and the evidence ids that back it, then the gates with theirs. The checkboxes of the spec's `tasks.md` are the plan, not the progress (a revision is immutable), so they stay `[ ]`; new revisions say so under the title (`El estado de cada tarea vive en el run: rapid status`), and revisions stored before keep their `tasks.md` and digests.
+
+```text
+Session Run:   reservas-r1-run-001 (active, s7)
+Mode/Harness:  feature / codex
+Tasks:         2/4 terminal
+  T001 [done] Crear el modelo de reserva  (evidencia: E003)
+  T002 [skipped] Documentar la API
+  T003 [in_progress] Validar que la fecha de la reserva no esté en el pasado y que el taller…
+  T004 [pending] Publicar el endpoint
+Gates:
+  gate.baseline [pass]  (evidencia: E002)
+  gate.tests [pending]
+  gate.final-verification [pending]
+```
+
+- A title longer than 72 characters is cut with `…`; the `T002:` prefix is not repeated.
+- A gate's state is `pending` until it is acknowledged, then what the evaluator says (`pass`, `fail`, `unverified`, `waived`); a human gate rejected with `rapid approve <gate> --reject` is `fail`.
+- `--json`: each entry of `run.tasks` keeps `id`, `description`, `status` and `reason`, and adds `title` and `evidence_ids`; each entry of `run.gates` adds `status` and `evidence_ids` to its `disposition`.
+- With no active run, the last run (the one whose state was written last) is listed under `Last Run:`; in `--json`, `run` stays `null` and the same list goes in `last_run` (`run_id`, `status`, `tasks`, `gates`).
+- Evidence that cannot be read does not stop the list: the tasks and gates are shown and a `WARNING` (`evidence_error` in JSON) says why.
+
 ### `rapid abort`
 Cancel the active run and remove the session file.
 

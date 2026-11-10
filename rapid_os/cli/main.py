@@ -4761,6 +4761,125 @@ def approve_command(args):
     return 0
 
 
+STATUS_TITLE_WIDTH = 72
+
+
+def _short_title(task_id: str, description: str, width: int = STATUS_TITLE_WIDTH) -> str:
+    """The task's title for one line of `rapid status`: without a repeated `T002:` prefix, cut with an ellipsis."""
+    title = " ".join(str(description or "").split())
+    for prefix in (f"{task_id}:", f"{task_id} -", f"{task_id}"):
+        if title.startswith(prefix):
+            title = title[len(prefix):].strip()
+            break
+    return title if len(title) <= width else title[: width - 1].rstrip() + "…"
+
+
+def _run_progress(run_reg, run_id: str) -> dict[str, object]:
+    """Tasks and gates of a run with their state and the evidence ids that back them.
+
+    The state lives in `.rapid-os/runs/<run>/states/`, not in the spec's `tasks.md` (an immutable revision). Evidence
+    ids come from the behavioral evaluator (what it counts for each task and gate) and, for a task, also from the
+    records that name it; a run whose evidence cannot be read still lists its tasks and gates."""
+    from rapid_os.orchestration.conductor import _rejected_human_gate_ids
+    from rapid_os.orchestration.lifecycle import run_evaluator
+
+    contract = run_reg.get_contract(run_id)
+    state = run_reg.get_state(run_id)
+    try:
+        evidence = EvidenceRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).list(run_id)
+        evidence_error = None
+    except Exception as exc:  # a status view never fails on unreadable evidence
+        evidence, evidence_error = (), f"{getattr(exc, 'code', 'RAPID1200')} {exc}"
+    assertions: dict[tuple[str, str], object] = {}
+    try:
+        report = run_evaluator(contract).evaluate(contract, state, evidence)
+        for assertion in report.assertions:
+            assertions.setdefault((assertion.category, assertion.subject_id), assertion)
+    except Exception:
+        pass
+
+    def ids(*groups) -> list[str]:
+        seen: list[str] = []
+        for group in groups:
+            for value in group:
+                if value not in seen:
+                    seen.append(value)
+        return seen
+
+    tasks = []
+    for task in state.tasks:
+        assertion = assertions.get(("task", task.id))
+        linked = [ev.id for ev in evidence if task.id in ev.task_ids]
+        tasks.append(
+            {
+                **task.to_dict(),
+                "title": _short_title(task.id, task.description),
+                "evidence_ids": ids(getattr(assertion, "evidence_ids", ()), linked),
+            }
+        )
+    rejected = set(_rejected_human_gate_ids(contract, evidence))
+    gates = []
+    for gate in state.gates:
+        assertion = assertions.get(("gate", gate.id))
+        if gate.id in rejected:
+            status = "fail"
+        elif gate.disposition.value == "pending":
+            status = "pending"
+        elif assertion is not None:
+            status = assertion.status.value
+        else:
+            status = gate.disposition.value
+        gates.append(
+            {
+                **gate.to_dict(),
+                "status": status,
+                "evidence_ids": ids(getattr(assertion, "evidence_ids", ()), [ev.id for ev in evidence if gate.id in ev.gate_ids]),
+            }
+        )
+    progress: dict[str, object] = {"run_id": run_id, "status": state.status.value, "tasks": tasks, "gates": gates}
+    if evidence_error:
+        progress["evidence_error"] = evidence_error
+    return progress
+
+
+def _progress_lines(progress: dict[str, object]) -> list[str]:
+    def evidence_note(item) -> str:
+        found = item.get("evidence_ids") or []
+        return f"  (evidencia: {', '.join(found)})" if found else ""
+
+    tasks = progress["tasks"]
+    done = sum(1 for t in tasks if t["status"] in (TaskStatus.DONE.value, TaskStatus.SKIPPED.value))
+    lines = [f"Tasks:         {done}/{len(tasks)} terminal"]
+    for task in tasks:
+        lines.append(f"  {task['id']} [{task['status']}] {task['title']}{evidence_note(task)}")
+    lines.append("Gates:")
+    for gate in progress["gates"] or ():
+        lines.append(f"  {gate['id']} [{gate['status']}]{evidence_note(gate)}")
+    if not progress["gates"]:
+        lines.append("  none")
+    if progress.get("evidence_error"):
+        lines.append(f"WARNING evidence could not be read: {progress['evidence_error']}")
+    return lines
+
+
+def _last_run_id(run_reg) -> str | None:
+    """The run whose state was written last (run ids carry no date): what `rapid status` shows with no active run."""
+    try:
+        records = run_reg.list_runs()
+    except Exception:
+        return None
+
+    def written_at(run_id: str) -> float:
+        run_dir = Path(PROJECT_RAPID_DIR) / "runs" / run_id
+        stamps = [p.stat().st_mtime for p in (run_dir / "states").glob("*") if p.is_file()]
+        return max(stamps) if stamps else run_dir.stat().st_mtime
+
+    try:
+        return max((r.id for r in records), key=written_at, default=None)
+    except OSError:
+        return None
+
+
 def status_command(args):
     """Execute rapid status command."""
     from rapid_os.orchestration.session import load_session
@@ -4768,13 +4887,27 @@ def status_command(args):
     sess = load_session(PROJECT_RAPID_DIR)
     actions = person_actions(CURRENT_DIR)
     if not sess or not sess.active_run_id:
+        last_run_reg = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+        last_id = _last_run_id(last_run_reg)
+        last_progress = None
+        if last_id:
+            try:
+                last_progress = _run_progress(last_run_reg, last_id)
+            except Exception:
+                last_progress = None
         if getattr(args, "json", False):
             payload = {"session": None, "run": None}
+            if last_progress is not None:
+                payload["last_run"] = last_progress
             if actions:
                 payload["person_actions"] = actions
             print(json.dumps(payload, indent=2))
             return 0
         print("No active run session found (.rapid-os/session.json).")
+        if last_progress is not None:
+            print(f"Last Run:      {last_progress['run_id']} ({last_progress['status']})")
+            for line in _progress_lines(last_progress):
+                print(line)
         for line in person_action_lines(actions):
             print(line)
         return 0
@@ -4792,6 +4925,7 @@ def status_command(args):
 
     reports = eval_reg.list_reports(sess.active_run_id)
     last_verdict = reports[-1].verdict.value if reports else None
+    progress = _run_progress(run_reg, sess.active_run_id)
 
     if getattr(args, "json", False):
         payload = {
@@ -4804,8 +4938,8 @@ def status_command(args):
                 "harness": contract.harness,
                 "classification": contract.classification.value,
                 "risk": contract.risk.label,
-                "tasks": [t.to_dict() for t in state.tasks],
-                "gates": [g.to_dict() for g in state.gates],
+                "tasks": progress["tasks"],
+                "gates": progress["gates"],
                 "last_verdict": last_verdict,
             },
         }
@@ -4813,15 +4947,17 @@ def status_command(args):
             payload["run"]["baseline_waived"] = contract.baseline_waived
         if contract.isolation_waived is not None:
             payload["run"]["isolation_waived"] = contract.isolation_waived
+        if progress.get("evidence_error"):
+            payload["run"]["evidence_error"] = progress["evidence_error"]
         if actions:
             payload["person_actions"] = actions
         print(json.dumps(payload, indent=2))
         return 0
 
-    done_tasks = sum(1 for t in state.tasks if t.status in (TaskStatus.DONE, TaskStatus.SKIPPED))
     print(f"Session Run:   {record.id} ({state.status.value}, s{state.revision})")
     print(f"Mode/Harness:  {sess.mode} / {contract.harness}")
-    print(f"Tasks:         {done_tasks}/{len(state.tasks)} terminal")
+    for line in _progress_lines(progress):
+        print(line)
     if contract.baseline_waived is not None:
         print(f"Baseline:      {NO_BASELINE_LINE}")
     if contract.isolation_waived is not None:
