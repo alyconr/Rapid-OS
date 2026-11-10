@@ -68,7 +68,10 @@ def run_git(root: Path | str | None, *args: str) -> subprocess.CompletedProcess:
         ],
         cwd=str(base),
         capture_output=True,
+        # git writes paths, messages and diffs in UTF-8, not in the Windows code page (H-57).
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
         shell=False,
     )
@@ -133,6 +136,8 @@ def person_git_trust(root: Path | str | None) -> PersonGitTrust:
             cwd=str(base),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
             shell=False,
         )

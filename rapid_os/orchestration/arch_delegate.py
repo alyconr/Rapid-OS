@@ -43,7 +43,8 @@ def run_delegate(delegate: str, project_root: Path | str) -> DelegateResult:
         return DelegateResult(False, PACKWERK_MISSING, missing=True)
     try:
         proc = subprocess.run(
-            command, cwd=str(root), capture_output=True, text=True, check=False, shell=False, timeout=600
+            command, cwd=str(root), capture_output=True, text=True, encoding="utf-8", errors="replace",
+            check=False, shell=False, timeout=600,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return DelegateResult(False, f"RAPID1420 no se pudo ejecutar packwerk: {exc}", missing=True)

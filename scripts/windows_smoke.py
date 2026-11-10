@@ -15,6 +15,8 @@ Standard library only. It drives the `rapid` executable of a clean venv, in a te
    (`powershell.exe -NoProfile -Command`) to `rapid start research --spec-file -` arrives with '?' and is refused with
    RAPID1415 and no run; the same text written with `Set-Content -Encoding utf8` (UTF-8 with BOM) and passed with
    `--spec-file <path>` creates the spec with its title intact and the id with "publica".
+7. H-57: `rapid check` of a command that prints UTF-8 outside cp1252 (Vitest's ✓, ⎯, ❯) and a test summary: the log
+   keeps those characters, the summary is counted and there is no traceback.
 
 PYTHONUTF8 and PYTHONIOENCODING are removed from the environment, because either of them hides H-29: the point is to
 run with the console code page of a real Windows machine.
@@ -56,6 +58,12 @@ ONBOARDING = (
     ("agents", "claude"), ("test-command", "smoke-tests"), ("services", "none"),
 )
 MOJIBAKE = ("Ã", "Â", "�")
+# What Vitest prints: ✓ (E2 9C 93), ⎯ (E2 8E AF) and ❯ (E2 9D AF; 0x9d is not a cp1252 byte).
+VITEST_LIKE = (
+    "import sys; sys.stdout.buffer.write("
+    "' \\u2713 src/reserva.test.ts (3 tests) 4ms\\n\\u23af\\u23af\\u23af\\n \\u276f done\\n"
+    "      Tests  3 passed (3)\\n'.encode('utf-8')); sys.stdout.flush()"
+)
 SHIM = "@echo off\r\necho Ran 1 test in 0.001s\r\necho.\r\necho OK\r\nexit /b 0\r\n"
 
 
@@ -235,6 +243,22 @@ def main(argv: list[str]) -> int:
         if revision["title"] != PIPED_SPEC["title"] or revision["implementation_tasks"] != PIPED_SPEC["tasks"]:
             fail(f"H-55: the spec by file was not stored intact: {revision['title']!r} {revision['implementation_tasks']!r}")
         print(f"ok  H-55: by file (UTF-8 with BOM) the spec is {PIPED_SPEC_ID}, text intact")
+
+        # 7. H-57: the output of the checked command is UTF-8, whatever the code page is.
+        checked = subprocess.run(
+            [rapid_exe, "check", "--json", "--kind", "test", "--", sys.executable, "-c", VITEST_LIKE],
+            cwd=piped, env=env, capture_output=True, timeout=120, stdin=subprocess.DEVNULL,
+        )
+        check_err = checked.stderr.decode("utf-8", "replace")
+        if checked.returncode != 0 or "Traceback" in check_err or "UnicodeDecodeError" in check_err:
+            fail(f"H-57: rapid check failed (exit {checked.returncode}):\n{check_err}")
+        if '"passed": 3' not in checked.stdout.decode("utf-8", "replace"):
+            fail(f"H-57: the test summary was not counted:\n{checked.stdout.decode('utf-8', 'replace')}")
+        log = sorted((piped / ".rapid-os" / "scratch" / "checks").rglob("*.log"))[-1].read_text(encoding="utf-8")
+        missing = [mark for mark in ("\u2713", "\u23af", "\u276f", "Tests  3 passed (3)") if mark not in log]
+        if missing:
+            fail(f"H-57: the log lost {missing!r}")
+        print("ok  H-57: rapid check logs the UTF-8 output and counts its summary")
     print("Windows smoke test passed.")
     return 0
 

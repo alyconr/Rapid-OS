@@ -350,6 +350,7 @@ Options:
 - `--json`: Output execution and recorded evidence details as JSON.
 - The executable of the argv is resolved with the `PATH` and `PATHEXT` before it runs (`pnpm`, `npm`, `yarn` are `.cmd` shims on Windows and `subprocess` does not find them without a shell); the argv compared with `test_command` and recorded in the evidence is the one that was typed.
 - `-- <argv...>`: Vector of command arguments to run directly without shell.
+- The output of the command is read as UTF-8 whatever the console code page is (a byte that is not UTF-8 becomes `�`), so the `✓`, `⎯` and `❯` of Vitest reach the log and the test summary is counted on Windows without `PYTHONUTF8=1`. The same goes for the output of git and of `packwerk check` that Rapid OS reads.
 
 ---
 

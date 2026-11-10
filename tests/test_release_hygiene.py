@@ -103,7 +103,8 @@ class WindowsSmokeTests(unittest.TestCase):
         text = (ROOT / ".github" / "workflows" / "windows-smoke.yml").read_text(encoding="utf-8")
         for needle in ("windows-latest", 'python-version: "3.12"', "timeout-minutes: 10", "workflow_dispatch",
                        '"rapid_os/**"', '"templates/**"', '"pyproject.toml"', "branches: [main]", "python -m build --wheel",
-                       "scripts/windows_smoke.py", "tests.test_stdin_utf8_and_resolution", "tests.test_legacy_specs"):
+                       "scripts/windows_smoke.py", "tests.test_stdin_utf8_and_resolution", "tests.test_legacy_specs",
+                       "tests.test_rc4_specs_utf8.CheckReadsUtf8OutputTests"):
             with self.subTest(needle=needle):
                 self.assertIn(needle, text)
         # PYTHONUTF8 would hide the code page bug the job exists to catch.

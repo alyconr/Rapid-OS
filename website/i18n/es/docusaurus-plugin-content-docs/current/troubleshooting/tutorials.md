@@ -32,6 +32,10 @@ Errores típicos al trabajar con `/rapid-*`. La guía completa está en [Shortcu
 - **Causa:** la spec pasó por una tubería de Windows PowerShell 5.1 (`$spec | rapid start feature --spec-file -`), que la convierte a ASCII: `creación` llega como `creaci?n` y el id de la spec saldría `reserva-p-blica`. El mensaje dice el campo y la palabra. No se escribió nada: ni spec, ni revisión, ni run.
 - **Solución:** escribe la spec en un archivo temporal UTF-8 fuera de `.rapid-os` y pasa la ruta: `$spec | Set-Content -Encoding utf8 $env:TEMP\rapid-spec.json` y después `rapid start <modo> --spec-file $env:TEMP\rapid-spec.json`. No la vuelvas a mandar por tubería. En bash o zsh, stdin con un heredoc sigue bien. Ver [Enviar specs y documentos desde PowerShell](../installation/windows.md#text-from-powershell).
 
+### `rapid check` en Windows: el log no tiene la salida y los tests no se cuentan
+- **Causa:** hasta 3.2.0rc3, `rapid check` decodificaba la salida del comando con la página de códigos de Windows (cp1252). El UTF-8 que imprime Vitest (`✓`, `⎯`, `❯`) rompía el lector con `UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d`: el log quedaba sin la salida y el resumen no se contaba. `rapid task done` usa el mismo check.
+- **Solución:** actualiza Rapid OS; ahora la salida se lee como UTF-8 y ya no hace falta `PYTHONUTF8=1`. Después vuelve a ejecutar el check: `rapid check -- <comando>`.
+
 ---
 
 ## 1. Problemas de Inicialización y Scanner

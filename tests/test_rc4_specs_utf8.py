@@ -30,6 +30,7 @@ def rapid(cwd, *argv, stdin=None, env_extra=None):
         "PYTHONDONTWRITEBYTECODE": "1",
         **(env_extra or {}),
     }
+    env = {name: value for name, value in env.items() if value is not None}
     return subprocess.run(
         [sys.executable, "-m", "rapid_os.cli.main", *argv],
         cwd=cwd, input=stdin, capture_output=True, text=True, encoding="utf-8", env=env,
@@ -383,6 +384,37 @@ class WorkShortcutsHandOverOnlyWhatIsReadyTests(unittest.TestCase):
                 self.assertIn('--reject --reason "<motivo>"', text)
                 self.assertIn("Nunca entregues aconsejando no aprobar", text)
                 self.assertIn("solo cuando action.kind sea await_human_approval", text)
+
+
+# --- H-57: `rapid check` reads the command's output as UTF-8 -----------------------------------------------
+
+# Vitest prints ✓ (E2 9C 93), ⎯ (E2 8E AF) and ❯ (E2 9D AF); 0x9d is not a cp1252 byte, so decoding with the
+# Windows code page killed the reader thread ('charmap' codec can't decode byte 0x9d).
+VITEST_LIKE = (
+    "import sys; sys.stdout.buffer.write("
+    "' \\u2713 src/reserva.test.ts (3 tests) 4ms\\n\\u23af\\u23af\\u23af\\n \\u276f done\\n"
+    "      Tests  3 passed (3)\\n'.encode('utf-8')); sys.stdout.flush()"
+)
+
+
+class CheckReadsUtf8OutputTests(Project):
+    def test_utf8_output_is_logged_and_its_summary_counted(self):
+        started = rapid(self.root, "start", "feature", "--spec-file", "-", "--json", stdin=json.dumps(spec(), ensure_ascii=False))
+        self.assertEqual(started.returncode, 0, started.stderr)
+        # Without PYTHONUTF8 or PYTHONIOENCODING: the code page of the machine decides, as on a real Windows.
+        result = rapid(
+            self.root, "check", "--json", "--gate", "gate.tests", "--", sys.executable, "-c", VITEST_LIKE,
+            env_extra={"PYTHONUTF8": None, "PYTHONIOENCODING": None},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertNotIn("UnicodeDecodeError", result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["exit_code"], 0)
+        self.assertEqual(json.dumps(payload, ensure_ascii=False).count('"passed": 3'), 1, payload)
+        log = sorted((self.root / ".rapid-os" / "scratch" / "checks").rglob("*.log"))[-1].read_text(encoding="utf-8")
+        for mark in ("\u2713", "\u23af", "\u276f", "Tests  3 passed (3)"):
+            self.assertIn(mark, log)
 
 
 if __name__ == "__main__":
