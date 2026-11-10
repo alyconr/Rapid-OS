@@ -126,6 +126,60 @@ class UnsafeSpecPathError(SpecRegistryError):
     default_code = "RAPID808"
 
 
+class LostCharactersSpecError(SpecRegistryError):
+    """Spec text where accents or `ñ` arrived as '?' (a non-UTF-8 pipe): refused, nothing is written."""
+
+    default_code = "RAPID1415"
+
+
+_SPEC_DIGEST_KEYS = frozenset({"artifact_digests", "content_digest"})
+
+
+def find_spec_lost_characters(value: object, field_name: str = "") -> tuple[str, str] | None:
+    """The first `(field, word)` of a spec payload whose text lost characters ("creaci?n"), or None.
+
+    Walks every string of a spec (title, objective, problem, scope, criteria, tasks, findings...), so a
+    payload as it arrives (`--spec-file`) and a built revision are checked by the same rule."""
+    from rapid_os.domain.project_docs import find_lost_characters
+
+    if isinstance(value, str):
+        word = find_lost_characters(value)
+        return (field_name or "spec", word) if word else None
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            if key in _SPEC_DIGEST_KEYS:
+                continue
+            found = find_spec_lost_characters(item, f"{field_name}.{key}" if field_name else str(key))
+            if found:
+                return found
+        return None
+    if isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            found = find_spec_lost_characters(item, f"{field_name}[{index}]")
+            if found:
+                return found
+    return None
+
+
+def lost_characters_spec_message(field_name: str, word: str) -> str:
+    """RAPID1415 for a spec: where the text broke and how to send it intact from Windows PowerShell."""
+    return (
+        f"La spec perdió caracteres en '{field_name}' («{word}»): acentos o ñ convertidos en '?' por una "
+        "tubería que no es UTF-8. No se guardó nada (ni spec, ni revisión, ni run). En Windows PowerShell no pases la spec por "
+        "tubería: escríbela en un archivo temporal UTF-8 fuera de .rapid-os "
+        "(`Set-Content -Encoding utf8 $env:TEMP\\rapid-spec.json`) y usa `--spec-file $env:TEMP\\rapid-spec.json`; "
+        "en bash o zsh, stdin (heredoc) sigue bien."
+    )
+
+
+def ensure_spec_text_intact(value: object) -> None:
+    """Raise RAPID1415 when any text of a spec payload or revision lost characters."""
+    payload = value.to_dict() if isinstance(value, SpecRevision) else value
+    found = find_spec_lost_characters(payload)
+    if found:
+        raise LostCharactersSpecError(lost_characters_spec_message(*found))
+
+
 class SpecStatus(str, Enum):
     DRAFT = "draft"
     READY = "ready"

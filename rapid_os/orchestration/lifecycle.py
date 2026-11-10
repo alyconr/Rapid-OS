@@ -53,6 +53,7 @@ from rapid_os.domain.execution import (
 )
 from rapid_os.domain.policy import ARCHITECTURE_GATE_ID, ExecutionError
 from rapid_os.domain.scanner import build_project_model
+from rapid_os.domain.specs import find_spec_lost_characters, lost_characters_spec_message
 from rapid_os.orchestration.actions import ActionKind, NextAction
 from rapid_os.orchestration.architecture_baseline import capture_snapshot
 from rapid_os.orchestration.architecture_rule import final_architecture_failure
@@ -507,6 +508,11 @@ def execute_start(
             payload = json.loads(raw_json)
             if not isinstance(payload, dict):
                 return 1, "Spec file content must be a JSON object."
+            # Before the scaffold task, the spec or the run: a spec whose accents became '?' in a
+            # non-UTF-8 pipe (Windows PowerShell 5.1) is refused whole, never stored altered.
+            lost = find_spec_lost_characters(payload)
+            if lost:
+                return 1, f"RAPID1415 {lost_characters_spec_message(*lost)}"
 
             spec_fields: dict[str, Any] = dict(payload)
             spec_fields["mode"] = mode

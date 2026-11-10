@@ -112,7 +112,23 @@ Rapid OS verifies evidence byte by byte. Git for Windows comes with `core.autocr
 
 Verification stays strict: it does not accept a converted file. With mixed line endings the original cannot be rebuilt from the converted one, so `RAPID1437` names the probable cause without trying to prove it.
 
-## 7. Start using shortcuts
+## 7. Sending specs and documents from PowerShell {#text-from-powershell}
+
+Windows PowerShell 5.1 converts to ASCII whatever it pipes to a native program such as `rapid`: accents and `ñ` arrive as `?` (`creación` becomes `creaci?n`, and the spec id `reserva-p-blica` instead of `reserva-publica`). Rapid OS cannot recover the text, so it refuses it with `RAPID1415` and writes nothing: `rapid start <mode> --spec-file -`, `rapid spec create`, `rapid spec revise`, and `rapid setup doc --source drafted`.
+
+Send specs and documents through a temporary UTF-8 file outside `.rapid-os`:
+
+```powershell
+$spec | Set-Content -Encoding utf8 $env:TEMP\rapid-spec.json
+rapid start feature --spec-file $env:TEMP\rapid-spec.json
+
+$doc | Set-Content -Encoding utf8 $env:TEMP\rapid-business.md
+rapid setup doc business --source drafted --file $env:TEMP\rapid-business.md
+```
+
+`Set-Content -Encoding utf8` writes a BOM in 5.1; Rapid OS accepts it. In bash or zsh (Git Bash, WSL, macOS, Linux) stdin with a heredoc is fine. The `/rapid-<mode>` and `/rapid-init` shortcuts tell the agent the same rule, and when a command answers `RAPID1415` the agent rewrites the text to a file instead of piping it again.
+
+## 8. Start using shortcuts
 
 If you selected your agent in the installer's final prompt, open it in your project folder and enter:
 ```text

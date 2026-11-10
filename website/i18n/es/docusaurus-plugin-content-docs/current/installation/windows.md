@@ -125,7 +125,23 @@ Rapid OS verifica la evidencia byte a byte. Git para Windows trae `core.autocrlf
 
 La verificación sigue siendo estricta: no acepta un archivo convertido. Con finales mezclados el original no se puede reconstruir a partir del convertido, así que `RAPID1437` indica la causa probable sin intentar demostrarla.
 
-## 7. Empieza a usar los shortcuts
+## 7. Enviar specs y documentos desde PowerShell {#text-from-powershell}
+
+Windows PowerShell 5.1 convierte a ASCII lo que pasa por tubería a un programa nativo como `rapid`: las tildes y la `ñ` llegan como `?` (`creación` queda `creaci?n`, y el id de la spec `reserva-p-blica` en vez de `reserva-publica`). Rapid OS no puede recuperar el texto, así que lo rechaza con `RAPID1415` y no escribe nada: `rapid start <modo> --spec-file -`, `rapid spec create`, `rapid spec revise` y `rapid setup doc --source drafted`.
+
+Envía specs y documentos por un archivo temporal UTF-8 fuera de `.rapid-os`:
+
+```powershell
+$spec | Set-Content -Encoding utf8 $env:TEMP\rapid-spec.json
+rapid start feature --spec-file $env:TEMP\rapid-spec.json
+
+$doc | Set-Content -Encoding utf8 $env:TEMP\rapid-business.md
+rapid setup doc business --source drafted --file $env:TEMP\rapid-business.md
+```
+
+`Set-Content -Encoding utf8` escribe un BOM en 5.1; Rapid OS lo acepta. En bash o zsh (Git Bash, WSL, macOS, Linux) stdin con un heredoc sigue bien. Los shortcuts `/rapid-<modo>` y `/rapid-init` le dan al agente la misma regla, y si un comando responde `RAPID1415` el agente reescribe el texto en un archivo en vez de mandarlo otra vez por tubería.
+
+## 8. Empieza a usar los shortcuts
 
 Si respondiste con tu agente a la pregunta final del instalador, ya está: abre tu agente en la carpeta de tu proyecto y escribe:
 

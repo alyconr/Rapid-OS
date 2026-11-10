@@ -28,6 +28,10 @@ Errores típicos al trabajar con `/rapid-*`. La guía completa está en [Shortcu
 - **Causa:** seleccionaste Cursor o VS Code junto con Claude, Codex o Antigravity, y el mismo `/rapid-*` queda en dos carpetas que esa herramienta lee.
 - **Solución:** es solo un aviso. Para evitarlo, instala un único harness que cubra ambas herramientas; ver [Si combinas harnesses](../guides/shortcuts.md#si-combinas-harnesses).
 
+### `RAPID1415`: la spec perdió las tildes (`rapid start`, `rapid spec create`, `rapid spec revise`)
+- **Causa:** la spec pasó por una tubería de Windows PowerShell 5.1 (`$spec | rapid start feature --spec-file -`), que la convierte a ASCII: `creación` llega como `creaci?n` y el id de la spec saldría `reserva-p-blica`. El mensaje dice el campo y la palabra. No se escribió nada: ni spec, ni revisión, ni run.
+- **Solución:** escribe la spec en un archivo temporal UTF-8 fuera de `.rapid-os` y pasa la ruta: `$spec | Set-Content -Encoding utf8 $env:TEMP\rapid-spec.json` y después `rapid start <modo> --spec-file $env:TEMP\rapid-spec.json`. No la vuelvas a mandar por tubería. En bash o zsh, stdin con un heredoc sigue bien. Ver [Enviar specs y documentos desde PowerShell](../installation/windows.md#text-from-powershell).
+
 ---
 
 ## 1. Problemas de Inicialización y Scanner

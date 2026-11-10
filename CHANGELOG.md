@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- Specs with lost accents on Windows PowerShell (H-55): `rapid start <mode> --spec-file`, `rapid spec create` and `rapid spec revise` refuse with `RAPID1415`, and write nothing, a spec where any text field has a `?` between two letters or opening a word (`creaci?n`, `A?adir`), which is what the PowerShell 5.1 pipe leaves of accents and `ñ`. The message says how to send it from PowerShell (`Set-Content -Encoding utf8` to a temporary file and `--spec-file <path>`; the BOM is accepted). The `/rapid-feature`, `/rapid-bugfix`, `/rapid-refactor`, `/rapid-hardening` and `/rapid-research` shortcuts tell the agent to use a file on Windows PowerShell and to rewrite the spec to a file when it gets `RAPID1415`.
+
 ---
 
 ## [3.2.0rc3] - 2026-11-09 (pre-release)

@@ -109,13 +109,27 @@ LOST_CHARACTERS_MESSAGE = (
 )
 
 
+def find_lost_characters(body: str) -> str | None:
+    """The first word with a lost character ("creaci?n"), or None. See `has_lost_characters`."""
+    prose = _NOT_PROSE_RE.sub(" ", body)
+    match = _LOST_CHAR_RE.search(prose)
+    if match is None:
+        return None
+    start, end = match.start(), match.end()
+    while start > 0 and not prose[start - 1].isspace():
+        start -= 1
+    while end < len(prose) and not prose[end].isspace():
+        end += 1
+    return prose[start:end]
+
+
 def has_lost_characters(body: str) -> bool:
     """A '?' between two letters ("vac?os") or opening a word ("?xito"): what a non-UTF-8 pipe
     leaves of "vacíos" and "éxito". A question mark that closes a word ("¿Listo?") is not flagged.
 
     Code and URLs are left out, where `a?b` is legitimate (a query string, a regex).
     """
-    return _LOST_CHAR_RE.search(_NOT_PROSE_RE.sub(" ", body)) is not None
+    return find_lost_characters(body) is not None
 
 
 def normalize_newlines(text: str) -> str:
