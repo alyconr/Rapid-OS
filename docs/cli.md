@@ -538,12 +538,12 @@ Tasks:         2/4 terminal
   T004 [pending] Publicar el endpoint
 Gates:
   gate.baseline [pass]  (evidencia: E002)
-  gate.tests [pending]
+  gate.tests [pending · última evidencia: PASS]  (evidencia: E004)
   gate.final-verification [pending]
 ```
 
 - A title longer than 72 characters is cut with `…`; the `T002:` prefix is not repeated.
-- A gate's state is `pending` until it is acknowledged, then what the evaluator says (`pass`, `fail`, `unverified`, `waived`); a human gate rejected with `rapid approve <gate> --reject` is `fail`.
+- A gate's state is `pending` until it is acknowledged, then what the evaluator says (`pass`, `fail`, `unverified`, `waived`); a human gate rejected with `rapid approve <gate> --reject` is `fail`. A pending gate whose `rapid check` already ran also shows the result of its last evidence (`pending · última evidencia: PASS`, or `FAIL`); in `--json`, `last_evidence_result` (`PASS`, `FAIL`, `FAIL (esperado)` or `null`) and `last_evidence_id`.
 - `--json`: each entry of `run.tasks` keeps `id`, `description`, `status` and `reason`, and adds `title` and `evidence_ids`; each entry of `run.gates` adds `status` and `evidence_ids` to its `disposition`.
 - With no active run, the last run (the one whose state was written last) is listed under `Last Run:`; in `--json`, `run` stays `null` and the same list goes in `last_run` (`run_id`, `status`, `tasks`, `gates`).
 - Evidence that cannot be read does not stop the list: the tasks and gates are shown and a `WARNING` (`evidence_error` in JSON) says why.

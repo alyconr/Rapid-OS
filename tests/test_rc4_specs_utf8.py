@@ -246,6 +246,25 @@ class StatusListsTasksTests(Project):
             self.assertIn("evidence_ids", gate)
             self.assertIn("disposition", gate)
 
+    def test_a_pending_gate_shows_the_result_of_its_last_evidence(self):
+        for argv in (("task", "done", "T003"), ("task", "start", "T004"), ("task", "done", "T004")):
+            result = rapid(self.root, *argv)
+            self.assertEqual(result.returncode, 0, f"{argv}: {result.stderr}{result.stdout}")
+        checked = rapid(self.root, "check", "--gate", "gate.tests", "--json", "--", sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", ".")
+        self.assertEqual(checked.returncode, 0, checked.stderr)
+        evidence_id = json.loads(checked.stdout)["evidence_id"]
+
+        gates = {g["id"]: g for g in json.loads(rapid(self.root, "status", "--json").stdout)["run"]["gates"]}
+        self.assertEqual(gates["gate.tests"]["status"], "pending")
+        self.assertEqual(gates["gate.tests"]["last_evidence_result"], "PASS")
+        self.assertEqual(gates["gate.tests"]["last_evidence_id"], evidence_id)
+        self.assertIsNone(gates["gate.final-verification"]["last_evidence_result"])
+        self.assertNotIn("last_evidence_result", gates["gate.baseline"])  # evaluated: its status says it
+
+        out = rapid(self.root, "status").stdout
+        self.assertIn(f"gate.tests [pending · última evidencia: PASS]  (evidencia: {evidence_id})", out)
+        self.assertIn("gate.final-verification [pending]\n", out)
+
     def test_without_an_active_run_the_last_run_is_listed(self):
         (self.root / ".rapid-os" / "session.json").unlink()
         text = rapid(self.root, "status")
@@ -378,6 +397,9 @@ class WorkShortcutsHandOverOnlyWhatIsReadyTests(unittest.TestCase):
             with self.subTest(shortcut=name):
                 self.assertIn("revisa uno por uno los criterios de `action.acceptance` con su evidencia", text)
                 self.assertIn("rapid check -- <comando>", text)
+                # The person starts the services (as /rapid-init says); the agent asks and waits.
+                self.assertIn("pídele a la persona `docker compose up -d` y espera", text)
+                self.assertNotIn("levanta los servicios", text)
                 self.assertIn("repetirá `gate.tests` y `gate.architecture` porque el árbol cambió", text)
                 self.assertIn("algo depende de la persona", text)
                 self.assertIn("«cumple»", text)
