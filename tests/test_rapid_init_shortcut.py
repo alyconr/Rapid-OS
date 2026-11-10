@@ -216,7 +216,7 @@ class ApproveWithOpenTasksTests(unittest.TestCase):
             code, message = execute_approve(
                 root, root / ".rapid-os", gate, reviewer="Rapid",
                 is_tty=True, environ={}, ancestry=AncestryResult(()),
-                input_func=lambda _prompt: "aprobar " + gate,
+                input_func=lambda _prompt: "s",
             )
             self.assertEqual(code, 1)
             self.assertIn("RAPID1014", message)

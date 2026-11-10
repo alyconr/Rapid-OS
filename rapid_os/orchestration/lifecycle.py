@@ -53,6 +53,7 @@ from rapid_os.domain.execution import (
 )
 from rapid_os.domain.policy import ARCHITECTURE_GATE_ID, ExecutionError
 from rapid_os.domain.scanner import build_project_model
+from rapid_os.domain.specs import find_spec_lost_characters, lost_characters_spec_message
 from rapid_os.orchestration.actions import ActionKind, NextAction
 from rapid_os.orchestration.architecture_baseline import capture_snapshot
 from rapid_os.orchestration.architecture_rule import final_architecture_failure
@@ -507,6 +508,11 @@ def execute_start(
             payload = json.loads(raw_json)
             if not isinstance(payload, dict):
                 return 1, "Spec file content must be a JSON object."
+            # Before the scaffold task, the spec or the run: a spec whose accents became '?' in a
+            # non-UTF-8 pipe (Windows PowerShell 5.1) is refused whole, never stored altered.
+            lost = find_spec_lost_characters(payload)
+            if lost:
+                return 1, f"RAPID1415 {lost_characters_spec_message(*lost)}"
 
             spec_fields: dict[str, Any] = dict(payload)
             spec_fields["mode"] = mode
@@ -1122,16 +1128,17 @@ def _accept_command_change(
             name = ask("Reviewer name (git config user.name is not set): ").strip()
         if not name:
             return "RAPID1331 A reviewer name is required: pass --reviewer or set 'git config user.name'."
-        expected = "aceptar comando de tests"
         baseline_cmd, latest_cmd = mismatch
         typed = ask(
-            f"La baseline usó `{baseline_cmd}` y el último check `{latest_cmd}`.\n"
-            f"Escribe la frase siguiente para aceptarlo:\n{expected}\n> "
+            f"Run: {run_id}\n"
+            f"La baseline usó `{baseline_cmd}` y el último check `{latest_cmd}`: sus conteos no son comparables.\n"
+            f"Se registrará que {name} acepta `{latest_cmd}` con el motivo «{reason}», y `rapid finish` seguirá.\n"
+            "¿Aceptas el comando de tests? [s/N] "
         )
     except EOFError:
         return "RAPID1310 Accepting another test command requires interactive terminal confirmation (TTY). Stdin was closed before the answer (EOF)."
-    if typed.strip().strip("'\"“”‘’").strip() != expected:
-        return f"Confirmación abortada (se esperaba '{expected}')."
+    if not is_yes(typed):
+        return "Sin cambios: no se aceptó el comando de tests."
     current_state = RunRegistry(project_root, project_rapid_dir).get_state(run_id)
     evidence_reg.add(
         run_id,
@@ -1167,6 +1174,60 @@ def _git_user_name(project_root: Path) -> str | None:
     return name or None
 
 
+YES_ANSWERS = frozenset({"s", "si", "sí", "y", "yes"})
+
+
+def is_yes(answer: str | None) -> bool:
+    """`s`, `si`, `sí`, `y` or `yes` (any case, quotes ignored); anything else, Enter included, is no."""
+    if answer is None:
+        return False
+    return answer.strip().strip("'\"“”‘’").strip().lower() in YES_ANSWERS
+
+
+def _pending_human_gate_ids(project_rapid_dir: Path, project_root: Path) -> list[str] | None:
+    """Pending human gates of the active run that can still be approved (not rejected); None without a run."""
+    sess = load_session(project_rapid_dir)
+    if not sess or not sess.active_run_id:
+        return None
+    run_reg = RunRegistry(project_root, project_rapid_dir)
+    contract = run_reg.get_contract(sess.active_run_id)
+    state = run_reg.get_state(sess.active_run_id)
+    evidence = EvidenceRegistry(project_root, project_rapid_dir).list(sess.active_run_id)
+    rejected = set(_rejected_human_gate_ids(contract, evidence))
+    kinds = {g.id: g.kind for g in contract.gates}
+    return [
+        g.id for g in state.gates
+        if kinds.get(g.id) in HUMAN_GATE_KINDS and g.disposition == GateDisposition.PENDING and g.id not in rejected
+    ]
+
+
+def approval_summary(project_root: Path, project_rapid_dir: Path, run_id: str, gate_id: str) -> str:
+    """What the person approves: run, gate, acceptance criteria, tasks and the gate.tests / gate.architecture results.
+
+    The same picture `rapid next` hands over in `await_human_approval` (H-56); never raises."""
+    from rapid_os.adapters.spec_registry import SpecRegistry
+    from rapid_os.orchestration.progress import evidence_note, gate_label, run_progress
+
+    lines = [f"Run:   {run_id}", f"Gate:  {gate_id}"]
+    try:
+        run_reg = RunRegistry(project_root, project_rapid_dir)
+        contract = run_reg.get_contract(run_id)
+        revision = SpecRegistry(project_root, project_rapid_dir).get_revision(contract.spec_id, contract.spec_revision)
+        lines.append("Criterios de aceptación:")
+        lines.extend(f"  - {c}" for c in revision.acceptance_criteria or ["(la spec no tiene criterios de aceptación)"])
+        progress = run_progress(project_root, project_rapid_dir, run_reg, run_id)
+        tasks = progress["tasks"]
+        finished = sum(1 for t in tasks if t["status"] in ("done", "skipped"))
+        lines.append(f"Tareas: {finished}/{len(tasks)} terminadas")
+        lines.extend(f"  {t['id']} [{t['status']}] {t['title']}{evidence_note(t)}" for t in tasks)
+        for gate in progress["gates"]:
+            if gate["id"] in ("gate.tests", ARCHITECTURE_GATE_ID):
+                lines.append(f"{gate['id']} [{gate_label(gate)}]{evidence_note(gate)}")
+    except Exception as exc:  # the summary informs; it never blocks the decision
+        lines.append(f"(no se pudo armar el resumen completo: {exc})")
+    return "\n".join(lines)
+
+
 def _list_pending_human_gates(project_rapid_dir: Path, project_root: Path) -> tuple[int, str]:
     sess = load_session(project_rapid_dir)
     if not sess or not sess.active_run_id:
@@ -1190,7 +1251,9 @@ def _list_pending_human_gates(project_rapid_dir: Path, project_root: Path) -> tu
     if not lines:
         return 0, f"No pending human gates for run '{sess.active_run_id}'."
     header = f"Pending human gates for run '{sess.active_run_id}':"
-    footer = "Approve with: rapid approve <gate-id>   (waive: --waive --reason TEXT; reject: --reject --reason TEXT)"
+    footer = (
+        "Approve with: rapid approve <gate-id> and answer s   (waive: --waive --reason TEXT; reject: --reject --reason TEXT)"
+    )
     return 0, "\n".join([header, *lines, footer])
 
 
@@ -1287,8 +1350,15 @@ def execute_approve(
         env_map = dict(os.environ)
 
     if not gate_id:
-        # Read-only listing: needs neither a TTY nor to be outside an agent session.
-        return _list_pending_human_gates(project_rapid_dir, project_root)
+        # One pending human gate and a person at a terminal: that is the gate to decide. Otherwise
+        # (several gates, or an agent / no TTY asking) a read-only listing, as before.
+        pending = _pending_human_gate_ids(project_rapid_dir, project_root)
+        if pending is not None and len(pending) == 1 and not human_terminal_refusal(
+            env_map, ancestry, is_tty, "Human gate approval", ""
+        ):
+            gate_id = pending[0]
+        else:
+            return _list_pending_human_gates(project_rapid_dir, project_root)
 
     # An agent harness among the ancestors means an agent (or a script it spawned) is asking, even
     # if it dropped the session variables and found a pty. Unreadable ancestry never rejects.
@@ -1409,21 +1479,27 @@ def execute_approve(
     if not reviewer_name:
         return 1, "RAPID1331 A reviewer name is required: pass --reviewer or set 'git config user.name'."
 
+    # The person decides with [s/N] on what they see: the phrase did not stop an agent with a pty (the TTY,
+    # the ancestry check, the Claude Code hooks and the recorded reviewer do) and only cost the person work.
+    summary = approval_summary(project_root, project_rapid_dir, run_id, gate_id)
     if waive:
-        expected_confirm = f"dispensar {gate_id}"
-        accepted = {expected_confirm}
+        question = f"¿Dispensas {gate_id} con el motivo «{str(reason).strip()}»? [s/N] "
     elif reject:
-        expected_confirm = f"rechazar {gate_id}"
-        accepted = {expected_confirm}
+        question = f"¿Rechazas {gate_id} con el motivo «{str(reason).strip()}»? [s/N] "
     else:
-        expected_confirm = f"aprobar {gate_id}"
-        accepted = {expected_confirm}
-    answer = ask_input(f"Escribe la frase siguiente para confirmar la acción sobre el gate:\n{expected_confirm}\n> ")
+        question = f"¿Apruebas {gate_id}? [s/N] "
+    answer = ask_input(f"{summary}\n{question}")
     if answer is None:
         return 1, no_terminal
-    typed = answer.strip().strip("'\"“”‘’").strip()
-    if typed not in accepted:
-        return 1, f"Confirmación abortada (se esperaba '{expected_confirm}')."
+    if not is_yes(answer):
+        if waive or reject or reapproval:
+            return 1, f"Sin cambios: {gate_id} sigue como estaba."
+        motive = ask_input("Para rechazarlo escribe el motivo (Enter para salir sin cambios): ")
+        if motive is None:
+            return 1, no_terminal
+        if not motive.strip():
+            return 1, f"Sin cambios: {gate_id} sigue pendiente."
+        reject, reason = True, motive.strip()
 
     if waive:
         try:

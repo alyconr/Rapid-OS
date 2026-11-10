@@ -83,6 +83,17 @@ When creating a run from a spec, execution policy evaluates the mode along with 
 rapid run create --spec checkout-v2 --harness codex
 ```
 
+## How a story is handed over for approval {#handing-over-for-approval}
+
+When `gate.tests` and `gate.architecture` pass, `rapid next` returns `await_human_approval` with the acceptance criteria of the spec (`action.acceptance`) and the two commands the person can run (`action.commands`). The work shortcuts (`/rapid-feature`, `/rapid-bugfix`, `/rapid-refactor`, `/rapid-hardening`, `/rapid-research`) do not hand the story over just because the gates passed:
+
+1. **Review every criterion with its evidence:** the test that covers it and the evidence id of `rapid check`, or a check the agent describes.
+2. **If something does not hold, fix it instead of handing it over.** A criterion not met, a failing test (integration tests too: with the services up (if they are not, the agent asks you to run `docker compose up -d` and waits), through `rapid check -- <command>`), or anything the agent itself would advise against approving: the agent fixes it and runs what `rapid next` asks for again. Since the tree changed, `rapid next` repeats `gate.tests` and `gate.architecture`.
+3. **It only stops earlier when something depends on you** (a credential, a decision, a service you start): it explains it and offers the ways out: you do it and the agent continues, adjust the scope, or abort.
+4. **Hand-over:** the list of criteria with «cumple» and its evidence, the command to approve in your terminal (`rapid approve <gate>`, which allows `rapid finish`) and, as an alternative you decide on, the command to reject (`rapid approve <gate> --reject --reason "<motivo>"`): the gate stays `FAIL` for this run, then `rapid abort` and a new run that addresses the reason.
+
+An agent never hands a story over while advising you not to approve it.
+
 ## Next step
 
 Start with the [shortcuts guide](../shortcuts.md), then explore the detailed guide for each mode:

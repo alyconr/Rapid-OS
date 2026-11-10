@@ -34,6 +34,16 @@ Common errors when working with `/rapid-*`. See the complete [Shortcuts by Harne
 - **Cause:** You selected Cursor or VS Code together with Claude, Codex, or Antigravity, and the same `/rapid-*` shortcut is written to two directories that the tool reads.
 - **Fix:** This is only a warning. To avoid it, install one harness that covers both tools; see [Combining Harnesses](../guides/shortcuts.md#if-you-combine-harnesses).
 
+### `RAPID1415`: the spec lost its accents (`rapid start`, `rapid spec create`, `rapid spec revise`)
+
+- **Cause:** the spec went through a Windows PowerShell 5.1 pipe (`$spec | rapid start feature --spec-file -`), which converts it to ASCII: `creación` arrives as `creaci?n` and the spec id would be `reserva-p-blica`. The message names the field and the word. Nothing was written: no spec, no revision, no run.
+- **Fix:** write the spec to a temporary UTF-8 file outside `.rapid-os` and pass the path: `$spec | Set-Content -Encoding utf8 $env:TEMP\rapid-spec.json`, then `rapid start <mode> --spec-file $env:TEMP\rapid-spec.json`. Do not pipe it again. In bash or zsh, stdin with a heredoc is fine. See [Sending specs and documents from PowerShell](../installation/windows.md#text-from-powershell).
+
+### `rapid check` on Windows: the log has no output and the tests are not counted
+
+- **Cause:** in 3.2.0rc3 and earlier, `rapid check` decoded the command's output with the Windows code page (cp1252). The UTF-8 that Vitest prints (`✓`, `⎯`, `❯`) stopped the reader with `UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d`: the log stayed without the output and the summary was not counted. `rapid task done` uses the same check.
+- **Fix:** update Rapid OS; the output is now read as UTF-8 and `PYTHONUTF8=1` is no longer needed. Then run the check again: `rapid check -- <command>`.
+
 ## 1. Scanner and initialization issues
 
 ### `RAPID1001` (Project Model Error) or incomplete facts

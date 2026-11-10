@@ -4364,22 +4364,39 @@ def next_command(args):
         sys.exit(code)
 
     findings = ()
-    if action.kind.value == "await_human_approval" and action.mode == "hardening" and action.run_id:
+    acceptance: list[str] | None = None
+    commands: list[dict[str, object]] = []
+    if action.kind.value == "await_human_approval" and action.run_id:
         try:
             contract = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_contract(action.run_id)
-            findings = SpecRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_revision(contract.spec_id).findings
+            revision = SpecRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_revision(contract.spec_id, contract.spec_revision)
+            acceptance = list(revision.acceptance_criteria)
+            if action.mode == "hardening":
+                findings = revision.findings
         except Exception:
-            findings = ()
+            findings, acceptance = (), None
+        commands = approval_commands(action.gate_ids or action.awaiting_human)
     if getattr(args, "json", False):
         payload = action.to_dict()
         if findings:
             payload["action"]["findings"] = [item.to_dict() for item in findings]
+        if action.kind.value == "await_human_approval":
+            payload["action"]["acceptance"] = acceptance
+            payload["action"]["commands"] = commands
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
 
     if action.kind.value == "await_human_approval":
         for gate_id in action.gate_ids or action.awaiting_human:
             print(f"Next: await_human_approval -> rapid approve {gate_id}")
+        if acceptance is not None:
+            print("Criterios de aceptación (acceptance.md de la revisión del run):")
+            for criterion in acceptance or ["(la spec no tiene criterios de aceptación)"]:
+                print(f"  - {criterion}")
+        for item in commands:
+            label = "Aprobar" if item["id"] == "approve" else "Rechazar"
+            print(f"{label}: {item['display']}")
+            print(f"  -> {item['consequence']}")
         if findings:
             print("Hallazgos de hardening:")
             for item in findings:
@@ -4389,6 +4406,47 @@ def next_command(args):
         print(f"Next: {action.kind.value}{cmd_str}")
     _print_unconfirmed_docs(action)
     return 0
+
+
+REJECT_REASON_PLACEHOLDER = "<motivo>"
+
+
+def approval_commands(gate_ids) -> list[dict[str, object]]:
+    """What the person can do with each pending human gate, and what follows: approve or reject.
+
+    The agent hands both over; the person decides and runs them in their own terminal."""
+    gate_ids = list(gate_ids)
+    after_approve = (
+        "permite `rapid finish`"
+        if len(gate_ids) == 1
+        else "permite `rapid finish` cuando estén aprobados todos los gates humanos pendientes"
+    )
+    commands: list[dict[str, object]] = []
+    for gate_id in gate_ids:
+        commands.append(
+            {
+                "id": "approve",
+                "gate_id": gate_id,
+                "command": ["rapid", "approve", gate_id],
+                "display": f"rapid approve {gate_id}",
+                "consequence": (
+                    f"Ejecuta `rapid approve {gate_id}` en tu terminal y responde s: aprobar {gate_id} {after_approve}."
+                ),
+            }
+        )
+        commands.append(
+            {
+                "id": "reject",
+                "gate_id": gate_id,
+                "command": ["rapid", "approve", gate_id, "--reject", "--reason", REJECT_REASON_PLACEHOLDER],
+                "display": f'rapid approve {gate_id} --reject --reason "{REJECT_REASON_PLACEHOLDER}"',
+                "consequence": (
+                    f"Rechazar deja {gate_id} en FAIL para este run; después toca `rapid abort` y un run nuevo "
+                    "que atienda el motivo."
+                ),
+            }
+        )
+    return commands
 
 
 STORY_TAG_PREFIX = "story:"
@@ -4573,16 +4631,19 @@ def finish_command(args):
                     file=output,
                 )
 
-            phrase = f"integrar {run_id}"
-            print("Escribe la frase siguiente para confirmar el commit y merge:", file=output)
-            print(phrase, file=output)
+            from rapid_os.orchestration.lifecycle import is_yes
+
+            print(
+                f"Se hará commit de estos cambios en la rama rapid/{run_id} y merge en el checkout de origen.",
+                file=output,
+            )
             try:
-                answer = input("> ").strip().strip("'\"" + "\u201c\u201d\u2018\u2019").strip()
+                answer = input(f"¿Integrar el run {run_id}? [s/N] ")
             except EOFError:
-                merge_declined_reason = "no se recibió la frase de confirmación"
+                merge_declined_reason = "no se recibió la confirmación"
             else:
-                if answer != phrase:
-                    merge_declined_reason = f"se rechazó la frase de confirmación «{phrase}»"
+                if not is_yes(answer):
+                    merge_declined_reason = "no se confirmó el commit y merge"
 
             if merge_declined_reason is None:
                 source = CURRENT_DIR
@@ -4763,18 +4824,33 @@ def approve_command(args):
 
 def status_command(args):
     """Execute rapid status command."""
+    from rapid_os.orchestration.progress import last_run_id, progress_lines, run_progress
     from rapid_os.orchestration.session import load_session
 
     sess = load_session(PROJECT_RAPID_DIR)
     actions = person_actions(CURRENT_DIR)
     if not sess or not sess.active_run_id:
+        last_run_reg = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR)
+        last_id = last_run_id(last_run_reg, PROJECT_RAPID_DIR)
+        last_progress = None
+        if last_id:
+            try:
+                last_progress = run_progress(CURRENT_DIR, PROJECT_RAPID_DIR, last_run_reg, last_id)
+            except Exception:
+                last_progress = None
         if getattr(args, "json", False):
             payload = {"session": None, "run": None}
+            if last_progress is not None:
+                payload["last_run"] = last_progress
             if actions:
                 payload["person_actions"] = actions
             print(json.dumps(payload, indent=2))
             return 0
         print("No active run session found (.rapid-os/session.json).")
+        if last_progress is not None:
+            print(f"Last Run:      {last_progress['run_id']} ({last_progress['status']})")
+            for line in progress_lines(last_progress):
+                print(line)
         for line in person_action_lines(actions):
             print(line)
         return 0
@@ -4792,6 +4868,7 @@ def status_command(args):
 
     reports = eval_reg.list_reports(sess.active_run_id)
     last_verdict = reports[-1].verdict.value if reports else None
+    progress = run_progress(CURRENT_DIR, PROJECT_RAPID_DIR, run_reg, sess.active_run_id)
 
     if getattr(args, "json", False):
         payload = {
@@ -4804,8 +4881,8 @@ def status_command(args):
                 "harness": contract.harness,
                 "classification": contract.classification.value,
                 "risk": contract.risk.label,
-                "tasks": [t.to_dict() for t in state.tasks],
-                "gates": [g.to_dict() for g in state.gates],
+                "tasks": progress["tasks"],
+                "gates": progress["gates"],
                 "last_verdict": last_verdict,
             },
         }
@@ -4813,15 +4890,17 @@ def status_command(args):
             payload["run"]["baseline_waived"] = contract.baseline_waived
         if contract.isolation_waived is not None:
             payload["run"]["isolation_waived"] = contract.isolation_waived
+        if progress.get("evidence_error"):
+            payload["run"]["evidence_error"] = progress["evidence_error"]
         if actions:
             payload["person_actions"] = actions
         print(json.dumps(payload, indent=2))
         return 0
 
-    done_tasks = sum(1 for t in state.tasks if t.status in (TaskStatus.DONE, TaskStatus.SKIPPED))
     print(f"Session Run:   {record.id} ({state.status.value}, s{state.revision})")
     print(f"Mode/Harness:  {sess.mode} / {contract.harness}")
-    print(f"Tasks:         {done_tasks}/{len(state.tasks)} terminal")
+    for line in progress_lines(progress):
+        print(line)
     if contract.baseline_waived is not None:
         print(f"Baseline:      {NO_BASELINE_LINE}")
     if contract.isolation_waived is not None:
@@ -5827,7 +5906,7 @@ def create_parser():
     finish_p.add_argument(
         "--accept-test-command",
         metavar="MOTIVO",
-        help="Accept, typing a phrase in your own terminal, that the last test check used another command than the baseline (RAPID1435); the reason is recorded as evidence. An agent cannot do it.",
+        help="Accept, answering s in your own terminal, that the last test check used another command than the baseline (RAPID1435); the reason is recorded as evidence. An agent cannot do it.",
     )
     finish_p.add_argument("--reviewer", help="Name recorded with --accept-test-command (default: git config user.name).")
     finish_p.add_argument(

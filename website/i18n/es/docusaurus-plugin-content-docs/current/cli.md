@@ -350,6 +350,7 @@ Options:
 - `--json`: Output execution and recorded evidence details as JSON.
 - The executable of the argv is resolved with the `PATH` and `PATHEXT` before it runs (`pnpm`, `npm`, `yarn` are `.cmd` shims on Windows and `subprocess` does not find them without a shell); the argv compared with `test_command` and recorded in the evidence is the one that was typed.
 - `-- <argv...>`: Vector of command arguments to run directly without shell.
+- The output of the command is read as UTF-8 whatever the console code page is (a byte that is not UTF-8 becomes `�`), so the `✓`, `⎯` and `❯` of Vitest reach the log and the test summary is counted on Windows without `PYTHONUTF8=1`. The same goes for the output of git and of `packwerk check` that Rapid OS reads.
 
 ---
 
@@ -403,7 +404,7 @@ A **brand-new repository** (no source code outside `docs/` and hidden folders, a
 Options:
 - `--worktree`: When the contract requires `isolated_required`, create a git worktree at `../<repo>-<run-id>` on branch `rapid/<run-id>` from `HEAD`. The ledger (`.rapid-os/`, `session.json`) stays in the main repository; `session.json` stores `workspace_path`, `rapid check`/`rapid task done` run the commands in that directory, `rapid finish` collects the changes from it, and the run records `workspace` evidence with `mode: isolated` (which acknowledges `gate.workspace-isolation`). Without the flag the run stops at `blocked` and `rapid next` proposes `rapid start --resume --worktree`. The flag has no effect when the contract does not require isolation. Uncommitted changes of the main checkout are not part of the worktree (it starts from `HEAD`). `rapid abort` keeps the worktree on disk.
 - `--spec-file`: if a spec with the same identity (`id` or title) and the same content already exists (a previous `rapid start` created it and then failed, e.g. `RAPID1004`), it is reused; if the content differs, `rapid start` exits with `RAPID1322` and suggests `rapid start <mode> --spec <id>`.
-  - **Input encoding.** Text handed over as data is read as bytes and decoded as UTF-8 (a BOM is accepted), whatever the console code page is: `rapid start <mode> --spec-file -`, `--spec-file <path>`, and `--file -` / `--file <path>` of `rapid setup doc` and `rapid setup stack --custom`. On Windows `sys.stdin` would otherwise read with cp1252 and store `Ã³` for `ó`. Text that is not valid UTF-8 is refused with `RAPID1424` and nothing is stored. `rapid doctor` warns with `RAPID1425` when a saved spec or onboarding document already holds UTF-8 read as cp1252 (`Ã¡`, `Ã©`, `Ã³`, `Ã±`...); saved specs are never rewritten (the registry has digests): create a new revision with `rapid spec revise`. `rapid start` (and `rapid doctor`) warn with `RAPID1426` when `test_command` cannot be run — its first element is not on the `PATH` (Windows tries `.cmd` and `.exe` too) nor a file of the project — and propose the stack catalog's command, listing the command of each component and offering `rapid setup set test-command --recommended` (with the onboarding finished it already writes `config.json`).
+  - **Input encoding.** Text handed over as data is read as bytes and decoded as UTF-8 (a BOM is accepted), whatever the console code page is: `rapid start <mode> --spec-file -`, `--spec-file <path>`, and `--file -` / `--file <path>` of `rapid setup doc` and `rapid setup stack --custom`. On Windows `sys.stdin` would otherwise read with cp1252 and store `Ã³` for `ó`. Text that is not valid UTF-8 is refused with `RAPID1424` and nothing is stored. A spec whose text already lost characters before Rapid OS read it (a `?` between two letters or opening a word, `creaci?n`, `?xito`: what the Windows PowerShell 5.1 pipe to a native program leaves of accents and `ñ`) is refused with `RAPID1415` by `rapid start <mode> --spec-file`, `rapid spec create` and `rapid spec revise`, whatever field it is in (title, objective, problem, scope, criteria, tasks, findings...); no spec, revision or run is written. In Windows PowerShell write the spec to a temporary UTF-8 file outside `.rapid-os` (`Set-Content -Encoding utf8 $env:TEMP\rapid-spec.json`; the BOM it writes is accepted) and pass `--spec-file <path>`. See [Windows: sending specs and documents](installation/windows.md#text-from-powershell). `rapid doctor` warns with `RAPID1425` when a saved spec or onboarding document already holds UTF-8 read as cp1252 (`Ã¡`, `Ã©`, `Ã³`, `Ã±`...); saved specs are never rewritten (the registry has digests): create a new revision with `rapid spec revise`. `rapid start` (and `rapid doctor`) warn with `RAPID1426` when `test_command` cannot be run — its first element is not on the `PATH` (Windows tries `.cmd` and `.exe` too) nor a file of the project — and propose the stack catalog's command, listing the command of each component and offering `rapid setup set test-command --recommended` (with the onboarding finished it already writes `config.json`).
 - `session.json` also records `start_untracked`: the untracked files that existed before `rapid start`, which `rapid finish` does not attribute to the run.
 
 ### `rapid next`
@@ -414,6 +415,26 @@ After `rapid finish` the session still points at the closed run, but `rapid next
 ```bash
 rapid next [--json]
 ```
+
+In `await_human_approval` (the story is ready to be handed over), `rapid next` also brings what the person needs to decide:
+
+- `action.acceptance`: the acceptance criteria of the run's spec revision (what its `acceptance.md` lists), `[]` when the spec has none.
+- `action.commands[]`: for each pending human gate, `{id, gate_id, command, display, consequence}` with `id` `approve` (`rapid approve <gate>`: approving allows `rapid finish`, once every pending human gate is approved) and `reject` (`rapid approve <gate> --reject --reason "<motivo>"`: the gate stays `FAIL` for this run, and then `rapid abort` and a new run that addresses the reason).
+
+The text output keeps the line `Next: await_human_approval -> rapid approve <gate>` and adds the criteria and both commands with their consequence:
+
+```text
+Next: await_human_approval -> rapid approve gate.final-verification
+Criterios de aceptación (acceptance.md de la revisión del run):
+  - La reserva queda guardada
+  - Una fecha pasada se rechaza con un error claro
+Aprobar: rapid approve gate.final-verification
+  -> Ejecuta `rapid approve gate.final-verification` en tu terminal y responde s: aprobar gate.final-verification permite `rapid finish`.
+Rechazar: rapid approve gate.final-verification --reject --reason "<motivo>"
+  -> Rechazar deja gate.final-verification en FAIL para este run; después toca `rapid abort` y un run nuevo que atienda el motivo.
+```
+
+The work shortcuts review each criterion with its evidence before handing the story over; see [how a story is handed over](./guides/modes/index.md#handing-over-for-approval).
 
 With no active run, `rapid next` (and `rapid start feature` without a spec) returns `author_spec`. When the project has a product brief written by `rapid setup doc brief` (`docs/PRODUCT_BRIEF.md`, with `rapid-doc` frontmatter) that still has open stories, the `feature` action carries an optional `seed` object, omitted otherwise, so the output without a brief is exactly the same as before:
 
@@ -446,19 +467,27 @@ These lines go to stderr with `--json`, so stdout stays the report. Finishing a 
 Review a human gate. Without arguments it lists the pending human gates of the active run (read-only; no TTY needed). With a gate id it approves it, or with `--waive` / `--reject` waives or rejects it. Changing a gate requires an interactive terminal (TTY) and cannot be executed inside agent child sessions (`CLAUDE_CODE_CHILD_SESSION == 1`) nor under an agent harness: if any ancestor process is Claude Code (`claude`/`claude.exe`), it fails with `RAPID1310` even with a TTY and without the session variables (unreadable ancestry never rejects; `rapid doctor` reports it with `RAPID1319`). Without a TTY every case fails with `RAPID1310` (a stdin closed during the confirmation, EOF, is reported the same way).
 
 ```bash
-rapid approve
+rapid approve [--reviewer <name>]
 rapid approve <gate-id> [--reviewer <name>]
 rapid approve <gate-id> --waive --reason <text> [--reviewer <name>]
 rapid approve <gate-id> --reject --reason <text> [--reviewer <name>]
 ```
 
+Deciding (H-59): before asking, `rapid approve` prints what is being approved: the run, the gate, the acceptance criteria of the run's spec revision, the tasks with their state and evidence, and the result of `gate.tests` and `gate.architecture` with their evidence ids. Then it asks `¿Apruebas <gate-id>? [s/N]`:
+
+- `s`, `si`, `sí`, `y` or `yes` approves.
+- `n` or an empty Enter does not approve and offers `Para rechazarlo escribe el motivo (Enter para salir sin cambios):`. With text, the gate is rejected with that reason (as `--reject --reason`); empty, nothing changes and the exit code is 1.
+- Without a gate id and with exactly one pending human gate (one that was not rejected), that gate is the one decided. With several, or when the caller is not a person at a terminal (an agent, no TTY), it lists them, read-only, as before.
+
+No phrase is typed any more: it did not stop an agent with a pty. The barriers stay: the TTY (`RAPID1310`), the agent ancestry check, the Claude Code hooks, and the reviewer recorded in the review evidence. `rapid finish --merge` and `rapid finish --accept-test-command` ask `[s/N]` in the same way, after saying what will be done.
+
 Options:
 - `--reviewer <name>`: Reviewer recorded in the evidence. Defaults to `git config user.name`; if it is not set, the name is asked on the terminal (`RAPID1331` if left empty).
-- `--waive`: Waive a gate instead of approving it. Only gates that the contract marks as waivable (for example `gate.review`) can be waived, and `--reason` is mandatory. Confirm by typing `dispensar <gate-id>`.
-- `--reject`: Record a `review` evidence with outcome `changes_requested`. This leaves the gate in `FAIL` for the rest of that run: `rapid next` returns `blocked` with the command `rapid abort`, and a new run is needed. `--reason` is mandatory. Confirm by typing `rechazar <gate-id>` (typing `aprobar <gate-id>` does not reject).
+- `--waive`: Waive a gate instead of approving it. Only gates that the contract marks as waivable (for example `gate.review`) can be waived, and `--reason` is mandatory. It asks `¿Dispensas <gate-id> con el motivo «…»? [s/N]`.
+- `--reject`: Record a `review` evidence with outcome `changes_requested`. This leaves the gate in `FAIL` for the rest of that run: `rapid next` returns `blocked` with the command `rapid abort`, and a new run is needed. `--reason` is mandatory. It asks `¿Rechazas <gate-id> con el motivo «…»? [s/N]`.
 - `--reason <text>`: Reason for `--waive` or `--reject` (`RAPID1333` if missing). A rejection keeps it in the evidence (`payload.reason`) and `rapid next` hands it to the agent (see `action.rejection`).
 
-La aprobación queda como evidencia `review` con producer `user`, `via: rapid:approve` (un campo que `rapid evidence add` no puede poner) y `tree`, la huella del árbol de trabajo aprobado. En el ruleset 3 solo un review así satisface un gate humano, y `rapid finish` se niega a terminar un run cuyo código cambió después (`RAPID1433`); entonces `rapid approve <gate>` vuelve a aprobar el gate reconocido sobre el código actual. `rapid finish` también se niega cuando el último check de tests usó otro comando que la baseline (`RAPID1435`), salvo que la persona lo acepte en su terminal con `--accept-test-command <motivo>` y la frase `aceptar comando de tests` (las mismas comprobaciones que `rapid approve`, `RAPID1310`); la aceptación queda como evidencia con el motivo. `rapid run gate` no acepta gates humanos (`RAPID1431`).
+La aprobación queda como evidencia `review` con producer `user`, `via: rapid:approve` (un campo que `rapid evidence add` no puede poner) y `tree`, la huella del árbol de trabajo aprobado. En el ruleset 3 solo un review así satisface un gate humano, y `rapid finish` se niega a terminar un run cuyo código cambió después (`RAPID1433`); entonces `rapid approve <gate>` vuelve a aprobar el gate reconocido sobre el código actual. `rapid finish` también se niega cuando el último check de tests usó otro comando que la baseline (`RAPID1435`), salvo que la persona lo acepte en su terminal con `--accept-test-command <motivo>`, respondiendo `s` a `¿Aceptas el comando de tests? [s/N]` (las mismas comprobaciones que `rapid approve`, `RAPID1310`); la aceptación queda como evidencia con el motivo. `rapid run gate` no acepta gates humanos (`RAPID1431`).
 
 After the last pending human gate is approved, `rapid approve` prints `Siguiente: rapid finish (o /rapid-next en tu agente). Tras finish el run ya no se puede cancelar.` Approving, waiving or rejecting a gate that is already decided is `RAPID1332`, and the message says how to take it back: `rapid abort` before `rapid finish`; after `rapid finish`, `git revert` and a new run. The full procedure is in [Undo an approval](./guides/undo-approval.md).
 
@@ -487,6 +516,28 @@ Display active session, run state, tasks, gates, and last evaluation verdict.
 ```bash
 rapid status [--json]
 ```
+
+The task list is the progress of the story: one line per task with its state and the evidence ids that back it, then the gates with theirs. The checkboxes of the spec's `tasks.md` are the plan, not the progress (a revision is immutable), so they stay `[ ]`; new revisions say so under the title (`El estado de cada tarea vive en el run: rapid status`), and revisions stored before keep their `tasks.md` and digests.
+
+```text
+Session Run:   reservas-r1-run-001 (active, s7)
+Mode/Harness:  feature / codex
+Tasks:         2/4 terminal
+  T001 [done] Crear el modelo de reserva  (evidencia: E003)
+  T002 [skipped] Documentar la API
+  T003 [in_progress] Validar que la fecha de la reserva no esté en el pasado y que el taller…
+  T004 [pending] Publicar el endpoint
+Gates:
+  gate.baseline [pass]  (evidencia: E002)
+  gate.tests [pending · última evidencia: PASS]  (evidencia: E004)
+  gate.final-verification [pending]
+```
+
+- A title longer than 72 characters is cut with `…`; the `T002:` prefix is not repeated.
+- A gate's state is `pending` until it is acknowledged, then what the evaluator says (`pass`, `fail`, `unverified`, `waived`); a human gate rejected with `rapid approve <gate> --reject` is `fail`. A pending gate whose `rapid check` already ran also shows the result of its last evidence (`pending · última evidencia: PASS`, or `FAIL`); in `--json`, `last_evidence_result` (`PASS`, `FAIL`, `FAIL (esperado)` or `null`) and `last_evidence_id`.
+- `--json`: each entry of `run.tasks` keeps `id`, `description`, `status` and `reason`, and adds `title` and `evidence_ids`; each entry of `run.gates` adds `status` and `evidence_ids` to its `disposition`.
+- With no active run, the last run (the one whose state was written last) is listed under `Last Run:`; in `--json`, `run` stays `null` and the same list goes in `last_run` (`run_id`, `status`, `tasks`, `gates`).
+- Evidence that cannot be read does not stop the list: the tasks and gates are shown and a `WARNING` (`evidence_error` in JSON) says why.
 
 ### `rapid abort`
 Cancel the active run and remove the session file.
@@ -626,4 +677,4 @@ They create `.rapid-os/` and `setup.json` when they do not exist, write atomical
 | `RAPID1200–RAPID1211` | Phase 6 — Evidence Engine | `.rapid-os/evidence/` (`RAPID1200` INFO, `RAPID1201` invalid evidence ID, `RAPID1202` invalid `RunEvidence` schema/digest, `RAPID1203` Run/Contract/State/producer binding mismatch, `RAPID1204` unsafe path, `RAPID1205` copied artifact missing/SHA-256/size mismatch, `RAPID1206` invalid payload, `RAPID1207` invalid task/gate/capability reference, `RAPID1208` sequence gap/duplicate, `RAPID1209` trailing crash-orphan artifact directory warning, `RAPID1210` evidence not found, `RAPID1211` append-only overwrite or unresolved crash-orphan block). |
 | `RAPID1220–RAPID1229` | Phase 6 — Behavioral Evals | `.rapid-os/evals/` (`RAPID1220` INFO, `RAPID1221` invalid `EvaluationReport` schema, `RAPID1222` report digest mismatch, `RAPID1223` binding or semantic replay mismatch, `RAPID1224` unsafe path, `RAPID1225` `UNVERIFIED` under `--require-pass`, `RAPID1226` `FAIL` under `--require-pass`, `RAPID1227` stale report warning, `RAPID1228` report not found, `RAPID1229` append-only overwrite violation). |
 | `RAPID1300–RAPID1339` | Intent layer (porcelain), shortcuts and hooks | Session and run (`RAPID1300` harness fallback, `RAPID1301` missing `test_command`, `RAPID1302` interactive input required, `RAPID1303` playbook, `RAPID1304`–`RAPID1309` session, tasks and project state), approval guard (`RAPID1310`, `RAPID1330`–`RAPID1336`), shortcuts (`RAPID1311`–`RAPID1319`, `RAPID1321`), `rapid check --expect fail` (`RAPID1320`) and Claude Code hooks (`RAPID1337`–`RAPID1339`). See the [diagnostics catalog](troubleshooting/diagnostics.md) for every code. |
-| `RAPID1400–RAPID1429` | Catalog, onboarding and architecture | Stack/topology sidecars and setup state (`RAPID1400` informational "valid setup" of `rapid validate`, `RAPID1401` invalid catalog sidecar or question bank, `RAPID1402` stack and topology incompatible, `RAPID1403`/`RAPID1404` drafted document missing a section or over its size (a warning in `validate`, a rejection in `rapid setup doc`), `RAPID1405` a draft over a document a person provided, `RAPID1406` invalid `.rapid-os/setup.json`, `RAPID1407` `rapid setup finish` with decisions left, `RAPID1408` unconfirmed draft, `RAPID1409` custom stack without Runtime/Framework/Testing, `RAPID1410` `standards/business.md` differs from `docs/BUSINESS_RULES.md`, `RAPID1412` template without a sidecar, `RAPID1413` invalid `rapid setup` subcommand, key or value (also `rapid shortcuts` with an unsupported `--global` or an unknown `--only`), `RAPID1414` `rapid` not on the `PATH` while shortcuts or hooks are installed, `RAPID1415` text that lost its accents or `ñ` (`?` between letters) in `rapid setup doc`, `RAPID1416` `rapid start` in a folder that is not a git repository). See `docs/troubleshooting/diagnostics.md`., `RAPID1420` a violation of the architecture rule found by `rapid arch check` (or an unreadable `architecture.json`)), `RAPID1421` `security.md` without OWASP ASVS (warning of `rapid doctor`), `RAPID1417` a command that writes state run from the home folder, where `.rapid-os` is the Rapid OS installation and not a project (nothing is written; `rapid doctor` says "No estás en un proyecto" instead), `RAPID1424` text from `--file`/`--spec-file`/stdin that is not valid UTF-8 (nothing is stored), `RAPID1425` a saved spec or onboarding document with UTF-8 read as cp1252 (warning of `rapid doctor`), `RAPID1426` `test_command` that cannot be run (warning of `rapid doctor` and `rapid start`), `RAPID1427` an agent file edited by hand that `rapid setup` regenerates (warning; the copy goes to `.rapid-os/backups/`), `RAPID1423` the code changed after the last `gate.tests` check (`rapid approve` / `rapid finish` refuse, `rapid next` asks for a new check), `RAPID1422` `rapid finish` found, on the final state of the code, a violation of the architecture rule that `gate.architecture` had not seen (no `PASS`, exit 1, the run stays open)) |
+| `RAPID1400–RAPID1429` | Catalog, onboarding and architecture | Stack/topology sidecars and setup state (`RAPID1400` informational "valid setup" of `rapid validate`, `RAPID1401` invalid catalog sidecar or question bank, `RAPID1402` stack and topology incompatible, `RAPID1403`/`RAPID1404` drafted document missing a section or over its size (a warning in `validate`, a rejection in `rapid setup doc`), `RAPID1405` a draft over a document a person provided, `RAPID1406` invalid `.rapid-os/setup.json`, `RAPID1407` `rapid setup finish` with decisions left, `RAPID1408` unconfirmed draft, `RAPID1409` custom stack without Runtime/Framework/Testing, `RAPID1410` `standards/business.md` differs from `docs/BUSINESS_RULES.md`, `RAPID1412` template without a sidecar, `RAPID1413` invalid `rapid setup` subcommand, key or value (also `rapid shortcuts` with an unsupported `--global` or an unknown `--only`), `RAPID1414` `rapid` not on the `PATH` while shortcuts or hooks are installed, `RAPID1415` text that lost its accents or `ñ` (`?` between letters) in `rapid setup doc`, `rapid start <mode> --spec-file`, `rapid spec create` or `rapid spec revise`, `RAPID1416` `rapid start` in a folder that is not a git repository). See `docs/troubleshooting/diagnostics.md`., `RAPID1420` a violation of the architecture rule found by `rapid arch check` (or an unreadable `architecture.json`)), `RAPID1421` `security.md` without OWASP ASVS (warning of `rapid doctor`), `RAPID1417` a command that writes state run from the home folder, where `.rapid-os` is the Rapid OS installation and not a project (nothing is written; `rapid doctor` says "No estás en un proyecto" instead), `RAPID1424` text from `--file`/`--spec-file`/stdin that is not valid UTF-8 (nothing is stored), `RAPID1425` a saved spec or onboarding document with UTF-8 read as cp1252 (warning of `rapid doctor`), `RAPID1426` `test_command` that cannot be run (warning of `rapid doctor` and `rapid start`), `RAPID1427` an agent file edited by hand that `rapid setup` regenerates (warning; the copy goes to `.rapid-os/backups/`), `RAPID1423` the code changed after the last `gate.tests` check (`rapid approve` / `rapid finish` refuse, `rapid next` asks for a new check), `RAPID1422` `rapid finish` found, on the final state of the code, a violation of the architecture rule that `gate.architecture` had not seen (no `PASS`, exit 1, the run stays open)) |

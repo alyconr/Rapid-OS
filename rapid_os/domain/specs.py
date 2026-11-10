@@ -126,6 +126,60 @@ class UnsafeSpecPathError(SpecRegistryError):
     default_code = "RAPID808"
 
 
+class LostCharactersSpecError(SpecRegistryError):
+    """Spec text where accents or `ñ` arrived as '?' (a non-UTF-8 pipe): refused, nothing is written."""
+
+    default_code = "RAPID1415"
+
+
+_SPEC_DIGEST_KEYS = frozenset({"artifact_digests", "content_digest"})
+
+
+def find_spec_lost_characters(value: object, field_name: str = "") -> tuple[str, str] | None:
+    """The first `(field, word)` of a spec payload whose text lost characters ("creaci?n"), or None.
+
+    Walks every string of a spec (title, objective, problem, scope, criteria, tasks, findings...), so a
+    payload as it arrives (`--spec-file`) and a built revision are checked by the same rule."""
+    from rapid_os.domain.project_docs import find_lost_characters
+
+    if isinstance(value, str):
+        word = find_lost_characters(value)
+        return (field_name or "spec", word) if word else None
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            if key in _SPEC_DIGEST_KEYS:
+                continue
+            found = find_spec_lost_characters(item, f"{field_name}.{key}" if field_name else str(key))
+            if found:
+                return found
+        return None
+    if isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            found = find_spec_lost_characters(item, f"{field_name}[{index}]")
+            if found:
+                return found
+    return None
+
+
+def lost_characters_spec_message(field_name: str, word: str) -> str:
+    """RAPID1415 for a spec: where the text broke and how to send it intact from Windows PowerShell."""
+    return (
+        f"La spec perdió caracteres en '{field_name}' («{word}»): acentos o ñ convertidos en '?' por una "
+        "tubería que no es UTF-8. No se guardó nada (ni spec, ni revisión, ni run). En Windows PowerShell no pases la spec por "
+        "tubería: escríbela en un archivo temporal UTF-8 fuera de .rapid-os "
+        "(`Set-Content -Encoding utf8 $env:TEMP\\rapid-spec.json`) y usa `--spec-file $env:TEMP\\rapid-spec.json`; "
+        "en bash o zsh, stdin (heredoc) sigue bien."
+    )
+
+
+def ensure_spec_text_intact(value: object) -> None:
+    """Raise RAPID1415 when any text of a spec payload or revision lost characters."""
+    payload = value.to_dict() if isinstance(value, SpecRevision) else value
+    found = find_spec_lost_characters(payload)
+    if found:
+        raise LostCharactersSpecError(lost_characters_spec_message(*found))
+
+
 class SpecStatus(str, Enum):
     DRAFT = "draft"
     READY = "ready"
@@ -522,6 +576,9 @@ class SpecRevision:
     # Read from a revision.json written before `findings` existed (3.1, 3.2.0rc1): its content_digest was
     # computed without that key. Not part of the content, the digest or equality.
     stored_without_findings: bool = field(default=False, compare=False, repr=False)
+    # New revisions say in `tasks.md` where task progress lives (H-54). A revision stored before that renders
+    # `tasks.md` as it was written, so its artifact and content digests do not change. Not part of equality.
+    tasks_status_note: bool = field(default=True, compare=False, repr=False)
 
     def __post_init__(self):
         if (
@@ -775,6 +832,12 @@ class SpecRevision:
             findings=payload.get("findings", ()),  # type: ignore[arg-type]
             stored_without_findings="findings" not in payload,
         )
+        recorded = payload.get("artifact_digests")
+        if isinstance(recorded, Mapping) and instance.tasks_status_note:
+            # A revision written before the note: its recorded `tasks.md` is the one without the line.
+            legacy_tasks = sha256_text(render_tasks_artifact(instance, status_note=False))
+            if recorded.get("tasks.md") == legacy_tasks:
+                object.__setattr__(instance, "tasks_status_note", False)
 
         if verify_digests:
             raw_digests = dict(payload["artifact_digests"])  # type: ignore[arg-type]
@@ -830,10 +893,19 @@ def render_requirements_artifact(revision: SpecRevision) -> str:
     )
 
 
-def render_tasks_artifact(revision: SpecRevision) -> str:
-    """Deterministically render `tasks.md` from a canonical `SpecRevision`."""
+TASKS_STATUS_NOTE = "El estado de cada tarea vive en el run: rapid status"
+
+
+def render_tasks_artifact(revision: SpecRevision, *, status_note: bool | None = None) -> str:
+    """Deterministically render `tasks.md` from a canonical `SpecRevision`.
+
+    The checkboxes are the plan, never the progress (the revision is immutable): new revisions say so under the
+    title. `status_note=False` renders a revision written before that line."""
+    with_note = revision.tasks_status_note if status_note is None else status_note
+    note = f"{TASKS_STATUS_NOTE}\n\n" if with_note else ""
     return (
         f"# TASKS: {render_text(revision.title)}\n\n"
+        f"{note}"
         f"## Implementation Tasks\n{render_checklist(revision.implementation_tasks)}\n\n"
         "## Planning Notes\n"
         "- Work from `requirements.md` as the source of scope.\n"

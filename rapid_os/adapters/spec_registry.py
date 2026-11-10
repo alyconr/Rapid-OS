@@ -27,6 +27,7 @@ from rapid_os.domain.specs import (
     SpecStatus,
     UnsafeSpecPathError,
     derive_spec_id,
+    ensure_spec_text_intact,
     format_revision_dir_name,
     is_canonical_revision_dir_name,
     scope_spec_from_revision,
@@ -635,6 +636,8 @@ class SpecRegistry:
         validate -> create revision dir -> write artifacts -> write revision.json ->
         validate complete revision -> update spec.json LAST.
         """
+        # Text that lost its accents in a non-UTF-8 pipe is refused before anything is written (RAPID1415).
+        ensure_spec_text_intact(revision)
         rev_dir = self._resolve_revision_dir(spec_dir, revision.revision)
         if rev_dir.exists():
             raise InvalidRevisionManifestError(
@@ -763,7 +766,9 @@ class SpecRegistry:
             return None
         record = self.get(candidate.spec_id)
         stored = self.get_revision(candidate.spec_id, record.current_revision)
-        candidate = dataclass_replace(candidate, revision=record.current_revision)
+        candidate = dataclass_replace(
+            candidate, revision=record.current_revision, tasks_status_note=stored.tasks_status_note
+        )
         return record, candidate.content_digest == stored.content_digest
 
     def revise(

@@ -110,6 +110,8 @@ def _ps_reader(pid: int) -> tuple[int, str, tuple[str, ...]]:
             ["ps", *fields, "-p", str(pid)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
             timeout=5,
         )

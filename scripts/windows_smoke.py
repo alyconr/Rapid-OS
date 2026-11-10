@@ -11,6 +11,12 @@ Standard library only. It drives the `rapid` executable of a clean venv, in a te
 4. H-32: `rapid check` with an executable that only exists as a `.cmd` on the PATH, typed without its extension.
 5. H-51: evidence with LF and with mixed line endings, committed and cloned with core.autocrlf=true: the clone verifies
    with the `.gitattributes` of `rapid setup finish`; without it, verification fails and names the cause.
+6. H-55: in a second project, a spec with accents and an n with tilde piped by Windows PowerShell 5.1
+   (`powershell.exe -NoProfile -Command`) to `rapid start research --spec-file -` arrives with '?' and is refused with
+   RAPID1415 and no run; the same text written with `Set-Content -Encoding utf8` (UTF-8 with BOM) and passed with
+   `--spec-file <path>` creates the spec with its title intact and the id with "publica".
+7. H-57: `rapid check` of a command that prints UTF-8 outside cp1252 (Vitest's ✓, ⎯, ❯) and a test summary: the log
+   keeps those characters, the summary is counted and there is no traceback.
 
 PYTHONUTF8 and PYTHONIOENCODING are removed from the environment, because either of them hides H-29: the point is to
 run with the console code page of a real Windows machine.
@@ -37,7 +43,27 @@ SPEC = {
     "tasks": ["T001: Comparar opciones"],
 }
 SPEC_ID = "notificacion-de-dueno"
+PIPED_SPEC = {
+    "title": "Reserva pública",
+    "mode": "research",
+    "business_objective": "Decidir la reserva pública",
+    "problem_statement": "No hay reserva",
+    "scope": ["reserva"],
+    "acceptance_criteria": ["La reserva queda guardada"],
+    "tasks": ["T001: Añadir la creación atómica del módulo"],
+}
+PIPED_SPEC_ID = "reserva-publica"
+ONBOARDING = (
+    ("stack", "python-fastapi"), ("topology", "backend-only"), ("archetype", "mvp"), ("ai", "no"),
+    ("agents", "claude"), ("test-command", "smoke-tests"), ("services", "none"),
+)
 MOJIBAKE = ("Ã", "Â", "�")
+# What Vitest prints: ✓ (E2 9C 93), ⎯ (E2 8E AF) and ❯ (E2 9D AF; 0x9d is not a cp1252 byte).
+VITEST_LIKE = (
+    "import sys; sys.stdout.buffer.write("
+    "' \\u2713 src/reserva.test.ts (3 tests) 4ms\\n\\u23af\\u23af\\u23af\\n \\u276f done\\n"
+    "      Tests  3 passed (3)\\n'.encode('utf-8')); sys.stdout.flush()"
+)
 SHIM = "@echo off\r\necho Ran 1 test in 0.001s\r\necho.\r\necho OK\r\nexit /b 0\r\n"
 
 
@@ -78,15 +104,22 @@ def main(argv: list[str]) -> int:
         (bin_dir / "smoke-tests.cmd").write_text(SHIM, encoding="ascii", newline="")
         env = clean_environment(base, bin_dir)
 
-        def rapid(*args: str, raw: bytes | None = None) -> str:
+        def rapid(*args: str, raw: bytes | None = None, cwd: Path = project) -> str:
             result = subprocess.run(
-                [rapid_exe, *args], cwd=project, env=env, input=raw, capture_output=True, timeout=120,
+                [rapid_exe, *args], cwd=cwd, env=env, input=raw, capture_output=True, timeout=120,
                 stdin=None if raw is not None else subprocess.DEVNULL,
             )
             out = result.stdout.decode("utf-8", "replace")
             if result.returncode != 0:
                 fail(f"rapid {' '.join(args)} exited {result.returncode}:\n{out}\n{result.stderr.decode('utf-8', 'replace')}")
             return out
+
+        def onboard(cwd: Path) -> None:
+            for step in ONBOARDING:
+                rapid("setup", "set", *step, cwd=cwd)
+            for doc in ("brief", "business", "data-model", "architecture", "deployment"):
+                rapid("setup", "doc", doc, "--skip", cwd=cwd)
+            rapid("setup", "finish", cwd=cwd)
 
         # 1. The executable runs and reports a version.
         version = rapid("--version").strip()
@@ -95,12 +128,7 @@ def main(argv: list[str]) -> int:
         print(f"ok  --version: {version}")
 
         # 2. Minimal onboarding in an empty folder.
-        for step in (("stack", "python-fastapi"), ("topology", "backend-only"), ("archetype", "mvp"), ("ai", "no"),
-                     ("agents", "claude"), ("test-command", "smoke-tests"), ("services", "none")):
-            rapid("setup", "set", *step)
-        for doc in ("brief", "business", "data-model", "architecture", "deployment"):
-            rapid("setup", "doc", doc, "--skip")
-        rapid("setup", "finish")
+        onboard(project)
         if not (project / ".rapid-os" / "config.json").is_file():
             fail("onboarding did not write .rapid-os/config.json")
         print("ok  onboarding")
@@ -165,6 +193,72 @@ def main(argv: list[str]) -> int:
         if broken.returncode == 0 or "RAPID1205" not in stderr or "RAPID1437" not in stderr:
             fail(f"H-51: expected RAPID1205 and RAPID1437 without the rule, got exit {broken.returncode}:\n{stderr}")
         print("ok  H-51: the clone verifies with the rule and names the cause without it")
+
+        # 6. H-55: Windows PowerShell 5.1 turns accents into '?' in a pipe to a native program.
+        piped = base / "piped"
+        piped.mkdir()
+        onboard(piped)
+        source = base / "spec-source.json"
+        source.write_text(json.dumps(PIPED_SPEC, ensure_ascii=False), encoding="utf-8")
+        spec_file = base / "rapid-spec.json"
+
+        def powershell(script: str) -> subprocess.CompletedProcess:
+            return subprocess.run(
+                ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
+                cwd=piped, env=env, capture_output=True, timeout=180, stdin=subprocess.DEVNULL,
+            )
+
+        def ps_quote(value: Path | str) -> str:
+            return "'" + str(value).replace("'", "''") + "'"
+
+        read_spec = f"$spec = Get-Content -Raw -Encoding UTF8 -Path {ps_quote(source)}; "
+        through_pipe = powershell(
+            read_spec + f"$spec | & {ps_quote(rapid_exe)} start research --spec-file -; exit $LASTEXITCODE"
+        )
+        pipe_err = through_pipe.stderr.decode("utf-8", "replace") + through_pipe.stdout.decode("utf-8", "replace")
+        runs_dir = piped / ".rapid-os" / "runs"
+        if through_pipe.returncode == 0 or "RAPID1415" not in pipe_err:
+            fail(f"H-55: the piped spec was not refused with RAPID1415 (exit {through_pipe.returncode}):\n{pipe_err}")
+        if runs_dir.is_dir() and any(runs_dir.iterdir()):
+            fail("H-55: a run was created from the piped spec")
+        print("ok  H-55: the PowerShell pipe is refused with RAPID1415 and no run")
+
+        through_file = powershell(
+            read_spec
+            + f"$spec | Set-Content -Encoding utf8 -Path {ps_quote(spec_file)}; "
+            + f"& {ps_quote(rapid_exe)} start research --spec-file {ps_quote(spec_file)} --json; exit $LASTEXITCODE"
+        )
+        if through_file.returncode != 0:
+            fail(
+                f"H-55: the spec by file failed (exit {through_file.returncode}):\n"
+                f"{through_file.stdout.decode('utf-8', 'replace')}\n{through_file.stderr.decode('utf-8', 'replace')}"
+            )
+        if not spec_file.read_bytes().startswith(b"\xef\xbb\xbf"):
+            fail("H-55: Set-Content -Encoding utf8 did not write a BOM; the check no longer covers it")
+        piped_dir = piped / ".rapid-os" / "specs" / PIPED_SPEC_ID
+        if not piped_dir.is_dir():
+            found = sorted(p.name for p in (piped / ".rapid-os" / "specs").iterdir())
+            fail(f"H-55: expected the spec id {PIPED_SPEC_ID!r}, found {found}")
+        revision = json.loads(next(piped_dir.rglob("revision.json")).read_text(encoding="utf-8"))
+        if revision["title"] != PIPED_SPEC["title"] or revision["implementation_tasks"] != PIPED_SPEC["tasks"]:
+            fail(f"H-55: the spec by file was not stored intact: {revision['title']!r} {revision['implementation_tasks']!r}")
+        print(f"ok  H-55: by file (UTF-8 with BOM) the spec is {PIPED_SPEC_ID}, text intact")
+
+        # 7. H-57: the output of the checked command is UTF-8, whatever the code page is.
+        checked = subprocess.run(
+            [rapid_exe, "check", "--json", "--kind", "test", "--", sys.executable, "-c", VITEST_LIKE],
+            cwd=piped, env=env, capture_output=True, timeout=120, stdin=subprocess.DEVNULL,
+        )
+        check_err = checked.stderr.decode("utf-8", "replace")
+        if checked.returncode != 0 or "Traceback" in check_err or "UnicodeDecodeError" in check_err:
+            fail(f"H-57: rapid check failed (exit {checked.returncode}):\n{check_err}")
+        if '"passed": 3' not in checked.stdout.decode("utf-8", "replace"):
+            fail(f"H-57: the test summary was not counted:\n{checked.stdout.decode('utf-8', 'replace')}")
+        log = sorted((piped / ".rapid-os" / "scratch" / "checks").rglob("*.log"))[-1].read_text(encoding="utf-8")
+        missing = [mark for mark in ("\u2713", "\u23af", "\u276f", "Tests  3 passed (3)") if mark not in log]
+        if missing:
+            fail(f"H-57: the log lost {missing!r}")
+        print("ok  H-57: rapid check logs the UTF-8 output and counts its summary")
     print("Windows smoke test passed.")
     return 0
 

@@ -52,6 +52,6 @@ jobs:
         shell: pwsh
         run: python scripts/windows_smoke.py "$env:RUNNER_TEMP\rapid-env\Scripts\rapid.exe"
 
-      - name: Regression tests of H-29, H-32 and H-38
+      - name: Regression tests of H-29, H-32, H-38 and H-57
         shell: pwsh
-        run: python -m unittest tests.test_stdin_utf8_and_resolution tests.test_legacy_specs
+        run: python -m unittest tests.test_stdin_utf8_and_resolution tests.test_legacy_specs tests.test_rc4_specs_utf8.CheckReadsUtf8OutputTests

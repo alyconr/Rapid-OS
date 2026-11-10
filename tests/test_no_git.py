@@ -271,7 +271,7 @@ def approve(root, gate, env):
         "mock.patch('rapid_os.orchestration.lifecycle.stdin_is_windows_nul', return_value=False).start(); "
         "mock.patch('rapid_os.orchestration.lifecycle.read_ancestry', "
         "return_value=__import__('rapid_os.core.ancestry', fromlist=['x']).AncestryResult(())).start(); "
-        f"mock.patch('builtins.input', return_value='aprobar {gate}').start(); sys.exit(m.main())"
+        f"mock.patch('builtins.input', return_value='s').start(); sys.exit(m.main())"
     )
     return subprocess.run([sys.executable, "-c", code], cwd=root, capture_output=True, text=True, env=env)
 

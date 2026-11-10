@@ -175,7 +175,7 @@ class FinishWithoutRealWritesTests(unittest.TestCase):
             "mock.patch('rapid_os.orchestration.lifecycle.stdin_is_windows_nul', return_value=False).start(); "
             "mock.patch('rapid_os.orchestration.lifecycle.read_ancestry', "
             "return_value=__import__('rapid_os.core.ancestry', fromlist=['x']).AncestryResult(())).start(); "
-            f"mock.patch('builtins.input', return_value='aprobar {gate}').start(); sys.exit(m.main())"
+            f"mock.patch('builtins.input', return_value='s').start(); sys.exit(m.main())"
         )
         env = {k: v for k, v in os.environ.items() if k not in ("CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION", "PYTHONDONTWRITEBYTECODE")}
         env["PYTHONPATH"] = str(ROOT)

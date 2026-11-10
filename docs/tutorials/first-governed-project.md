@@ -316,7 +316,7 @@ A test gate (`gate.tests`, `gate.baseline`) is only satisfied by a check Rapid O
 rapid approve gate.final-verification
 ```
 
-Rapid OS asks you to type the phrase `aprobar gate.final-verification`. It records `review` evidence written by `rapid approve`, with your name and the fingerprint of the working tree you approved. An agent cannot do it: inside an agent session, under an agent process, or without a TTY, it is refused (`RAPID1310`).
+Rapid OS shows what you approve (acceptance criteria, tasks, and the result of `gate.tests` and `gate.architecture`) and asks `¿Apruebas gate.final-verification? [s/N]`: answer `s`. It records `review` evidence written by `rapid approve`, with your name and the fingerprint of the working tree you approved. An agent cannot do it: inside an agent session, under an agent process, or without a TTY, it is refused (`RAPID1310`).
 
 ---
 

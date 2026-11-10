@@ -268,7 +268,12 @@ def run_check(
         cwd=str(cwd if cwd is not None else project_root),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
+        # Test runners print UTF-8 (Vitest's ✓, ⎯, ❯). Without an explicit encoding Windows decodes with the
+        # code page (cp1252), whose reader thread dies on a byte such as 0x9d: the log loses the output and
+        # the summary is not counted. A byte that is not UTF-8 becomes U+FFFD instead of failing (H-57).
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
         shell=False,
         timeout=timeout,
