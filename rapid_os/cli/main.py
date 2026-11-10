@@ -4364,22 +4364,39 @@ def next_command(args):
         sys.exit(code)
 
     findings = ()
-    if action.kind.value == "await_human_approval" and action.mode == "hardening" and action.run_id:
+    acceptance: list[str] | None = None
+    commands: list[dict[str, object]] = []
+    if action.kind.value == "await_human_approval" and action.run_id:
         try:
             contract = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_contract(action.run_id)
-            findings = SpecRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_revision(contract.spec_id).findings
+            revision = SpecRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_revision(contract.spec_id, contract.spec_revision)
+            acceptance = list(revision.acceptance_criteria)
+            if action.mode == "hardening":
+                findings = revision.findings
         except Exception:
-            findings = ()
+            findings, acceptance = (), None
+        commands = approval_commands(action.gate_ids or action.awaiting_human)
     if getattr(args, "json", False):
         payload = action.to_dict()
         if findings:
             payload["action"]["findings"] = [item.to_dict() for item in findings]
+        if action.kind.value == "await_human_approval":
+            payload["action"]["acceptance"] = acceptance
+            payload["action"]["commands"] = commands
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
 
     if action.kind.value == "await_human_approval":
         for gate_id in action.gate_ids or action.awaiting_human:
             print(f"Next: await_human_approval -> rapid approve {gate_id}")
+        if acceptance is not None:
+            print("Criterios de aceptación (acceptance.md de la revisión del run):")
+            for criterion in acceptance or ["(la spec no tiene criterios de aceptación)"]:
+                print(f"  - {criterion}")
+        for item in commands:
+            label = "Aprobar" if item["id"] == "approve" else "Rechazar"
+            print(f"{label}: {item['display']}")
+            print(f"  -> {item['consequence']}")
         if findings:
             print("Hallazgos de hardening:")
             for item in findings:
@@ -4389,6 +4406,45 @@ def next_command(args):
         print(f"Next: {action.kind.value}{cmd_str}")
     _print_unconfirmed_docs(action)
     return 0
+
+
+REJECT_REASON_PLACEHOLDER = "<motivo>"
+
+
+def approval_commands(gate_ids) -> list[dict[str, object]]:
+    """What the person can do with each pending human gate, and what follows: approve or reject.
+
+    The agent hands both over; the person decides and runs them in their own terminal."""
+    gate_ids = list(gate_ids)
+    after_approve = (
+        "permite `rapid finish`"
+        if len(gate_ids) == 1
+        else "permite `rapid finish` cuando estén aprobados todos los gates humanos pendientes"
+    )
+    commands: list[dict[str, object]] = []
+    for gate_id in gate_ids:
+        commands.append(
+            {
+                "id": "approve",
+                "gate_id": gate_id,
+                "command": ["rapid", "approve", gate_id],
+                "display": f"rapid approve {gate_id}",
+                "consequence": f"Aprobar {gate_id} {after_approve}.",
+            }
+        )
+        commands.append(
+            {
+                "id": "reject",
+                "gate_id": gate_id,
+                "command": ["rapid", "approve", gate_id, "--reject", "--reason", REJECT_REASON_PLACEHOLDER],
+                "display": f'rapid approve {gate_id} --reject --reason "{REJECT_REASON_PLACEHOLDER}"',
+                "consequence": (
+                    f"Rechazar deja {gate_id} en FAIL para este run; después toca `rapid abort` y un run nuevo "
+                    "que atienda el motivo."
+                ),
+            }
+        )
+    return commands
 
 
 STORY_TAG_PREFIX = "story:"

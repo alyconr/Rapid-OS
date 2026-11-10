@@ -313,5 +313,77 @@ class TasksMarkdownStatusLineTests(Project):
         self.assertTrue(again[1])
 
 
+
+# --- H-56: handing a story over for approval ---------------------------------------------------------------
+
+
+def drive_to_approval(case, root):
+    """Follow `rapid next` like an agent until a human gate is waiting; returns the action."""
+    for _ in range(25):
+        action = json.loads(rapid(root, "next", "--json").stdout)["action"]
+        if action["kind"] == "await_human_approval":
+            return action
+        for key in ("command", "after"):
+            if action.get(key):
+                result = rapid(root, *action[key][1:])
+                case.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+    case.fail("the run never reached a human gate")
+
+
+class NextHandsOverForApprovalTests(Project):
+    CRITERIA = ["La reserva queda guardada", "Una fecha pasada se rechaza con un error claro"]
+
+    def setUp(self):
+        super().setUp()
+        story = spec(title="Reservas", acceptance_criteria=self.CRITERIA, tasks=["T001: Guardar la reserva"])
+        started = rapid(self.root, "start", "feature", "--spec-file", "-", "--json", stdin=json.dumps(story, ensure_ascii=False))
+        self.assertEqual(started.returncode, 0, started.stderr)
+        self.action = drive_to_approval(self, self.root)
+        self.gate = self.action["gate_ids"][0]
+
+    def test_json_brings_the_acceptance_criteria_and_both_commands(self):
+        self.assertEqual(self.action["acceptance"], self.CRITERIA)
+        commands = {item["id"]: item for item in self.action["commands"]}
+        self.assertEqual(set(commands), {"approve", "reject"})
+        self.assertEqual(commands["approve"]["command"], ["rapid", "approve", self.gate])
+        self.assertEqual(commands["approve"]["gate_id"], self.gate)
+        self.assertIn("rapid finish", commands["approve"]["consequence"])
+        self.assertEqual(
+            commands["reject"]["command"], ["rapid", "approve", self.gate, "--reject", "--reason", "<motivo>"]
+        )
+        self.assertEqual(commands["reject"]["display"], f'rapid approve {self.gate} --reject --reason "<motivo>"')
+        self.assertIn("FAIL", commands["reject"]["consequence"])
+        self.assertIn("rapid abort", commands["reject"]["consequence"])
+        self.assertIn("run nuevo", commands["reject"]["consequence"])
+
+    def test_text_lists_the_criteria_and_both_commands_with_their_consequence(self):
+        result = rapid(self.root, "next")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = result.stdout
+        self.assertIn(f"Next: await_human_approval -> rapid approve {self.gate}", out)
+        self.assertIn("Criterios de aceptación", out)
+        for criterion in self.CRITERIA:
+            self.assertIn(f"  - {criterion}", out)
+        self.assertIn(f"Aprobar: rapid approve {self.gate}\n", out)
+        self.assertIn(f'Rechazar: rapid approve {self.gate} --reject --reason "<motivo>"', out)
+        self.assertIn("rapid finish", out)
+        self.assertIn("rapid abort", out)
+
+
+class WorkShortcutsHandOverOnlyWhatIsReadyTests(unittest.TestCase):
+    def test_every_work_shortcut_reviews_criteria_before_handing_over(self):
+        for name in WORK_SHORTCUTS + ("rapid-next",):
+            text = (SHORTCUTS / f"{name}.md").read_text("utf-8")
+            with self.subTest(shortcut=name):
+                self.assertIn("revisa uno por uno los criterios de `action.acceptance` con su evidencia", text)
+                self.assertIn("rapid check -- <comando>", text)
+                self.assertIn("repetirá `gate.tests` y `gate.architecture` porque el árbol cambió", text)
+                self.assertIn("algo depende de la persona", text)
+                self.assertIn("«cumple»", text)
+                self.assertIn('--reject --reason "<motivo>"', text)
+                self.assertIn("Nunca entregues aconsejando no aprobar", text)
+                self.assertIn("solo cuando action.kind sea await_human_approval", text)
+
+
 if __name__ == "__main__":
     unittest.main()

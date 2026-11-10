@@ -415,6 +415,26 @@ After `rapid finish` the session still points at the closed run, but `rapid next
 rapid next [--json]
 ```
 
+In `await_human_approval` (the story is ready to be handed over), `rapid next` also brings what the person needs to decide:
+
+- `action.acceptance`: the acceptance criteria of the run's spec revision (what its `acceptance.md` lists), `[]` when the spec has none.
+- `action.commands[]`: for each pending human gate, `{id, gate_id, command, display, consequence}` with `id` `approve` (`rapid approve <gate>`: approving allows `rapid finish`, once every pending human gate is approved) and `reject` (`rapid approve <gate> --reject --reason "<motivo>"`: the gate stays `FAIL` for this run, and then `rapid abort` and a new run that addresses the reason).
+
+The text output keeps the line `Next: await_human_approval -> rapid approve <gate>` and adds the criteria and both commands with their consequence:
+
+```text
+Next: await_human_approval -> rapid approve gate.final-verification
+Criterios de aceptación (acceptance.md de la revisión del run):
+  - La reserva queda guardada
+  - Una fecha pasada se rechaza con un error claro
+Aprobar: rapid approve gate.final-verification
+  -> Aprobar gate.final-verification permite `rapid finish`.
+Rechazar: rapid approve gate.final-verification --reject --reason "<motivo>"
+  -> Rechazar deja gate.final-verification en FAIL para este run; después toca `rapid abort` y un run nuevo que atienda el motivo.
+```
+
+The work shortcuts review each criterion with its evidence before handing the story over; see [how a story is handed over](./guides/modes/index.md#handing-over-for-approval).
+
 With no active run, `rapid next` (and `rapid start feature` without a spec) returns `author_spec`. When the project has a product brief written by `rapid setup doc brief` (`docs/PRODUCT_BRIEF.md`, with `rapid-doc` frontmatter) that still has open stories, the `feature` action carries an optional `seed` object, omitted otherwise, so the output without a brief is exactly the same as before:
 
 - `seed.source`: the brief (`docs/PRODUCT_BRIEF.md`).
