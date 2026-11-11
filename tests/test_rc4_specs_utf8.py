@@ -523,6 +523,24 @@ class ApproveAsksYesNoTests(Project):
         self.assertEqual(code, 1)
         self.assertIn("RAPID1310", message)
 
+    def test_an_agent_ancestor_is_refused_even_with_a_terminal(self):
+        from rapid_os.core.ancestry import Ancestor, AncestryResult
+        from rapid_os.orchestration.lifecycle import execute_approve
+
+        for flags in ({}, {"reject": True, "reason": "no cumple"}):
+            asked: list[str] = []
+            code, message = execute_approve(
+                self.root, self.root / ".rapid-os", self.gate, reviewer="Ada", is_tty=True,
+                input_func=lambda prompt: asked.append(prompt) or "s", environ={},
+                ancestry=AncestryResult((Ancestor(4242, "claude.exe", ("claude.exe",)),)), **flags,
+            )
+            with self.subTest(flags=flags):
+                self.assertEqual(code, 1)
+                self.assertIn("RAPID1310", message)
+                self.assertEqual(asked, [])  # refused before asking anything
+        self.assertEqual(self.reviews(), [])
+        self.assertEqual(self.gate_disposition(), "pending")
+
     def test_yes_answers(self):
         from rapid_os.orchestration.lifecycle import is_yes
 

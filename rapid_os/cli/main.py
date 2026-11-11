@@ -4616,10 +4616,21 @@ def finish_command(args):
         if not sys.stdin.isatty():
             print("RAPID1341 --merge requiere confirmación escrita en una terminal interactiva.", file=sys.stderr)
             sys.exit(1)
+        # The same barrier as `rapid approve`: an agent with a pty is refused before anything is evaluated.
+        from rapid_os.orchestration.lifecycle import human_terminal_refusal
+
+        refusal = human_terminal_refusal(
+            dict(os.environ), None, True, "Merging a run (rapid finish --merge)",
+            "El merge debe confirmarlo una persona en su propia terminal.",
+        )
+        if refusal:
+            print(refusal, file=sys.stderr)
+            sys.exit(1)
 
     run_id = sess.active_run_id if sess else None
     workspace = Path(sess.workspace_path) if sess and sess.workspace_path else None
     merge_message = f"Complete run {run_id}" if run_id else ""
+    merge_criteria: tuple[str, ...] = ()
     if sess and sess.active_run_id and sess.workspace_path:
         try:
             contract = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_contract(run_id)
@@ -4627,6 +4638,7 @@ def finish_command(args):
                 contract.spec_id, revision=contract.spec_revision
             )
             merge_message = revision.title
+            merge_criteria = tuple(revision.acceptance_criteria)
         except Exception:
             pass
 
@@ -4706,6 +4718,12 @@ def finish_command(args):
 
             from rapid_os.orchestration.lifecycle import is_yes
 
+            print(f"Run:   {run_id} (veredicto PASS)", file=output)
+            print(f"Spec:  {merge_message}", file=output)
+            if merge_criteria:
+                print("Criterios de aceptación:", file=output)
+                for criterion in merge_criteria:
+                    print(f"  - {criterion}", file=output)
             print(
                 f"Se hará commit de estos cambios en la rama rapid/{run_id} y merge en el checkout de origen.",
                 file=output,
@@ -4843,7 +4861,7 @@ def finish_command(args):
             print(line, file=sys.stderr)
         if not merge_succeeded and not merge_requested:
             print(NO_COMMIT_LINE, file=sys.stderr)
-        sys.exit(1 if merge_failure_reason else code)
+        sys.exit(1 if merge_failure_reason or merge_declined_reason else code)
 
     print(
         f"Evaluation report {revision:04d} for run '{result.run_id}': "
@@ -4863,7 +4881,8 @@ def finish_command(args):
         print(line)
     if not merge_succeeded and not merge_requested:
         print(NO_COMMIT_LINE)
-    sys.exit(1 if merge_failure_reason else code)
+    # A declined merge is a cancellation: the run is finished, but what was asked (--merge) was not done.
+    sys.exit(1 if merge_failure_reason or merge_declined_reason else code)
 
 def approve_command(args):
     """Execute rapid approve command."""

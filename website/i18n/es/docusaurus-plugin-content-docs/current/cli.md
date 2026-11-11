@@ -490,7 +490,7 @@ Deciding (H-59): before asking, `rapid approve` prints what is being approved: t
 - `n` or an empty Enter does not approve and offers `Para rechazarlo escribe el motivo (Enter para salir sin cambios):`. With text, the gate is rejected with that reason (as `--reject --reason`); empty, nothing changes and the exit code is 1.
 - Without a gate id and with exactly one pending human gate (one that was not rejected), that gate is the one decided. With several, or when the caller is not a person at a terminal (an agent, no TTY), it lists them, read-only, as before.
 
-No phrase is typed any more: it did not stop an agent with a pty. The barriers stay: the TTY (`RAPID1310`), the agent ancestry check, the Claude Code hooks, and the reviewer recorded in the review evidence. `rapid finish --merge` and `rapid finish --accept-test-command` ask `[s/N]` in the same way, after saying what will be done.
+No phrase is typed any more: it did not stop an agent with a pty. The barriers stay: the TTY (`RAPID1310`), the agent ancestry check, the Claude Code hooks, and the reviewer recorded in the review evidence. `rapid finish --merge` and `rapid finish --accept-test-command` ask `[s/N]` in the same way, after saying what will be done, with the same refusals (`RAPID1310` from an agent session or under an agent ancestor; `--merge` without a TTY is `RAPID1341`); Enter or any other answer cancels with exit 1.
 
 Options:
 - `--reviewer <name>`: Reviewer recorded in the evidence. Defaults to `git config user.name`; if it is not set, the name is asked on the terminal (`RAPID1331` if left empty).

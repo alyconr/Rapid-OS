@@ -1016,11 +1016,23 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertEqual(self._approve("gate.review").returncode, 0)
         self.assertEqual(self._approve("gate.final-verification").returncode, 0)
 
-        res = self._rapid_tty(["finish", "--merge"], "no")
+        refused = self._rapid_tty(["finish", "--merge"], "s", extra_env={"CLAUDE_CODE_CHILD_SESSION": "1"})
+        self.assertEqual(refused.returncode, 1)
+        self.assertIn("RAPID1310", refused.stderr)
+        self.assertEqual(self._session()["active_run_id"], run_id)  # refused before finishing anything
+        no_tty = self._rapid("finish", "--merge", input_str="s\n")
+        self.assertEqual(no_tty.returncode, 1)
+        self.assertIn("RAPID1341", no_tty.stderr)
 
-        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        res = self._rapid_tty(["finish", "--merge"], "")  # Enter cancels the merge
+
+        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn(f"Run:   {run_id} (veredicto PASS)", res.stdout)
+        self.assertIn(f"Spec:  {self.SPEC['title']}", res.stdout)
+        self.assertIn("Criterios de aceptación:", res.stdout)
+        self.assertIn(f"  - {self.SPEC['acceptance_criteria'][0]}", res.stdout)
         self.assertIn(f"Evaluation report 0001 for run '{run_id}': verdict PASS", res.stdout)
-        self.assertIn("No se integró:", res.stdout)
+        self.assertIn("No se integró: no se confirmó el commit y merge", res.stdout)
         self.assertIn(f'git -C "{workspace}" add -A', res.stdout)
         self.assertIn(f'git -C "{workspace}" commit -m "{self.SPEC["title"]}"', res.stdout)
         self.assertIn(f'git -C "{self.project}" merge rapid/{run_id}', res.stdout)
