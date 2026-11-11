@@ -416,7 +416,8 @@ class WorkShortcutsHandOverOnlyWhatIsReadyTests(unittest.TestCase):
                 self.assertIn("revisa uno por uno los criterios de `action.acceptance` con su evidencia", text)
                 self.assertIn("rapid check -- <comando>", text)
                 # The person starts the services (as /rapid-init says); the agent asks and waits.
-                self.assertIn("pídele a la persona `docker compose up -d` y espera", text)
+                self.assertIn("sus servicios no los levantas tú", text)
+                self.assertIn("pídele a la persona que ejecute `docker compose up -d` en su terminal, espera a que te confirme que están arriba y después córrelos con `rapid check`", text)
                 self.assertNotIn("levanta los servicios", text)
                 self.assertIn("repetirá `gate.tests` y `gate.architecture` porque el árbol cambió", text)
                 self.assertIn("algo depende de la persona", text)
