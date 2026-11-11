@@ -46,8 +46,8 @@ def run_progress(project_root, project_rapid_dir, run_reg, run_id: str) -> dict[
     """Tasks and gates of a run with their state and the evidence ids that back them.
 
     Evidence ids come from the behavioral evaluator (what it counts for each task and gate) and, for a task or a
-    gate, also from the records that name it. A gate that is still `pending` also carries the result of its
-    last evidence (`last_evidence_result`): its `rapid check` may already have passed. A run whose evidence
+    gate, also from the records that name it. A task or gate that is still `pending` also carries the result of
+    its last evidence (`last_evidence_result`): its `rapid check` may already have passed. A run whose evidence
     cannot be read still lists its tasks and gates."""
     from rapid_os.orchestration.conductor import _rejected_human_gate_ids
     from rapid_os.orchestration.lifecycle import run_evaluator
@@ -75,17 +75,24 @@ def run_progress(project_root, project_rapid_dir, run_reg, run_id: str) -> dict[
                     seen.append(value)
         return seen
 
+    def last_result(entry: dict[str, object], linked) -> None:
+        # Not evaluated yet, but a check may already have run: say so, or the person reads "pending" as "not done".
+        last = next((ev for ev in reversed(linked) if evidence_result(ev) is not None), None)
+        entry["last_evidence_result"] = evidence_result(last) if last is not None else None
+        entry["last_evidence_id"] = last.id if last is not None else None
+
     tasks = []
     for task in state.tasks:
         assertion = assertions.get(("task", task.id))
-        linked = [ev.id for ev in evidence if task.id in ev.task_ids]
-        tasks.append(
-            {
-                **task.to_dict(),
-                "title": short_title(task.id, task.description),
-                "evidence_ids": ids(getattr(assertion, "evidence_ids", ()), linked),
-            }
-        )
+        linked = [ev for ev in evidence if task.id in ev.task_ids]
+        entry = {
+            **task.to_dict(),
+            "title": short_title(task.id, task.description),
+            "evidence_ids": ids(getattr(assertion, "evidence_ids", ()), [ev.id for ev in linked]),
+        }
+        if task.status == TaskStatus.PENDING:
+            last_result(entry, linked)
+        tasks.append(entry)
     rejected = set(_rejected_human_gate_ids(contract, evidence))
     gates = []
     for gate in state.gates:
@@ -105,10 +112,7 @@ def run_progress(project_root, project_rapid_dir, run_reg, run_id: str) -> dict[
             "evidence_ids": ids(getattr(assertion, "evidence_ids", ()), [ev.id for ev in linked]),
         }
         if status == "pending":
-            # Not evaluated yet, but its check may have passed: say so, or the person thinks something is missing.
-            last = next((ev for ev in reversed(linked) if evidence_result(ev) is not None), None)
-            entry["last_evidence_result"] = evidence_result(last) if last is not None else None
-            entry["last_evidence_id"] = last.id if last is not None else None
+            last_result(entry, linked)
         gates.append(entry)
     progress: dict[str, object] = {"run_id": run_id, "status": state.status.value, "tasks": tasks, "gates": gates}
     if evidence_error:
@@ -116,11 +120,11 @@ def run_progress(project_root, project_rapid_dir, run_reg, run_id: str) -> dict[
     return progress
 
 
-def gate_label(gate: dict[str, object]) -> str:
-    """`pending · última evidencia: PASS` for a pending gate whose last evidence has a result, else its status."""
-    if gate.get("status") == "pending" and gate.get("last_evidence_result"):
-        return f"pending · última evidencia: {gate['last_evidence_result']}"
-    return str(gate.get("status"))
+def gate_label(item: dict[str, object]) -> str:
+    """`pending · última evidencia: PASS` for a pending task or gate whose last evidence has a result, else its status."""
+    if item.get("status") == "pending" and item.get("last_evidence_result"):
+        return f"pending · última evidencia: {item['last_evidence_result']}"
+    return str(item.get("status"))
 
 
 def evidence_note(item: dict[str, object]) -> str:
@@ -133,7 +137,7 @@ def progress_lines(progress: dict[str, object]) -> list[str]:
     done = sum(1 for t in tasks if t["status"] in (TaskStatus.DONE.value, TaskStatus.SKIPPED.value))
     lines = [f"Tasks:         {done}/{len(tasks)} terminal"]
     for task in tasks:
-        lines.append(f"  {task['id']} [{task['status']}] {task['title']}{evidence_note(task)}")
+        lines.append(f"  {task['id']} [{gate_label(task)}] {task['title']}{evidence_note(task)}")
     lines.append("Gates:")
     for gate in progress["gates"] or ():
         lines.append(f"  {gate['id']} [{gate_label(gate)}]{evidence_note(gate)}")

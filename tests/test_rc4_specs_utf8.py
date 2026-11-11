@@ -265,6 +265,24 @@ class StatusListsTasksTests(Project):
         self.assertIn(f"gate.tests [pending · última evidencia: PASS]  (evidencia: {evidence_id})", out)
         self.assertIn("gate.final-verification [pending]\n", out)
 
+    def test_a_pending_task_shows_the_result_of_its_last_evidence(self):
+        out = rapid(self.root, "status").stdout
+        self.assertIn("T004 [pending] Publicar el endpoint\n", out)  # no evidence yet: only its state
+        # A failed check records nothing; a recorded failure is an expected one (`--expect fail`).
+        checked = rapid(self.root, "check", "--expect", "fail", "--task", "T004", "--json", "--",
+                        sys.executable, "-m", "unittest", "tests.no_such_module")
+        failed_id = json.loads(checked.stdout)["evidence_id"]
+        self.assertIsNotNone(failed_id, checked.stdout + checked.stderr)
+        out = rapid(self.root, "status").stdout
+        self.assertIn(f"T004 [pending · última evidencia: FAIL (esperado)] Publicar el endpoint  (evidencia: {failed_id})", out)
+        checked = rapid(self.root, "check", "--task", "T004", "--json", "--", sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", ".")
+        passed_id = json.loads(checked.stdout)["evidence_id"]
+        tasks = {t["id"]: t for t in json.loads(rapid(self.root, "status", "--json").stdout)["run"]["tasks"]}
+        self.assertEqual(tasks["T004"]["last_evidence_result"], "PASS")
+        self.assertEqual(tasks["T004"]["last_evidence_id"], passed_id)
+        self.assertNotIn("last_evidence_result", tasks["T001"])  # done: its state says it
+        self.assertIn("T004 [pending · última evidencia: PASS] Publicar el endpoint", rapid(self.root, "status").stdout)
+
     def test_without_an_active_run_the_last_run_is_listed(self):
         (self.root / ".rapid-os" / "session.json").unlink()
         text = rapid(self.root, "status")

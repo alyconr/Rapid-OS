@@ -554,7 +554,7 @@ Tasks:         2/4 terminal
   T001 [done] Crear el modelo de reserva  (evidencia: E003)
   T002 [skipped] Documentar la API
   T003 [in_progress] Validar que la fecha de la reserva no esté en el pasado y que el taller…
-  T004 [pending] Publicar el endpoint
+  T004 [pending · última evidencia: FAIL (esperado)] Publicar el endpoint  (evidencia: E005)
 Gates:
   gate.baseline [pass]  (evidencia: E002)
   gate.tests [pending · última evidencia: PASS]  (evidencia: E004)
@@ -562,7 +562,7 @@ Gates:
 ```
 
 - A title longer than 72 characters is cut with `…`; the `T002:` prefix is not repeated.
-- A gate's state is `pending` until it is acknowledged, then what the evaluator says (`pass`, `fail`, `unverified`, `waived`); a human gate rejected with `rapid approve <gate> --reject` is `fail`. A pending gate whose `rapid check` already ran also shows the result of its last evidence (`pending · última evidencia: PASS`, or `FAIL`); in `--json`, `last_evidence_result` (`PASS`, `FAIL`, `FAIL (esperado)` or `null`) and `last_evidence_id`.
+- A gate's state is `pending` until it is acknowledged, then what the evaluator says (`pass`, `fail`, `unverified`, `waived`); a human gate rejected with `rapid approve <gate> --reject` is `fail`. A pending task or gate that already has evidence also shows the result of its last one (`pending · última evidencia: PASS`, `FAIL` or `FAIL (esperado)`), so `pending` is not read as "not done"; in `--json`, `last_evidence_result` (`PASS`, `FAIL`, `FAIL (esperado)` or `null`) and `last_evidence_id` on each pending task and gate.
 - `--json`: each entry of `run.tasks` keeps `id`, `description`, `status` and `reason`, and adds `title` and `evidence_ids`; each entry of `run.gates` adds `status` and `evidence_ids` to its `disposition`.
 - With no active run, the last run (the one whose state was written last) is listed under `Last Run:`; in `--json`, `run` stays `null` and the same list goes in `last_run` (`run_id`, `status`, `tasks`, `gates`).
 - Evidence that cannot be read does not stop the list: the tasks and gates are shown and a `WARNING` (`evidence_error` in JSON) says why.
