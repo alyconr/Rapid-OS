@@ -30,7 +30,7 @@ Open your agent in the folder and enter `/rapid-init` (`$rapid-init` in Codex). 
 /rapid-bugfix the 10% discount returns a negative total
 ```
 
-First, the agent reproduces the bug with a failing test (Rapid OS records that failure as expected evidence). It then fixes the formula and checks that the same test passes.
+First, the agent locates the cause (`pricer.py`, `OrderPricer.calculate_total`: the discount is not divided by 100) and declares it in the spec as `root_cause`. It then reproduces the bug with a failing test that runs that code (Rapid OS records that failure as expected evidence), fixes the formula and checks that the same test passes. When it closes the fix, Rapid OS checks on the starting tree that the test fails without the fix. In the hand-over the agent names the cause and the lines that fix it.
 
 ### 4. Approve in your terminal
 

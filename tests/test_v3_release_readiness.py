@@ -610,7 +610,7 @@ class V3ReleaseReadinessTests(unittest.TestCase):
         cli_doc = (REPO_ROOT / "docs" / "cli.md").read_text(encoding="utf-8")
         for cmd in expected_commands:
             self.assertIn(f"rapid {cmd}", cli_doc, f"docs/cli.md is missing 'rapid {cmd}'")
-        self.assertNotIn("--root", cli_doc)
+        self.assertNotRegex(cli_doc, r"--root(?![\w-])")  # the ghost option, not --root-cause-json
         self.assertNotIn("rapid update", cli_doc)
 
         # Verify required release documentation files exist

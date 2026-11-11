@@ -582,6 +582,12 @@ def execute_start(
                 )
                 if finding_error:
                     return 1, finding_error
+            if mode == "bugfix":
+                from rapid_os.domain.root_cause import root_cause_error
+
+                cause_error = root_cause_error(spec_reg.get_revision(rec.id).root_cause, project_root)
+                if cause_error:
+                    return 1, cause_error
             if empty_repository and mode == "feature":
                 if has_scaffold_task(spec_reg.get_revision(rec.id).implementation_tasks):
                     baseline_waived = BASELINE_WAIVER_EMPTY_REPOSITORY
@@ -646,6 +652,14 @@ def execute_start(
                 )
                 if finding_error:
                     return 1, finding_error
+
+            # Bugfix (H-67): the cause is located before the spec, and its file must exist in the repository.
+            if mode == "bugfix":
+                from rapid_os.domain.root_cause import root_cause_error
+
+                cause_error = root_cause_error(spec_fields.get("root_cause"), project_root)
+                if cause_error:
+                    return 1, cause_error
 
             existing = spec_reg.compare_existing(**spec_fields)
             if existing is None:

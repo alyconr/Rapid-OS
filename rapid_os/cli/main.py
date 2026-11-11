@@ -1916,6 +1916,9 @@ def _extract_non_interactive_spec_fields(args) -> dict[str, object]:
     raw_findings = getattr(args, "finding_json", None)
     if raw_findings is not None:
         fields["findings"] = tuple(json.loads(item) for item in raw_findings)
+    raw_root_cause = getattr(args, "root_cause_json", None)
+    if raw_root_cause is not None:
+        fields["root_cause"] = json.loads(raw_root_cause)
     return fields
 
 
@@ -1923,7 +1926,7 @@ def _has_non_interactive_spec_flags(args, *, is_create: bool = False) -> bool:
     for name in SPEC_AUTHORING_SCALAR_FIELDS + SPEC_AUTHORING_LIST_FIELDS:
         if getattr(args, name, None) is not None:
             return True
-    if getattr(args, "finding_json", None) is not None:
+    if getattr(args, "finding_json", None) is not None or getattr(args, "root_cause_json", None) is not None:
         return True
     if is_create:
         if getattr(args, "status", None) is not None:
@@ -3572,6 +3575,20 @@ def task_command(args):
         # there is the same as with --no-check, and any `rapid check` evidence of the task counts as it always does.
         no_check = getattr(args, "no_check", False)
         research_note = None
+        # Bugfix (H-67): closing the fix task needs the suite green on the current tree AND the reproduction test
+        # failing on the baseline tree; --no-check does not skip either.
+        fixing = False
+        if session.mode == "bugfix":
+            from rapid_os.orchestration.reproduction import fix_task_id
+
+            fixing = target_task_id == fix_task_id(registry.get_contract(run_id).tasks)
+            if fixing and no_check:
+                print(
+                    f"Nota: '{target_task_id}' es la tarea de corrección del bugfix: se ejecutan los tests aunque "
+                    "pases --no-check.",
+                    file=sys.stderr,
+                )
+                no_check = False
         if not no_check and session.mode in MODES_WITHOUT_TESTS:
             no_check = True
             has_check_evidence = any(
@@ -3613,6 +3630,26 @@ def task_command(args):
             if res.exit_code != 0:
                 print(f"Verification tests failed for task '{target_task_id}' (exit {res.exit_code}). Log: {res.log_path}", file=sys.stderr)
                 sys.exit(res.exit_code)
+            if fixing:
+                from rapid_os.orchestration.reproduction import check_reproduction, reproduction_evidence_input
+
+                outcome = check_reproduction(
+                    PROJECT_RAPID_DIR, run_id, session, test_cmd, cwd=Path(task_cwd), timeout=timeout
+                )
+                if outcome.status == "holds":
+                    evidence_reg.add(
+                        run_id,
+                        reproduction_evidence_input(
+                            run_id, target_task_id, registry.get_state(run_id).revision, outcome, CURRENT_DIR
+                        ),
+                        base_dir=CURRENT_DIR,
+                    )
+                    print(outcome.message)
+                elif outcome.status == "unavailable":
+                    print(f"WARNING {outcome.message}", file=sys.stderr)
+                else:
+                    print(outcome.message, file=sys.stderr)
+                    sys.exit(1)
         elif research_note:
             print(research_note, file=sys.stderr)
         else:
@@ -4428,6 +4465,7 @@ def next_command(args):
     findings = ()
     acceptance: list[str] | None = None
     commands: list[dict[str, object]] = []
+    bugfix: dict[str, object] | None = None
     if action.kind.value == "await_human_approval" and action.run_id:
         try:
             contract = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_contract(action.run_id)
@@ -4436,8 +4474,10 @@ def next_command(args):
             if action.mode == "hardening":
                 findings = revision.findings
         except Exception:
-            findings, acceptance = (), None
+            findings, acceptance, revision = (), None, None
         commands = approval_commands(action.gate_ids or action.awaiting_human)
+        if action.mode == "bugfix" and revision is not None and revision.root_cause is not None:
+            bugfix = _bugfix_handover(action.run_id, revision.root_cause)
     if getattr(args, "json", False):
         payload = action.to_dict()
         if findings:
@@ -4445,6 +4485,8 @@ def next_command(args):
         if action.kind.value == "await_human_approval":
             payload["action"]["acceptance"] = acceptance
             payload["action"]["commands"] = commands
+        if bugfix is not None:
+            payload["action"]["bugfix"] = bugfix
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
 
@@ -4463,6 +4505,11 @@ def next_command(args):
             print("Hallazgos de hardening:")
             for item in findings:
                 print(f"  {item.id}: {item.title} | {item.cwe} | {item.cvss_v4_vector} | {item.severity} | {item.standard_ref}")
+        if bugfix is not None:
+            from rapid_os.orchestration.reproduction import handover_lines
+
+            for line in handover_lines(bugfix):
+                print(line)
     else:
         cmd_str = f" -> {' '.join(action.command)}" if action.command else ""
         print(f"Next: {action.kind.value}{cmd_str}")
@@ -4470,6 +4517,20 @@ def next_command(args):
         print(f"Nota: {note}")
     _print_unconfirmed_docs(action)
     return 0
+
+
+def _bugfix_handover(run_id: str, cause) -> dict[str, object] | None:
+    """The bugfix hand-over of `rapid next` (H-67); None when it cannot be read (the hand-over still goes on)."""
+    from rapid_os.orchestration.reproduction import bugfix_handover
+    from rapid_os.orchestration.session import load_session
+
+    try:
+        evidence = EvidenceRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).list(run_id)
+        return bugfix_handover(
+            PROJECT_RAPID_DIR, cause, evidence, cwd=Path(_run_workspace_cwd()), session=load_session(PROJECT_RAPID_DIR)
+        )
+    except Exception:
+        return None
 
 
 REJECT_REASON_PLACEHOLDER = "<motivo>"
@@ -5169,6 +5230,10 @@ def _add_spec_authoring_arguments(subparser, *, is_create: bool = False):
     subparser.add_argument(
         "--finding-json", dest="finding_json", action="append",
         help="Structured hardening finding as a JSON object (repeatable).",
+    )
+    subparser.add_argument(
+        "--root-cause-json", dest="root_cause_json",
+        help='Root cause of a bugfix spec as a JSON object: {"file", "symbol" or "line", "how_found", "explanation"}.',
     )
     if is_create:
         subparser.add_argument(

@@ -30,6 +30,7 @@ TESTS = ROOT / "tests"
 SLOW_MODULES: set[str] = {
     "test_architecture_baseline",
     "test_brief_seed",
+    "test_bugfix_root_cause",
     "test_f5_e2e_codex",
     "test_git_sandbox",
     "test_intent_loop",

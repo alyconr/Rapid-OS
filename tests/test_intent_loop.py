@@ -735,6 +735,11 @@ class BugfixLabScenarioTests(LabScenarioBase):
                 "business_objective": "Charge the right discounted total",
                 "problem_statement": "A 10% discount on 100 yields -900",
                 "acceptance_criteria": ["10% of 100 is 90"],
+                "root_cause": {
+                    "file": "pricer.py", "symbol": "OrderPricer.calculate_total", "how_found": "lectura del código",
+                    "explanation": "discount_amount multiplica por el porcentaje sin dividir entre 100",
+                },
+                # A spec written before H-67: the reproduction task is T001 and the fix is T002.
                 "tasks": [
                     "T001: Reproducir con un test en rojo",
                     "T002: Corregir la causa raíz",

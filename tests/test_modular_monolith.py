@@ -127,6 +127,9 @@ class GateInTheContractTests(Project):
         # A spec is identified by its title: every start needs its own.
         self.started_runs += 1
         spec = {**SPEC, "mode": mode, "title": f"Agendar citas {mode} {self.started_runs}"}
+        if mode == "bugfix":
+            spec["root_cause"] = {"file": "app/main.py", "line": 1, "how_found": "lectura del código",
+                                  "explanation": "imprime en lugar de agendar"}
         if mode == "hardening":
             spec["acceptance_criteria"] = ["H001: se corrige CWE-20 en el módulo citas"]
             spec["findings"] = [{

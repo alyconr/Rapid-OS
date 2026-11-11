@@ -19,10 +19,24 @@ El modo **Bugfix** prioriza la reproducción verificable del error, la contenci�
 
 Qué hace su playbook (`templates/modes/bugfix.json` y las reglas del Conductor):
 
+- **Primero la causa (H-67).** Que un test pase no es un arreglo: un test contra un doble del componente defectuoso puede pasar con la causa intacta. Antes de redactar la spec el agente localiza la causa raíz sin editar archivos (`git blame`, `git log -S`, la traza de un test o la lectura del código) y la declara en `root_cause`: `file` (debe existir en el repositorio), `symbol` o `line`, `how_found` y `explanation`. Sin ella, o con un archivo que no existe, `rapid start bugfix` rechaza la spec con `RAPID1438` y dice qué falta.
+
+  ```json
+  "root_cause": {
+    "file": "catalog/infrastructure/sqlalchemy_catalog_reader.py",
+    "symbol": "_bookable",
+    "how_found": "git log -S \"is_finite\"",
+    "explanation": "`or amount <= 0` se cambió por `or not amount.is_finite()`: los precios cero o negativos pasaron a ser reservables"
+  }
+  ```
+
+- Las tareas de la plantilla son, en orden: localizar y confirmar la causa (antes de escribir el test), reproducir con un test en rojo que **ejecute el código de `root_cause`** (si la causa está en un adaptador, en infraestructura o en la base de datos, un test de integración con los servicios levantados, no uno con dobles del componente defectuoso), corregir la causa y verificar con la suite completa.
 - La baseline se toma en `rapid start`, **antes** de que exista el test de reproducción.
-- La primera tarea (`T001`) es «Reproducir con un test en rojo». Mientras está en curso y no hay una aserción `reproduction.T001` en PASS, `rapid next` propone `rapid check --expect fail --task T001`, que registra el fallo esperado como evidencia.
+- La tarea de reproducción es la que dice que reproduce (`T001` en las specs anteriores a H-67). Mientras está en curso y no hay una aserción `reproduction.<tarea>` en PASS, `rapid next` propone `rapid check --expect fail --task <tarea>` (ejecuta `test_command`), que registra el fallo esperado como evidencia.
+- **Cerrar la tarea de corrección** (la que sigue a la de reproducción) corre la suite en el árbol actual (debe pasar; `--no-check` no se la salta) y después la comprobación de la reproducción: Rapid OS crea un worktree git temporal con el árbol del baseline del run más los archivos de test que el run añadió o cambió, corre allí `test_command` y exige que falle. Enlaza las carpetas de dependencias (`node_modules`, `.venv`, `venv`) y copia `.env` para que los tests puedan correr; el worktree temporal se borra siempre. Si los tests pasan en el baseline, el test no reproduce el bug y la tarea no se cierra (`RAPID1439`); si fallan, el resultado queda como evidencia propia (`command_result` con la etiqueta `reproduction_holds`). Si la ejecución en el baseline no da un resumen de tests que leer, también es `RAPID1439` (no concluyente), con su log. Un run que empezó sin commit no tiene árbol de baseline: la comprobación se omite con un aviso.
+- **Entrega.** En `await_human_approval`, `rapid next` muestra la causa declarada, las líneas del diff que cambian su archivo («corrección en la causa») y, aparte, los demás archivos de producción que cambió el run («defensas adicionales»), con la evidencia `reproduction_holds`; `--json` los pone en `action.bugfix` (`root_cause`, `fix_at_cause`, `additional_defenses`, `reproduction_holds`, `touches_root_cause`). Si el diff no toca el archivo de `root_cause`, avisa: `AVISO: el arreglo no toca la causa declarada`. El shortcut nombra la causa en la entrega y no entrega con ese aviso.
 - **Arquitectura:** si el proyecto tiene `.rapid-os/standards/architecture.json` (lo escribe el onboarding con el stack elegido), el contrato incluye el gate de máquina `gate.architecture` (obligatorio, no dispensable) y `rapid next` propone `rapid check --gate gate.architecture -- rapid arch check`. Una violación de capas o de contrato público es `RAPID1420` y `rapid finish` no da `PASS` hasta que se corrija el código. Detalle en [Arquitectura por stack](../../concepts/architecture.md#el-gate-gatearchitecture).
-- Con el fallo registrado, `T001` se cierra con `rapid task done T001 --no-check` (la suite está en rojo a propósito) y la corrección va en las tareas siguientes.
+- Con el fallo registrado, la tarea de reproducción se cierra con `rapid task done <tarea> --no-check` (la suite está en rojo a propósito) y la corrección va en la tarea siguiente.
 
 El resto de esta guía describe el mismo ciclo con comandos v3 (**Modo avanzado**), útil para CI, depuración y auditoría.
 
@@ -60,6 +74,7 @@ rapid spec create \
   --objective "Corregir bloqueo por concurrencia en la consulta de saldos" \
   --scope "Servicio de reconciliación y queries SQL transaccionales" \
   --acceptance "Test de estrés concurrente pasa sin interbloqueos en <500ms" \
+  --root-cause-json '{"file": "services/reconciliation/balance_query.py", "symbol": "fetch_balances", "how_found": "traza del test", "explanation": "lee los saldos sin bloqueo de filas"}' \
   --task "1. Reproducir el deadlock en test de integración" \
   --task "2. Aplicar SELECT ... FOR UPDATE SKIP LOCKED" \
   --task "3. Verificar ausencia de regresión en balance general" \

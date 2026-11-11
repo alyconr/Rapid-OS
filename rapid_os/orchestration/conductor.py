@@ -19,6 +19,7 @@ from rapid_os.domain.execution import (
 )
 from rapid_os.orchestration.actions import ActionKind, NextAction
 from rapid_os.orchestration.playbooks import Playbook
+from rapid_os.orchestration.reproduction import reproduction_task_id
 
 NO_TEST_COMMAND_NOTICE = f"No test_command configured (RAPID1301). {TEST_COMMAND_FIX}."
 
@@ -576,12 +577,13 @@ def next_action(
             after = ("rapid", "task", "done", target_task.id)
             instructions = playbook.get_instruction(ActionKind.IMPLEMENT_TASK)
 
-            # bugfix: la primera tarea (T001) debe reproducir el bug con un test en rojo.
+            # bugfix: the reproduction task (the one that says it reproduces; T001 in older specs) records the
+            # red test with an expected failure.
             if (
                 mode == "bugfix"
                 and target_task.status == TaskStatus.IN_PROGRESS
                 and contract.tasks
-                and target_task.id == contract.tasks[0].id
+                and target_task.id == reproduction_task_id(contract.tasks)
             ):
                 reproduced = any(
                     a.id == f"reproduction.{target_task.id}"

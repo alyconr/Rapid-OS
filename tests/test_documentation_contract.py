@@ -448,7 +448,8 @@ class DocumentationContractTests(unittest.TestCase):
     def test_mode_guides_state_their_playbook_rules(self):
         """The playbook rules come from templates/modes/*.json and the Conductor, not from memory."""
         rules = {
-            "bugfix": ("rapid check --expect fail --task T001", "before"),
+            "bugfix": ("rapid check --expect fail --task <task>", "before", "root_cause", "RAPID1438", "RAPID1439",
+                       "reproduction_holds", "el arreglo no toca la causa declarada"),
             "refactor": ("passing tests", "baseline"),
             "hardening": ("rapid start hardening --spec-file - --worktree", "rapid/<run-id>"),
             "research": ("rapid attach", "mandatory tests"),
@@ -459,7 +460,10 @@ class DocumentationContractTests(unittest.TestCase):
                 with self.subTest(mode=mode, needle=needle):
                     self.assertIn(needle, text)
         playbook = json.loads((ROOT / "templates" / "modes" / "bugfix.json").read_text(encoding="utf-8"))
-        self.assertEqual(playbook["spec_template"]["implementation_tasks"][0], "T001: Reproducir con un test en rojo")
+        tasks = playbook["spec_template"]["implementation_tasks"]
+        self.assertTrue(tasks[0].startswith("T001: Localizar"), tasks[0])
+        self.assertTrue(tasks[1].startswith("T002: Reproducir con un test en rojo"), tasks[1])
+        self.assertIn("root_cause", playbook["spec_template"])
 
     def test_shortcuts_guide_is_registered_in_the_sidebar(self):
         sidebars = (WEBSITE / "sidebars.ts").read_text(encoding="utf-8")
