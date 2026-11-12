@@ -20,7 +20,7 @@ description: Workflow to reproduce, isolate, and fix defects with verified regre
 What its playbook does (`templates/modes/bugfix.json` and the Conductor rules):
 
 - The baseline is taken at `rapid start`, **before** the reproduction test exists.
-- The first task (`T001`) is "Reproduce with a red test". While it is in progress and there is no `reproduction.T001` assertion in PASS, `rapid next` proposes `rapid check --expect fail --task T001 -- <test_command>`, which records the expected failure as evidence.
+- The first task (`T001`) is "Reproduce with a red test". While it is in progress and there is no `reproduction.T001` assertion in PASS, `rapid next` proposes `rapid check --expect fail --task T001`, which records the expected failure as evidence.
 - **Architecture:** if the project has `.rapid-os/standards/architecture.json` (written by onboarding with the chosen stack), the contract includes the machine gate `gate.architecture` (mandatory, non-waivable) and `rapid next` proposes `rapid check --gate gate.architecture -- rapid arch check`. A layer or public-contract violation is `RAPID1420` and `rapid finish` does not give `PASS` until the code is fixed. Details in [Architecture by stack](../../concepts/architecture.md#the-gatearchitecture-gate).
 - With the failure recorded, `T001` is closed with `rapid task done T001 --no-check` (the suite is red on purpose) and the fix goes in the following tasks.
 

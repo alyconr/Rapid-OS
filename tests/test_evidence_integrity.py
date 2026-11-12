@@ -72,15 +72,16 @@ class EvidenceIntegrityTests(LabScenarioBase):
         run_id = self._to_task_done()
         fake = self._rapid("check", "--gate", "gate.tests", "--kind", "test", "--", sys.executable, "-c",
                            "print('hello')")
-        self.assertEqual(fake.returncode, 0, fake.stderr)
-        self.assertIn("RAPID1432", fake.stderr)
+        # H-68: a command other than test_command is recorded as a normal check, not for gate.tests.
+        self.assertEqual(fake.returncode, 1, fake.stderr)
+        self.assertIn("RAPID1440", fake.stderr)
         recorded = [e for e in self._registry().list(run_id) if "gate.tests" in e.gate_ids]
-        self.assertEqual([e.kind for e in recorded], [EvidenceKind.COMMAND_RESULT])
+        self.assertEqual(recorded, [])
 
         action = self._next()
         self.assertEqual(action["kind"], "verify")
         self.assertIn("gate.tests", action["gate_ids"])
-        self.assertIn("RAPID1432", action["instructions"])
+        self.assertEqual(action["command"], ["rapid", "check", "--gate", "gate.tests"])
         self.assertNotEqual(action["kind"], "await_human_approval")
 
         # Even acknowledged by plumbing and with the suite red, finish gives no PASS.
@@ -94,8 +95,12 @@ class EvidenceIntegrityTests(LabScenarioBase):
 
     def test_r1_a_test_check_that_ran_no_test_is_unverified(self):
         run_id = self._to_task_done()
-        empty = self._rapid("check", "--gate", "gate.tests", "--", sys.executable, "-c",
-                            "print('no tests ran, 0 passed in 0.01s')")
+        # The project's own test command, run by Rapid OS, that ran no test.
+        config_file = self.project / ".rapid-os" / "config.json"
+        config = json.loads(config_file.read_text(encoding="utf-8"))
+        config["test_command"] = [sys.executable, "-c", "print('no tests ran, 0 passed in 0.01s')"]
+        config_file.write_text(json.dumps(config), encoding="utf-8")
+        empty = self._rapid("check", "--gate", "gate.tests")
         self.assertEqual(empty.returncode, 0, empty.stderr)
         last = [e for e in self._registry().list(run_id) if "gate.tests" in e.gate_ids][-1]
         self.assertTrue(last.payload["counted"])
@@ -209,7 +214,8 @@ class EvidenceIntegrityTests(LabScenarioBase):
     # -- test command other than the baseline's ------------------------------------
     def _with_other_test_command(self):
         run_id = self._to_approval()
-        other = self._rapid("check", "--gate", "gate.tests", "--", sys.executable, "-m", "unittest", "discover",
+        # A task check may use another command (it does not satisfy a test gate); it is the latest test run.
+        other = self._rapid("check", "--task", "T001", "--", sys.executable, "-m", "unittest", "discover",
                             "-s", "tests", "-t", ".", "-v")
         self.assertEqual(other.returncode, 0, other.stderr)
         self.assertEqual(self._approve("gate.final-verification").returncode, 0)

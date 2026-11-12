@@ -156,23 +156,26 @@ class Project(unittest.TestCase):
 
 
 class H28RefactorProtectionTests(Project):
-    def baseline_with_another_argv(self):
+    """The configured command is the unittest suite: `rapid start` takes the baseline with it (6 tests)."""
+
+    CONFIGURED = f'"{sys.executable}" -m unittest discover -s tests -t .'
+
+    def baseline_with_test_command(self):
         self.start("refactor", REFACTOR_SPEC)
-        self.ok("check", "--gate", "gate.baseline", "--", *UNITTEST, "-v")
-        self.ok("start", "--resume")
         self.ok("task", "start", "T001")
 
-    def test_a_baseline_with_another_argv_is_still_a_counted_test_result(self):
-        self.baseline_with_another_argv()
+    def test_the_baseline_is_a_counted_run_of_test_command(self):
+        self.baseline_with_test_command()
         baseline = next(e for e in self.evidence() if "gate.baseline" in e["gate_ids"])
         self.assertEqual(baseline["kind"], "test_result")
         self.assertEqual(baseline["payload"]["passed"], 6)
-        self.assertTrue(baseline["payload"]["command"].endswith("-t . -v"))
+        self.assertTrue(baseline["payload"]["test_command"])
+        self.assertEqual(len(baseline["payload"]["argv_digest"]), 64)
 
     def test_the_exact_reproduction_ends_in_blocked_refactor_lost_test_coverage(self):
-        self.baseline_with_another_argv()
+        self.baseline_with_test_command()
         (self.root / "tests" / "test_c.py").unlink()  # 6 passed -> 4
-        checked = self.ok("check", "--task", "T001", "--", *UNITTEST, "-q")
+        checked = self.ok("check", "--task", "T001")
         self.assertIn("Tests: 4 passed, 0 failed, 0 skipped", checked.stdout)
         action = self.next()["action"]
         self.assertEqual(action["kind"], "blocked")
@@ -180,67 +183,57 @@ class H28RefactorProtectionTests(Project):
 
     def test_rapid_check_always_prints_the_count_of_a_test_run(self):
         self.start("refactor", REFACTOR_SPEC)
-        out = self.ok("check", "--gate", "gate.baseline", "--", *UNITTEST).stdout
+        out = self.ok("check", "--gate", "gate.baseline").stdout
         self.assertIn("Tests: 6 passed, 0 failed, 0 skipped", out)
-
-    def test_a_check_without_a_readable_summary_says_so_and_blocks_the_refactor(self):
-        self.start("refactor", REFACTOR_SPEC)
-        result = self.ok("check", "--gate", "gate.baseline", "--", sys.executable, "-c", "print('ok')")
-        self.assertIn("No se pudo leer un conteo de tests", result.stderr)
-        self.assertEqual(next(e for e in self.evidence() if "gate.baseline" in e["gate_ids"])["kind"], "command_result")
-        # Ruleset 3: a command without a test count does not satisfy gate.baseline, so the run is not activated
-        # and `rapid next` asks for the baseline again, saying why (before, the run started and was blocked).
-        self.ok("start", "--resume")
-        action = self.next()["action"]
-        self.assertEqual(action["kind"], "run_baseline")
-        self.assertIn("RAPID1432", action["instructions"])
-        self.assertEqual(action["command"][:5], ["rapid", "check", "--gate", "gate.baseline", "--"])
-
-    def test_repeating_the_baseline_with_a_countable_command_unblocks(self):
-        self.start("refactor", REFACTOR_SPEC)
-        self.ok("check", "--gate", "gate.baseline", "--", sys.executable, "-c", "print('ok')")
-        self.ok("start", "--resume")
-        self.assertEqual(self.next()["action"]["kind"], "run_baseline")
-        self.ok("check", "--gate", "gate.baseline", "--", *UNITTEST)
-        self.ok("start", "--resume")
-        self.assertNotIn(self.next()["action"]["kind"], ("blocked", "run_baseline"))
 
     def test_an_explicit_command_kind_is_respected(self):
         self.start("refactor", REFACTOR_SPEC)
-        self.ok("check", "--gate", "gate.baseline", "--kind", "command", "--", *UNITTEST)
-        self.assertEqual(next(e for e in self.evidence() if "gate.baseline" in e["gate_ids"])["kind"], "command_result")
+        self.ok("check", "--gate", "gate.baseline", "--kind", "command")
+        self.assertEqual([e["kind"] for e in self.evidence() if "gate.baseline" in e["gate_ids"]][-1], "command_result")
 
     def test_different_commands_for_the_baseline_and_the_latest_check_are_warned_in_next(self):
-        self.baseline_with_another_argv()
+        self.baseline_with_test_command()
         self.ok("check", "--task", "T001", "--", *UNITTEST, "-q")  # same 6 tests: not a regression
         data = self.next()
         self.assertNotEqual(data["action"]["kind"], "blocked")
         warning = " ".join(data.get("notes", []))
         self.assertIn("La baseline se grabó con", warning)
-        self.assertIn("-v", warning)
         self.assertIn("-q", warning)
 
     def test_the_same_command_has_no_warning(self):
-        self.start("refactor", REFACTOR_SPEC)
-        self.ok("check", "--gate", "gate.baseline", "--", *UNITTEST)
-        self.ok("start", "--resume")
-        self.ok("task", "start", "T001")
-        self.ok("check", "--task", "T001", "--", *UNITTEST)
+        self.baseline_with_test_command()
+        self.ok("check", "--task", "T001")
         self.assertEqual(self.next().get("notes", []), [])
 
     def test_a_feature_run_is_not_subject_to_the_refactor_guard(self):
         self.start("feature", FEATURE_SPEC)
-        self.ok("check", "--gate", "gate.baseline", "--", sys.executable, "-c", "print('ok')")
-        self.ok("start", "--resume")
         self.assertNotEqual(self.next()["action"]["kind"], "blocked")
 
     def test_finish_warns_about_mixed_commands(self):
         from rapid_os.orchestration.lifecycle import verification_warning
 
-        self.baseline_with_another_argv()
+        self.baseline_with_test_command()
         self.ok("check", "--task", "T001", "--", *UNITTEST, "-q")
         warning = verification_warning(self.root, self.root / ".rapid-os")
         self.assertIn("La baseline se grabó con", warning)
+
+
+class H68AnotherCommandForTheBaselineTests(Project):
+    """The configured command cannot run here (as `pytest` in the e2e): the baseline stays pending, and another
+    command, even one with a real test summary, does not satisfy it (before, it did: H-28 counted it)."""
+
+    CONFIGURED = "pytest-no-instalado"
+
+    def test_another_argv_does_not_satisfy_gate_baseline(self):
+        self.start("refactor", REFACTOR_SPEC)
+        refused = self.rapid("check", "--gate", "gate.baseline", "--", *UNITTEST, "-v")
+        self.assertEqual(refused.returncode, 1, refused.stdout + refused.stderr)
+        self.assertIn("RAPID1440", refused.stderr)
+        self.assertEqual([e for e in self.evidence() if "gate.baseline" in e["gate_ids"]], [])
+        self.ok("start", "--resume")
+        action = self.next()["action"]
+        self.assertEqual(action["kind"], "run_baseline")
+        self.assertEqual(action["command"], ["rapid", "check", "--gate", "gate.baseline"])
 
 
 class H27ChangedAfterTheLastCheckTests(Project):
@@ -293,7 +286,7 @@ class H27ChangedAfterTheLastCheckTests(Project):
         self.assertIn("RAPID1423", action["instructions"])
         self.assertIn("tests/test_c.py", action["instructions"])
         self.assertIn("app.py", action["instructions"])
-        self.assertEqual(action["command"][:5], ["rapid", "check", "--gate", "gate.tests", "--"])
+        self.assertEqual(action["command"], ["rapid", "check", "--gate", "gate.tests"])
         refused = self.approve(gate)
         self.assertEqual(refused.returncode, 1, refused.stdout)
         self.assertIn("RAPID1423", refused.stderr)

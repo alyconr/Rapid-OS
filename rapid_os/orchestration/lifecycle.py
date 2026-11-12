@@ -78,6 +78,7 @@ from rapid_os.orchestration.session import (
     git_work_tree_state,
     observed_changes,
     resolve_git_untracked,
+    run_changes,
     save_session,
 )
 from rapid_os.orchestration.workspace import WorkspaceError, create_run_worktree
@@ -258,6 +259,98 @@ def _stale_verification(project_root, project_rapid_dir, sess, contract, evidenc
     return tree_fingerprint.stale_verification(
         project_rapid_dir, cwd, sess.active_run_id, gate_ids, evidence, command, strict=_strict(contract)
     )
+
+
+# Modes whose run declares a change to the code; research does not (H-70).
+CHANGE_MODES = frozenset({"feature", "bugfix", "refactor", "hardening"})
+
+
+def _run_diff(project_root, sess) -> list[str] | None:
+    """The files the run changed outside `.rapid-os/` (start_head plus start_untracked against the current tree).
+
+    None when it does not apply or cannot be told: research, no git starting point, or git does not answer."""
+    if sess is None or sess.mode not in CHANGE_MODES:
+        return None
+    if not sess.start_head and sess.start_untracked is None:
+        return None
+    cwd = Path(sess.workspace_path) if sess.workspace_path else Path(project_root)
+    return run_changes(cwd, sess.start_head, sess.start_untracked or ())
+
+
+def unchanged_run_message(sess) -> str:
+    """RAPID1441: the tree is the one the run started from, so it cannot end in PASS (H-70)."""
+    start = f"el commit {sess.start_head[:12]}" if sess.start_head else "el árbol del inicio"
+    return (
+        f"RAPID1441 El run de {sess.mode} no cambió nada fuera de .rapid-os/: el árbol es igual que al empezar "
+        f"({start} más los archivos sin seguimiento que ya había). Un run de {sess.mode} no termina en PASS sin el "
+        "cambio que declara (si se deshizo, por ejemplo devolviendo un archivo a su versión anterior, no queda nada "
+        "que aprobar). Haz el cambio y vuelve a verificar (`rapid next` da el comando), o abandona el run con "
+        "`rapid abort`."
+    )
+
+
+def _in_affected_path(path: str, affected: str) -> bool:
+    import fnmatch
+
+    norm = affected.replace("\\", "/").strip()
+    while norm.startswith("./"):
+        norm = norm[2:]
+    norm = norm.rstrip("/")
+    if not norm or norm == ".":
+        return True
+    return path == norm or path.startswith(norm + "/") or fnmatch.fnmatch(path, norm)
+
+
+def out_of_scope_message(project_root, project_rapid_dir, sess, changed: Sequence[str] | None) -> str | None:
+    """RAPID1442 (a warning): the run changed files and none is under an affected_path of its spec (H-70)."""
+    if not changed:
+        return None
+    try:
+        contract = RunRegistry(project_root, project_rapid_dir).get_contract(sess.active_run_id)
+        affected = SpecRegistry(project_root, project_rapid_dir).get_revision(
+            contract.spec_id, contract.spec_revision
+        ).affected_paths
+    except Exception:  # a warning must never break `rapid next` or `rapid finish`
+        return None
+    if not affected or any(_in_affected_path(p, a) for p in changed for a in affected):
+        return None
+    shown = ", ".join(sorted(changed)[:5]) + (f" y {len(changed) - 5} más" if len(changed) > 5 else "")
+    return (
+        f"RAPID1442 El cambio no toca ningún affected_path de la spec ({', '.join(affected)}): cambió {shown}. "
+        "Revisa que sea el cambio que declara el run antes de aprobarlo."
+    )
+
+
+def run_scope_warning(project_root: Path, project_rapid_dir: Path) -> str | None:
+    """The RAPID1442 warning of the active run, for `rapid finish` to print; never raises."""
+    try:
+        sess = load_session(project_rapid_dir)
+        if not sess or not sess.active_run_id:
+            return None
+        return out_of_scope_message(project_root, project_rapid_dir, sess, _run_diff(project_root, sess))
+    except Exception:
+        return None
+
+
+def _acknowledged_test_gate_without_run(contract, state, evidence) -> str | None:
+    """A test gate acknowledged (by plumbing) with no test run linked to it (ruleset 3; None before).
+
+    A command other than test_command is recorded without the gate (H-68), so `gate.tests` can be acknowledged
+    with no evidence at all: an approval must not vouch for code nothing tested."""
+    if not _strict(contract):
+        return None
+    acknowledged = {g.id for g in state.gates if g.disposition == GateDisposition.ACKNOWLEDGED}
+    for gate_id in _test_gate_ids(contract):
+        if gate_id not in acknowledged:
+            continue
+        if not any(
+            e.kind in (EvidenceKind.TEST_RESULT, EvidenceKind.COMMAND_RESULT)
+            and gate_id in e.gate_ids
+            and e.payload.get("expectation") != "fail"
+            for e in evidence
+        ):
+            return gate_id
+    return None
 
 
 def _stale_approval(project_root, project_rapid_dir, sess, contract, evidence, gate_ids=None):
@@ -908,8 +1001,16 @@ def execute_next(
                 kind=ActionKind.VERIFY,
                 gate_ids=(stale.gate_id,),
                 instructions=stale.message(),
-                command=("rapid", "check", "--gate", stale.gate_id, "--", *stale.command) if stale.command else None,
+                command=("rapid", "check", "--gate", stale.gate_id) if stale.command else None,
             )
+    if action.kind == ActionKind.AWAIT_HUMAN_APPROVAL:
+        # H-70: say it before the person is asked to approve, not only when `rapid finish` refuses.
+        changed = _run_diff(project_root, sess)
+        if changed is not None and not changed:
+            action = replace(action, notes=(*action.notes, unchanged_run_message(sess)))
+        scope = out_of_scope_message(project_root, project_rapid_dir, sess, changed)
+        if scope:
+            action = replace(action, notes=(*action.notes, scope))
     if sess.mode == "refactor" and action.kind != ActionKind.DONE:
         warning = mismatch_warning(contract, ev_records)
         if warning:
@@ -1096,7 +1197,16 @@ def execute_finish(
         if accepted is not None:
             return 1, accepted
 
-    # 3.h Transition to finished and evaluate
+    # 3.h A run that declares a change ends in PASS only with that change. `file_change` is recorded in 3.a, before
+    # the refusals of 3.c-3.g: an earlier `rapid finish` with the change may have left one behind. With the tree back
+    # to the starting point (the change undone) that stale evidence would give PASS (H-70): RAPID1441, the run stays
+    # open. A run that never had a change has no `file_change` and ends UNVERIFIED as before.
+    if _run_diff(project_root, sess) == [] and any(
+        e.kind == EvidenceKind.FILE_CHANGE for e in evidence_reg.list(run_id)
+    ):
+        return 1, unchanged_run_message(sess)
+
+    # 3.i Transition to finished and evaluate
     finished_state = run_reg.transition_status(
         run_id,
         RunStatus.FINISHED,
@@ -1163,6 +1273,66 @@ def _accept_command_change(
         base_dir=project_root,
     )
     return None
+
+
+def accept_check_command(
+    project_root: Path,
+    run_id: str,
+    argv,
+    test_command,
+    reason: str,
+    *,
+    gate_ids,
+    reviewer: str | None = None,
+    cwd: Path | None = None,
+    is_tty: bool | None = None,
+    input_func: Any = None,
+    environ: dict[str, str] | None = None,
+    ancestry: AncestryResult | None = None,
+) -> tuple[str | None, dict[str, str] | None]:
+    """A person accepts, in their terminal, that a check of a test gate runs `argv` instead of `test_command`.
+
+    Returns `(error, None)` when it cannot or was not accepted, `(None, {"reviewer", "reason"})` when it was."""
+    from rapid_os.orchestration.check import portable_argv
+
+    if not reason.strip():
+        return "RAPID1440 '--accept-test-command' necesita un motivo no vacío.", None
+    if environ is None:
+        import os
+
+        environ = dict(os.environ)
+    refusal = human_terminal_refusal(environ, ancestry, is_tty, "Accepting another test command",
+                                     "La aceptación debe hacerla una persona en su propia terminal.")
+    if refusal:
+        return refusal, None
+    ask = input_func if input_func is not None else input
+    name = (reviewer or "").strip() or _git_user_name(project_root)
+    work_dir = Path(cwd) if cwd is not None else Path(project_root)
+    tokens, files = portable_argv(argv, work_dir, [work_dir, Path(project_root)])
+    configured = " ".join(test_command) if test_command else "(ninguno)"
+    listed = "".join(f"\n  {f['path']}  sha256 {f['sha256'][:16]}..." for f in files) or "\n  (ninguno)"
+    try:
+        if not name:
+            name = ask("Reviewer name (git config user.name is not set): ").strip()
+        if not name:
+            return "RAPID1331 A reviewer name is required: pass --reviewer or set 'git config user.name'.", None
+        typed = ask(
+            f"Run: {run_id}\n"
+            f"El test_command del proyecto es `{configured}`.\n"
+            f"Este check de {', '.join(gate_ids)} ejecutaría otro comando:\n  {' '.join(tokens)}\n"
+            f"Archivos que recibe como argumento (se guarda su digest):{listed}\n"
+            f"Se registrará que {name} acepta este comando para {', '.join(gate_ids)} con el motivo «{reason.strip()}».\n"
+            "¿Aceptas el comando de tests? [s/N] "
+        )
+    except EOFError:
+        return (
+            "RAPID1310 Accepting another test command requires interactive terminal confirmation (TTY). "
+            "Stdin was closed before the answer (EOF).",
+            None,
+        )
+    if not is_yes(typed):
+        return "Sin cambios: no se aceptó el comando de tests.", None
+    return None, {"reviewer": name, "reason": reason.strip()}
 
 
 def _git_user_name(project_root: Path) -> str | None:
@@ -1467,6 +1637,13 @@ def execute_approve(
         )
         if stale is not None:
             return 1, stale.message()
+        unchecked = _acknowledged_test_gate_without_run(contract, current_state, evidence_reg.list(run_id))
+        if unchecked is not None:
+            return 1, (
+                f"RAPID1432 El gate '{unchecked}' está reconocido pero no tiene ninguna ejecución de tests: nada "
+                f"verificó el código que se aprobaría. Ejecuta `rapid check --gate {unchecked}` (corre el "
+                f"test_command configurado) y repite la aprobación."
+            )
 
     reviewer_name = reviewer.strip() if reviewer and reviewer.strip() else None
     if reviewer_name is None:

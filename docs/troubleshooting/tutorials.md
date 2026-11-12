@@ -44,6 +44,21 @@ Common errors when working with `/rapid-*`. See the complete [Shortcuts by Harne
 - **Cause:** in 3.2.0rc3 and earlier, `rapid check` decoded the command's output with the Windows code page (cp1252). The UTF-8 that Vitest prints (`✓`, `⎯`, `❯`) stopped the reader with `UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d`: the log stayed without the output and the summary was not counted. `rapid task done` uses the same check.
 - **Fix:** update Rapid OS; the output is now read as UTF-8 and `PYTHONUTF8=1` is no longer needed. Then run the check again: `rapid check -- <command>`.
 
+### `RAPID1440`: the check did not count for `gate.tests`
+
+- **Cause:** the check of `gate.tests` or `gate.baseline` ran another command than the configured `test_command` (a `python -c "print(...)"`, a script in `%TEMP%`, a hand-quoted copy of the command). Rapid OS recorded it as a normal check, without the gate: it cannot prove what ran.
+- **Fix:** run `rapid check --gate gate.tests` without a command; Rapid OS runs the `test_command` itself, without a shell, so nothing has to be quoted in PowerShell. If another command really has to verify the gate, only the person can accept it, in their terminal: `rapid check --gate gate.tests --accept-test-command "<reason>" -- <command>` asks `[s/N]`.
+
+### A refactor compares only the frontend tests with its baseline
+
+- **Cause:** up to 3.2.0rc3, with a combined test command (backend and frontend) `rapid check` counted only the last summary of the output: `gate.tests` recorded `2 passed` (Angular) and not the 31 backend tests.
+- **Fix:** update Rapid OS. `rapid check --gate gate.tests` runs each component of the combined command, adds the counts and keeps the breakdown (`components`). Take the baseline again if it was recorded before the update.
+
+### `RAPID1441`: `rapid finish` gives no PASS because the run changed nothing
+
+- **Cause:** the tree outside `.rapid-os/` is the one the run started from: the change was undone (a file returned to its previous version) after an earlier `rapid finish` had recorded `file_change`. A run that never made the change ends `UNVERIFIED` instead, with its reason. A feature, bugfix, refactor or hardening run does not end in PASS without the change it declares.
+- **Fix:** make the change, run what `rapid next` gives (the test check), approve again and repeat `rapid finish`; or `rapid abort` if the run is not needed. `RAPID1442` is only a warning: the change touches no `affected_path` of the spec, so check that it is the right one.
+
 ## 1. Scanner and initialization issues
 
 ### `RAPID1001` (Project Model Error) or incomplete facts

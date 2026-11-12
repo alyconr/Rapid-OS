@@ -36,6 +36,7 @@ SLOW_MODULES: set[str] = {
     "test_modular_monolith",
     "test_no_git",
     "test_onboarding_templates",
+    "test_rc4_evidence_integrity",
     "test_setup_writes",
     "test_stdin_utf8_and_resolution",
     "test_verification_integrity",

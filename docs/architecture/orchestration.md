@@ -45,7 +45,7 @@ This page describes how the pieces fit together. The limits of what gets execute
         │                                                            │
         ├─ author_spec ──► write the spec ──► rapid start <mode> --spec-file -
         ├─ run_baseline / activate / verify ──► run action.command
-        ├─ implement_task ──► implement ──► rapid check -- <tests> ──► action.after (rapid task done)
+        ├─ implement_task ──► implement ──► rapid check ──► action.after (rapid task done)
         │                                                            │
         ├─ await_human_approval ──► STOPS: a person runs rapid approve <gate> ──┐
         ├─ blocked ──► explain the reason (e.g. rapid abort after a rejection)  │

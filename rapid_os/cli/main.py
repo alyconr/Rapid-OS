@@ -3253,15 +3253,33 @@ def check_command(args):
     """Execute rapid check command."""
     import subprocess
     from rapid_os.orchestration.session import load_session
-    from rapid_os.orchestration.check import run_check
+    from rapid_os.orchestration.check import refused_gate_message, run_check
 
     raw_argv = getattr(args, "argv", None) or []
     argv = list(raw_argv)
     if argv and argv[0] == "--":
         argv = argv[1:]
+    config = load_project_config(CONFIG_FILE)
+    test_cmd = config.get("test_command")
+    test_cmd = list(test_cmd) if isinstance(test_cmd, (list, tuple)) and test_cmd else None
+    accept_reason = getattr(args, "accept_test_command", None)
     if not argv:
-        print("No command provided for rapid check (use: rapid check -- <argv...>).", file=sys.stderr)
-        sys.exit(1)
+        # Without argv Rapid OS runs the configured test_command itself (H-61): the agent quotes nothing.
+        if test_cmd is None:
+            print(
+                "RAPID1301 `rapid check` sin comando ejecuta el test_command del proyecto, y no hay uno configurado. "
+                f"{TEST_COMMAND_FIX}, o pasa el comando después de `--` (rapid check -- <argv...>).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if accept_reason is not None:
+            print(
+                "RAPID1440 `--accept-test-command` acepta un comando distinto del test_command: pásalo después de "
+                "`--`. Sin comando, `rapid check` ya ejecuta el configurado.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        argv = list(test_cmd)
 
     session = load_session(PROJECT_RAPID_DIR)
     if not session or not session.active_run_id:
@@ -3335,14 +3353,36 @@ def check_command(args):
     elif kind == "command":
         kind = "command_result"
 
-    config = load_project_config(CONFIG_FILE)
-    test_cmd = config.get("test_command")
     timeout = float(config.get("check_timeout_s", 600))
     try:
         check_cwd = _run_workspace_cwd()
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         sys.exit(1)
+    test_gate_ids = {g.id for g in contract.gates if g.kind in (GateKind.BASELINE_CHECK, GateKind.IMPLEMENTATION_TESTS)}
+    accepted = None
+    if accept_reason is not None:
+        from rapid_os.orchestration.lifecycle import accept_check_command
+
+        if test_cmd is not None and argv == test_cmd:
+            print("El comando es el test_command del proyecto: no hace falta aceptarlo.", file=sys.stderr)
+        elif not set(gate_ids) & test_gate_ids:
+            print(
+                "RAPID1440 `--accept-test-command` solo vale para un check de gate.tests o gate.baseline "
+                "(`rapid check --gate gate.tests --accept-test-command \"MOTIVO\" -- <comando>`).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        else:
+            refusal, accepted = accept_check_command(
+                CURRENT_DIR, run_id, argv, test_cmd, accept_reason,
+                gate_ids=[g for g in gate_ids if g in test_gate_ids],
+                reviewer=getattr(args, "reviewer", None),
+                cwd=check_cwd,
+            )
+            if refusal is not None:
+                print(refusal, file=sys.stderr)
+                sys.exit(1)
     try:
         res = run_check(
             CURRENT_DIR,
@@ -3352,10 +3392,11 @@ def check_command(args):
             task_ids=task_ids,
             gate_ids=gate_ids,
             kind=kind,
-            test_command=test_cmd if isinstance(test_cmd, (list, tuple)) else None,
+            test_command=test_cmd,
             timeout=timeout,
             expect=expect,
             cwd=check_cwd,
+            accepted=accepted,
         )
     except FileNotFoundError:
         print(f"Command not found: '{argv[0]}'", file=sys.stderr)
@@ -3401,9 +3442,16 @@ def check_command(args):
             "failed": res.failed,
             "skipped": res.skipped,
             "evidence_id": res.evidence.id if res.evidence else None,
+            "refused_gates": list(res.refused_gates),
+            "components": [dict(part) for part in res.components],
         }
+        if res.refused_gates:
+            payload["code"] = "RAPID1440"
+            payload["message"] = refused_gate_message(res.argv, res.refused_gates, res.evidence)
         print(json.dumps(payload, indent=2))
-        sys.exit(0 if res.exit_code == 0 else res.exit_code)
+        if res.exit_code != 0:
+            sys.exit(res.exit_code)
+        sys.exit(1 if res.refused_gates and gate_arg else 0)
 
     if res.exit_code != 0:
         print(f"Check failed with exit code {res.exit_code}", file=sys.stderr)
@@ -3414,6 +3462,15 @@ def check_command(args):
             print(f"Tail:\n{tail}", file=sys.stderr)
         sys.exit(res.exit_code)
 
+    if res.refused_gates:
+        # H-68: the check ran and is recorded, but it says nothing about gate.tests or gate.baseline.
+        print(f"Check recorded (evidence {res.evidence.id if res.evidence else 'recorded'}), without "
+              f"{', '.join(res.refused_gates)}.")
+        print(refused_gate_message(res.argv, res.refused_gates, res.evidence), file=sys.stderr)
+        # An explicit `--gate` asked for something that did not happen; the default binding did not.
+        if gate_arg:
+            sys.exit(1)
+        return 0
     print_success(f"Check passed (evidence {res.evidence.id if res.evidence else 'recorded'})")
     if res.not_a_test_run:
         print(
@@ -3426,10 +3483,15 @@ def check_command(args):
     elif res.kind == "test_result":
         print(f"Tests: {res.passed} passed, {res.failed} failed, {res.skipped} skipped"
               + ("" if res.counted else " (sin resumen de tests en la salida; el conteo sale del código de salida)"))
+        for part in res.components:  # H-66: each component of a combined test command, or each runner
+            label = part.get("command") or part.get("runner")
+            count = (f"{part['passed']} passed, {part['failed']} failed, {part['skipped']} skipped"
+                     if part.get("counted", True) else "sin resumen de tests")
+            print(f"  {label}: {count}")
     elif res.tests_expected:
         print(
             "WARNING No se pudo leer un conteo de tests en la salida: se guardó como command_result, sin conteo. "
-            "Un refactor compara ese conteo con la baseline; usa el comando de test (`rapid check -- <test_command>`).",
+            "Un refactor compara ese conteo con la baseline; usa el comando de test (`rapid check` sin comando).",
             file=sys.stderr,
         )
     return 0
@@ -4404,6 +4466,8 @@ def next_command(args):
     else:
         cmd_str = f" -> {' '.join(action.command)}" if action.command else ""
         print(f"Next: {action.kind.value}{cmd_str}")
+    for note in action.notes:
+        print(f"Nota: {note}")
     _print_unconfirmed_docs(action)
     return 0
 
@@ -4530,11 +4594,20 @@ def _story_lines(run_id, verdict, tick=True):
 def finish_command(args):
     """Execute rapid finish command."""
     from rapid_os.orchestration.actions import NextAction
-    from rapid_os.orchestration.lifecycle import execute_finish, unverified_reason, verification_warning
+    from rapid_os.orchestration.lifecycle import (
+        execute_finish,
+        run_scope_warning,
+        unverified_reason,
+        verification_warning,
+    )
     from rapid_os.orchestration.session import load_session
     from rapid_os.orchestration.git import run_git
 
     sess = load_session(PROJECT_RAPID_DIR)
+    # H-70: computed before finish (a merge may remove the worktree); printed whatever finish answers.
+    scope_warning = run_scope_warning(CURRENT_DIR, PROJECT_RAPID_DIR)
+    if scope_warning:
+        print(f"WARNING {scope_warning}", file=sys.stderr)
     merge_requested = getattr(args, "merge", False)
     if merge_requested:
         if not sess or not sess.active_run_id or not sess.workspace_path:
@@ -5842,7 +5915,13 @@ def create_parser():
     check_p.add_argument("--kind", dest="kind", choices=["test", "command", "test_result", "command_result"], help="Evidence kind to produce.")
     check_p.add_argument("--expect", dest="expect", choices=["pass", "fail"], default="pass", help="Expected outcome of check ('pass' or 'fail').")
     check_p.add_argument("--json", action="store_true", help="Emit JSON result on stdout.")
-    check_p.add_argument("argv", nargs=argparse.REMAINDER, help="Command line arguments to execute after --.")
+    check_p.add_argument(
+        "--accept-test-command",
+        metavar="MOTIVO",
+        help="Accept, answering s in your own terminal, that this check of gate.tests or gate.baseline runs another command than test_command (RAPID1440); the reason, the argv and the digest of each file argument are recorded. An agent cannot do it.",
+    )
+    check_p.add_argument("--reviewer", help="Name recorded with --accept-test-command (default: git config user.name).")
+    check_p.add_argument("argv", nargs=argparse.REMAINDER, help="Command to execute after --. Without it, the project's test_command runs.")
 
     # rapid task
     task_p = subparsers.add_parser(

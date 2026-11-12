@@ -7,6 +7,9 @@ and registers append-only RunEvidence on success (exit_code == 0).
 
 from __future__ import annotations
 
+import ast
+import hashlib
+import json
 import os
 import re
 import shutil
@@ -15,7 +18,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Mapping, Sequence
 
 from rapid_os.adapters.evidence_registry import EvidenceRegistry
 from rapid_os.adapters.run_registry import RunRegistry
@@ -41,6 +44,21 @@ UNITTEST_OK_RE = re.compile(r"\bOK\b")
 CARGO_RESULT_RE = re.compile(r"test result:\s*\w+\.\s*(\d+)\s+passed;\s*(\d+)\s+failed;\s*(\d+)\s+ignored", re.IGNORECASE)
 # `go test -v`: one `--- PASS|FAIL|SKIP: Name` line per test.
 GO_RESULT_RE = re.compile(r"^\s*--- (PASS|FAIL|SKIP):", re.MULTILINE)
+# pytest: the final line, `==== 3 failed, 5 passed, 1 skipped, 2 errors in 2.10s ====` (`-q`: without the `=`).
+PYTEST_LINE_RE = re.compile(
+    r"^[=\s]*(\d+ (?:passed|failed|errors?|skipped|xfailed|xpassed|deselected|warnings?|rerun)\b.*?)"
+    r"\s+in\s+[\d.]+\s*s\b",
+    re.IGNORECASE,
+)
+PYTEST_ERRORS_RE = re.compile(r"(\d+)\s+errors?\b", re.IGNORECASE)
+# vitest: `      Tests  1 failed | 2 passed | 1 skipped (4)` (not `Test Files`).
+VITEST_LINE_RE = re.compile(r"^\s*Tests\s{2,}(\d+\s+\w+(?:\s*\|\s*\d+\s+\w+)*)\s*\(\d+\)\s*$")
+# jest: `Tests:       1 failed, 1 skipped, 11 passed, 13 total`.
+JEST_LINE_RE = re.compile(r"^\s*Tests:\s+(.*?)\d+\s+total\s*$")
+# karma/jasmine (`ng test` before Vitest): `Executed 5 of 6 (1 FAILED) (skipped 1) (0.1 secs / 0.05 secs)`.
+KARMA_LINE_RE = re.compile(r"Executed\s+(\d+)\s+of\s+(\d+)\b(.*)$")
+KARMA_FAILED_RE = re.compile(r"\((\d+)\s+FAILED\)")
+KARMA_SKIPPED_RE = re.compile(r"\(skipped\s+(\d+)\)")
 # Modes whose tasks are verified with tests; a research spike is not.
 MODES_WITHOUT_TESTS = frozenset({"research"})
 
@@ -81,6 +99,136 @@ class CheckResult:
     # `--kind test` was asked for a command whose output had no test summary and that is not `test_command`:
     # it was recorded as a command_result, which no test gate accepts.
     not_a_test_run: bool = False
+    # Test gates (gate.tests, gate.baseline) the check was bound to and that it does not satisfy: its argv is not
+    # the project's `test_command` and no person accepted it (RAPID1440). The check is recorded without them.
+    refused_gates: tuple[str, ...] = ()
+    # The count of each component of the combined test command, or of each runner found in the output (H-66).
+    components: tuple[dict, ...] = ()
+
+
+# Outside the project, an argument is recorded by its name only: the evidence is versioned and portable.
+EXTERNAL_PREFIX = "<externo>/"
+MAX_ARGV_TOKEN = 4096
+MAX_COMPONENT_COMMAND = 200
+
+
+def argv_digest(argv: Sequence[str]) -> str:
+    """SHA-256 of an argv (canonical JSON): two checks ran the same command when their digests are equal."""
+    return hashlib.sha256(json.dumps([str(a) for a in argv], ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def _as_file(token: str, cwd: Path) -> Path | None:
+    if not token or "\x00" in token or len(token) > 1024 or "\n" in token:
+        return None
+    try:
+        candidate = Path(token)
+        candidate = candidate if candidate.is_absolute() else cwd / candidate
+        return candidate if candidate.is_file() else None
+    except (OSError, ValueError):
+        return None
+
+
+def _portable_path(path: Path, roots: Sequence[Path]) -> str:
+    resolved = path.resolve()
+    for root in roots:
+        try:
+            return resolved.relative_to(root.resolve()).as_posix()
+        except ValueError:
+            continue
+    return EXTERNAL_PREFIX + path.name
+
+
+def portable_argv(argv: Sequence[str], cwd: Path, roots: Sequence[Path]) -> tuple[list[str], list[dict[str, str]]]:
+    """`(argv, files)` to record for a command a person accepted instead of `test_command`.
+
+    Each argument that is a file becomes a path relative to the project (or `<externo>/<name>` outside it), and
+    `files` has the SHA-256 of each of those files when the check starts: the evidence says what ran."""
+    tokens: list[str] = []
+    files: list[dict[str, str]] = []
+    for raw in argv:
+        token = str(raw)
+        found = _as_file(token, cwd)
+        if found is not None:
+            portable = _portable_path(found, roots)
+            try:
+                files.append({"path": portable, "sha256": hashlib.sha256(found.read_bytes()).hexdigest()})
+            except OSError:
+                pass
+            token = portable
+        tokens.append(token.replace("\x00", "")[:MAX_ARGV_TOKEN])
+    return tokens, files
+
+
+def _short(argv: Sequence[str], limit: int = 80) -> str:
+    text = " ".join(str(a) for a in argv)
+    return text if len(text) <= limit else text[: limit - 3] + "..."
+
+
+def refused_gate_message(argv: Sequence[str], gates: Sequence[str], evidence: RunEvidence | None) -> str:
+    """RAPID1440: a check bound to a test gate ran another command than `test_command`."""
+    gate = gates[0] if gates else "gate.tests"
+    recorded = f" (evidencia {evidence.id})" if evidence is not None else ""
+    return (
+        f"RAPID1440 El check ejecutó `{_short(argv)}`, que no es el test_command del proyecto: se registró como un "
+        f"check normal{recorded} y no satisface {', '.join(gates)}. Ejecuta `rapid check --gate {gate}` sin "
+        "comando: Rapid OS ejecuta el test_command configurado. Aceptar otro comando es decisión de la persona, "
+        f"en su terminal: `rapid check --gate {gate} --accept-test-command \"MOTIVO\" -- <comando>`."
+    )
+
+
+def combined_components(argv: Sequence[str]) -> list[list[str]] | None:
+    """The commands of a test command Rapid OS combined (`COMBINED_TEST_RUNNER`), or None for any other argv.
+
+    `rapid setup set test-command --recommended` joins the backend and frontend commands in one `python -c`
+    argv; `rapid check` runs each one by itself to count each summary (H-66)."""
+    from rapid_os.orchestration.setup_conductor import COMBINED_TEST_RUNNER
+
+    if len(argv) != 3 or argv[1] != "-c":
+        return None
+    head, _, tail = COMBINED_TEST_RUNNER.partition("{commands!r}")
+    code = str(argv[2])
+    if not (code.startswith(head) and code.endswith(tail)) or len(code) <= len(head) + len(tail):
+        return None
+    try:
+        commands = ast.literal_eval(code[len(head):len(code) - len(tail)])
+    except (ValueError, SyntaxError):
+        return None
+    if (
+        not isinstance(commands, list) or len(commands) < 2
+        or not all(isinstance(c, list) and c and all(isinstance(a, str) for a in c) for c in commands)
+    ):
+        return None
+    return [list(c) for c in commands]
+
+
+def _run_combined(components, cwd, child_env, timeout) -> tuple[str, int, list[dict[str, object]]]:
+    """Run each component like `COMBINED_TEST_RUNNER` does (in order, all of them, exit 1 if any fails) and keep
+    the output, exit code and summary of each one."""
+    deadline = time.monotonic() + timeout
+    parts: list[str] = []
+    breakdown: list[dict[str, object]] = []
+    for command in components:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(command, timeout)
+        proc = subprocess.run(
+            resolve_executable(command), env=child_env, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, encoding="utf-8", errors="replace", check=False, shell=False, timeout=remaining,
+        )
+        out = proc.stdout or ""
+        shown = " ".join(command)
+        parts.append(f"===== rapid check: {shown} (exit {proc.returncode}) =====\n{out}")
+        counts = parse_test_summary(out)
+        breakdown.append({
+            "command": shown[:MAX_COMPONENT_COMMAND],
+            "exit_code": proc.returncode,
+            "passed": counts["passed"] if counts else 0,
+            "failed": counts["failed"] if counts else 0,
+            "skipped": counts["skipped"] if counts else 0,
+            "counted": counts is not None,
+        })
+    exit_code = 1 if any(item["exit_code"] != 0 for item in breakdown) else 0
+    return "\n".join(parts), exit_code, breakdown
 
 
 def resolve_executable(argv: Sequence[str]) -> list[str]:
@@ -95,47 +243,125 @@ def resolve_executable(argv: Sequence[str]) -> list[str]:
     return resolved
 
 
-def parse_test_summary(output: str) -> dict[str, int] | None:
-    """Test counts from the summary of pytest, unittest, vitest, jest, `cargo test` or `go test -v`.
+def _counts(passed: int, failed: int, skipped: int, runner: str) -> dict[str, object]:
+    return {"runner": runner, "passed": passed, "failed": failed, "skipped": skipped}
 
-    None when the output has no summary that can be read (a command that is not a test runner, or a
-    runner whose output has no counts, such as `go test` without `-v`): the caller must say so."""
-    cargo = CARGO_RESULT_RE.findall(output)
-    if cargo:
-        return {
-            "passed": sum(int(p) for p, _f, _i in cargo),
-            "failed": sum(int(f) for _p, f, _i in cargo),
-            "skipped": sum(int(i) for _p, _f, i in cargo),
-        }
-    go = GO_RESULT_RE.findall(output)
-    if go:
-        return {
-            "passed": go.count("PASS"),
-            "failed": go.count("FAIL"),
-            "skipped": go.count("SKIP"),
-        }
-    for line in reversed(output.splitlines()):
+
+def _word_counts(text: str) -> dict[str, int]:
+    """`{"passed": 5, "failed": 3, ...}` from `5 passed, 3 failed` or `3 failed | 5 passed`."""
+    found: dict[str, int] = {}
+    for number, word in re.findall(r"(\d+)\s+([A-Za-z]+)", text):
+        found[word.lower()] = found.get(word.lower(), 0) + int(number)
+    return found
+
+
+def _last(regex: re.Pattern, lines: Sequence[str]) -> re.Match | None:
+    for line in reversed(lines):
+        if line.lstrip().lower().startswith("test result:"):
+            continue  # `cargo test` has its own line
+        match = regex.search(line)
+        if match:
+            return match
+    return None
+
+
+def _unittest_summary(output: str) -> dict[str, object] | None:
+    ran = list(UNITTEST_RAN_RE.finditer(output))
+    if not ran:
+        return None
+    last = ran[-1]
+    total = int(last.group(1))
+    after = output[last.end():]
+    m_fail = UNITTEST_FAILED_RE.search(after)
+    if m_fail:
+        failed = int(m_fail.group(1) or 0) + int(m_fail.group(2) or 0)
+        skipped = int(m_fail.group(3) or 0)
+        return _counts(max(0, total - failed - skipped), failed, skipped, "unittest")
+    skipped_ok = re.search(r"OK \(skipped=(\d+)\)", after)
+    skipped = int(skipped_ok.group(1)) if skipped_ok else 0
+    return _counts(max(0, total - skipped), 0, skipped, "unittest")
+
+
+def _legacy_summary(lines: Sequence[str]) -> dict[str, object] | None:
+    """The last line that names passed, failed or skipped tests (an unrecognized runner)."""
+    for line in reversed(lines):
         m_p = PYTEST_PASSED_RE.search(line)
         m_f = PYTEST_FAILED_RE.search(line)
         m_s = PYTEST_SKIPPED_RE.search(line)
-        if m_p or m_f or m_s:  # pytest, vitest and jest all end with a line like this
-            return {
-                "passed": int(m_p.group(1)) if m_p else 0,
-                "failed": int(m_f.group(1)) if m_f else 0,
-                "skipped": int(m_s.group(1)) if m_s else 0,
-            }
-    m_ran = UNITTEST_RAN_RE.search(output)
-    if m_ran:
-        total = int(m_ran.group(1))
-        m_fail = UNITTEST_FAILED_RE.search(output)
-        if m_fail:
-            failed = int(m_fail.group(1) or 0) + int(m_fail.group(2) or 0)
-            skipped = int(m_fail.group(3) or 0)
-            return {"passed": max(0, total - failed - skipped), "failed": failed, "skipped": skipped}
-        skipped_ok = re.search(r"OK \(skipped=(\d+)\)", output)
-        skipped = int(skipped_ok.group(1)) if skipped_ok else 0
-        return {"passed": max(0, total - skipped), "failed": 0, "skipped": skipped}
+        if m_p or m_f or m_s:
+            return _counts(
+                int(m_p.group(1)) if m_p else 0,
+                int(m_f.group(1)) if m_f else 0,
+                int(m_s.group(1)) if m_s else 0,
+                "unknown",
+            )
     return None
+
+
+def parse_test_summaries(output: str) -> list[dict[str, object]]:
+    """One summary per test runner recognized in the output: `{runner, passed, failed, skipped}`.
+
+    A command that runs several runners (a backend with pytest and a frontend with Vitest, H-66) prints one
+    summary each; each runner contributes its last summary (`cargo test` the sum of its binaries, `go test -v`
+    its per-test lines). An output with none of them falls back to the last line that names passed, failed or
+    skipped tests. Empty when there is no summary at all."""
+    lines = output.splitlines()
+    found: list[dict[str, object]] = []
+    cargo = CARGO_RESULT_RE.findall(output)
+    if cargo:
+        found.append(_counts(
+            sum(int(p) for p, _f, _i in cargo), sum(int(f) for _p, f, _i in cargo),
+            sum(int(i) for _p, _f, i in cargo), "cargo test",
+        ))
+    go = GO_RESULT_RE.findall(output)
+    if go:
+        found.append(_counts(go.count("PASS"), go.count("FAIL"), go.count("SKIP"), "go test"))
+    pytest = _last(PYTEST_LINE_RE, lines)
+    if pytest:
+        words = _word_counts(pytest.group(1))
+        failed = words.get("failed", 0) + words.get("error", 0) + words.get("errors", 0)
+        found.append(_counts(words.get("passed", 0), failed, words.get("skipped", 0), "pytest"))
+    vitest = _last(VITEST_LINE_RE, lines)
+    if vitest:
+        words = _word_counts(vitest.group(1))
+        found.append(_counts(words.get("passed", 0), words.get("failed", 0),
+                             words.get("skipped", 0) + words.get("todo", 0), "vitest"))
+    jest = _last(JEST_LINE_RE, lines)
+    if jest:
+        words = _word_counts(jest.group(1))
+        found.append(_counts(words.get("passed", 0), words.get("failed", 0),
+                             words.get("skipped", 0) + words.get("todo", 0), "jest"))
+    karma = _last(KARMA_LINE_RE, lines)
+    if karma:
+        rest = karma.group(3)
+        failed_match = KARMA_FAILED_RE.search(rest)
+        skipped_match = KARMA_SKIPPED_RE.search(rest)
+        failed = int(failed_match.group(1)) if failed_match else 0
+        found.append(_counts(max(0, int(karma.group(1)) - failed), failed,
+                             int(skipped_match.group(1)) if skipped_match else 0, "karma"))
+    unittest_summary = _unittest_summary(output)
+    if unittest_summary:
+        found.append(unittest_summary)
+    if not found:
+        legacy = _legacy_summary(lines)
+        if legacy:
+            found.append(legacy)
+    return found
+
+
+def sum_summaries(summaries: Sequence[Mapping[str, object]]) -> dict[str, int] | None:
+    if not summaries:
+        return None
+    return {key: sum(int(s[key]) for s in summaries) for key in ("passed", "failed", "skipped")}  # type: ignore[arg-type]
+
+
+def parse_test_summary(output: str) -> dict[str, int] | None:
+    """Test counts from the summary of pytest, unittest, vitest, jest, karma, `cargo test` or `go test -v`,
+    added up when the output has the summaries of several runners (`parse_test_summaries`).
+
+    None when the output has no summary that can be read (a command that is not a test runner, or a
+    runner whose output has no counts, such as `go test` without `-v`): the caller must say so."""
+    return sum_summaries(parse_test_summaries(output))
 
 
 def parse_test_output(output: str, exit_code: int) -> dict[str, int]:
@@ -193,6 +419,26 @@ def parse_test_output(output: str, exit_code: int) -> dict[str, int]:
         return {"passed": 0, "failed": 1, "skipped": 0}
 
 
+def _run_single(exec_argv, child_env, cwd, timeout) -> tuple[str, int]:
+    proc = subprocess.run(
+        exec_argv,
+        env=child_env,
+        cwd=str(cwd),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        # Test runners print UTF-8 (Vitest's ✓, ⎯, ❯). Without an explicit encoding Windows decodes with the
+        # code page (cp1252), whose reader thread dies on a byte such as 0x9d: the log loses the output and
+        # the summary is not counted. A byte that is not UTF-8 becomes U+FFFD instead of failing (H-57).
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        shell=False,
+        timeout=timeout,
+    )
+    return proc.stdout or "", proc.returncode
+
+
 def run_check(
     project_root: Path,
     project_rapid_dir: Path,
@@ -206,11 +452,16 @@ def run_check(
     timeout: float = 600.0,
     expect: str = "pass",
     cwd: Path | None = None,
+    accepted: dict[str, str] | None = None,
 ) -> CheckResult:
     """Execute argv without shell, write scratch log, and record RunEvidence if successful.
 
     The command runs in `cwd` (the run's isolated worktree) or in `project_root`; the
     ledger, logs and evidence always stay under `project_root`.
+
+    Only the project's `test_command` satisfies a test gate (gate.tests, gate.baseline). Another argv bound to one
+    is recorded without that gate (`refused_gates`), unless a person accepted it in their terminal: `accepted` is
+    `{"reviewer", "reason"}` and the evidence keeps the argv and the digest of every file it received.
     """
     clean_argv = tuple(str(a) for a in argv)
     if not clean_argv:
@@ -232,11 +483,22 @@ def run_check(
     # not exactly `test_command` (`uv run --directory backend pytest -q` is `pytest`): the output decides.
     contract = run_reg.get_contract(run_id)
     test_gate_ids = {g.id for g in contract.gates if g.kind in (GateKind.BASELINE_CHECK, GateKind.IMPLEMENTATION_TESTS)}
+    is_test_command = test_command is not None and list(clean_argv) == list(test_command)
+    # H-68: `python -c "print('31 passed')"` printed a summary and satisfied gate.tests. A test gate is satisfied
+    # by the configured test command, which Rapid OS runs itself (`rapid check --gate gate.tests` without argv);
+    # another command needs a person's acceptance.
+    refused_gates: tuple[str, ...] = ()
+    if test_command is not None and not is_test_command and accepted is None:
+        refused_gates = tuple(g for g in gate_ids if g in test_gate_ids)
+        gate_ids = [g for g in gate_ids if g not in test_gate_ids]
+    accepted_argv: tuple[list[str], list[dict[str, str]]] | None = None
+    if accepted is not None and not is_test_command:
+        work_dir = Path(cwd if cwd is not None else project_root)
+        accepted_argv = portable_argv(clean_argv, work_dir, [work_dir, Path(project_root)])
     tests_expected = bool(set(gate_ids) & test_gate_ids) or (
         bool(task_ids) and _run_mode(project_root, project_rapid_dir, contract) not in MODES_WITHOUT_TESTS
     )
     explicit_command = kind in ("command", "command_result", EvidenceKind.COMMAND_RESULT.value)
-    is_test_command = test_command is not None and list(clean_argv) == list(test_command)
 
     # Windows: `subprocess` with shell=False does not find `pnpm`, `npm` or `yarn` (they are `.cmd` shims). The
     # executable is resolved with the PATH and PATHEXT; the argv that is compared with `test_command` and recorded
@@ -261,25 +523,16 @@ def run_check(
     next_num = len(existing_logs) + 1
     log_file = checks_dir / f"{next_num}.log"
 
-    # Execute subprocess
-    proc = subprocess.run(
-        exec_argv,
-        env=child_env,
-        cwd=str(cwd if cwd is not None else project_root),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        # Test runners print UTF-8 (Vitest's ✓, ⎯, ❯). Without an explicit encoding Windows decodes with the
-        # code page (cp1252), whose reader thread dies on a byte such as 0x9d: the log loses the output and
-        # the summary is not counted. A byte that is not UTF-8 becomes U+FFFD instead of failing (H-57).
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        shell=False,
-        timeout=timeout,
-    )
-    output = proc.stdout or ""
-    exit_code = proc.returncode
+    # The test command Rapid OS combined (backend and frontend) runs one component at a time, so each summary is
+    # counted and kept apart (H-66); any other argv runs as typed.
+    components = combined_components(clean_argv)
+    breakdown: list[dict[str, object]] | None = None
+    if components is not None:
+        output, exit_code, breakdown = _run_combined(
+            components, str(cwd if cwd is not None else project_root), child_env, timeout
+        )
+    else:
+        output, exit_code = _run_single(exec_argv, child_env, cwd if cwd is not None else project_root, timeout)
 
     # Write log to scratch
     safe_write_text(
@@ -291,7 +544,14 @@ def run_check(
     )
 
     counts = {"passed": 0, "failed": 0, "skipped": 0}
-    summary = parse_test_summary(output)
+    if breakdown is not None:
+        counted_parts = [item for item in breakdown if item["counted"]]
+        summary = sum_summaries(counted_parts)
+    else:
+        runners = parse_test_summaries(output)
+        summary = sum_summaries(runners)
+        if len(runners) > 1:  # a command we did not build ran several runners: keep each summary
+            breakdown = [{k: item[k] for k in ("runner", "passed", "failed", "skipped")} for item in runners]
     counted = False
     not_a_test_run = False
     if effective_kind == EvidenceKind.COMMAND_RESULT.value and tests_expected and not explicit_command and summary:
@@ -326,6 +586,8 @@ def run_check(
             skipped=counts["skipped"],
             evidence=None,
             not_a_test_run=not_a_test_run,
+            refused_gates=refused_gates,
+            components=tuple(breakdown or ()),
         )
 
     # For standard checks (expect == "pass"), non-zero exit is failure and no evidence is recorded
@@ -342,6 +604,8 @@ def run_check(
             skipped=counts["skipped"],
             evidence=None,
             not_a_test_run=not_a_test_run,
+            refused_gates=refused_gates,
+            components=tuple(breakdown or ()),
         )
 
     # Success: record evidence in EvidenceRegistry
@@ -378,7 +642,20 @@ def run_check(
             # What a test gate needs (ruleset 3): a summary that was counted, or the project's test command.
             "counted": counted,
             "test_command": is_test_command,
+            # The exact argv, so a baseline and a later check are compared even when `command` is not kept.
+            "argv_digest": argv_digest(clean_argv),
         }
+        if breakdown is not None:
+            # H-66: the count of each component (the combined test command) or of each runner in the output.
+            authoring_payload["components"] = breakdown
+        if accepted_argv is not None and accepted is not None:
+            authoring_payload["argv"] = accepted_argv[0]
+            authoring_payload["argv_files"] = accepted_argv[1]
+            authoring_payload["accepted"] = {
+                "reviewer": str(accepted["reviewer"]),
+                "reason": str(accepted["reason"]),
+                "via": "rapid:check",
+            }
         if expect == "fail":
             authoring_payload["expectation"] = "fail"
         # So a baseline and a later check can be compared (they must be the same command).
@@ -437,4 +714,6 @@ def run_check(
         tests_expected=tests_expected,
         counted=counted,
         not_a_test_run=not_a_test_run,
+        refused_gates=refused_gates,
+        components=tuple(breakdown or ()),
     )

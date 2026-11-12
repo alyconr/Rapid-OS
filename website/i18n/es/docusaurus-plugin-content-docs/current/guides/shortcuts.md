@@ -146,7 +146,7 @@ Los shortcuts de modo enseñan solo estos pasos; no listan comandos de bajo nive
 
 1. **`rapid next --json`**: devuelve la siguiente acción (`action.kind`: `author_spec`, `run_baseline`, `activate`, `implement_task`, `verify`, `await_human_approval`, `finish`, `done` o `blocked`).
 2. **`author_spec`**: el agente redacta la spec desde tu objetivo, siguiendo la plantilla del modo (`action.spec_template`), y la pasa por stdin a `rapid start <modo> --spec-file -`. Sin run activo, `rapid next` solo conoce la plantilla de `feature`; los demás shortcuts piden la suya con `rapid start <modo> --json`.
-3. **`action.command`**: si existe, se ejecuta. En `implement_task` el agente implementa solo esa tarea y ejecuta `action.after` (`rapid task done …`). Los tests siempre se corren con `rapid check -- <comando>` para que quede evidencia.
+3. **`action.command`**: si existe, se ejecuta. En `implement_task` el agente implementa solo esa tarea y ejecuta `action.after` (`rapid task done …`). Los tests siempre se corren con `rapid check` sin comando para que quede evidencia: Rapid OS ejecuta él mismo el `test_command` del proyecto y el agente no cita nada en su terminal. Un `rapid check -- <comando>` con otro comando es un check normal y no satisface `gate.tests` ni `gate.baseline` (`RAPID1440`); aceptar otro comando es decisión de la persona.
 4. Se repite hasta `done` o `await_human_approval`; entonces el agente resume la evidencia y te pide ejecutar `rapid approve <gate>` en **tu** terminal. `rapid finish` cierra el run cuando ya no queda nada pendiente.
 5. **Nunca** ejecuta `rapid approve`, `rapid abort`, `rapid run gate` ni `rapid evidence add`, y nunca edita `.rapid-os/`.
 

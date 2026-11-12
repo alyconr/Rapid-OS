@@ -101,10 +101,11 @@ class StaleVerification:
     unverifiable: bool = False
 
     def message(self, code: str = "RAPID1423") -> str:
+        # Without argv `rapid check` runs the configured test_command: nothing to quote in the agent's shell (H-61).
         how = (
-            f"`rapid check --gate {self.gate_id} -- {' '.join(self.command)}`"
+            f"`rapid check --gate {self.gate_id}`"
             if self.command
-            else f"`rapid check --gate {self.gate_id} -- <comando de test>`"
+            else f"`rapid check --gate {self.gate_id}` (antes configura el comando de test)"
         )
         if self.unverifiable:
             return (

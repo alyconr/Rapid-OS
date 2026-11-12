@@ -497,6 +497,11 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
             ["rapid", "check", "--gate", "gate.tests", "--", sys.executable, "-c", "import sys; sys.exit(0)"],
             ["rapid", "check", "--task", "T001", "--", sys.executable, "-c", "import sys; sys.exit(0)"],
             ["rapid", "check", "--", sys.executable, "-c", "import sys; sys.exit(0)"],
+            # What `rapid next` proposes: without argv, `rapid check` runs test_command.
+            ["rapid", "check", "--gate", "gate.tests"],
+            ["rapid", "check", "--task", "T001"],
+            ["rapid", "check", "--expect", "fail", "--task", "T001"],
+            ["rapid", "check"],
             ["rapid", "finish"],
         ]
 
@@ -757,7 +762,7 @@ class BugfixLabScenarioTests(LabScenarioBase):
         # T001 (in progress, no reproduction yet): `next` proposes the expected-failure check.
         action = self._next()
         cmd = action["command"]
-        self.assertEqual(cmd[:7], ["rapid", "check", "--expect", "fail", "--task", "T001", "--"])
+        self.assertEqual(cmd, ["rapid", "check", "--expect", "fail", "--task", "T001"])  # H-61: no argv
         self.assertEqual(action["after"][:4], ["rapid", "task", "done", "T001"])
 
         # Before the red test exists the expected failure is NOT reproduced: no evidence.

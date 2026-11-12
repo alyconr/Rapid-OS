@@ -175,8 +175,10 @@ def refactor_baseline_missing(contract: ExecutionContract, evidence: Sequence[Ru
 def test_command_mismatch(contract: ExecutionContract, evidence: Sequence[RunEvidence]) -> tuple[str, str] | None:
     """`(baseline command, latest command)` when the latest test run used another command than the baseline.
 
-    Their counts are not comparable then (the other command may run fewer tests). Needs both commands
-    recorded; evidence from before the command was kept says nothing."""
+    Their counts are not comparable then (the other command may run fewer tests). Compared by the digest of the
+    argv when both checks recorded it, then by whether each one was the project's `test_command`, then by the
+    `command` text. A long `test_command` (the combined backend and frontend runner) is not kept as `command`:
+    before the digest, a baseline with it and a check with `python -c "print(...)"` looked comparable (H-68)."""
     baseline_gate = _baseline_gate(contract)
     if baseline_gate is None:
         return None
@@ -184,7 +186,22 @@ def test_command_mismatch(contract: ExecutionContract, evidence: Sequence[RunEvi
     baselines = [ev for ev in real_tests if baseline_gate.id in ev.gate_ids]
     if not baselines or not real_tests:
         return None
-    base, latest = baselines[0].payload.get("command"), real_tests[-1].payload.get("command")
+    first, last = baselines[0].payload, real_tests[-1].payload
+    base, latest = first.get("command"), last.get("command")
+
+    def shown(payload, command) -> str:
+        if command:
+            return str(command)
+        return "el test_command del proyecto" if payload.get("test_command") is True else "otro comando"
+
+    if first.get("argv_digest") and last.get("argv_digest"):
+        if first["argv_digest"] != last["argv_digest"]:
+            return shown(first, base), shown(last, latest)
+        return None
+    if "test_command" in first and "test_command" in last and (
+        (first.get("test_command") is True) != (last.get("test_command") is True)
+    ):
+        return shown(first, base), shown(last, latest)
     if base and latest and base != latest:
         return str(base), str(latest)
     return None
@@ -197,8 +214,8 @@ def _refactor_block(
     if refactor_baseline_missing(contract, evidence):
         baseline_gate = _baseline_gate(contract)
         again = (
-            f"Repeat the baseline with the test command: `rapid check --gate {baseline_gate.id} -- "
-            f"{' '.join(test_command)}`."
+            f"Repeat the baseline with the test command: `rapid check --gate {baseline_gate.id}` (Rapid OS runs "
+            "the configured test_command)."
             if test_command
             else "Repeat the baseline with the project's test command (set it with `rapid setup set test-command`)."
         )
@@ -212,7 +229,7 @@ def _refactor_block(
                 "Refactor has no baseline with a test count: the baseline was recorded without a test summary "
                 "Rapid OS can read, so the comparison that keeps a refactor from losing tests cannot run. " + again
             ),
-            command=("rapid", "check", "--gate", baseline_gate.id, "--", *test_command) if test_command else None,
+            command=("rapid", "check", "--gate", baseline_gate.id) if test_command else None,
             after=None,
             awaiting_human=pending_human_ids,
             missing=missing,
@@ -464,7 +481,7 @@ def next_action(
                         contract, state, raw_evidence, baseline_gate.id, evaluator=evaluator
                     )
                     if test_command:
-                        cmd = ("rapid", "check", "--gate", baseline_gate.id, "--", *test_command)
+                        cmd = ("rapid", "check", "--gate", baseline_gate.id)
                         instr = playbook.get_instruction(ActionKind.RUN_BASELINE)
                         if hypothetical is not None and hypothetical.reason.startswith("RAPID1432"):
                             instr = f"{hypothetical.reason} {instr}"
@@ -576,10 +593,7 @@ def next_action(
                     # do not rerun the whole suite when closing it.
                     after = ("rapid", "task", "done", target_task.id, "--no-check")
                 elif test_command:
-                    cmd = (
-                        "rapid", "check", "--expect", "fail", "--task", target_task.id,
-                        "--", *test_command,
-                    )
+                    cmd = ("rapid", "check", "--expect", "fail", "--task", target_task.id)
                     instructions = (
                         f"{instructions} First write the failing test that reproduces the bug, "
                         f"then run the command to record the expected failure for {target_task.id}; "
@@ -641,7 +655,7 @@ def next_action(
             outcome=None,
         )
 
-    # 2) Tarea con aserción UNVERIFIED -> verify con ["rapid", "check", "--task", "T00N", "--", *test_command]
+    # 2) Tarea con aserción UNVERIFIED -> verify con ["rapid", "check", "--task", "T00N"] (corre test_command)
     unverified_task_assertion = next(
         (
             a
@@ -672,7 +686,7 @@ def next_action(
                 outcome=None,
             )
         if test_command:
-            cmd = ("rapid", "check", "--task", target_task_id, "--", *test_command)
+            cmd = ("rapid", "check", "--task", target_task_id)
             instr = playbook.get_instruction(ActionKind.VERIFY)
         else:
             cmd = None
@@ -737,7 +751,7 @@ def next_action(
                 else None
             )
             if test_command:
-                cmd = ("rapid", "check", "--gate", first_mg.id, "--", *test_command)
+                cmd = ("rapid", "check", "--gate", first_mg.id)
                 instr = playbook.get_instruction(ActionKind.VERIFY)
                 if why:
                     instr = f"{why} Ejecuta el comando de test del proyecto: `{' '.join(cmd)}`."
@@ -804,7 +818,7 @@ def next_action(
         first_cap = unverified_caps[0]
         if first_cap.subject_id == "tests.execute":
             if test_command:
-                cmd = ("rapid", "check", "--", *test_command)
+                cmd = ("rapid", "check")
                 instr = playbook.get_instruction(ActionKind.VERIFY)
             else:
                 cmd = None

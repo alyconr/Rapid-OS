@@ -22,7 +22,7 @@ What its playbook does (`templates/modes/feature.json` and the Conductor rules):
 - `rapid next` delivers the spec template (`action.spec_template`: title, business objective, scope, acceptance criteria, and atomic tasks `T001…`) and the agent fills it in from your goal.
 - Medium risk by default: the baseline is verified and recorded at start (`gate.baseline`), tasks are verified with `rapid check`, and `gate.tests` and `gate.final-verification` (human) remain.
 - **Architecture:** if the project has `.rapid-os/standards/architecture.json` (written by onboarding with the chosen stack), the contract includes the machine gate `gate.architecture` (mandatory, cannot be waived) and `rapid next` proposes `rapid check --gate gate.architecture -- rapid arch check`. A layer or public-contract violation is `RAPID1420` and `rapid finish` does not give `PASS` until the code is fixed. Details in [Architecture by stack](../../concepts/architecture.md#the-gatearchitecture-gate).
-- The loop is implement each task → `rapid check -- <test_command>` → `rapid finish`; you give the final approval in your terminal.
+- The loop is implement each task → `rapid check` (Rapid OS runs `test_command`) → `rapid finish`; you give the final approval in your terminal.
 
 ### In a new project (no code or tests)
 

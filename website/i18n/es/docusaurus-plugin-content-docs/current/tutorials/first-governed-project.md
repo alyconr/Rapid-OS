@@ -286,13 +286,13 @@ Pide el siguiente paso:
 rapid next
 ```
 
-Responde `verify -> rapid check --gate gate.tests -- python -m unittest discover`. Ejecuta el comando que da:
+Responde `verify -> rapid check --gate gate.tests`. Ejecuta el comando que da:
 
 ```bash
-rapid check --gate gate.tests -- python -m unittest discover
+rapid check --gate gate.tests
 ```
 
-`rapid check` ejecuta el comando sin shell, guarda su salida como log en `.rapid-os/scratch/checks/`, lee el resumen de tests (`Ran 4 tests ... OK`) y registra evidencia `test_result` producida por `rapid:check` con los conteos, `counted: true` y la huella (`tree`) del árbol de trabajo que verificó.
+Sin comando, `rapid check` ejecuta él mismo el `test_command` del proyecto (`python -m unittest discover`): no lo escribes ni lo citas. Lo ejecuta sin shell, guarda su salida como log en `.rapid-os/scratch/checks/`, lee el resumen de tests (`Ran 4 tests ... OK`) y registra evidencia `test_result` producida por `rapid:check` con los conteos, `counted: true` y la huella (`tree`) del árbol de trabajo que verificó.
 
 Después, el gate de arquitectura. `rapid next` lo propone con `--new-only` (solo fallan las violaciones que añade el run); este proyecto aún no tiene módulos, así que el checker sin opciones también pasa:
 
@@ -303,9 +303,9 @@ rapid check --gate gate.architecture -- rapid arch check
 
 ### 2. Qué no cuenta como ejecución de tests
 
-Un gate de tests (`gate.tests`, `gate.baseline`) solo lo satisface un check que ejecutó Rapid OS cuya salida tenía un resumen de tests que pudo contar (pytest, unittest, vitest, jest, `cargo test`, `go test -v`) o cuyo comando es exactamente `test_command`, con al menos un test ejecutado y el árbol de trabajo registrado. Por eso:
+Un gate de tests (`gate.tests`, `gate.baseline`) solo lo satisface un check que ejecutó Rapid OS con el `test_command` del proyecto (o con otro comando que una persona aceptó en su terminal), con al menos un test ejecutado y el árbol de trabajo registrado. Por eso:
 
-- `rapid check --kind test -- python -c "print('hello')"`, ligado a `gate.tests`, pasa como comando, pero se registra como `command_result` y `rapid next` sigue pidiendo el comando de test real (`RAPID1432`).
+- `rapid check --gate gate.tests -- python -c "print('4 passed in 0.1s')"` imprime un resumen, pero no es `test_command`: se registra como un check normal sin `gate.tests`, `rapid check` sale con 1 y `RAPID1440`, y `rapid next` sigue pidiendo `rapid check --gate gate.tests`. Aceptar otro comando es decisión de la persona (`--accept-test-command`, ver la [referencia de la CLI](../cli.md#check--verification-rapid-check)).
 - Si el código cambia después del último check, `rapid next`, `rapid approve` y `rapid finish` piden un check nuevo y nombran los archivos (`RAPID1423`).
 
 ### 3. Aprobar el gate humano
