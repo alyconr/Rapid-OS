@@ -260,6 +260,27 @@ def _stale_verification(project_root, project_rapid_dir, sess, contract, evidenc
     )
 
 
+def _acknowledged_test_gate_without_run(contract, state, evidence) -> str | None:
+    """A test gate acknowledged (by plumbing) with no test run linked to it (ruleset 3; None before).
+
+    A command other than test_command is recorded without the gate (H-68), so `gate.tests` can be acknowledged
+    with no evidence at all: an approval must not vouch for code nothing tested."""
+    if not _strict(contract):
+        return None
+    acknowledged = {g.id for g in state.gates if g.disposition == GateDisposition.ACKNOWLEDGED}
+    for gate_id in _test_gate_ids(contract):
+        if gate_id not in acknowledged:
+            continue
+        if not any(
+            e.kind in (EvidenceKind.TEST_RESULT, EvidenceKind.COMMAND_RESULT)
+            and gate_id in e.gate_ids
+            and e.payload.get("expectation") != "fail"
+            for e in evidence
+        ):
+            return gate_id
+    return None
+
+
 def _stale_approval(project_root, project_rapid_dir, sess, contract, evidence, gate_ids=None):
     """A human gate whose approval saw another tree than the current one (ruleset 3; None before)."""
     if not _strict(contract):
@@ -1527,6 +1548,13 @@ def execute_approve(
         )
         if stale is not None:
             return 1, stale.message()
+        unchecked = _acknowledged_test_gate_without_run(contract, current_state, evidence_reg.list(run_id))
+        if unchecked is not None:
+            return 1, (
+                f"RAPID1432 El gate '{unchecked}' está reconocido pero no tiene ninguna ejecución de tests: nada "
+                f"verificó el código que se aprobaría. Ejecuta `rapid check --gate {unchecked}` (corre el "
+                f"test_command configurado) y repite la aprobación."
+            )
 
     reviewer_name = reviewer.strip() if reviewer and reviewer.strip() else None
     if reviewer_name is None:
