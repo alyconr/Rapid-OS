@@ -136,7 +136,7 @@ class OrchestrationConductorTests(unittest.TestCase):
         )
         self.assertEqual(action.kind, ActionKind.RUN_BASELINE)
         self.assertIn("gate.baseline", action.gate_ids)
-        self.assertEqual(action.command, ["rapid", "check", "--gate", "gate.baseline", "--", "python", "-m", "pytest"])
+        self.assertEqual(action.command, ["rapid", "check", "--gate", "gate.baseline"])
         self.assertIsNone(action.after)
 
         # When baseline evidence is registered and gate assertion is PASS -> activate
@@ -229,7 +229,7 @@ class OrchestrationConductorTests(unittest.TestCase):
         )
         self.assertEqual(action_verify_task.kind, ActionKind.VERIFY)
         self.assertEqual(action_verify_task.task_id, "T001")
-        self.assertEqual(action_verify_task.command, ["rapid", "check", "--task", "T001", "--", "python", "-m", "pytest"])
+        self.assertEqual(action_verify_task.command, ["rapid", "check", "--task", "T001"])
 
         # Record test evidence linked to tasks
         (self.root / "test.log").write_text("Tests OK\n", encoding="utf-8")
@@ -402,7 +402,7 @@ class OrchestrationConductorTests(unittest.TestCase):
         action_verify = next_action(contract, state_active, evidence, self.playbook, evaluator=self.evaluator, test_command=["pytest"])
         self.assertEqual(action_verify.kind, ActionKind.VERIFY)
         self.assertEqual(action_verify.task_id, "T001")
-        self.assertEqual(action_verify.command, ["rapid", "check", "--task", "T001", "--", "pytest"])
+        self.assertEqual(action_verify.command, ["rapid", "check", "--task", "T001"])
 
         # 5. Add qualifying test evidence for T001 and T002. gate.tests remains PENDING in RunState!
         (self.root / "test_flow.log").write_text("Tests OK\n", encoding="utf-8")
@@ -474,7 +474,7 @@ class OrchestrationConductorTests(unittest.TestCase):
         )
         self.assertEqual(action.kind, ActionKind.VERIFY)
         self.assertEqual(action.task_id, "T001")
-        self.assertEqual(action.command, ["rapid", "check", "--task", "T001", "--", "python", "-m", "pytest"])
+        self.assertEqual(action.command, ["rapid", "check", "--task", "T001"])
 
     def test_no_test_command_returns_command_none_and_rapid1301_instruction(self):
         record = self.run_registry.create(spec_id=self.spec.id, spec_revision=1)
@@ -555,7 +555,7 @@ class OrchestrationConductorTests(unittest.TestCase):
             test_command=["pytest", "-v"],
         )
         self.assertEqual(action.kind, ActionKind.VERIFY)
-        self.assertEqual(action.command, ["rapid", "check", "--", "pytest", "-v"])
+        self.assertEqual(action.command, ["rapid", "check"])
 
 
 if __name__ == "__main__":

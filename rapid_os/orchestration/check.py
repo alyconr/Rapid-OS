@@ -7,6 +7,8 @@ and registers append-only RunEvidence on success (exit_code == 0).
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import shutil
@@ -81,6 +83,78 @@ class CheckResult:
     # `--kind test` was asked for a command whose output had no test summary and that is not `test_command`:
     # it was recorded as a command_result, which no test gate accepts.
     not_a_test_run: bool = False
+    # Test gates (gate.tests, gate.baseline) the check was bound to and that it does not satisfy: its argv is not
+    # the project's `test_command` and no person accepted it (RAPID1440). The check is recorded without them.
+    refused_gates: tuple[str, ...] = ()
+
+
+# Outside the project, an argument is recorded by its name only: the evidence is versioned and portable.
+EXTERNAL_PREFIX = "<externo>/"
+MAX_ARGV_TOKEN = 4096
+
+
+def argv_digest(argv: Sequence[str]) -> str:
+    """SHA-256 of an argv (canonical JSON): two checks ran the same command when their digests are equal."""
+    return hashlib.sha256(json.dumps([str(a) for a in argv], ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def _as_file(token: str, cwd: Path) -> Path | None:
+    if not token or "\x00" in token or len(token) > 1024 or "\n" in token:
+        return None
+    try:
+        candidate = Path(token)
+        candidate = candidate if candidate.is_absolute() else cwd / candidate
+        return candidate if candidate.is_file() else None
+    except (OSError, ValueError):
+        return None
+
+
+def _portable_path(path: Path, roots: Sequence[Path]) -> str:
+    resolved = path.resolve()
+    for root in roots:
+        try:
+            return resolved.relative_to(root.resolve()).as_posix()
+        except ValueError:
+            continue
+    return EXTERNAL_PREFIX + path.name
+
+
+def portable_argv(argv: Sequence[str], cwd: Path, roots: Sequence[Path]) -> tuple[list[str], list[dict[str, str]]]:
+    """`(argv, files)` to record for a command a person accepted instead of `test_command`.
+
+    Each argument that is a file becomes a path relative to the project (or `<externo>/<name>` outside it), and
+    `files` has the SHA-256 of each of those files when the check starts: the evidence says what ran."""
+    tokens: list[str] = []
+    files: list[dict[str, str]] = []
+    for raw in argv:
+        token = str(raw)
+        found = _as_file(token, cwd)
+        if found is not None:
+            portable = _portable_path(found, roots)
+            try:
+                files.append({"path": portable, "sha256": hashlib.sha256(found.read_bytes()).hexdigest()})
+            except OSError:
+                pass
+            token = portable
+        tokens.append(token.replace("\x00", "")[:MAX_ARGV_TOKEN])
+    return tokens, files
+
+
+def _short(argv: Sequence[str], limit: int = 80) -> str:
+    text = " ".join(str(a) for a in argv)
+    return text if len(text) <= limit else text[: limit - 3] + "..."
+
+
+def refused_gate_message(argv: Sequence[str], gates: Sequence[str], evidence: RunEvidence | None) -> str:
+    """RAPID1440: a check bound to a test gate ran another command than `test_command`."""
+    gate = gates[0] if gates else "gate.tests"
+    recorded = f" (evidencia {evidence.id})" if evidence is not None else ""
+    return (
+        f"RAPID1440 El check ejecutó `{_short(argv)}`, que no es el test_command del proyecto: se registró como un "
+        f"check normal{recorded} y no satisface {', '.join(gates)}. Ejecuta `rapid check --gate {gate}` sin "
+        "comando: Rapid OS ejecuta el test_command configurado. Aceptar otro comando es decisión de la persona, "
+        f"en su terminal: `rapid check --gate {gate} --accept-test-command \"MOTIVO\" -- <comando>`."
+    )
 
 
 def resolve_executable(argv: Sequence[str]) -> list[str]:
@@ -206,11 +280,16 @@ def run_check(
     timeout: float = 600.0,
     expect: str = "pass",
     cwd: Path | None = None,
+    accepted: dict[str, str] | None = None,
 ) -> CheckResult:
     """Execute argv without shell, write scratch log, and record RunEvidence if successful.
 
     The command runs in `cwd` (the run's isolated worktree) or in `project_root`; the
     ledger, logs and evidence always stay under `project_root`.
+
+    Only the project's `test_command` satisfies a test gate (gate.tests, gate.baseline). Another argv bound to one
+    is recorded without that gate (`refused_gates`), unless a person accepted it in their terminal: `accepted` is
+    `{"reviewer", "reason"}` and the evidence keeps the argv and the digest of every file it received.
     """
     clean_argv = tuple(str(a) for a in argv)
     if not clean_argv:
@@ -232,11 +311,22 @@ def run_check(
     # not exactly `test_command` (`uv run --directory backend pytest -q` is `pytest`): the output decides.
     contract = run_reg.get_contract(run_id)
     test_gate_ids = {g.id for g in contract.gates if g.kind in (GateKind.BASELINE_CHECK, GateKind.IMPLEMENTATION_TESTS)}
+    is_test_command = test_command is not None and list(clean_argv) == list(test_command)
+    # H-68: `python -c "print('31 passed')"` printed a summary and satisfied gate.tests. A test gate is satisfied
+    # by the configured test command, which Rapid OS runs itself (`rapid check --gate gate.tests` without argv);
+    # another command needs a person's acceptance.
+    refused_gates: tuple[str, ...] = ()
+    if test_command is not None and not is_test_command and accepted is None:
+        refused_gates = tuple(g for g in gate_ids if g in test_gate_ids)
+        gate_ids = [g for g in gate_ids if g not in test_gate_ids]
+    accepted_argv: tuple[list[str], list[dict[str, str]]] | None = None
+    if accepted is not None and not is_test_command:
+        work_dir = Path(cwd if cwd is not None else project_root)
+        accepted_argv = portable_argv(clean_argv, work_dir, [work_dir, Path(project_root)])
     tests_expected = bool(set(gate_ids) & test_gate_ids) or (
         bool(task_ids) and _run_mode(project_root, project_rapid_dir, contract) not in MODES_WITHOUT_TESTS
     )
     explicit_command = kind in ("command", "command_result", EvidenceKind.COMMAND_RESULT.value)
-    is_test_command = test_command is not None and list(clean_argv) == list(test_command)
 
     # Windows: `subprocess` with shell=False does not find `pnpm`, `npm` or `yarn` (they are `.cmd` shims). The
     # executable is resolved with the PATH and PATHEXT; the argv that is compared with `test_command` and recorded
@@ -326,6 +416,7 @@ def run_check(
             skipped=counts["skipped"],
             evidence=None,
             not_a_test_run=not_a_test_run,
+            refused_gates=refused_gates,
         )
 
     # For standard checks (expect == "pass"), non-zero exit is failure and no evidence is recorded
@@ -342,6 +433,7 @@ def run_check(
             skipped=counts["skipped"],
             evidence=None,
             not_a_test_run=not_a_test_run,
+            refused_gates=refused_gates,
         )
 
     # Success: record evidence in EvidenceRegistry
@@ -378,7 +470,17 @@ def run_check(
             # What a test gate needs (ruleset 3): a summary that was counted, or the project's test command.
             "counted": counted,
             "test_command": is_test_command,
+            # The exact argv, so a baseline and a later check are compared even when `command` is not kept.
+            "argv_digest": argv_digest(clean_argv),
         }
+        if accepted_argv is not None and accepted is not None:
+            authoring_payload["argv"] = accepted_argv[0]
+            authoring_payload["argv_files"] = accepted_argv[1]
+            authoring_payload["accepted"] = {
+                "reviewer": str(accepted["reviewer"]),
+                "reason": str(accepted["reason"]),
+                "via": "rapid:check",
+            }
         if expect == "fail":
             authoring_payload["expectation"] = "fail"
         # So a baseline and a later check can be compared (they must be the same command).
@@ -437,4 +539,5 @@ def run_check(
         tests_expected=tests_expected,
         counted=counted,
         not_a_test_run=not_a_test_run,
+        refused_gates=refused_gates,
     )

@@ -310,8 +310,13 @@ PAYLOAD_OPTIONAL_KEYS: Mapping[EvidenceKind, frozenset[str]] = {
     # `tree`: digest of the working tree when the check ended (what a later `approve`/`finish` compares);
     # `command`: the argv of a test run, so a baseline and a later check can be compared.
     EvidenceKind.COMMAND_RESULT: frozenset({"expectation", "tree"}),
-    # `counted`: the output had a test summary; `test_command`: the argv was the project's test command.
-    EvidenceKind.TEST_RESULT: frozenset({"expectation", "command", "tree", "counted", "test_command"}),
+    # `counted`: the output had a test summary; `test_command`: the argv was the project's test command;
+    # `argv_digest`: SHA-256 of the exact argv. `accepted`, `argv` and `argv_files`: a person accepted another
+    # command than `test_command` for a test gate (`rapid check --accept-test-command`): who, why, what ran and
+    # the digest of each file it received.
+    EvidenceKind.TEST_RESULT: frozenset(
+        {"expectation", "command", "tree", "counted", "test_command", "argv_digest", "accepted", "argv", "argv_files"}
+    ),
     # `reason`: why a person rejected a gate (`rapid next` hands it to the agent that opens the new run), or
     # why they accepted another test command. `via`: the Rapid OS command that wrote it; `tree`: the working
     # tree that was approved; `accepts`: what `rapid finish` was told to accept.
@@ -372,6 +377,60 @@ def _validate_int_field(
             f"Payload field '{label}' must be >= {minimum}, got {value}."
         )
     return value
+
+
+MAX_ARGV_ITEMS = 256
+MAX_ARGV_ITEM_CHARS = 4096
+
+
+def _validate_argv(value: object) -> list[str]:
+    if not isinstance(value, (list, tuple)) or not value or len(value) > MAX_ARGV_ITEMS:
+        raise InvalidEvidencePayloadError(
+            f"Payload field 'test_result.argv' must be a list of 1 to {MAX_ARGV_ITEMS} strings."
+        )
+    items: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or "\x00" in item or len(item) > MAX_ARGV_ITEM_CHARS:
+            raise InvalidEvidencePayloadError(
+                f"Payload field 'test_result.argv' items must be strings of at most {MAX_ARGV_ITEM_CHARS} "
+                "characters without null bytes."
+            )
+        items.append(item)
+    return items
+
+
+def _validate_argv_files(value: object) -> list[dict[str, str]]:
+    if not isinstance(value, (list, tuple)) or len(value) > MAX_ARGV_ITEMS:
+        raise InvalidEvidencePayloadError("Payload field 'test_result.argv_files' must be a list.")
+    files: list[dict[str, str]] = []
+    for item in value:
+        if not isinstance(item, Mapping) or set(item) != {"path", "sha256"}:
+            raise InvalidEvidencePayloadError(
+                "Payload field 'test_result.argv_files' items must be objects with 'path' and 'sha256'."
+            )
+        files.append({
+            "path": _validate_portable_text(
+                item["path"], "test_result.argv_files.path", error_cls=InvalidEvidencePayloadError
+            ),
+            "sha256": _validate_sha256(item["sha256"], "test_result.argv_files.sha256", InvalidEvidencePayloadError),
+        })
+    return files
+
+
+def _validate_acceptance(value: object) -> dict[str, str]:
+    if not isinstance(value, Mapping) or set(value) != {"reviewer", "reason", "via"}:
+        raise InvalidEvidencePayloadError(
+            "Payload field 'test_result.accepted' must be an object with 'reviewer', 'reason' and 'via'."
+        )
+    if value["via"] != "rapid:check":
+        raise InvalidEvidencePayloadError("Payload field 'test_result.accepted.via' must be 'rapid:check'.")
+    accepted: dict[str, str] = {"via": "rapid:check"}
+    for key in ("reviewer", "reason"):
+        text = value[key]
+        if not isinstance(text, str) or not text.strip() or "\x00" in text:
+            raise InvalidEvidencePayloadError(f"Payload field 'test_result.accepted.{key}' must be a non-empty string.")
+        accepted[key] = text.strip()
+    return accepted
 
 
 def validate_evidence_payload(
@@ -476,6 +535,16 @@ def validate_evidence_payload(
                 if not isinstance(payload[flag], bool):
                     raise InvalidEvidencePayloadError(f"Payload field 'test_result.{flag}' must be a boolean.")
                 test_payload[flag] = payload[flag]
+        if "argv_digest" in actual_keys:
+            test_payload["argv_digest"] = _validate_sha256(
+                payload["argv_digest"], "test_result.argv_digest", InvalidEvidencePayloadError
+            )
+        if "argv" in actual_keys:
+            test_payload["argv"] = _validate_argv(payload["argv"])
+        if "argv_files" in actual_keys:
+            test_payload["argv_files"] = _validate_argv_files(payload["argv_files"])
+        if "accepted" in actual_keys:
+            test_payload["accepted"] = _validate_acceptance(payload["accepted"])
         return test_payload
 
     if coerced_kind == EvidenceKind.FILE_CHANGE:

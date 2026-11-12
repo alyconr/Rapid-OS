@@ -539,7 +539,7 @@ class CheckReadsUtf8OutputTests(Project):
         self.assertEqual(started.returncode, 0, started.stderr)
         # Without PYTHONUTF8 or PYTHONIOENCODING: the code page of the machine decides, as on a real Windows.
         result = rapid(
-            self.root, "check", "--json", "--gate", "gate.tests", "--", sys.executable, "-c", VITEST_LIKE,
+            self.root, "check", "--json", "--task", "T001", "--", sys.executable, "-c", VITEST_LIKE,
             env_extra={"PYTHONUTF8": None, "PYTHONIOENCODING": None},
         )
         self.assertEqual(result.returncode, 0, result.stderr)

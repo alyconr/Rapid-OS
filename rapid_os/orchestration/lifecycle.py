@@ -908,7 +908,7 @@ def execute_next(
                 kind=ActionKind.VERIFY,
                 gate_ids=(stale.gate_id,),
                 instructions=stale.message(),
-                command=("rapid", "check", "--gate", stale.gate_id, "--", *stale.command) if stale.command else None,
+                command=("rapid", "check", "--gate", stale.gate_id) if stale.command else None,
             )
     if sess.mode == "refactor" and action.kind != ActionKind.DONE:
         warning = mismatch_warning(contract, ev_records)
@@ -1163,6 +1163,66 @@ def _accept_command_change(
         base_dir=project_root,
     )
     return None
+
+
+def accept_check_command(
+    project_root: Path,
+    run_id: str,
+    argv,
+    test_command,
+    reason: str,
+    *,
+    gate_ids,
+    reviewer: str | None = None,
+    cwd: Path | None = None,
+    is_tty: bool | None = None,
+    input_func: Any = None,
+    environ: dict[str, str] | None = None,
+    ancestry: AncestryResult | None = None,
+) -> tuple[str | None, dict[str, str] | None]:
+    """A person accepts, in their terminal, that a check of a test gate runs `argv` instead of `test_command`.
+
+    Returns `(error, None)` when it cannot or was not accepted, `(None, {"reviewer", "reason"})` when it was."""
+    from rapid_os.orchestration.check import portable_argv
+
+    if not reason.strip():
+        return "RAPID1440 '--accept-test-command' necesita un motivo no vacío.", None
+    if environ is None:
+        import os
+
+        environ = dict(os.environ)
+    refusal = human_terminal_refusal(environ, ancestry, is_tty, "Accepting another test command",
+                                     "La aceptación debe hacerla una persona en su propia terminal.")
+    if refusal:
+        return refusal, None
+    ask = input_func if input_func is not None else input
+    name = (reviewer or "").strip() or _git_user_name(project_root)
+    work_dir = Path(cwd) if cwd is not None else Path(project_root)
+    tokens, files = portable_argv(argv, work_dir, [work_dir, Path(project_root)])
+    configured = " ".join(test_command) if test_command else "(ninguno)"
+    listed = "".join(f"\n  {f['path']}  sha256 {f['sha256'][:16]}..." for f in files) or "\n  (ninguno)"
+    try:
+        if not name:
+            name = ask("Reviewer name (git config user.name is not set): ").strip()
+        if not name:
+            return "RAPID1331 A reviewer name is required: pass --reviewer or set 'git config user.name'.", None
+        typed = ask(
+            f"Run: {run_id}\n"
+            f"El test_command del proyecto es `{configured}`.\n"
+            f"Este check de {', '.join(gate_ids)} ejecutaría otro comando:\n  {' '.join(tokens)}\n"
+            f"Archivos que recibe como argumento (se guarda su digest):{listed}\n"
+            f"Se registrará que {name} acepta este comando para {', '.join(gate_ids)} con el motivo «{reason.strip()}».\n"
+            "¿Aceptas el comando de tests? [s/N] "
+        )
+    except EOFError:
+        return (
+            "RAPID1310 Accepting another test command requires interactive terminal confirmation (TTY). "
+            "Stdin was closed before the answer (EOF).",
+            None,
+        )
+    if not is_yes(typed):
+        return "Sin cambios: no se aceptó el comando de tests.", None
+    return None, {"reviewer": name, "reason": reason.strip()}
 
 
 def _git_user_name(project_root: Path) -> str | None:

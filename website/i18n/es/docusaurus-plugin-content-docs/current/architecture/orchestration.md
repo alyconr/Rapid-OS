@@ -45,7 +45,7 @@ Esta página describe cómo encajan las piezas. Los límites de lo que se ejecut
         │                                                            │
         ├─ author_spec ──► redactar la spec ──► rapid start <modo> --spec-file -
         ├─ run_baseline / activate / verify ──► ejecutar action.command
-        ├─ implement_task ──► implementar ──► rapid check -- <tests> ──► action.after (rapid task done)
+        ├─ implement_task ──► implementar ──► rapid check ──► action.after (rapid task done)
         │                                                            │
         ├─ await_human_approval ──► SE DETIENE: una persona ejecuta rapid approve <gate> ──┐
         ├─ blocked ──► explicar el motivo (p. ej. rapid abort tras un rechazo)             │

@@ -497,6 +497,11 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
             ["rapid", "check", "--gate", "gate.tests", "--", sys.executable, "-c", "import sys; sys.exit(0)"],
             ["rapid", "check", "--task", "T001", "--", sys.executable, "-c", "import sys; sys.exit(0)"],
             ["rapid", "check", "--", sys.executable, "-c", "import sys; sys.exit(0)"],
+            # What `rapid next` proposes: without argv, `rapid check` runs test_command.
+            ["rapid", "check", "--gate", "gate.tests"],
+            ["rapid", "check", "--task", "T001"],
+            ["rapid", "check", "--expect", "fail", "--task", "T001"],
+            ["rapid", "check"],
             ["rapid", "finish"],
         ]
 
