@@ -56,7 +56,7 @@ Common errors when working with `/rapid-*`. See the complete [Shortcuts by Harne
 
 ### `RAPID1441`: `rapid finish` gives no PASS because the run changed nothing
 
-- **Cause:** the tree outside `.rapid-os/` is the one the run started from: the change was never made, or it was undone (a file returned to its previous version). A feature, bugfix, refactor or hardening run does not end in PASS without the change it declares.
+- **Cause:** the tree outside `.rapid-os/` is the one the run started from: the change was undone (a file returned to its previous version) after an earlier `rapid finish` had recorded `file_change`. A run that never made the change ends `UNVERIFIED` instead, with its reason. A feature, bugfix, refactor or hardening run does not end in PASS without the change it declares.
 - **Fix:** make the change, run what `rapid next` gives (the test check), approve again and repeat `rapid finish`; or `rapid abort` if the run is not needed. `RAPID1442` is only a warning: the change touches no `affected_path` of the spec, so check that it is the right one.
 
 ## 1. Scanner and initialization issues

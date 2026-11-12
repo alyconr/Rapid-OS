@@ -45,7 +45,7 @@ Errores típicos al trabajar con `/rapid-*`. La guía completa está en [Shortcu
 - **Solución:** actualiza Rapid OS. `rapid check --gate gate.tests` ejecuta cada componente del comando combinado, suma los conteos y guarda el desglose (`components`). Vuelve a tomar la baseline si se registró antes de actualizar.
 
 ### `RAPID1441`: `rapid finish` no da PASS porque el run no cambió nada
-- **Causa:** el árbol fuera de `.rapid-os/` es el del punto de partida del run: el cambio no se hizo, o se deshizo (un archivo devuelto a su versión anterior). Un run de feature, bugfix, refactor o hardening no termina en PASS sin el cambio que declara.
+- **Causa:** el árbol fuera de `.rapid-os/` es el del punto de partida del run: el cambio se deshizo (un archivo devuelto a su versión anterior) después de que un `rapid finish` anterior registrara `file_change`. Un run que nunca hizo el cambio termina `UNVERIFIED`, con su motivo. Un run de feature, bugfix, refactor o hardening no termina en PASS sin el cambio que declara.
 - **Solución:** haz el cambio, ejecuta lo que da `rapid next` (el check de tests), aprueba de nuevo y repite `rapid finish`; o `rapid abort` si el run ya no hace falta. `RAPID1442` es solo un aviso: el cambio no toca ningún `affected_path` de la spec, así que comprueba que sea el correcto.
 
 ---

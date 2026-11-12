@@ -762,7 +762,7 @@ class BugfixLabScenarioTests(LabScenarioBase):
         # T001 (in progress, no reproduction yet): `next` proposes the expected-failure check.
         action = self._next()
         cmd = action["command"]
-        self.assertEqual(cmd[:7], ["rapid", "check", "--expect", "fail", "--task", "T001", "--"])
+        self.assertEqual(cmd, ["rapid", "check", "--expect", "fail", "--task", "T001"])  # H-61: no argv
         self.assertEqual(action["after"][:4], ["rapid", "task", "done", "T001"])
 
         # Before the red test exists the expected failure is NOT reproduced: no evidence.

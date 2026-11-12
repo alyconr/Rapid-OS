@@ -1197,9 +1197,13 @@ def execute_finish(
         if accepted is not None:
             return 1, accepted
 
-    # 3.h A run that declares a change ends in PASS only with that change: a tree equal to the starting point
-    # (the change undone, or never made) leaves the run open with RAPID1441 (H-70).
-    if _run_diff(project_root, sess) == []:
+    # 3.h A run that declares a change ends in PASS only with that change. `file_change` is recorded in 3.a, before
+    # the refusals of 3.c-3.g: an earlier `rapid finish` with the change may have left one behind. With the tree back
+    # to the starting point (the change undone) that stale evidence would give PASS (H-70): RAPID1441, the run stays
+    # open. A run that never had a change has no `file_change` and ends UNVERIFIED as before.
+    if _run_diff(project_root, sess) == [] and any(
+        e.kind == EvidenceKind.FILE_CHANGE for e in evidence_reg.list(run_id)
+    ):
         return 1, unchanged_run_message(sess)
 
     # 3.i Transition to finished and evaluate

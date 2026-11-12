@@ -1,8 +1,9 @@
 """rc.4 · H-70: a run can end in PASS without the change it declares.
 
 In phase 10 of the rc.3 e2e, with the refactored file back to its previous version, `rapid finish` gave PASS and
-`git diff <baseline> -- backend` was empty. A feature, bugfix, refactor or hardening run now ends in PASS only when
-the tree outside `.rapid-os/` differs from where the run started (start_head plus start_untracked): RAPID1441.
+`git diff <baseline> -- backend` was empty. A feature, bugfix, refactor or hardening run whose tree outside `.rapid-os/` is back
+to where the run started (start_head plus start_untracked) no longer ends in PASS on the file_change evidence an
+earlier `rapid finish` left behind: RAPID1441. A run that never changed anything is UNVERIFIED, as before.
 A change that touches no affected_path of the spec is a warning (RAPID1442) in `rapid next` and `rapid finish`.
 """
 
@@ -47,16 +48,33 @@ class RunWithoutItsChangeTests(LabScenarioBase):
     def _reports(self, run_id):
         return EvalRegistry(self.project, self.project / ".rapid-os").list_reports(run_id)
 
-    def test_a_run_that_changes_nothing_gets_no_pass(self):
-        # The change is already in the starting commit: the run's tree is the one it started from, as in
-        # phase 10 with the refactored file back to its previous version.
-        self._copy_solution(*SOLUTION)
-        self._git("add", ".")
-        self._git("commit", "-qm", "solution already there")
-        run_id, action = self._to_approval(implement=lambda _action: None)
-        self.assertTrue(any(n.startswith("RAPID1441") for n in action.get("notes", [])), action)
-        text = self._rapid("next")
-        self.assertIn("Nota: RAPID1441", text.stdout)
+    def test_a_change_undone_after_an_earlier_finish_gets_no_pass(self):
+        # Phase 10 of the rc.3 e2e: a `rapid finish` with the change recorded file_change and was refused; the
+        # refactored file went back to its previous version and the next `rapid finish` gave PASS on that evidence.
+        originals = {
+            rel: (self.project / rel).read_bytes() if (self.project / rel).exists() else None for rel in SOLUTION
+        }
+        run_id, action = self._to_approval()
+        self.assertFalse(any(n.startswith("RAPID1441") for n in action["notes"]), action)
+        self.assertEqual(self._approve("gate.final-verification").returncode, 0)
+        booking = self.project / "booking.py"
+        booking.write_text(booking.read_text(encoding="utf-8") + "\n# edited after the approval\n", encoding="utf-8")
+        refused = self._rapid("finish", "--json")
+        self.assertEqual(refused.returncode, 1)
+        self.assertNotIn("RAPID1441", refused.stderr)
+        self.assertTrue([e for e in self._registry().list(run_id) if e.kind.value == "file_change"])
+
+        # The change is undone: the tree is the one the run started from.
+        for rel, content in originals.items():
+            if content is None:
+                (self.project / rel).unlink()
+            else:
+                (self.project / rel).write_bytes(content)
+        self.assertEqual(self._rapid("check", "--gate", "gate.tests").returncode, 0)
+        payload = json.loads(self._rapid("next", "--json").stdout)
+        self.assertEqual(payload["action"]["kind"], "await_human_approval", payload)
+        self.assertTrue(any(n.startswith("RAPID1441") for n in payload.get("notes", [])), payload)
+        self.assertIn("Nota: RAPID1441", self._rapid("next").stdout)
 
         finish = self._approve_and_finish()
         self.assertEqual(finish.returncode, 1)
@@ -65,16 +83,24 @@ class RunWithoutItsChangeTests(LabScenarioBase):
         self.assertNotIn('"verdict": "pass"', finish.stdout)
         self.assertEqual(list(self._reports(run_id)), [])
 
-        # Making the change lets it end: check again, approve again the new tree, finish.
-        (self.project / "booking.py").write_text(
-            (self.project / "booking.py").read_text(encoding="utf-8") + "\n# availability control\n",
-            encoding="utf-8",
-        )
+        # Making the change again lets it end: check again, approve the new tree, finish.
+        self._copy_solution(*SOLUTION)
         self.assertEqual(self._rapid("check", "--gate", "gate.tests").returncode, 0)
         self.assertEqual(self._approve("gate.final-verification").returncode, 0)
         done = self._rapid("finish", "--json")
         self.assertEqual(done.returncode, 0, done.stderr + done.stdout)
         self.assertEqual(json.loads(done.stdout)["verdict"], "pass")
+
+    def test_a_run_that_never_changed_anything_is_unverified_as_before(self):
+        self._copy_solution(*SOLUTION)
+        self._git("add", ".")
+        self._git("commit", "-qm", "solution already there")
+        run_id, action = self._to_approval(implement=lambda _action: None)
+        self.assertTrue(any(n.startswith("RAPID1441") for n in action["notes"]), action)
+        finish = self._approve_and_finish()
+        self.assertEqual(finish.returncode, 1)
+        self.assertEqual(json.loads(finish.stdout)["verdict"], "unverified")
+        self.assertNotIn("RAPID1441", finish.stderr)
 
     def test_a_change_outside_the_affected_paths_is_a_warning(self):
         spec = dict(SPEC, affected_paths=["src/payments"])
