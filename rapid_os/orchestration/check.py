@@ -364,6 +364,41 @@ def parse_test_summary(output: str) -> dict[str, int] | None:
     return sum_summaries(parse_test_summaries(output))
 
 
+# The tests a runner names as failed, by file: pytest (`FAILED tests/test_x.py::test_y`, `ERROR tests/test_x.py`),
+# vitest and jest (`FAIL  src/x.test.ts > suite > case`), unittest (`FAIL: test_y (tests.test_x.Case.test_y)`).
+PYTEST_FAILED_TEST_RE = re.compile(r"^(?:FAILED|ERROR)\s+([^\s:]+\.[A-Za-z0-9]+)(?:::|\s|$)", re.MULTILINE)
+JS_FAILED_TEST_RE = re.compile(r"^\s*FAIL\s+([^\s>]+\.(?:[cm]?[jt]sx?|vue|svelte))\b", re.MULTILINE)
+UNITTEST_FAILED_TEST_RE = re.compile(r"^(?:FAIL|ERROR):\s+\w+\s+\(([\w.]+)\)", re.MULTILINE)
+
+
+def parse_failed_test_files(output: str) -> list[str]:
+    """The files of the tests the output names as failed (pytest, vitest, jest, unittest), in order, once each.
+
+    A unittest test is named by its module (`tests.test_x.Case.test_y` -> `tests/test_x`, without extension).
+    Empty when the runner names no failed test: then the count is all there is."""
+    found: list[str] = []
+
+    def add(path: str) -> None:
+        path = path.replace("\\", "/")
+        while path.startswith("./"):
+            path = path[2:]
+        if path and path not in found:
+            found.append(path)
+
+    for match in PYTEST_FAILED_TEST_RE.finditer(output):
+        add(match.group(1))
+    for match in JS_FAILED_TEST_RE.finditer(output):
+        add(match.group(1))
+    for match in UNITTEST_FAILED_TEST_RE.finditer(output):
+        parts = match.group(1).split(".")
+        # `module.Class.method` (3.11+) or `module.Class`: the module is what comes before the class.
+        upper = next((i for i, part in enumerate(parts) if part[:1].isupper()), None)
+        module = parts[:upper] if upper is not None else parts[:-1]
+        if module:
+            add("/".join(module))
+    return found
+
+
 def parse_test_output(output: str, exit_code: int) -> dict[str, int]:
     """Parse test counts (passed, failed, skipped) from unittest or pytest output."""
     passed = 0

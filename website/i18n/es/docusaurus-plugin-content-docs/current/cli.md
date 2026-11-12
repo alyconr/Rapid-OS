@@ -368,7 +368,7 @@ Manage and transition tasks for the active run session (`.rapid-os/session.json`
 
 ```bash
 rapid task start [<task-id>] [--reason <text>] [--json]
-rapid task done [<task-id>] [--reason <text>] [--no-check] [--json]
+rapid task done [<task-id>] [--reason <text>] [--no-check] [--accept-reproduction] [--json]
 rapid task skip <task-id> --reason <text> [--json]
 ```
 

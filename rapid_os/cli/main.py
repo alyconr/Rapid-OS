@@ -3227,6 +3227,9 @@ def eval_command(args):
                 print(report.to_json(indent=2))
                 return 0
             print(render_evaluation_report_text(report, stale=stale))
+            # What a person accepted outside the evaluated evidence (the report itself is digest-bound).
+            for line in _person_acceptance_lines(run_id):
+                print(line)
             return 0
 
         print(
@@ -3250,6 +3253,25 @@ def eval_command(args):
         code = getattr(exc, "code", None) or "RAPID1221"
         print(f"{code} {exc}", file=sys.stderr)
         sys.exit(1)
+
+
+def _person_acceptance_lines(run_id: str) -> list[str]:
+    """`rapid eval show`: the acceptances a person recorded (another test command, an unverified reproduction)."""
+    try:
+        evidence = EvidenceRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).list(run_id)
+    except Exception:
+        return []
+    lines = []
+    for ev in evidence:
+        payload = ev.payload or {}
+        if ev.kind.value != "review" or not payload.get("accepts"):
+            continue
+        what = {
+            "reproduction_inconclusive": f"reproducción sin comprobar en el baseline ({', '.join(ev.task_ids)})",
+            "test_command_mismatch": "otro comando de tests que el de la baseline",
+        }.get(str(payload["accepts"]), str(payload["accepts"]))
+        lines.append(f"Aceptado por {payload.get('reviewer')}: {what}, motivo «{payload.get('reason', '')}» ({ev.id})")
+    return lines
 
 
 def check_command(args):
@@ -3589,6 +3611,24 @@ def task_command(args):
                     file=sys.stderr,
                 )
                 no_check = False
+        accept_repro = getattr(args, "accept_reproduction", False)
+        if accept_repro:
+            # Only the person, in their own terminal, for the fix task of a bugfix: refused before running anything.
+            from rapid_os.orchestration.lifecycle import reproduction_acceptance_refusal
+
+            if not fixing:
+                print(
+                    "RAPID1439 --accept-reproduction solo vale para la tarea de corrección de un run bugfix.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            if not str(reason or "").strip():
+                print("RAPID1439 '--accept-reproduction' necesita un motivo: --reason \"<motivo>\".", file=sys.stderr)
+                sys.exit(1)
+            refusal = reproduction_acceptance_refusal()
+            if refusal:
+                print(refusal, file=sys.stderr)
+                sys.exit(1)
         if not no_check and session.mode in MODES_WITHOUT_TESTS:
             no_check = True
             has_check_evidence = any(
@@ -3631,12 +3671,28 @@ def task_command(args):
                 print(f"Verification tests failed for task '{target_task_id}' (exit {res.exit_code}). Log: {res.log_path}", file=sys.stderr)
                 sys.exit(res.exit_code)
             if fixing:
-                from rapid_os.orchestration.reproduction import check_reproduction, reproduction_evidence_input
+                from rapid_os.orchestration.reproduction import (
+                    baseline_failed_count,
+                    check_reproduction,
+                    reproduction_evidence_input,
+                )
 
                 outcome = check_reproduction(
-                    PROJECT_RAPID_DIR, run_id, session, test_cmd, cwd=Path(task_cwd), timeout=timeout
+                    PROJECT_RAPID_DIR, run_id, session, test_cmd, cwd=Path(task_cwd), timeout=timeout,
+                    baseline_failed=baseline_failed_count(evidence_reg.list(run_id)),
                 )
-                if outcome.status == "holds":
+                if outcome.status == "inconclusive" and accept_repro:
+                    from rapid_os.orchestration.lifecycle import accept_reproduction
+
+                    refused = accept_reproduction(
+                        CURRENT_DIR, PROJECT_RAPID_DIR, run_id, target_task_id, evidence_reg, outcome.message,
+                        reason or "",
+                    )
+                    if refused:
+                        print(refused, file=sys.stderr)
+                        sys.exit(1)
+                    print(f"Reproducción aceptada sin comprobar; {target_task_id} se cierra.")
+                elif outcome.status == "holds":
                     evidence_reg.add(
                         run_id,
                         reproduction_evidence_input(
@@ -3649,6 +3705,14 @@ def task_command(args):
                     print(f"WARNING {outcome.message}", file=sys.stderr)
                 else:
                     print(outcome.message, file=sys.stderr)
+                    if outcome.status == "inconclusive":
+                        print(
+                            "Si la persona revisa el log y acepta la reproducción sin comprobar, la decide ella en su "
+                            f"terminal: rapid task done {target_task_id} --accept-reproduction --reason \"<motivo>\"",
+                            file=sys.stderr,
+                        )
+                    elif accept_repro:
+                        print("--accept-reproduction solo vale cuando la comprobación no es concluyente.", file=sys.stderr)
                     sys.exit(1)
         elif research_note:
             print(research_note, file=sys.stderr)
@@ -6024,6 +6088,10 @@ def create_parser():
     task_done.add_argument("task_id", nargs="?", help="Task identifier (defaults to current in_progress task).")
     task_done.add_argument("--reason", help="Optional transition reason.")
     task_done.add_argument("--no-check", action="store_true", help="Mark task done without running verification tests.")
+    task_done.add_argument(
+        "--accept-reproduction", dest="accept_reproduction", action="store_true",
+        help="Bugfix fix task: a person accepts an inconclusive reproduction check (needs --reason, a TTY, and [s/N]).",
+    )
     task_done.add_argument("--json", action="store_true", help="Emit JSON output.")
 
     task_skip = task_sub.add_parser("skip", help="Skip task with mandatory reason.")

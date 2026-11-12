@@ -18,7 +18,7 @@ import tempfile
 from typing import Sequence
 
 from rapid_os.domain.execution import TaskContract
-from rapid_os.orchestration.check import parse_test_summary, resolve_executable
+from rapid_os.orchestration.check import parse_failed_test_files, parse_test_summary, resolve_executable
 from rapid_os.orchestration.git import run_git
 from rapid_os.orchestration.session import Session, observed_changes
 
@@ -70,14 +70,62 @@ def fix_task_id(tasks: Sequence[TaskContract]) -> str | None:
 
 @dataclass
 class ReproductionOutcome:
-    # holds: fails on the baseline; not_reproduced: passes there (or no test changed); inconclusive: it ran but its
-    # output had no test summary; unavailable: there is no baseline tree to build (no commit at start).
+    # holds: on the baseline tree the run's tests make more tests fail than fail without them (and, when the runner
+    # names them, one of the failing tests is the run's); not_reproduced: they do not, only other tests fail, or no
+    # test changed; inconclusive: an output without a test summary to count; unavailable: there is no baseline tree
+    # to build (no commit at start). The exit code alone never proves a reproduction.
     status: str
     message: str
     test_files: list[str] = field(default_factory=list)
     exit_code: int | None = None
     counts: dict[str, int] | None = None
     log_path: Path | None = None
+    baseline_failed: int | None = None
+    failed_tests: list[str] = field(default_factory=list)
+
+
+def _same_test_file(named: str, test_file: str) -> bool:
+    """A failed test the runner names (`tests/test_x.py`, `tests/test_x` for unittest) is in a file of the run.
+
+    Paths may be relative to another directory than the repository root: one must end with the other."""
+    def stem(path: str) -> str:
+        path = path.replace("\\", "/").strip("/")
+        name = path.rsplit("/", 1)[-1]
+        return path[: len(path) - len(name)] + (name.split(".", 1)[0] if "." in name else name)
+
+    a, b = stem(named), stem(test_file)
+    return a == b or a.endswith("/" + b) or b.endswith("/" + a)
+
+
+def baseline_failed_count(evidence) -> int | None:
+    """Failed tests of the run's own baseline (`gate.baseline`, taken at start on the tree without the run's tests),
+    when that evidence counted them; None otherwise."""
+    for ev in reversed(list(evidence)):
+        payload = ev.payload or {}
+        if "gate.baseline" in ev.gate_ids and "failed" in payload and payload.get("counted"):
+            return int(payload["failed"])
+    return None
+
+
+def _run_tests(test_command: Sequence[str], cwd: Path, timeout: float) -> tuple[str, int]:
+    try:
+        result = subprocess.run(
+            resolve_executable(list(test_command)), cwd=str(cwd), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, encoding="utf-8", errors="replace", check=False, shell=False, timeout=timeout,
+        )
+        return result.stdout or "", result.returncode
+    except FileNotFoundError:
+        return f"Command not found: {test_command[0]}\n", 127
+    except subprocess.TimeoutExpired:
+        return f"Timed out after {timeout}s\n", 124
+
+
+def _log(project_rapid_dir: Path, run_id: str, name: str, output: str) -> Path:
+    checks_dir = Path(project_rapid_dir) / "scratch" / "checks" / run_id
+    checks_dir.mkdir(parents=True, exist_ok=True)
+    log_path = checks_dir / f"{name}-{len(list(checks_dir.glob(name + '-*.log'))) + 1}.log"
+    log_path.write_text(output, encoding="utf-8")
+    return log_path
 
 
 def _link_dir(target: Path, link: Path) -> bool:
@@ -145,8 +193,12 @@ def check_reproduction(
     *,
     cwd: Path,
     timeout: float = 600,
+    baseline_failed: int | None = None,
 ) -> ReproductionOutcome:
-    """Run `test_command` on the baseline tree plus the run's new or changed tests; it must fail there."""
+    """Run `test_command` on the baseline tree plus the run's new or changed tests: they must make tests fail there.
+
+    `baseline_failed` is the failed count of the run's own baseline (`baseline_failed_count`); without it the
+    baseline tree is also run without the run's tests to get it."""
     if not session.start_head:
         return ReproductionOutcome(
             "unavailable",
@@ -183,6 +235,30 @@ def check_reproduction(
                 test_files,
             )
         added = True
+        links = _prepare_local_environment(toplevel, cwd, baseline)
+        try:
+            run_cwd = baseline / cwd.relative_to(toplevel)
+        except ValueError:
+            run_cwd = baseline
+        short = session.start_head[:10]
+        files = ", ".join(test_files)
+
+        if baseline_failed is None:
+            # The run's baseline evidence has no count: count the baseline tree without the run's tests.
+            base_output, _ = _run_tests(test_command, run_cwd, timeout)
+            base_log = _log(project_rapid_dir, run_id, "reproduction-baseline", base_output)
+            base_counts = parse_test_summary(base_output)
+            if base_counts is None:
+                return ReproductionOutcome(
+                    "inconclusive",
+                    f"{REPRODUCTION_CODE} En el árbol del baseline ({short}) y sin los tests del run, el comando de "
+                    "tests no dio un resumen de tests que contar, así que no hay con qué comparar: no se sabe si el "
+                    "test de reproducción falla allí. La tarea de corrección no se cierra. Revisa el log: "
+                    f"{base_log}",
+                    test_files, None, None, base_log,
+                )
+            baseline_failed = base_counts["failed"]
+
         for path in test_files:
             source, target = toplevel / path, baseline / path
             if source.is_file():
@@ -190,60 +266,46 @@ def check_reproduction(
                 shutil.copy2(source, target)
             elif target.exists():
                 target.unlink()  # the run deleted it: the baseline run must not have it either
-        links = _prepare_local_environment(toplevel, cwd, baseline)
-        try:
-            run_cwd = baseline / cwd.relative_to(toplevel)
-        except ValueError:
-            run_cwd = baseline
-        try:
-            result = subprocess.run(
-                resolve_executable(list(test_command)),
-                cwd=str(run_cwd),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                check=False,
-                shell=False,
-                timeout=timeout,
-            )
-            output, exit_code = result.stdout or "", result.returncode
-        except FileNotFoundError:
-            output, exit_code = f"Command not found: {test_command[0]}\n", 127
-        except subprocess.TimeoutExpired:
-            output, exit_code = f"Timed out after {timeout}s\n", 124
-        checks_dir = Path(project_rapid_dir) / "scratch" / "checks" / run_id
-        checks_dir.mkdir(parents=True, exist_ok=True)
-        log_path = checks_dir / f"reproduction-{len(list(checks_dir.glob('reproduction-*.log'))) + 1}.log"
-        log_path.write_text(output, encoding="utf-8")
+        output, exit_code = _run_tests(test_command, run_cwd, timeout)
+        log_path = _log(project_rapid_dir, run_id, "reproduction", output)
         counts = parse_test_summary(output)
-        files = ", ".join(test_files)
-        short = session.start_head[:10]
-        if exit_code == 0 and (counts is None or counts["failed"] == 0):
-            return ReproductionOutcome(
-                "not_reproduced",
-                f"{REPRODUCTION_CODE} El test de reproducción pasa en el árbol del baseline ({short}) con {files}: no "
-                "reproduce el bug, así que la tarea de corrección no se cierra. El test debe ejecutar el código de "
-                "root_cause (si la causa está en un adaptador, en infraestructura o en la base de datos, con un test "
-                "de integración y los servicios levantados, no con dobles del componente defectuoso) y fallar sin "
-                f"la corrección. Log: {log_path}",
-                test_files, exit_code, counts, log_path,
-            )
         if counts is None:
             return ReproductionOutcome(
                 "inconclusive",
-                f"{REPRODUCTION_CODE} En el árbol del baseline ({short}) el comando de tests salió con código "
-                f"{exit_code} sin un resumen de tests que leer: no se sabe si el test de reproducción falló o si los "
-                "tests no llegaron a ejecutarse (dependencias, servicios o un paso de build que falta allí), así que "
-                f"la tarea de corrección no se cierra. Revisa el log: {log_path}",
-                test_files, exit_code, counts, log_path,
+                f"{REPRODUCTION_CODE} En el árbol del baseline ({short}) con {files}, el comando de tests salió con "
+                f"código {exit_code} sin un resumen de tests que contar: no se sabe si el test de reproducción falló "
+                "o si los tests no llegaron a ejecutarse (dependencias, servicios o un paso de build que falta "
+                f"allí), así que la tarea de corrección no se cierra. Revisa el log: {log_path}",
+                test_files, exit_code, counts, log_path, baseline_failed,
+            )
+        failed_tests = parse_failed_test_files(output)
+        ours = [name for name in failed_tests if any(_same_test_file(name, f) for f in test_files)]
+        if counts["failed"] <= baseline_failed:
+            return ReproductionOutcome(
+                "not_reproduced",
+                f"{REPRODUCTION_CODE} En el árbol del baseline ({short}) los tests del run ({files}) no hacen fallar "
+                f"ningún test más: {counts['failed']} fallidos con ellos y {baseline_failed} sin ellos. El test no "
+                "reproduce el bug, así que la tarea de corrección no se cierra. Debe ejecutar el código de "
+                "root_cause (si la causa está en un adaptador, en infraestructura o en la base de datos, con un test "
+                "de integración y los servicios levantados, no con dobles del componente defectuoso) y fallar sin "
+                f"la corrección. Log: {log_path}",
+                test_files, exit_code, counts, log_path, baseline_failed, failed_tests,
+            )
+        if failed_tests and not ours:
+            return ReproductionOutcome(
+                "not_reproduced",
+                f"{REPRODUCTION_CODE} En el árbol del baseline ({short}) fallan otros tests en el baseline, no el de "
+                f"reproducción: {', '.join(failed_tests)} (los tests del run son {files}). La tarea de corrección no "
+                f"se cierra. Log: {log_path}",
+                test_files, exit_code, counts, log_path, baseline_failed, failed_tests,
             )
         return ReproductionOutcome(
             "holds",
-            f"El test de reproducción falla en el árbol del baseline ({short}; {counts['failed']} fallidos) con "
-            f"{files}, y pasa en el actual.",
-            test_files, exit_code, counts, log_path,
+            f"El test de reproducción falla en el árbol del baseline ({short}): {counts['failed']} fallidos con los "
+            f"tests del run ({files}) frente a {baseline_failed} sin ellos"
+            + (f" ({', '.join(ours)})" if ours else "")
+            + ", y pasa en el actual.",
+            test_files, exit_code, counts, log_path, baseline_failed, failed_tests,
         )
     finally:
         for link in links:
@@ -261,8 +323,8 @@ def reproduction_evidence_input(run_id: str, task_id: str, state_revision: int, 
     except ValueError:
         log = None
     summary = (
-        f"Reproduction holds: the test command fails on the baseline tree "
-        f"({(outcome.counts or {}).get('failed', 0)} failed) and passes on the current tree"
+        f"Reproduction holds: on the baseline tree the run's tests make {(outcome.counts or {}).get('failed', 0)} "
+        f"tests fail against {outcome.baseline_failed or 0} without them, and they pass on the current tree"
     )
     return {
         "kind": "command_result",
@@ -301,9 +363,11 @@ def bugfix_handover(project_rapid_dir: Path, cause, evidence, *, cwd: Path, sess
 
     `touches_root_cause` is False when the diff does not change the root_cause file: `warning` says so."""
     holds = [ev.id for ev in evidence if (ev.payload or {}).get("label") == REPRODUCTION_LABEL]
+    accepted = accepted_reproductions(evidence)
     handover: dict[str, object] = {
         "root_cause": {**cause.to_dict(), "location": cause.location},
         "reproduction_holds": holds[-1] if holds else None,
+        "reproduction_accepted": accepted[-1] if accepted else None,
         "fix_at_cause": [],
         "additional_defenses": [],
         "touches_root_cause": False,
@@ -367,8 +431,29 @@ def handover_lines(handover: dict[str, object]) -> list[str]:
         counts = "" if item["added"] is None else f" (+{item['added']} −{item['removed']})"
         lines.append(f"  - {item['file']}{counts}")
     holds = handover.get("reproduction_holds")
-    lines.append(
-        f"Reproducción: el test falla en el baseline y pasa ahora (evidencia: {holds})"
-        if holds else "Reproducción: sin evidencia reproduction_holds"
-    )
+    accepted = handover.get("reproduction_accepted")
+    if holds:
+        lines.append(f"Reproducción: el test falla en el baseline y pasa ahora (evidencia: {holds})")
+    elif accepted:
+        lines.append(
+            f"Reproducción: no comprobada en el baseline; la aceptó {accepted['reviewer']}: «{accepted['reason']}» "
+            f"(evidencia: {accepted['evidence_id']})"
+        )
+    else:
+        lines.append("Reproducción: sin evidencia reproduction_holds")
     return lines
+
+
+def accepted_reproductions(evidence) -> list[dict[str, str]]:
+    """The reproductions a person accepted without the baseline check (`--accept-reproduction`)."""
+    found = []
+    for ev in evidence:
+        payload = ev.payload or {}
+        if ev.kind.value == "review" and payload.get("accepts") == "reproduction_inconclusive":
+            found.append({
+                "evidence_id": ev.id,
+                "task_id": ev.task_ids[0] if ev.task_ids else "",
+                "reviewer": str(payload.get("reviewer", "")),
+                "reason": str(payload.get("reason", "")),
+            })
+    return found

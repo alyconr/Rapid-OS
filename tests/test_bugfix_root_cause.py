@@ -88,6 +88,8 @@ class BugfixShortcutNamesTheCauseTests(unittest.TestCase):
         self.assertIn("Al entregar, nombra la causa raíz (`action.bugfix.root_cause`", text)
         self.assertIn("las defensas adicionales", text)
         self.assertIn("no toca la causa declarada, no entregues", text)
+        self.assertIn("--accept-reproduction --reason", text)
+        self.assertIn("nunca lo ejecutes tú", text)
 
 
 class BugfixRootCauseScenarioTests(LabScenarioBase):
@@ -205,7 +207,7 @@ class BugfixRootCauseScenarioTests(LabScenarioBase):
         closed = self._rapid("task", "done", "T003")
         self.assertEqual(closed.returncode, 1, closed.stdout)
         self.assertIn("RAPID1439", closed.stderr)
-        self.assertIn("pasa en el árbol del baseline", closed.stderr)
+        self.assertIn("no hacen fallar ningún test más: 0 fallidos con ellos y 0 sin ellos", closed.stderr)
         self.assertIn("tests/test_pricer.py", closed.stderr)
         status = {t["id"]: t["status"] for t in json.loads(self._rapid("status", "--json").stdout)["run"]["tasks"]}
         self.assertEqual(status["T003"], "in_progress")
@@ -261,6 +263,209 @@ class BugfixRootCauseScenarioTests(LabScenarioBase):
         self.assertEqual([d["file"] for d in bugfix["additional_defenses"]], ["pricer.py"])
         self.assertIn("el arreglo no toca la causa declarada", bugfix["warning"])
         self.assertIn("AVISO: el arreglo no toca la causa declarada (discounts.py · normalize).", self._rapid("next").stdout)
+
+    # -- inconclusive: the person's way out ---------------------------------------------------------------------
+    def _rapid_as(self, args, *answers, tty=True, agent=False):
+        """`rapid <args>` with the given answers; a person's terminal unless `tty` is False or `agent` is True."""
+        import sys
+
+        ancestors = "(Ancestor(4242, 'claude.exe', ('claude.exe',)),)" if agent else "()"
+        code = (
+            "import sys, unittest.mock as mock, rapid_os.cli.main as m; "
+            "from rapid_os.core.ancestry import Ancestor, AncestryResult; "
+            f"sys.argv = ['rapid'] + {list(args)!r}; "
+            f"mock.patch('sys.stdin.isatty', return_value={tty}).start(); "
+            "mock.patch('rapid_os.orchestration.lifecycle.stdin_is_windows_nul', return_value=False).start(); "
+            f"mock.patch('rapid_os.orchestration.lifecycle.read_ancestry', return_value=AncestryResult({ancestors})).start(); "
+            f"mock.patch('builtins.input', side_effect={list(answers)!r}).start(); "
+            "sys.exit(m.main())"
+        )
+        return subprocess.run([sys.executable, "-c", code], cwd=str(self.project), capture_output=True, text=True,
+                              encoding="utf-8", env=self._env())
+
+    def test_an_inconclusive_check_is_accepted_only_by_the_person(self):
+        # On the baseline the new test kills the runner before its summary: nothing to count.
+        crash = (
+            "    def test_regression_expected_discount(self):\n"
+            "        total = OrderPricer.calculate_total([{\"price\": 100.0, \"qty\": 1}], 10.0)\n"
+            "        if total < 0:\n"
+            "            import os\n"
+            "            os._exit(3)\n"
+            "        self.assertEqual(total, 90.0)\n\n"
+        )
+        run_id = self._to_fix_task(SPEC, lambda: self._add_test(crash))
+        self._fix_pricer()
+        closed = self._rapid("task", "done", "T003")
+        self.assertEqual(closed.returncode, 1, closed.stdout)
+        self.assertIn("RAPID1439", closed.stderr)
+        self.assertIn("sin un resumen de tests que contar", closed.stderr)
+        self.assertIn('rapid task done T003 --accept-reproduction --reason "<motivo>"', closed.stderr)
+
+        accept = ["task", "done", "T003", "--accept-reproduction", "--reason", "el runner muere sin el arreglo"]
+        from_agent = self._rapid_as(accept, "s", agent=True)
+        self.assertEqual(from_agent.returncode, 1)
+        self.assertIn("RAPID1310", from_agent.stderr)
+        self.assertIn("claude.exe", from_agent.stderr)
+        without_tty = self._rapid_as(accept, "s", tty=False)
+        self.assertEqual(without_tty.returncode, 1)
+        self.assertIn("RAPID1310", without_tty.stderr)
+        self.assertIn("TTY", without_tty.stderr)
+        declined = self._rapid_as(accept, "")
+        self.assertEqual(declined.returncode, 1)
+        self.assertIn("Sin cambios: T003 sigue en curso.", declined.stderr)
+        accepted_reviews = lambda: [e for e in self._registry().list(run_id)
+                                    if e.payload.get("accepts") == "reproduction_inconclusive"]
+        self.assertEqual(accepted_reviews(), [])
+
+        done = self._rapid_as(accept, "s")
+        self.assertEqual(done.returncode, 0, done.stderr + done.stdout)
+        reviews = accepted_reviews()
+        self.assertEqual(len(reviews), 1)
+        self.assertEqual(reviews[0].task_ids, ("T003",))
+        self.assertEqual(reviews[0].payload["reason"], "el runner muere sin el arreglo")
+        self.assertEqual(reviews[0].payload["via"], "rapid:task")
+        self.assertEqual(self._holds(run_id), [])
+
+        action, _ = self._drive(lambda action: None)
+        self.assertEqual(action["kind"], "await_human_approval", action)
+        bugfix = json.loads(self._rapid("next", "--json").stdout)["action"]["bugfix"]
+        self.assertEqual(bugfix["reproduction_accepted"]["evidence_id"], reviews[0].id)
+        self.assertIn(f"Reproducción: no comprobada en el baseline; la aceptó Lab Dev: «el runner muere sin el arreglo» "
+                      f"(evidencia: {reviews[0].id})", self._rapid("next").stdout)
+        self.assertEqual(self._approve("gate.final-verification").returncode, 0)
+        self.assertEqual(self._finish()["verdict"], "pass")
+        shown = self._rapid("eval", "show", "--run", run_id)
+        self.assertIn("Aceptado por Lab Dev: reproducción sin comprobar en el baseline (T003), motivo "
+                      f"«el runner muere sin el arreglo» ({reviews[0].id})", shown.stdout)
+
+
+# --- H-67 corrections: the count decides, never the exit code ---------------------------------------------------
+
+SECOND_STEP_FAILS = (
+    "import subprocess, sys\n"
+    "first = subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests', '-t', '.'])\n"
+    "print('      Tests  2 passed (2)')  # another part of the suite (a frontend without its dependencies)\n"
+    "sys.exit(1)\n"
+)
+
+
+class ReproductionCountTests(unittest.TestCase):
+    """`check_reproduction` on a minimal repository: the run's tests must make more tests fail on the baseline."""
+
+    def setUp(self):
+        import tempfile
+
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name) / "repo"
+        (self.root / "tests").mkdir(parents=True)
+        (self.root / "tests" / "__init__.py").write_text("", encoding="utf-8")
+        (self.root / "calc.py").write_text("def double(x):\n    return x * 3\n", encoding="utf-8")
+        (self.root / "tests" / "test_ok.py").write_text(
+            "import unittest\n\nclass Ok(unittest.TestCase):\n    def test_ok(self):\n        self.assertTrue(True)\n",
+            encoding="utf-8",
+        )
+        self.git("init", "-q")
+        self.git("config", "user.name", "Lab Dev")
+        self.git("config", "user.email", "lab@example.com")
+        self.git("add", ".")
+        self.git("commit", "-qm", "baseline")
+        self.head = self.git("rev-parse", "HEAD").strip()
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def git(self, *args):
+        return subprocess.run(["git", *args], cwd=self.root, check=True, capture_output=True, text=True).stdout
+
+    def write_test(self, name, body):
+        (self.root / "tests" / name).write_text(
+            "import unittest\nfrom calc import double\n\nclass Case(unittest.TestCase):\n" + body, encoding="utf-8"
+        )
+
+    def check(self, command=None, baseline_failed=None):
+        import sys
+
+        from rapid_os.orchestration.reproduction import check_reproduction
+        from rapid_os.orchestration.session import Session
+
+        session = Session(active_run_id="r", mode="bugfix", harness="codex", start_head=self.head, start_untracked=())
+        command = command or [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", "."]
+        return check_reproduction(self.root / ".rapid-os", "r", session, command, cwd=self.root,
+                                  baseline_failed=baseline_failed)
+
+    def test_a_new_test_that_fails_on_the_baseline_holds_with_its_count(self):
+        self.write_test("test_double.py", "    def test_double(self):\n        self.assertEqual(double(2), 4)\n")
+        outcome = self.check()
+        self.assertEqual(outcome.status, "holds", outcome.message)
+        self.assertEqual((outcome.counts["failed"], outcome.baseline_failed), (1, 0))
+        self.assertIn("1 fallidos con los tests del run", outcome.message)
+        self.assertIn("frente a 0 sin ellos", outcome.message)
+        self.assertEqual(outcome.failed_tests, ["tests/test_double"])
+        listed = self.git("worktree", "list", "--porcelain")
+        self.assertEqual(listed.count("worktree "), 1)  # the temporary worktree is gone
+
+    def test_a_passing_reproduction_with_another_part_of_the_suite_failing_is_not_reproduced(self):
+        # The case reproduced in Linux: exit 1 with a summary used to be `holds` with "0 fallidos".
+        import sys
+
+        (self.root / "run_all.py").write_text(SECOND_STEP_FAILS, encoding="utf-8")
+        self.git("add", "run_all.py")
+        self.git("commit", "-qm", "combined command")
+        self.head = self.git("rev-parse", "HEAD").strip()
+        self.write_test("test_double.py", "    def test_double(self):\n        self.assertEqual(double(1), 3)\n")
+        outcome = self.check([sys.executable, "run_all.py"])
+        self.assertEqual(outcome.status, "not_reproduced", outcome.message)
+        self.assertEqual(outcome.exit_code, 1)
+        self.assertIn("no hacen fallar ningún test más: 0 fallidos con ellos y 0 sin ellos", outcome.message)
+
+    def test_a_test_that_already_failed_on_the_baseline_does_not_make_a_passing_test_a_reproduction(self):
+        self.write_test("test_old_red.py", "    def test_red(self):\n        self.assertEqual(1, 2)\n")
+        self.git("add", ".")
+        self.git("commit", "-qm", "a test that already fails")
+        self.head = self.git("rev-parse", "HEAD").strip()
+        self.write_test("test_double.py", "    def test_double(self):\n        self.assertEqual(double(1), 3)\n")
+        outcome = self.check()  # no counted baseline evidence: the baseline tree is run without the run's tests
+        self.assertEqual(outcome.status, "not_reproduced", outcome.message)
+        self.assertEqual((outcome.counts["failed"], outcome.baseline_failed), (1, 1))
+        # With the run's own baseline count it is the same answer.
+        self.assertEqual(self.check(baseline_failed=1).status, "not_reproduced")
+
+    def test_when_only_other_tests_fail_it_is_not_the_reproduction(self):
+        # The new test passes, but importing it breaks another test: more failures, none of them the run's.
+        (self.root / "tests" / "test_ok.py").write_text(
+            "import os, unittest\n\nclass Ok(unittest.TestCase):\n    def test_ok(self):\n"
+            "        self.assertNotIn('BROKEN', os.environ)\n", encoding="utf-8",
+        )
+        self.git("commit", "-qam", "env-sensitive test")
+        self.head = self.git("rev-parse", "HEAD").strip()
+        (self.root / "tests" / "test_new.py").write_text(
+            "import os, unittest\nos.environ['BROKEN'] = '1'\n\nclass New(unittest.TestCase):\n"
+            "    def test_new(self):\n        self.assertTrue(True)\n", encoding="utf-8",
+        )
+        outcome = self.check(baseline_failed=0)
+        self.assertEqual(outcome.status, "not_reproduced", outcome.message)
+        self.assertIn("fallan otros tests en el baseline, no el de reproducción: tests/test_ok", outcome.message)
+
+    def test_an_output_without_a_summary_is_inconclusive(self):
+        import sys
+
+        self.write_test("test_double.py", "    def test_double(self):\n        self.assertEqual(double(2), 4)\n")
+        outcome = self.check([sys.executable, "-c", "import sys; sys.exit(1)"], baseline_failed=0)
+        self.assertEqual(outcome.status, "inconclusive", outcome.message)
+
+
+class SharedSummaryParserTests(unittest.TestCase):
+    def test_pytest_and_vitest_summaries_are_added_up(self):
+        from rapid_os.orchestration.check import parse_failed_test_files, parse_test_summary
+
+        output = (
+            "FAILED backend/tests/test_reader.py::test_bookable - assert\n"
+            "==== 1 failed, 4 passed in 0.31s ====\n"
+            " FAIL  src/booking.test.ts > booking > rejects zero\n"
+            "      Tests  2 failed | 7 passed (9)\n"
+        )
+        self.assertEqual(parse_test_summary(output), {"passed": 11, "failed": 3, "skipped": 0})
+        self.assertEqual(parse_failed_test_files(output), ["backend/tests/test_reader.py", "src/booking.test.ts"])
 
 
 if __name__ == "__main__":

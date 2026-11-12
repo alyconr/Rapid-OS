@@ -331,8 +331,9 @@ PAYLOAD_OPTIONAL_KEYS: Mapping[EvidenceKind, frozenset[str]] = {
 RESERVED_PRODUCER_PREFIX = "rapid:"
 RESERVED_REVIEW_PRODUCER = "user"
 RESERVED_REVIEW_PAYLOAD_KEYS = frozenset({"via", "tree", "accepts"})
-REVIEW_VIAS = frozenset({"rapid:approve", "rapid:finish"})
-REVIEW_ACCEPTS = frozenset({"test_command_mismatch"})
+REVIEW_VIAS = frozenset({"rapid:approve", "rapid:finish", "rapid:task"})
+# `reproduction_inconclusive`: a person accepted the fix of a bugfix whose baseline check could not be read (H-67).
+REVIEW_ACCEPTS = frozenset({"test_command_mismatch", "reproduction_inconclusive"})
 
 
 def reserved_evidence_input(raw: Mapping[str, object]) -> str | None:
