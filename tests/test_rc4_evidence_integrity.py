@@ -3,6 +3,10 @@
 H-68 and H-61: `rapid check --gate gate.tests -- python -c "print('==== 31 passed ... ====')"` satisfied gate.tests
 and `rapid finish` gave PASS; a script in %TEMP% was accepted too. Now `rapid check --gate gate.tests` without a
 command runs the configured test_command itself, and another command needs a person's acceptance.
+
+H-66: with a combined test command (backend and frontend) only the last summary was counted (Angular's 2 tests,
+not the backend's 31). Rapid OS runs each component of the command it combined and adds the counts; for any other
+command the parser adds one summary per runner it recognizes.
 """
 
 from __future__ import annotations
@@ -17,7 +21,8 @@ from types import SimpleNamespace
 from rapid_os.adapters.eval_registry import EvalRegistry
 from rapid_os.domain.evidence import EvidenceKind
 from rapid_os.domain.execution import GateKind
-from rapid_os.orchestration.check import argv_digest
+from rapid_os.orchestration.check import argv_digest, combined_components, parse_test_summaries, parse_test_summary
+from rapid_os.orchestration.setup_conductor import combine_test_commands
 from rapid_os.orchestration.conductor import test_command_mismatch
 from tests.test_intent_loop import LabScenarioBase
 
@@ -245,6 +250,98 @@ class MismatchOfOldEvidenceTests(unittest.TestCase):
     def test_evidence_without_flags_or_commands_says_nothing(self):
         self.assertIsNone(test_command_mismatch(self.contract(), [self.evidence(["gate.baseline"]),
                                                                   self.evidence(["gate.tests"])]))
+
+
+PYTEST_OUTPUT = "tests/test_reservas.py ....\n==== 31 passed, 7 skipped in 1.00s ====\n"
+VITEST_OUTPUT = (
+    " ✓ src/app.spec.ts (2 tests) 4ms\n"
+    " Test Files  1 passed (1)\n"
+    "      Tests  2 passed (2)\n"
+    "   Duration  1.88s\n"
+)
+BACKEND = [sys.executable, "-c", "print('==== 31 passed, 7 skipped in 1.00s ====')"]
+FRONTEND = [sys.executable, "-c", "print(' Test Files  1 passed (1)'); print('      Tests  2 passed (2)')"]
+FRONTEND_RED = [sys.executable, "-c",
+                "import sys; print('      Tests  1 failed | 1 passed (2)'); sys.exit(1)"]
+
+
+class SeveralRunnersInOneOutputTests(unittest.TestCase):
+    def test_a_pytest_and_a_vitest_summary_are_added_with_their_breakdown(self):
+        output = PYTEST_OUTPUT + VITEST_OUTPUT
+        self.assertEqual(parse_test_summary(output), {"passed": 33, "failed": 0, "skipped": 7})
+        self.assertEqual(
+            parse_test_summaries(output),
+            [{"runner": "pytest", "passed": 31, "failed": 0, "skipped": 7},
+             {"runner": "vitest", "passed": 2, "failed": 0, "skipped": 0}],
+        )
+
+    def test_one_runner_counts_as_before(self):
+        for output, expected in (
+            (PYTEST_OUTPUT, {"passed": 31, "failed": 0, "skipped": 7}),
+            (VITEST_OUTPUT, {"passed": 2, "failed": 0, "skipped": 0}),
+            ("Tests:       1 failed, 11 passed, 12 total", {"passed": 11, "failed": 1, "skipped": 0}),
+            ("Ran 12 tests in 0.1s\n\nFAILED (failures=2, errors=1)", {"passed": 9, "failed": 3, "skipped": 0}),
+        ):
+            with self.subTest(output=output):
+                self.assertEqual(parse_test_summary(output), expected)
+                self.assertEqual(len(parse_test_summaries(output)), 1)
+
+    def test_jest_unittest_and_karma_are_recognized_together(self):
+        output = (
+            "Tests:       1 failed, 11 passed, 12 total\n"
+            "Ran 4 tests in 0.1s\n\nOK (skipped=1)\n"
+            "Chrome Headless: Executed 5 of 6 (1 FAILED) (skipped 1) (0.1 secs / 0.05 secs)\n"
+        )
+        runners = [s["runner"] for s in parse_test_summaries(output)]
+        self.assertEqual(runners, ["jest", "karma", "unittest"])
+        self.assertEqual(parse_test_summary(output), {"passed": 11 + 4 + 3, "failed": 1 + 1, "skipped": 1 + 1})
+
+    def test_the_combined_command_is_recognized_and_nothing_else(self):
+        combined = combine_test_commands([["uv", "run", "--directory", "backend", "pytest"], ["pnpm", "test"]])
+        self.assertEqual(combined_components(combined), [["uv", "run", "--directory", "backend", "pytest"],
+                                                         ["pnpm", "test"]])
+        self.assertIsNone(combined_components(["python", "-c", "print('31 passed in 1s')"]))
+        self.assertIsNone(combined_components(["uv", "run", "pytest"]))
+        self.assertIsNone(combined_components(combine_test_commands([["pytest"]])))  # one command: no wrapper
+
+
+class CombinedTestCommandTests(LabScenarioBase):
+    LAB = "feature"
+
+    def _with_combined_test_command(self, *components):
+        run_id = self._start("feature", SPEC)["run_id"]
+        self.assertEqual(self._rapid("task", "start", "T001").returncode, 0)
+        self._copy_solution("booking.py", "tests/test_booking.py")
+        self.assertEqual(self._rapid("task", "done", "T001").returncode, 0)
+        config_file = self.project / ".rapid-os" / "config.json"
+        config = json.loads(config_file.read_text(encoding="utf-8"))
+        config["test_command"] = combine_test_commands(list(components))
+        config_file.write_text(json.dumps(config), encoding="utf-8")
+        return run_id
+
+    def test_each_component_is_run_and_counted(self):
+        run_id = self._with_combined_test_command(BACKEND, FRONTEND)
+        checked = self._rapid("check", "--gate", "gate.tests")
+        self.assertEqual(checked.returncode, 0, checked.stderr)
+        self.assertIn("Tests: 33 passed, 0 failed, 7 skipped", checked.stdout)
+        evidence = [e for e in self._registry().list(run_id) if "gate.tests" in e.gate_ids][-1]
+        self.assertEqual((evidence.payload["passed"], evidence.payload["skipped"]), (33, 7))
+        self.assertTrue(evidence.payload["test_command"])
+        parts = evidence.payload["components"]
+        self.assertEqual([(p["passed"], p["skipped"], p["exit_code"], p["counted"]) for p in parts],
+                         [(31, 7, 0, True), (2, 0, 0, True)])
+        self.assertTrue(parts[0]["command"].endswith("print('==== 31 passed, 7 skipped in 1.00s ====')"))
+        log = (self.project / evidence.artifacts[0].path).read_text(encoding="utf-8")
+        self.assertEqual(log.count("===== rapid check: "), 2)
+
+    def test_a_failing_component_fails_the_check_and_still_runs_the_others(self):
+        run_id = self._with_combined_test_command(FRONTEND_RED, BACKEND)
+        checked = self._rapid("check", "--json", "--gate", "gate.tests")
+        self.assertEqual(checked.returncode, 1)
+        result = json.loads(checked.stdout)
+        self.assertEqual([p["exit_code"] for p in result["components"]], [1, 0])
+        self.assertEqual((result["passed"], result["failed"]), (32, 1))
+        self.assertEqual([e for e in self._registry().list(run_id) if "gate.tests" in e.gate_ids], [])
 
 
 class ShortcutsUseTheCheckWithoutArgvTests(unittest.TestCase):

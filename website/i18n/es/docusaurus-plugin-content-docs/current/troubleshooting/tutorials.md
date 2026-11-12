@@ -36,6 +36,14 @@ Errores típicos al trabajar con `/rapid-*`. La guía completa está en [Shortcu
 - **Causa:** hasta 3.2.0rc3, `rapid check` decodificaba la salida del comando con la página de códigos de Windows (cp1252). El UTF-8 que imprime Vitest (`✓`, `⎯`, `❯`) rompía el lector con `UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d`: el log quedaba sin la salida y el resumen no se contaba. `rapid task done` usa el mismo check.
 - **Solución:** actualiza Rapid OS; ahora la salida se lee como UTF-8 y ya no hace falta `PYTHONUTF8=1`. Después vuelve a ejecutar el check: `rapid check -- <comando>`.
 
+### `RAPID1440`: el check no contó para `gate.tests`
+- **Causa:** el check de `gate.tests` o `gate.baseline` ejecutó otro comando que el `test_command` configurado (un `python -c "print(...)"`, un script de `%TEMP%`, una copia del comando citada a mano). Rapid OS lo registró como un check normal, sin el gate: no puede probar qué se ejecutó.
+- **Solución:** ejecuta `rapid check --gate gate.tests` sin comando; Rapid OS ejecuta él mismo el `test_command`, sin shell, así que no hay nada que citar en PowerShell. Si de verdad otro comando debe verificar el gate, solo la persona puede aceptarlo, en su terminal: `rapid check --gate gate.tests --accept-test-command "<motivo>" -- <comando>` pregunta `[s/N]`.
+
+### Un refactor compara con su baseline solo los tests del frontend
+- **Causa:** hasta 3.2.0rc3, con un comando de test combinado (backend y frontend) `rapid check` contaba solo el último resumen de la salida: `gate.tests` registraba `2 passed` (Angular) y no los 31 tests del backend.
+- **Solución:** actualiza Rapid OS. `rapid check --gate gate.tests` ejecuta cada componente del comando combinado, suma los conteos y guarda el desglose (`components`). Vuelve a tomar la baseline si se registró antes de actualizar.
+
 ---
 
 ## 1. Problemas de Inicialización y Scanner

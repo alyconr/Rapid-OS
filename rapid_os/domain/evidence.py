@@ -313,9 +313,11 @@ PAYLOAD_OPTIONAL_KEYS: Mapping[EvidenceKind, frozenset[str]] = {
     # `counted`: the output had a test summary; `test_command`: the argv was the project's test command;
     # `argv_digest`: SHA-256 of the exact argv. `accepted`, `argv` and `argv_files`: a person accepted another
     # command than `test_command` for a test gate (`rapid check --accept-test-command`): who, why, what ran and
-    # the digest of each file it received.
+    # the digest of each file it received. `components`: the count of each component of the combined test command
+    # (backend and frontend), or of each test runner found in the output; `passed`/`failed`/`skipped` are their sum.
     EvidenceKind.TEST_RESULT: frozenset(
-        {"expectation", "command", "tree", "counted", "test_command", "argv_digest", "accepted", "argv", "argv_files"}
+        {"expectation", "command", "tree", "counted", "test_command", "argv_digest", "accepted", "argv", "argv_files",
+         "components"}
     ),
     # `reason`: why a person rejected a gate (`rapid next` hands it to the agent that opens the new run), or
     # why they accepted another test command. `via`: the Rapid OS command that wrote it; `tree`: the working
@@ -415,6 +417,45 @@ def _validate_argv_files(value: object) -> list[dict[str, str]]:
             "sha256": _validate_sha256(item["sha256"], "test_result.argv_files.sha256", InvalidEvidencePayloadError),
         })
     return files
+
+
+COMPONENT_COUNT_KEYS = ("passed", "failed", "skipped")
+COMPONENT_TEXT_KEYS = ("command", "runner")
+MAX_COMPONENTS = 32
+
+
+def _validate_components(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, (list, tuple)) or not value or len(value) > MAX_COMPONENTS:
+        raise InvalidEvidencePayloadError(
+            f"Payload field 'test_result.components' must be a list of 1 to {MAX_COMPONENTS} objects."
+        )
+    allowed = set(COMPONENT_COUNT_KEYS) | set(COMPONENT_TEXT_KEYS) | {"exit_code", "counted"}
+    items: list[dict[str, object]] = []
+    for item in value:
+        if not isinstance(item, Mapping) or not set(COMPONENT_COUNT_KEYS) <= set(item) or set(item) - allowed:
+            raise InvalidEvidencePayloadError(
+                "Payload field 'test_result.components' items need 'passed', 'failed' and 'skipped' and may have "
+                "'command', 'runner', 'exit_code' and 'counted'."
+            )
+        component: dict[str, object] = {}
+        for key in COMPONENT_TEXT_KEYS:
+            if key in item:
+                text = item[key]
+                if not isinstance(text, str) or not text.strip() or "\x00" in text or len(text) > 200:
+                    raise InvalidEvidencePayloadError(
+                        f"Payload field 'test_result.components.{key}' must be a string of at most 200 characters."
+                    )
+                component[key] = text
+        for key in COMPONENT_COUNT_KEYS:
+            component[key] = _validate_int_field(item[key], f"test_result.components.{key}", minimum=0)
+        if "exit_code" in item:
+            component["exit_code"] = _validate_int_field(item["exit_code"], "test_result.components.exit_code")
+        if "counted" in item:
+            if not isinstance(item["counted"], bool):
+                raise InvalidEvidencePayloadError("Payload field 'test_result.components.counted' must be a boolean.")
+            component["counted"] = item["counted"]
+        items.append(component)
+    return items
 
 
 def _validate_acceptance(value: object) -> dict[str, str]:
@@ -545,6 +586,8 @@ def validate_evidence_payload(
             test_payload["argv_files"] = _validate_argv_files(payload["argv_files"])
         if "accepted" in actual_keys:
             test_payload["accepted"] = _validate_acceptance(payload["accepted"])
+        if "components" in actual_keys:
+            test_payload["components"] = _validate_components(payload["components"])
         return test_payload
 
     if coerced_kind == EvidenceKind.FILE_CHANGE:

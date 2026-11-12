@@ -3443,6 +3443,7 @@ def check_command(args):
             "skipped": res.skipped,
             "evidence_id": res.evidence.id if res.evidence else None,
             "refused_gates": list(res.refused_gates),
+            "components": [dict(part) for part in res.components],
         }
         if res.refused_gates:
             payload["code"] = "RAPID1440"
@@ -3482,6 +3483,11 @@ def check_command(args):
     elif res.kind == "test_result":
         print(f"Tests: {res.passed} passed, {res.failed} failed, {res.skipped} skipped"
               + ("" if res.counted else " (sin resumen de tests en la salida; el conteo sale del código de salida)"))
+        for part in res.components:  # H-66: each component of a combined test command, or each runner
+            label = part.get("command") or part.get("runner")
+            count = (f"{part['passed']} passed, {part['failed']} failed, {part['skipped']} skipped"
+                     if part.get("counted", True) else "sin resumen de tests")
+            print(f"  {label}: {count}")
     elif res.tests_expected:
         print(
             "WARNING No se pudo leer un conteo de tests en la salida: se guardó como command_result, sin conteo. "
