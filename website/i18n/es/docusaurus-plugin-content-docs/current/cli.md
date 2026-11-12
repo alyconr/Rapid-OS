@@ -427,6 +427,7 @@ rapid next [--json]
 In `await_human_approval` (the story is ready to be handed over), `rapid next` also brings what the person needs to decide:
 
 - `action.acceptance`: the acceptance criteria of the run's spec revision (what its `acceptance.md` lists), `[]` when the spec has none.
+- `notes[]` (`Nota: ...` en modo texto): avisos para la persona antes de aprobar, como `RAPID1441` (el run no cambió nada, así que `rapid finish` no dará `PASS`) y `RAPID1442` (el cambio no toca ningún `affected_path` de la spec).
 - `action.commands[]`: for each pending human gate, `{id, gate_id, command, display, consequence}` with `id` `approve` (`rapid approve <gate>`: approving allows `rapid finish`, once every pending human gate is approved) and `reject` (`rapid approve <gate> --reject --reason "<motivo>"`: the gate stays `FAIL` for this run, and then `rapid abort` and a new run that addresses the reason).
 
 The text output keeps the line `Next: await_human_approval -> rapid approve <gate>` and adds the criteria and both commands with their consequence:
@@ -458,6 +459,8 @@ Collect repository changes, evaluate machine gates, and close the run.
 ```bash
 rapid finish [--json] [--no-tick] [--accept-test-command <motivo>] [--reviewer <nombre>]
 ```
+
+En un run de `feature`, `bugfix`, `refactor` o `hardening` (cualquier ruleset), `rapid finish` no da `PASS` cuando el árbol fuera de `.rapid-os/` no difiere del punto de partida del run (`start_head` más `start_untracked`): imprime `RAPID1441`, sale con 1 y deja el run abierto sin veredicto, para que se haga el cambio (o se ejecute `rapid abort`). Cubre también un cambio deshecho, como un archivo refactorizado devuelto a su versión anterior. `rapid next` añade el mismo texto como nota en `await_human_approval`, antes de pedir la aprobación a la persona. Si el run sí cambió archivos pero ninguno está bajo un `affected_path` de su spec (una ruta, un directorio o un glob), `rapid next` (nota) y `rapid finish` (`WARNING RAPID1442` en stderr) avisan; no bloquea. Los runs de `research` no se juzgan, ni un run sin punto de partida en git.
 
 The `file_change` evidence it records (capability `repository.write`) lists the files the run changed in the project: tracked changes since the run started plus new untracked files, without `.rapid-os/` and without tool artifacts (`__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `.tox`, `.nox`, `node_modules`, `.venv`, `venv`, `*.pyc`, `*.pyo`, `.coverage*`), even in a project with no `.gitignore`; with no real change no `file_change` is recorded and the verdict is not `pass`.
 

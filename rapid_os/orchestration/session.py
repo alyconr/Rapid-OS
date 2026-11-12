@@ -146,15 +146,25 @@ def observed_changes(
     The one place that decides this, so `rapid start` (which records what was already untracked)
     and `rapid finish` (which subtracts it) agree. Returns [] when git cannot answer.
     """
+    return run_changes(cwd, start_head, pre_existing_untracked) or []
+
+
+def run_changes(
+    cwd: Path | str,
+    start_head: str | None,
+    pre_existing_untracked: Iterable[str] = (),
+) -> list[str] | None:
+    """`observed_changes`, but None when git cannot answer: an empty list then means the tree is the one the
+    run started from (H-70), not that nothing could be read."""
     already = set(pre_existing_untracked)
     git_args = ("diff", "--name-only", start_head) if start_head else ("ls-files",)
     try:
         proc = run_git(cwd, *git_args)
-        untracked = resolve_git_untracked(cwd) or ()
+        untracked = resolve_git_untracked(cwd)
     except Exception:
-        return []
-    if proc.returncode != 0:
-        return []
+        return None
+    if proc.returncode != 0 or untracked is None:
+        return None
     changed: list[str] = []
     listed = [normalize_path(line) for line in proc.stdout.splitlines()]
     if not start_head:

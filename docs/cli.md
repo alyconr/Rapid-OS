@@ -431,6 +431,7 @@ rapid next [--json]
 In `await_human_approval` (the story is ready to be handed over), `rapid next` also brings what the person needs to decide:
 
 - `action.acceptance`: the acceptance criteria of the run's spec revision (what its `acceptance.md` lists), `[]` when the spec has none.
+- `notes[]` (`Nota: ...` in text mode): warnings for the person before approving, such as `RAPID1441` (the run changed nothing, so `rapid finish` will not give `PASS`) and `RAPID1442` (the change touches no `affected_path` of the spec).
 - `action.commands[]`: for each pending human gate, `{id, gate_id, command, display, consequence}` with `id` `approve` (`rapid approve <gate>`: approving allows `rapid finish`, once every pending human gate is approved) and `reject` (`rapid approve <gate> --reject --reason "<motivo>"`: the gate stays `FAIL` for this run, and then `rapid abort` and a new run that addresses the reason).
 
 The text output keeps the line `Next: await_human_approval -> rapid approve <gate>` and adds the criteria and both commands with their consequence:
@@ -475,6 +476,8 @@ In a run of ruleset 3, `rapid finish` also refuses (and leaves the run open with
 
 - the code changed after a person approved it with `rapid approve` (`RAPID1433`, naming the files): run the test check again and approve again;
 - the latest test check used another command than the baseline (`RAPID1435`): repeat it with the baseline's command, or let the person accept it with `--accept-test-command <reason>`. That option asks, like `rapid approve`, for an interactive terminal outside any agent (`RAPID1310`) and a `[s/N]` answer after saying which command is accepted and with what reason, and records a `review` evidence (`via: rapid:finish`, `accepts: test_command_mismatch`) with the reason and `--reviewer` (default `git config user.name`). In runs before ruleset 3 the different command is only a warning.
+
+In a `feature`, `bugfix`, `refactor` or `hardening` run (any ruleset), `rapid finish` gives no `PASS` when the tree outside `.rapid-os/` does not differ from where the run started (`start_head` plus `start_untracked`): it prints `RAPID1441`, exits 1 and leaves the run open with no verdict, so the change can be made (or `rapid abort` run). This covers a change that was undone, such as a refactored file returned to its previous version. `rapid next` adds the same text as a note in `await_human_approval`, before the person is asked to approve. When the run did change files but none is under an `affected_path` of its spec (a path, a directory or a glob), `rapid next` (note) and `rapid finish` (`WARNING RAPID1442` on stderr) warn; it does not block. `research` runs are not judged, and neither is a run without a git starting point.
 
 The `file_change` evidence it records (capability `repository.write`) lists the files the run changed in the project: tracked changes since the run started plus new untracked files, without `.rapid-os/` and without tool artifacts (`__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `.tox`, `.nox`, `node_modules`, `.venv`, `venv`, `*.pyc`, `*.pyo`, `.coverage*`), even in a project with no `.gitignore`; with no real change no `file_change` is recorded and the verdict is not `pass`.
 

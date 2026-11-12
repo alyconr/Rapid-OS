@@ -54,6 +54,11 @@ Common errors when working with `/rapid-*`. See the complete [Shortcuts by Harne
 - **Cause:** up to 3.2.0rc3, with a combined test command (backend and frontend) `rapid check` counted only the last summary of the output: `gate.tests` recorded `2 passed` (Angular) and not the 31 backend tests.
 - **Fix:** update Rapid OS. `rapid check --gate gate.tests` runs each component of the combined command, adds the counts and keeps the breakdown (`components`). Take the baseline again if it was recorded before the update.
 
+### `RAPID1441`: `rapid finish` gives no PASS because the run changed nothing
+
+- **Cause:** the tree outside `.rapid-os/` is the one the run started from: the change was never made, or it was undone (a file returned to its previous version). A feature, bugfix, refactor or hardening run does not end in PASS without the change it declares.
+- **Fix:** make the change, run what `rapid next` gives (the test check), approve again and repeat `rapid finish`; or `rapid abort` if the run is not needed. `RAPID1442` is only a warning: the change touches no `affected_path` of the spec, so check that it is the right one.
+
 ## 1. Scanner and initialization issues
 
 ### `RAPID1001` (Project Model Error) or incomplete facts

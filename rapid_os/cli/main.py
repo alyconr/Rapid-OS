@@ -4466,6 +4466,8 @@ def next_command(args):
     else:
         cmd_str = f" -> {' '.join(action.command)}" if action.command else ""
         print(f"Next: {action.kind.value}{cmd_str}")
+    for note in action.notes:
+        print(f"Nota: {note}")
     _print_unconfirmed_docs(action)
     return 0
 
@@ -4592,11 +4594,20 @@ def _story_lines(run_id, verdict, tick=True):
 def finish_command(args):
     """Execute rapid finish command."""
     from rapid_os.orchestration.actions import NextAction
-    from rapid_os.orchestration.lifecycle import execute_finish, unverified_reason, verification_warning
+    from rapid_os.orchestration.lifecycle import (
+        execute_finish,
+        run_scope_warning,
+        unverified_reason,
+        verification_warning,
+    )
     from rapid_os.orchestration.session import load_session
     from rapid_os.orchestration.git import run_git
 
     sess = load_session(PROJECT_RAPID_DIR)
+    # H-70: computed before finish (a merge may remove the worktree); printed whatever finish answers.
+    scope_warning = run_scope_warning(CURRENT_DIR, PROJECT_RAPID_DIR)
+    if scope_warning:
+        print(f"WARNING {scope_warning}", file=sys.stderr)
     merge_requested = getattr(args, "merge", False)
     if merge_requested:
         if not sess or not sess.active_run_id or not sess.workspace_path:
