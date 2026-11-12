@@ -453,6 +453,35 @@ class ReproductionCountTests(unittest.TestCase):
         outcome = self.check([sys.executable, "-c", "import sys; sys.exit(1)"], baseline_failed=0)
         self.assertEqual(outcome.status, "inconclusive", outcome.message)
 
+    def _combined(self, second):
+        """The test command `rapid setup set test-command --recommended` builds: the unittest suite and `second`."""
+        import sys
+
+        from rapid_os.orchestration.setup_conductor import combine_test_commands
+
+        unit = [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", "."]
+        return combine_test_commands([unit, [sys.executable, "-c", second]])
+
+    def test_a_combined_command_with_a_component_that_did_not_run_is_inconclusive(self):
+        # The frontend part never got to run its tests on the baseline (no summary): adding up only the backend
+        # used to say "0 fallidos" and `not_reproduced`, about tests that never ran.
+        self.write_test("test_double.py", "    def test_double(self):\n        self.assertEqual(double(1), 3)\n")
+        missing = "import sys; print('npm ERR! Missing script: \"test\"'); sys.exit(1)"
+        outcome = self.check(self._combined(missing), baseline_failed=0)
+        self.assertEqual(outcome.status, "inconclusive", outcome.message)
+        self.assertIn("no dio un resumen de tests", outcome.message)
+        self.assertIn("npm ERR!", outcome.message)  # the component is named
+        self.assertNotIn("0 fallidos", outcome.message)
+        # Same when the baseline itself has to be counted (no count in the run's baseline evidence).
+        self.assertEqual(self.check(self._combined(missing)).status, "inconclusive")
+
+    def test_a_combined_command_adds_up_every_component(self):
+        self.write_test("test_double.py", "    def test_double(self):\n        self.assertEqual(double(2), 4)\n")
+        frontend = "print('      Tests  3 passed (3)')"
+        outcome = self.check(self._combined(frontend), baseline_failed=0)
+        self.assertEqual(outcome.status, "holds", outcome.message)
+        self.assertEqual(outcome.counts, {"passed": 4, "failed": 1, "skipped": 0})
+
 
 class SharedSummaryParserTests(unittest.TestCase):
     def test_pytest_and_vitest_summaries_are_added_up(self):

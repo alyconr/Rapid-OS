@@ -18,7 +18,12 @@ import tempfile
 from typing import Sequence
 
 from rapid_os.domain.execution import TaskContract
-from rapid_os.orchestration.check import parse_failed_test_files, parse_test_summary, resolve_executable
+from rapid_os.orchestration.check import (
+    parse_failed_test_files,
+    parse_test_summary,
+    run_test_command,
+    sum_summaries,
+)
 from rapid_os.orchestration.git import run_git
 from rapid_os.orchestration.session import Session, observed_changes
 from rapid_os.orchestration.workspace import REPRODUCTION_WORKTREE_PREFIX
@@ -108,17 +113,35 @@ def baseline_failed_count(evidence) -> int | None:
     return None
 
 
-def _run_tests(test_command: Sequence[str], cwd: Path, timeout: float) -> tuple[str, int]:
+def _run_tests(test_command: Sequence[str], cwd: Path, timeout: float) -> tuple[str, int, dict[str, int] | None, list[str]]:
+    """Run `test_command` as `rapid check --gate gate.tests` does (same argv, no shell, a combined command one
+    component at a time): `(output, exit_code, counts, uncounted)`.
+
+    `counts` adds up every runner's summary; it is None when there is nothing to count, and also when a component
+    of a combined command printed no summary (`uncounted` names it): that part did not get to run its tests, so a
+    total without it would say "0 fallidos" about tests that never ran."""
     try:
-        result = subprocess.run(
-            resolve_executable(list(test_command)), cwd=str(cwd), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, encoding="utf-8", errors="replace", check=False, shell=False, timeout=timeout,
-        )
-        return result.stdout or "", result.returncode
+        output, exit_code, components = run_test_command(test_command, cwd, timeout)
     except FileNotFoundError:
-        return f"Command not found: {test_command[0]}\n", 127
+        return f"Command not found: {test_command[0]}\n", 127, None, []
     except subprocess.TimeoutExpired:
-        return f"Timed out after {timeout}s\n", 124
+        return f"Timed out after {timeout}s\n", 124, None, []
+    if components is None:
+        return output, exit_code, parse_test_summary(output), []
+    uncounted = [str(item["command"]) for item in components if not item["counted"]]
+    if uncounted:
+        return output, exit_code, None, uncounted
+    return output, exit_code, sum_summaries(components), []
+
+
+def _uncounted_detail(uncounted: Sequence[str]) -> str:
+    if not uncounted:
+        return ""
+    return (
+        " (" + ", ".join(f"`{command}`" for command in uncounted)
+        + (" no dio" if len(uncounted) == 1 else " no dieron")
+        + " un resumen de tests: esa parte del comando no llegó a ejecutar sus tests)"
+    )
 
 
 def _log(project_rapid_dir: Path, run_id: str, name: str, output: str) -> Path:
@@ -246,14 +269,14 @@ def check_reproduction(
 
         if baseline_failed is None:
             # The run's baseline evidence has no count: count the baseline tree without the run's tests.
-            base_output, _ = _run_tests(test_command, run_cwd, timeout)
+            base_output, _, base_counts, base_uncounted = _run_tests(test_command, run_cwd, timeout)
             base_log = _log(project_rapid_dir, run_id, "reproduction-baseline", base_output)
-            base_counts = parse_test_summary(base_output)
             if base_counts is None:
                 return ReproductionOutcome(
                     "inconclusive",
                     f"{REPRODUCTION_CODE} En el árbol del baseline ({short}) y sin los tests del run, el comando de "
-                    "tests no dio un resumen de tests que contar, así que no hay con qué comparar: no se sabe si el "
+                    f"tests no dio un resumen de tests que contar{_uncounted_detail(base_uncounted)}, así que no hay "
+                    "con qué comparar: no se sabe si el "
                     "test de reproducción falla allí. La tarea de corrección no se cierra. Revisa el log: "
                     f"{base_log}",
                     test_files, None, None, base_log,
@@ -267,14 +290,14 @@ def check_reproduction(
                 shutil.copy2(source, target)
             elif target.exists():
                 target.unlink()  # the run deleted it: the baseline run must not have it either
-        output, exit_code = _run_tests(test_command, run_cwd, timeout)
+        output, exit_code, counts, uncounted = _run_tests(test_command, run_cwd, timeout)
         log_path = _log(project_rapid_dir, run_id, "reproduction", output)
-        counts = parse_test_summary(output)
         if counts is None:
             return ReproductionOutcome(
                 "inconclusive",
                 f"{REPRODUCTION_CODE} En el árbol del baseline ({short}) con {files}, el comando de tests salió con "
-                f"código {exit_code} sin un resumen de tests que contar: no se sabe si el test de reproducción falló "
+                f"código {exit_code} sin un resumen de tests que contar{_uncounted_detail(uncounted)}: no se sabe si "
+                "el test de reproducción falló "
                 "o si los tests no llegaron a ejecutarse (dependencias, servicios o un paso de build que falta "
                 f"allí), así que la tarea de corrección no se cierra. Revisa el log: {log_path}",
                 test_files, exit_code, counts, log_path, baseline_failed,

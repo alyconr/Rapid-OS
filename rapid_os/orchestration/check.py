@@ -474,6 +474,29 @@ def _run_single(exec_argv, child_env, cwd, timeout) -> tuple[str, int]:
     return proc.stdout or "", proc.returncode
 
 
+def run_test_command(
+    argv: Sequence[str],
+    cwd: Path | str,
+    timeout: float,
+    *,
+    child_env: Mapping[str, str] | None = None,
+    exec_argv: Sequence[str] | None = None,
+) -> tuple[str, int, list[dict[str, object]] | None]:
+    """Run a command the way `rapid check` does, without a shell: `(output, exit_code, components)`.
+
+    The test command Rapid OS combined (backend and frontend) runs one component at a time, so each summary is
+    counted and kept apart (H-66): `components` has one entry per command, with `counted` False when it printed no
+    test summary. Any other argv runs as typed (`exec_argv`, or `argv` with its executable resolved) and
+    `components` is None. The reproduction check of a bugfix runs `test_command` through here too (H-67)."""
+    components = combined_components(argv)
+    if components is not None:
+        return _run_combined(components, str(cwd), child_env, timeout)
+    output, exit_code = _run_single(
+        list(exec_argv) if exec_argv is not None else resolve_executable(argv), child_env, cwd, timeout
+    )
+    return output, exit_code, None
+
+
 def run_check(
     project_root: Path,
     project_rapid_dir: Path,
@@ -558,16 +581,9 @@ def run_check(
     next_num = len(existing_logs) + 1
     log_file = checks_dir / f"{next_num}.log"
 
-    # The test command Rapid OS combined (backend and frontend) runs one component at a time, so each summary is
-    # counted and kept apart (H-66); any other argv runs as typed.
-    components = combined_components(clean_argv)
-    breakdown: list[dict[str, object]] | None = None
-    if components is not None:
-        output, exit_code, breakdown = _run_combined(
-            components, str(cwd if cwd is not None else project_root), child_env, timeout
-        )
-    else:
-        output, exit_code = _run_single(exec_argv, child_env, cwd if cwd is not None else project_root, timeout)
+    output, exit_code, breakdown = run_test_command(
+        clean_argv, cwd if cwd is not None else project_root, timeout, child_env=child_env, exec_argv=exec_argv
+    )
 
     # Write log to scratch
     safe_write_text(
