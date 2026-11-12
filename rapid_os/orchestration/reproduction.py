@@ -21,6 +21,7 @@ from rapid_os.domain.execution import TaskContract
 from rapid_os.orchestration.check import parse_failed_test_files, parse_test_summary, resolve_executable
 from rapid_os.orchestration.git import run_git
 from rapid_os.orchestration.session import Session, observed_changes
+from rapid_os.orchestration.workspace import REPRODUCTION_WORKTREE_PREFIX
 
 REPRODUCTION_LABEL = "reproduction_holds"
 REPRODUCTION_CODE = "RAPID1439"
@@ -221,7 +222,7 @@ def check_reproduction(
             "root_cause) y regístralo con `rapid check --expect fail`.",
         )
 
-    temp_root = Path(tempfile.mkdtemp(prefix="rapid-repro-"))
+    temp_root = Path(tempfile.mkdtemp(prefix=REPRODUCTION_WORKTREE_PREFIX))
     baseline = temp_root / "baseline"
     links: list[Path] = []
     added = False

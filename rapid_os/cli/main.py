@@ -3808,10 +3808,21 @@ def _print_unconfirmed_docs(action):
         print(f"Borradores sin confirmar: {documents}. Para confirmar uno: rapid setup doc <id> --confirm")
 
 
+def _refuse_foreign_worktree() -> None:
+    """RAPID1450: `rapid start` and `rapid next` run from the person's checkout or the run's worktree."""
+    from rapid_os.orchestration.workspace import foreign_worktree_message
+
+    message = foreign_worktree_message(CURRENT_DIR)
+    if message:
+        print(message, file=sys.stderr)
+        sys.exit(1)
+
+
 def start_command(args):
     """Execute rapid start command."""
     from rapid_os.orchestration.lifecycle import execute_start
 
+    _refuse_foreign_worktree()
     mode = getattr(args, "mode", None)
     resume = getattr(args, "resume", False)
     if not mode and not resume:
@@ -4517,6 +4528,7 @@ def next_command(args):
     """Execute rapid next command."""
     from rapid_os.orchestration.lifecycle import execute_next
 
+    _refuse_foreign_worktree()
     code, action = execute_next(
         CURRENT_DIR,
         PROJECT_RAPID_DIR,

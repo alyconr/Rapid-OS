@@ -24,6 +24,12 @@ Qué hace su playbook (`templates/modes/hardening.json` y las reglas del Conduct
 - `rapid start hardening --spec-file - --worktree` crea un git worktree en `../<repo>-<run-id>` (rama `rapid/<run-id>`); el ledger se queda en el repositorio principal, `rapid check` ejecuta en el worktree y `rapid finish` toma los cambios de ahí. Sin la bandera, `rapid next` propone `rapid start --resume --worktree`.
 - El worktree parte de `HEAD` (los cambios sin commit del checkout principal no entran) y `rapid abort` no lo elimina.
 
+### Quién crea el worktree y desde dónde se ejecuta Rapid OS {#who-creates-the-worktree}
+
+El worktree del run lo crea Rapid OS, con `rapid start --resume --worktree` (o con `--worktree` en el primer `rapid start`), junto al checkout de la persona. Todos los comandos `rapid` se ejecutan desde el checkout de la persona: ahí vive el ledger (`.rapid-os/`, `session.json`), ahí lo lee `rapid approve` y en la rama de ese checkout integra `rapid finish --merge`. El agente edita los archivos del run en `action.workspace_path`.
+
+El agente no usa el aislamiento propio de su harness (un worktree de Codex, una copia en un sandbox) ni `git worktree add` para el run. Si el run empezara en el worktree de un harness, su estado se quedaría en ese worktree y el worktree del run se crearía como su hermano, fuera de la vista de la persona. Por eso `rapid start` y `rapid next` se niegan con `RAPID1450` en un worktree enlazado que no es el del run, y nombran el checkout principal desde el que hay que ejecutarlos. Los shortcuts (`/rapid-hardening` y los de todos los modos, además de `/rapid-next`) le dan al agente la misma regla.
+
 El resto de esta guía describe el mismo ciclo con comandos v3 (**Modo avanzado**), útil para CI, depuración y auditoría.
 
 ---

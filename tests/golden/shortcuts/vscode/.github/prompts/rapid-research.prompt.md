@@ -10,6 +10,8 @@ agent: agent
 
 Antes de nada, ejecuta `rapid next --json` y lee su salida.
 
+Ejecuta los comandos de Rapid OS desde el checkout de la persona (la carpeta del proyecto que ella abrió), no desde un worktree o una copia del proyecto que el harness cree para aislar la tarea. Si el run exige un workspace aislado (`rapid next` lo pide con `rapid start --resume --worktree`), ese worktree lo crea Rapid OS junto al checkout, en la rama `rapid/<run-id>`: no crees otro tú (ni con el aislamiento propio del harness ni con `git worktree add`); edita los archivos del run en `action.workspace_path` y sigue ejecutando `rapid` desde el checkout. Si `rapid start` o `rapid next` responden `RAPID1450`, estás en un worktree ajeno: vuelve al checkout principal que nombra el mensaje y repite allí el comando.
+
 Conduces un run gobernado de Rapid OS en modo `research`. El objetivo es lo que la persona escribió al invocar este comando. Sigue este bucle:
 
 1. Ejecuta `rapid next --json`. Si `action.unconfirmed_docs` existe, díselo a la persona una vez al empezar el run (qué documentos siguen como borrador) y pregúntale antes de implementar algo de la tarea que dependa de un supuesto de esos documentos. No los trates como reglas ni los confirmes por tu cuenta: solo la persona los confirma.

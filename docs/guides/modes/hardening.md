@@ -25,6 +25,12 @@ What its playbook does (`templates/modes/hardening.json` and the Conductor's rul
 - `rapid start hardening --spec-file - --worktree` creates a git worktree at `../<repo>-<run-id>` (branch `rapid/<run-id>`); the ledger stays in the main repository, `rapid check` runs in the worktree, and `rapid finish` takes the changes from there. Without the flag, `rapid next` proposes `rapid start --resume --worktree`.
 - The worktree starts from `HEAD` (uncommitted changes in the main checkout do not come along) and `rapid abort` does not remove it.
 
+### Who creates the worktree, and where Rapid OS runs {#who-creates-the-worktree}
+
+Rapid OS creates the run's worktree, with `rapid start --resume --worktree` (or `--worktree` on the first `rapid start`), next to the person's checkout. Every `rapid` command runs from the person's checkout: the ledger (`.rapid-os/`, `session.json`) lives there, `rapid approve` reads it there and `rapid finish --merge` integrates into that checkout's branch. The agent edits the run's files in `action.workspace_path`.
+
+The agent does not use its harness's own isolation (a Codex worktree, a sandbox copy) or `git worktree add` for the run. Started from a harness's worktree, the run state would stay in that worktree and the run's worktree would be created as its sibling, out of the person's sight. That is why `rapid start` and `rapid next` refuse with `RAPID1450` in a linked worktree that is not the run's own, and name the main checkout to run from. The shortcuts (`/rapid-hardening` and every mode shortcut, plus `/rapid-next`) give the agent the same rule.
+
 ### Close and integrate the worktree
 
 At `await_human_approval`, the agent should show the actual worktree path and branch `rapid/<run-id>` and explain that merging requires a commit on that run branch. Do not merge while approval, tasks, or verification are pending. After a `PASS`, `rapid finish` prints the exact manual closure commands only when the worktree is dirty. With `--merge`, it lists the short-format Git status and warns about likely build/cache artifacts before asking for written confirmation; after confirmation it commits and merges, then reports the commit and leaves removal to you:

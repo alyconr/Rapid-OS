@@ -181,3 +181,4 @@ It has an isolation cost: according to the same page it is a legacy mode (*legac
 
 - **The harness tries to modify paths outside the scope:** The evaluation will detect discrepancies if the evidence does not match the contract's paths.
 - **Missing test evidence:** Do not try to close `gate.tests` without valid `test_result` evidence with `exit_code: 0`.
+- **`RAPID1450` in a Codex worktree:** Codex can create its own worktree for a task before running Rapid OS. `rapid start` and `rapid next` refuse to run there and name the person's checkout: run them from that checkout, and let `rapid start --resume --worktree` create the run's worktree when the mode requires one. See [Hardening: who creates the worktree](../guides/modes/hardening.md#who-creates-the-worktree).
