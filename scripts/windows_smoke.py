@@ -17,6 +17,9 @@ Standard library only. It drives the `rapid` executable of a clean venv, in a te
    `--spec-file <path>` creates the spec with its title intact and the id with "publica".
 7. H-57: `rapid check` of a command that prints UTF-8 outside cp1252 (Vitest's ✓, ⎯, ❯) and a test summary: the log
    keeps those characters, the summary is counted and there is no traceback.
+8. H-71: in a linked git worktree that is not the worktree of a run (what Codex creates for itself), `rapid next` and
+   `rapid start` are refused with RAPID1450 naming the main checkout and write nothing; from the main checkout
+   `rapid next` still works.
 
 PYTHONUTF8 and PYTHONIOENCODING are removed from the environment, because either of them hides H-29: the point is to
 run with the console code page of a real Windows machine.
@@ -259,6 +262,27 @@ def main(argv: list[str]) -> int:
         if missing:
             fail(f"H-57: the log lost {missing!r}")
         print("ok  H-57: rapid check logs the UTF-8 output and counts its summary")
+
+        # 8. H-71: a harness's own worktree is not where Rapid OS runs.
+        harness_worktree = base / "codex-worktree"
+        git(project, "worktree", "add", "-q", "-b", "codex/task", str(harness_worktree))
+        for args in (("next", "--json"), ("start", "--resume", "--worktree", "--json")):
+            refused = subprocess.run(
+                [rapid_exe, *args], cwd=harness_worktree, env=env, capture_output=True, timeout=120,
+                stdin=subprocess.DEVNULL,
+            )
+            refused_err = refused.stderr.decode("utf-8", "replace")
+            if refused.returncode != 1 or "RAPID1450" not in refused_err:
+                fail(f"H-71: rapid {' '.join(args)} in a harness worktree was not refused (exit {refused.returncode}):\n{refused_err}")
+            if os.path.normcase(str(project.resolve())) not in os.path.normcase(refused_err):
+                fail(f"H-71: the refusal does not name the main checkout {project}:\n{refused_err}")
+        status = subprocess.run(
+            ["git", "status", "--porcelain"], cwd=harness_worktree, env=env, capture_output=True, timeout=120
+        ).stdout.decode("utf-8", "replace")
+        if status.strip():
+            fail(f"H-71: the refused commands wrote in the harness worktree:\n{status}")
+        rapid("next", "--json")
+        print("ok  H-71: a harness worktree is refused with RAPID1450 naming the main checkout")
     print("Windows smoke test passed.")
     return 0
 

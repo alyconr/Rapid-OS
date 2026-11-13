@@ -181,3 +181,4 @@ Tiene un costo de aislamiento: según la misma página es un modo heredado (*leg
 
 - **El harness intenta modificar rutas fuera de scope:** La evaluación detectará discrepancias si la evidencia no coincide con las rutas del contrato.
 - **Falta de evidencia de pruebas:** No intentes cerrar `gate.tests` sin una evidencia válida de `test_result` con `exit_code: 0`.
+- **`RAPID1450` en un worktree de Codex:** Codex puede crear su propio worktree para una tarea antes de ejecutar Rapid OS. `rapid start` y `rapid next` se niegan a ejecutarse ahí y nombran el checkout de la persona: ejecútalos desde ese checkout y deja que `rapid start --resume --worktree` cree el worktree del run cuando el modo lo exija. Ver [Hardening: quién crea el worktree](../guides/modes/hardening.md#who-creates-the-worktree).

@@ -1916,6 +1916,9 @@ def _extract_non_interactive_spec_fields(args) -> dict[str, object]:
     raw_findings = getattr(args, "finding_json", None)
     if raw_findings is not None:
         fields["findings"] = tuple(json.loads(item) for item in raw_findings)
+    raw_root_cause = getattr(args, "root_cause_json", None)
+    if raw_root_cause is not None:
+        fields["root_cause"] = json.loads(raw_root_cause)
     return fields
 
 
@@ -1923,7 +1926,7 @@ def _has_non_interactive_spec_flags(args, *, is_create: bool = False) -> bool:
     for name in SPEC_AUTHORING_SCALAR_FIELDS + SPEC_AUTHORING_LIST_FIELDS:
         if getattr(args, name, None) is not None:
             return True
-    if getattr(args, "finding_json", None) is not None:
+    if getattr(args, "finding_json", None) is not None or getattr(args, "root_cause_json", None) is not None:
         return True
     if is_create:
         if getattr(args, "status", None) is not None:
@@ -3224,6 +3227,9 @@ def eval_command(args):
                 print(report.to_json(indent=2))
                 return 0
             print(render_evaluation_report_text(report, stale=stale))
+            # What a person accepted outside the evaluated evidence (the report itself is digest-bound).
+            for line in _person_acceptance_lines(run_id):
+                print(line)
             return 0
 
         print(
@@ -3247,6 +3253,25 @@ def eval_command(args):
         code = getattr(exc, "code", None) or "RAPID1221"
         print(f"{code} {exc}", file=sys.stderr)
         sys.exit(1)
+
+
+def _person_acceptance_lines(run_id: str) -> list[str]:
+    """`rapid eval show`: the acceptances a person recorded (another test command, an unverified reproduction)."""
+    try:
+        evidence = EvidenceRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).list(run_id)
+    except Exception:
+        return []
+    lines = []
+    for ev in evidence:
+        payload = ev.payload or {}
+        if ev.kind.value != "review" or not payload.get("accepts"):
+            continue
+        what = {
+            "reproduction_inconclusive": f"reproducción sin comprobar en el baseline ({', '.join(ev.task_ids)})",
+            "test_command_mismatch": "otro comando de tests que el de la baseline",
+        }.get(str(payload["accepts"]), str(payload["accepts"]))
+        lines.append(f"Aceptado por {payload.get('reviewer')}: {what}, motivo «{payload.get('reason', '')}» ({ev.id})")
+    return lines
 
 
 def check_command(args):
@@ -3572,6 +3597,38 @@ def task_command(args):
         # there is the same as with --no-check, and any `rapid check` evidence of the task counts as it always does.
         no_check = getattr(args, "no_check", False)
         research_note = None
+        # Bugfix (H-67): closing the fix task needs the suite green on the current tree AND the reproduction test
+        # failing on the baseline tree; --no-check does not skip either.
+        fixing = False
+        if session.mode == "bugfix":
+            from rapid_os.orchestration.reproduction import fix_task_id
+
+            fixing = target_task_id == fix_task_id(registry.get_contract(run_id).tasks)
+            if fixing and no_check:
+                print(
+                    f"Nota: '{target_task_id}' es la tarea de corrección del bugfix: se ejecutan los tests aunque "
+                    "pases --no-check.",
+                    file=sys.stderr,
+                )
+                no_check = False
+        accept_repro = getattr(args, "accept_reproduction", False)
+        if accept_repro:
+            # Only the person, in their own terminal, for the fix task of a bugfix: refused before running anything.
+            from rapid_os.orchestration.lifecycle import reproduction_acceptance_refusal
+
+            if not fixing:
+                print(
+                    "RAPID1439 --accept-reproduction solo vale para la tarea de corrección de un run bugfix.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            if not str(reason or "").strip():
+                print("RAPID1439 '--accept-reproduction' necesita un motivo: --reason \"<motivo>\".", file=sys.stderr)
+                sys.exit(1)
+            refusal = reproduction_acceptance_refusal()
+            if refusal:
+                print(refusal, file=sys.stderr)
+                sys.exit(1)
         if not no_check and session.mode in MODES_WITHOUT_TESTS:
             no_check = True
             has_check_evidence = any(
@@ -3613,6 +3670,50 @@ def task_command(args):
             if res.exit_code != 0:
                 print(f"Verification tests failed for task '{target_task_id}' (exit {res.exit_code}). Log: {res.log_path}", file=sys.stderr)
                 sys.exit(res.exit_code)
+            if fixing:
+                from rapid_os.orchestration.reproduction import (
+                    baseline_failed_count,
+                    check_reproduction,
+                    reproduction_evidence_input,
+                )
+
+                outcome = check_reproduction(
+                    PROJECT_RAPID_DIR, run_id, session, test_cmd, cwd=Path(task_cwd), timeout=timeout,
+                    baseline_failed=baseline_failed_count(evidence_reg.list(run_id)),
+                )
+                if outcome.status == "inconclusive" and accept_repro:
+                    from rapid_os.orchestration.lifecycle import accept_reproduction
+
+                    refused = accept_reproduction(
+                        CURRENT_DIR, PROJECT_RAPID_DIR, run_id, target_task_id, evidence_reg, outcome.message,
+                        reason or "",
+                    )
+                    if refused:
+                        print(refused, file=sys.stderr)
+                        sys.exit(1)
+                    print(f"Reproducción aceptada sin comprobar; {target_task_id} se cierra.")
+                elif outcome.status == "holds":
+                    evidence_reg.add(
+                        run_id,
+                        reproduction_evidence_input(
+                            run_id, target_task_id, registry.get_state(run_id).revision, outcome, CURRENT_DIR
+                        ),
+                        base_dir=CURRENT_DIR,
+                    )
+                    print(outcome.message)
+                elif outcome.status == "unavailable":
+                    print(f"WARNING {outcome.message}", file=sys.stderr)
+                else:
+                    print(outcome.message, file=sys.stderr)
+                    if outcome.status == "inconclusive":
+                        print(
+                            "Si la persona revisa el log y acepta la reproducción sin comprobar, la decide ella en su "
+                            f"terminal: rapid task done {target_task_id} --accept-reproduction --reason \"<motivo>\"",
+                            file=sys.stderr,
+                        )
+                    elif accept_repro:
+                        print("--accept-reproduction solo vale cuando la comprobación no es concluyente.", file=sys.stderr)
+                    sys.exit(1)
         elif research_note:
             print(research_note, file=sys.stderr)
         else:
@@ -3707,10 +3808,21 @@ def _print_unconfirmed_docs(action):
         print(f"Borradores sin confirmar: {documents}. Para confirmar uno: rapid setup doc <id> --confirm")
 
 
+def _refuse_foreign_worktree() -> None:
+    """RAPID1450: `rapid start` and `rapid next` run from the person's checkout or the run's worktree."""
+    from rapid_os.orchestration.workspace import foreign_worktree_message
+
+    message = foreign_worktree_message(CURRENT_DIR)
+    if message:
+        print(message, file=sys.stderr)
+        sys.exit(1)
+
+
 def start_command(args):
     """Execute rapid start command."""
     from rapid_os.orchestration.lifecycle import execute_start
 
+    _refuse_foreign_worktree()
     mode = getattr(args, "mode", None)
     resume = getattr(args, "resume", False)
     if not mode and not resume:
@@ -4416,6 +4528,7 @@ def next_command(args):
     """Execute rapid next command."""
     from rapid_os.orchestration.lifecycle import execute_next
 
+    _refuse_foreign_worktree()
     code, action = execute_next(
         CURRENT_DIR,
         PROJECT_RAPID_DIR,
@@ -4428,6 +4541,7 @@ def next_command(args):
     findings = ()
     acceptance: list[str] | None = None
     commands: list[dict[str, object]] = []
+    bugfix: dict[str, object] | None = None
     if action.kind.value == "await_human_approval" and action.run_id:
         try:
             contract = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_contract(action.run_id)
@@ -4436,8 +4550,10 @@ def next_command(args):
             if action.mode == "hardening":
                 findings = revision.findings
         except Exception:
-            findings, acceptance = (), None
+            findings, acceptance, revision = (), None, None
         commands = approval_commands(action.gate_ids or action.awaiting_human)
+        if action.mode == "bugfix" and revision is not None and revision.root_cause is not None:
+            bugfix = _bugfix_handover(action.run_id, revision.root_cause)
     if getattr(args, "json", False):
         payload = action.to_dict()
         if findings:
@@ -4445,6 +4561,8 @@ def next_command(args):
         if action.kind.value == "await_human_approval":
             payload["action"]["acceptance"] = acceptance
             payload["action"]["commands"] = commands
+        if bugfix is not None:
+            payload["action"]["bugfix"] = bugfix
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
 
@@ -4463,6 +4581,11 @@ def next_command(args):
             print("Hallazgos de hardening:")
             for item in findings:
                 print(f"  {item.id}: {item.title} | {item.cwe} | {item.cvss_v4_vector} | {item.severity} | {item.standard_ref}")
+        if bugfix is not None:
+            from rapid_os.orchestration.reproduction import handover_lines
+
+            for line in handover_lines(bugfix):
+                print(line)
     else:
         cmd_str = f" -> {' '.join(action.command)}" if action.command else ""
         print(f"Next: {action.kind.value}{cmd_str}")
@@ -4470,6 +4593,20 @@ def next_command(args):
         print(f"Nota: {note}")
     _print_unconfirmed_docs(action)
     return 0
+
+
+def _bugfix_handover(run_id: str, cause) -> dict[str, object] | None:
+    """The bugfix hand-over of `rapid next` (H-67); None when it cannot be read (the hand-over still goes on)."""
+    from rapid_os.orchestration.reproduction import bugfix_handover
+    from rapid_os.orchestration.session import load_session
+
+    try:
+        evidence = EvidenceRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).list(run_id)
+        return bugfix_handover(
+            PROJECT_RAPID_DIR, cause, evidence, cwd=Path(_run_workspace_cwd()), session=load_session(PROJECT_RAPID_DIR)
+        )
+    except Exception:
+        return None
 
 
 REJECT_REASON_PLACEHOLDER = "<motivo>"
@@ -4616,10 +4753,21 @@ def finish_command(args):
         if not sys.stdin.isatty():
             print("RAPID1341 --merge requiere confirmación escrita en una terminal interactiva.", file=sys.stderr)
             sys.exit(1)
+        # The same barrier as `rapid approve`: an agent with a pty is refused before anything is evaluated.
+        from rapid_os.orchestration.lifecycle import human_terminal_refusal
+
+        refusal = human_terminal_refusal(
+            dict(os.environ), None, True, "Merging a run (rapid finish --merge)",
+            "El merge debe confirmarlo una persona en su propia terminal.",
+        )
+        if refusal:
+            print(refusal, file=sys.stderr)
+            sys.exit(1)
 
     run_id = sess.active_run_id if sess else None
     workspace = Path(sess.workspace_path) if sess and sess.workspace_path else None
     merge_message = f"Complete run {run_id}" if run_id else ""
+    merge_criteria: tuple[str, ...] = ()
     if sess and sess.active_run_id and sess.workspace_path:
         try:
             contract = RunRegistry(CURRENT_DIR, PROJECT_RAPID_DIR).get_contract(run_id)
@@ -4627,6 +4775,7 @@ def finish_command(args):
                 contract.spec_id, revision=contract.spec_revision
             )
             merge_message = revision.title
+            merge_criteria = tuple(revision.acceptance_criteria)
         except Exception:
             pass
 
@@ -4706,6 +4855,12 @@ def finish_command(args):
 
             from rapid_os.orchestration.lifecycle import is_yes
 
+            print(f"Run:   {run_id} (veredicto PASS)", file=output)
+            print(f"Spec:  {merge_message}", file=output)
+            if merge_criteria:
+                print("Criterios de aceptación:", file=output)
+                for criterion in merge_criteria:
+                    print(f"  - {criterion}", file=output)
             print(
                 f"Se hará commit de estos cambios en la rama rapid/{run_id} y merge en el checkout de origen.",
                 file=output,
@@ -4843,7 +4998,7 @@ def finish_command(args):
             print(line, file=sys.stderr)
         if not merge_succeeded and not merge_requested:
             print(NO_COMMIT_LINE, file=sys.stderr)
-        sys.exit(1 if merge_failure_reason else code)
+        sys.exit(1 if merge_failure_reason or merge_declined_reason else code)
 
     print(
         f"Evaluation report {revision:04d} for run '{result.run_id}': "
@@ -4863,7 +5018,8 @@ def finish_command(args):
         print(line)
     if not merge_succeeded and not merge_requested:
         print(NO_COMMIT_LINE)
-    sys.exit(1 if merge_failure_reason else code)
+    # A declined merge is a cancellation: the run is finished, but what was asked (--merge) was not done.
+    sys.exit(1 if merge_failure_reason or merge_declined_reason else code)
 
 def approve_command(args):
     """Execute rapid approve command."""
@@ -5150,6 +5306,10 @@ def _add_spec_authoring_arguments(subparser, *, is_create: bool = False):
     subparser.add_argument(
         "--finding-json", dest="finding_json", action="append",
         help="Structured hardening finding as a JSON object (repeatable).",
+    )
+    subparser.add_argument(
+        "--root-cause-json", dest="root_cause_json",
+        help='Root cause of a bugfix spec as a JSON object: {"file", "symbol" or "line", "how_found", "explanation"}.',
     )
     if is_create:
         subparser.add_argument(
@@ -5940,6 +6100,10 @@ def create_parser():
     task_done.add_argument("task_id", nargs="?", help="Task identifier (defaults to current in_progress task).")
     task_done.add_argument("--reason", help="Optional transition reason.")
     task_done.add_argument("--no-check", action="store_true", help="Mark task done without running verification tests.")
+    task_done.add_argument(
+        "--accept-reproduction", dest="accept_reproduction", action="store_true",
+        help="Bugfix fix task: a person accepts an inconclusive reproduction check (needs --reason, a TTY, and [s/N]).",
+    )
     task_done.add_argument("--json", action="store_true", help="Emit JSON output.")
 
     task_skip = task_sub.add_parser("skip", help="Skip task with mandatory reason.")

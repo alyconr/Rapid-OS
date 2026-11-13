@@ -233,6 +233,38 @@ class EvidenceIntegrityTests(LabScenarioBase):
         self.assertEqual(from_agent.returncode, 1)
         self.assertIn("RAPID1310", from_agent.stderr)
         self.assertEqual(self._reports(run_id), ())
+        # Enter (or anything but s/si/sí/y/yes) cancels: no acceptance, no report, exit 1.
+        cancelled = self._rapid_tty(["finish", "--accept-test-command", "same suite, verbose"], "")
+        self.assertEqual(cancelled.returncode, 1)
+        self.assertIn("Sin cambios: no se aceptó el comando de tests.", cancelled.stderr)
+        self.assertEqual(self._reports(run_id), ())
+        accepts = [e for e in self._registry().list(run_id) if e.payload.get("accepts") == "test_command_mismatch"]
+        self.assertEqual(accepts, [])
+
+    def test_accepting_the_test_command_is_refused_under_an_agent_ancestor_or_without_a_terminal(self):
+        from rapid_os.adapters.evidence_registry import EvidenceRegistry
+        from rapid_os.core.ancestry import Ancestor, AncestryResult
+        from rapid_os.orchestration.lifecycle import _accept_command_change
+
+        run_id = self._with_other_test_command()
+        registry = EvidenceRegistry(self.project, self.project / ".rapid-os")
+        asked: list[str] = []
+
+        def accept(ancestry, is_tty):
+            return _accept_command_change(
+                self.project, self.project / ".rapid-os", run_id, registry,
+                ("python -m unittest", "python -m unittest -v"), "same suite", reviewer="Ada", is_tty=is_tty,
+                input_func=lambda prompt: asked.append(prompt) or "s", environ={}, ancestry=ancestry,
+            )
+
+        under_agent = accept(AncestryResult((Ancestor(4242, "claude.exe", ("claude.exe",)),)), True)
+        self.assertIn("RAPID1310", under_agent)
+        self.assertIn("claude.exe", under_agent)
+        without_tty = accept(AncestryResult(()), False)
+        self.assertIn("RAPID1310", without_tty)
+        self.assertIn("TTY", without_tty)
+        self.assertEqual(asked, [])
+        self.assertEqual([e for e in registry.list(run_id) if e.payload.get("accepts")], [])
 
     def test_another_test_command_accepted_in_the_terminal_passes_with_the_evidence(self):
         run_id = self._with_other_test_command()

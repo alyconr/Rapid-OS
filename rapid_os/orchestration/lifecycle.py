@@ -582,6 +582,12 @@ def execute_start(
                 )
                 if finding_error:
                     return 1, finding_error
+            if mode == "bugfix":
+                from rapid_os.domain.root_cause import root_cause_error
+
+                cause_error = root_cause_error(spec_reg.get_revision(rec.id).root_cause, project_root)
+                if cause_error:
+                    return 1, cause_error
             if empty_repository and mode == "feature":
                 if has_scaffold_task(spec_reg.get_revision(rec.id).implementation_tasks):
                     baseline_waived = BASELINE_WAIVER_EMPTY_REPOSITORY
@@ -646,6 +652,14 @@ def execute_start(
                 )
                 if finding_error:
                     return 1, finding_error
+
+            # Bugfix (H-67): the cause is located before the spec, and its file must exist in the repository.
+            if mode == "bugfix":
+                from rapid_os.domain.root_cause import root_cause_error
+
+                cause_error = root_cause_error(spec_fields.get("root_cause"), project_root)
+                if cause_error:
+                    return 1, cause_error
 
             existing = spec_reg.compare_existing(**spec_fields)
             if existing is None:
@@ -1333,6 +1347,78 @@ def accept_check_command(
     if not is_yes(typed):
         return "Sin cambios: no se aceptó el comando de tests.", None
     return None, {"reviewer": name, "reason": reason.strip()}
+
+
+ACCEPT_REPRODUCTION_WHAT = "Accepting an unverified reproduction (rapid task done --accept-reproduction)"
+ACCEPT_REPRODUCTION_CLOSING = "La aceptación debe hacerla una persona en su propia terminal."
+REPRODUCTION_ACCEPTED = "reproduction_inconclusive"
+
+
+def reproduction_acceptance_refusal(environ=None, ancestry=None, is_tty=None) -> str | None:
+    """RAPID1310 when `--accept-reproduction` does not come from a person in their own terminal."""
+    import os
+
+    return human_terminal_refusal(
+        dict(os.environ) if environ is None else environ, ancestry, is_tty,
+        ACCEPT_REPRODUCTION_WHAT, ACCEPT_REPRODUCTION_CLOSING,
+    )
+
+
+def accept_reproduction(
+    project_root, project_rapid_dir, run_id, task_id, evidence_reg, outcome_message, reason, *,
+    is_tty=None, input_func=None, environ=None, ancestry=None,
+) -> str | None:
+    """A person accepts closing the fix task of a bugfix whose baseline check was inconclusive (H-67).
+
+    Same barriers as `--accept-test-command`: TTY, no agent session or ancestor, [s/N] after saying what is
+    accepted. Recorded as `review` evidence (`via: rapid:task`, `accepts: reproduction_inconclusive`) linked to the
+    task, which the hand-over and `rapid eval show` list. Returns an error message, or None when accepted."""
+    if not str(reason or "").strip():
+        return "RAPID1439 '--accept-reproduction' necesita un motivo: --reason \"<motivo>\"."
+    refusal = reproduction_acceptance_refusal(environ, ancestry, is_tty)
+    if refusal:
+        return refusal
+    ask = input_func if input_func is not None else input
+    name = _git_user_name(project_root)
+    try:
+        if not name:
+            name = ask("Reviewer name (git config user.name is not set): ").strip()
+        if not name:
+            return "RAPID1331 A reviewer name is required: set 'git config user.name'."
+        typed = ask(
+            f"Run:   {run_id}\nTarea: {task_id}\n{outcome_message}\n"
+            f"Se registrará que {name} acepta cerrar {task_id} sin que la reproducción se haya podido comprobar en "
+            f"el baseline, con el motivo «{reason.strip()}».\n"
+            "¿Aceptas la reproducción sin comprobar? [s/N] "
+        )
+    except EOFError:
+        return f"RAPID1310 {ACCEPT_REPRODUCTION_WHAT} requires interactive terminal confirmation (TTY). Stdin was closed before the answer (EOF)."
+    if not is_yes(typed):
+        return f"Sin cambios: {task_id} sigue en curso."
+    current_state = RunRegistry(project_root, project_rapid_dir).get_state(run_id)
+    evidence_reg.add(
+        run_id,
+        {
+            "kind": EvidenceKind.REVIEW.value,
+            "producer": "user",
+            "summary": f"{name} accepted closing {task_id} with an inconclusive reproduction check",
+            "state_revision": current_state.revision,
+            "task_ids": [task_id],
+            "gate_ids": [],
+            "capability_ids": [],
+            "payload": {
+                "review_type": "manual",
+                "outcome": "approved",
+                "reviewer": name,
+                "reason": reason.strip(),
+                "via": "rapid:task",
+                "accepts": REPRODUCTION_ACCEPTED,
+            },
+            "artifacts": [],
+        },
+        base_dir=project_root,
+    )
+    return None
 
 
 def _git_user_name(project_root: Path) -> str | None:

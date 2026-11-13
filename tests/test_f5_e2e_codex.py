@@ -162,6 +162,7 @@ class HarnessFromConfigToolsTests(TempProject):
         spec = {
             "title": "Algo", "mode": "bugfix", "business_objective": "Arreglar",
             "problem_statement": "Falla", "scope": ["app"], "acceptance_criteria": ["no falla"],
+            "root_cause": {"file": "app.py", "line": 1, "how_found": "lectura del código", "explanation": "x vale 1"},
             "tasks": ["T001: Arreglar"],
         }
         started = rapid(self.root, "start", "bugfix", "--spec-file", "-", "--json", stdin=json.dumps(spec))

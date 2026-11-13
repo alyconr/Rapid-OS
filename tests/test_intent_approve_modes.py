@@ -115,9 +115,12 @@ class PlaybookTests(unittest.TestCase):
                 for kind in ("author_spec", "implement_task", "verify", "blocked", "done"):
                     self.assertTrue(playbook.get_instruction(kind), (mode, kind))
 
-    def test_bugfix_starts_with_the_reproduction_task(self):
+    def test_bugfix_locates_the_cause_then_reproduces_it(self):
+        # H-67: the cause first (before the test), then the red test that runs its code, then the fix.
         tasks = load_playbook("bugfix", templates_dir=ROOT / "templates").spec_template["implementation_tasks"]
-        self.assertEqual(tasks[0], "T001: Reproducir con un test en rojo")
+        self.assertTrue(tasks[0].startswith("T001: Localizar y confirmar la causa raíz (root_cause)"), tasks[0])
+        self.assertEqual(tasks[1], "T002: Reproducir con un test en rojo que ejecute el código de root_cause")
+        self.assertEqual(tasks[2], "T003: Corregir la causa raíz")
 
     def test_attach_is_a_valid_evidence_producer(self):
         self.assertEqual(validate_evidence_producer("rapid:attach"), "rapid:attach")

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterable, Mapping
 
 from rapid_os.domain.project import normalize_evidence_path
+from rapid_os.domain.root_cause import RootCause
 from rapid_os.domain.scope import (
     NOT_SPECIFIED,
     ScopeSpec,
@@ -49,6 +50,7 @@ CANONICAL_SPEC_REVISION_KEYS = frozenset(
         "data_impact",
         "acceptance_criteria",
         "findings",
+        "root_cause",
         "testing_strategy",
         "implementation_tasks",
         "tags",
@@ -573,6 +575,9 @@ class SpecRevision:
 
     tags: tuple[str, ...] = ()
     findings: tuple[HardeningFinding, ...] = ()
+    # Bugfix (H-67): where the defect lives and how it was found. Absent in other modes and in revisions stored
+    # before it existed: then it is not part of the content, so their digests do not change.
+    root_cause: RootCause | None = None
     # Read from a revision.json written before `findings` existed (3.1, 3.2.0rc1): its content_digest was
     # computed without that key. Not part of the content, the digest or equality.
     stored_without_findings: bool = field(default=False, compare=False, repr=False)
@@ -649,6 +654,10 @@ class SpecRevision:
             finding_ids = [item.id.casefold() for item in cleaned_findings]
             if len(finding_ids) != len(set(finding_ids)):
                 raise ValueError("findings must have unique ids")
+            if self.root_cause is None or isinstance(self.root_cause, RootCause):
+                cleaned_root_cause = self.root_cause
+            else:
+                cleaned_root_cause = RootCause.from_dict(self.root_cause)
         except ValueError as exc:
             raise InvalidRevisionManifestError(str(exc)) from exc
 
@@ -670,6 +679,7 @@ class SpecRevision:
         object.__setattr__(self, "implementation_tasks", cleaned_tasks)
         object.__setattr__(self, "tags", cleaned_tags)
         object.__setattr__(self, "findings", cleaned_findings)
+        object.__setattr__(self, "root_cause", cleaned_root_cause)
 
     @property
     def actors(self) -> tuple[str, ...]:
@@ -703,7 +713,7 @@ class SpecRevision:
         }
 
     def _canonical_content_payload(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "schema_version": self.schema_version,
             "spec_id": self.spec_id,
             "revision": self.revision,
@@ -727,6 +737,9 @@ class SpecRevision:
             "findings": [finding.to_dict() for finding in self.findings],
             "artifact_digests": self.artifact_digests,
         }
+        if self.root_cause is not None:
+            payload["root_cause"] = self.root_cause.to_dict()
+        return payload
 
     @property
     def content_digest(self) -> str:
@@ -830,6 +843,7 @@ class SpecRevision:
             implementation_tasks=payload.get("implementation_tasks", ()),  # type: ignore[arg-type]
             tags=payload.get("tags", ()),  # type: ignore[arg-type]
             findings=payload.get("findings", ()),  # type: ignore[arg-type]
+            root_cause=payload.get("root_cause"),  # type: ignore[arg-type]
             stored_without_findings="findings" not in payload,
         )
         recorded = payload.get("artifact_digests")
@@ -890,7 +904,22 @@ def render_requirements_artifact(revision: SpecRevision) -> str:
         f"## Technical Constraints\n{render_bullets(revision.technical_constraints)}\n\n"
         f"## Affected Files / Modules\n{render_bullets(revision.affected_paths)}\n\n"
         f"## Data Impact\n{render_text(revision.data_impact)}\n"
+        + render_root_cause_section(revision.root_cause)
     )
+
+
+def render_root_cause_section(cause: "RootCause | None") -> str:
+    """`## Root Cause` of a bugfix spec; nothing for a revision without one (its digests stay the same)."""
+    if cause is None:
+        return ""
+    lines = [f"- File: {render_text(cause.file)}"]
+    if cause.symbol:
+        lines.append(f"- Symbol: {render_text(cause.symbol)}")
+    if cause.line is not None:
+        lines.append(f"- Line: {cause.line}")
+    lines.append(f"- How found: {render_text(cause.how_found)}")
+    lines.append(f"- Explanation: {render_text(cause.explanation)}")
+    return "\n## Root Cause\n" + "\n".join(lines) + "\n"
 
 
 TASKS_STATUS_NOTE = "El estado de cada tarea vive en el run: rapid status"

@@ -265,6 +265,24 @@ class StatusListsTasksTests(Project):
         self.assertIn(f"gate.tests [pending · última evidencia: PASS]  (evidencia: {evidence_id})", out)
         self.assertIn("gate.final-verification [pending]\n", out)
 
+    def test_a_pending_task_shows_the_result_of_its_last_evidence(self):
+        out = rapid(self.root, "status").stdout
+        self.assertIn("T004 [pending] Publicar el endpoint\n", out)  # no evidence yet: only its state
+        # A failed check records nothing; a recorded failure is an expected one (`--expect fail`).
+        checked = rapid(self.root, "check", "--expect", "fail", "--task", "T004", "--json", "--",
+                        sys.executable, "-m", "unittest", "tests.no_such_module")
+        failed_id = json.loads(checked.stdout)["evidence_id"]
+        self.assertIsNotNone(failed_id, checked.stdout + checked.stderr)
+        out = rapid(self.root, "status").stdout
+        self.assertIn(f"T004 [pending · última evidencia: FAIL (esperado)] Publicar el endpoint  (evidencia: {failed_id})", out)
+        checked = rapid(self.root, "check", "--task", "T004", "--json", "--", sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", ".")
+        passed_id = json.loads(checked.stdout)["evidence_id"]
+        tasks = {t["id"]: t for t in json.loads(rapid(self.root, "status", "--json").stdout)["run"]["tasks"]}
+        self.assertEqual(tasks["T004"]["last_evidence_result"], "PASS")
+        self.assertEqual(tasks["T004"]["last_evidence_id"], passed_id)
+        self.assertNotIn("last_evidence_result", tasks["T001"])  # done: its state says it
+        self.assertIn("T004 [pending · última evidencia: PASS] Publicar el endpoint", rapid(self.root, "status").stdout)
+
     def test_without_an_active_run_the_last_run_is_listed(self):
         (self.root / ".rapid-os" / "session.json").unlink()
         text = rapid(self.root, "status")
@@ -398,7 +416,8 @@ class WorkShortcutsHandOverOnlyWhatIsReadyTests(unittest.TestCase):
                 self.assertIn("revisa uno por uno los criterios de `action.acceptance` con su evidencia", text)
                 self.assertIn("rapid check -- <comando>", text)
                 # The person starts the services (as /rapid-init says); the agent asks and waits.
-                self.assertIn("pídele a la persona `docker compose up -d` y espera", text)
+                self.assertIn("sus servicios no los levantas tú", text)
+                self.assertIn("pídele a la persona que ejecute `docker compose up -d` en su terminal, espera a que te confirme que están arriba y después córrelos con `rapid check`", text)
                 self.assertNotIn("levanta los servicios", text)
                 self.assertIn("repetirá `gate.tests` y `gate.architecture` porque el árbol cambió", text)
                 self.assertIn("algo depende de la persona", text)
@@ -503,6 +522,24 @@ class ApproveAsksYesNoTests(Project):
         code, message, _ = self.approve("s", gate_id=self.gate, is_tty=False)
         self.assertEqual(code, 1)
         self.assertIn("RAPID1310", message)
+
+    def test_an_agent_ancestor_is_refused_even_with_a_terminal(self):
+        from rapid_os.core.ancestry import Ancestor, AncestryResult
+        from rapid_os.orchestration.lifecycle import execute_approve
+
+        for flags in ({}, {"reject": True, "reason": "no cumple"}):
+            asked: list[str] = []
+            code, message = execute_approve(
+                self.root, self.root / ".rapid-os", self.gate, reviewer="Ada", is_tty=True,
+                input_func=lambda prompt: asked.append(prompt) or "s", environ={},
+                ancestry=AncestryResult((Ancestor(4242, "claude.exe", ("claude.exe",)),)), **flags,
+            )
+            with self.subTest(flags=flags):
+                self.assertEqual(code, 1)
+                self.assertIn("RAPID1310", message)
+                self.assertEqual(asked, [])  # refused before asking anything
+        self.assertEqual(self.reviews(), [])
+        self.assertEqual(self.gate_disposition(), "pending")
 
     def test_yes_answers(self):
         from rapid_os.orchestration.lifecycle import is_yes

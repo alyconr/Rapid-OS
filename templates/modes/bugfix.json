@@ -5,29 +5,61 @@
     "title": "Título descriptivo del bug a corregir",
     "business_objective": "¿Qué comportamiento correcto se restablece y qué impacto tiene el bug?",
     "problem_statement": "Describe el síntoma observado, el comportamiento esperado y cómo reproducirlo.",
-    "scope": ["Corregir la causa raíz del defecto"],
-    "out_of_scope": ["Refactors o mejoras no relacionadas con el bug"],
-    "actors_users": ["Usuario afectado por el bug"],
-    "main_flow": ["Entrada o escenario que dispara el bug", "Resultado erróneo actual", "Resultado correcto esperado"],
-    "edge_cases": ["Variantes de la entrada que podrían seguir fallando"],
-    "business_rules": ["Regla de negocio que el bug viola"],
-    "technical_constraints": ["Respeta el stack del proyecto (tech-stack); nuevas dependencias solo si la spec lo justifica"],
-    "affected_paths": ["src/"],
-    "acceptance_criteria": ["Existe un test que reproduce el bug y pasa tras la corrección", "La suite completa sigue en verde"],
-    "testing_strategy": ["Test de reproducción en rojo antes de corregir", "Suite completa tras la corrección"],
+    "root_cause": {
+      "file": "Ruta, relativa a la raíz del proyecto, del archivo donde está el defecto",
+      "symbol": "Función, método o clase defectuosa (o usa \"line\": <número>)",
+      "how_found": "git blame | git log -S | traza del test | lectura del código",
+      "explanation": "Por qué ese código produce el síntoma"
+    },
+    "scope": [
+      "Corregir la causa raíz declarada en root_cause"
+    ],
+    "out_of_scope": [
+      "Refactors o mejoras no relacionadas con el bug"
+    ],
+    "actors_users": [
+      "Usuario afectado por el bug"
+    ],
+    "main_flow": [
+      "Entrada o escenario que dispara el bug",
+      "Resultado erróneo actual",
+      "Resultado correcto esperado"
+    ],
+    "edge_cases": [
+      "Variantes de la entrada que podrían seguir fallando"
+    ],
+    "business_rules": [
+      "Regla de negocio que el bug viola"
+    ],
+    "technical_constraints": [
+      "Respeta el stack del proyecto (tech-stack); nuevas dependencias solo si la spec lo justifica"
+    ],
+    "affected_paths": [
+      "src/"
+    ],
+    "acceptance_criteria": [
+      "La corrección está en el código de root_cause",
+      "Un test de reproducción que ejecuta el código de root_cause falla en el baseline y pasa tras la corrección",
+      "La suite completa sigue en verde"
+    ],
+    "testing_strategy": [
+      "Test de reproducción en rojo antes de corregir, que ejecuta el código de root_cause: si la causa está en un adaptador, en infraestructura o en la base de datos, es un test de integración con los servicios levantados, no uno con dobles del componente defectuoso",
+      "Suite completa tras la corrección"
+    ],
     "implementation_tasks": [
-      "T001: Reproducir con un test en rojo",
-      "T002: Corregir la causa raíz",
-      "T003: Verificar la regresión con la suite completa"
+      "T001: Localizar y confirmar la causa raíz (root_cause) antes de escribir el test",
+      "T002: Reproducir con un test en rojo que ejecute el código de root_cause",
+      "T003: Corregir la causa raíz",
+      "T004: Verificar la regresión con la suite completa"
     ]
   },
   "instructions": {
-    "author_spec": "Redacta la especificación del bug siguiendo spec_template. La primera tarea (T001) debe ser 'Reproducir con un test en rojo'; la baseline se toma al iniciar, ANTES de escribir ese test.",
+    "author_spec": "Redacta la especificación del bug siguiendo spec_template. Antes de redactarla localiza la causa raíz sin editar archivos (git blame, git log -S, la traza de un test o la lectura del código) y declárala en root_cause: file (debe existir en el repositorio), symbol o line, how_found y explanation; sin root_cause, rapid start bugfix rechaza la spec (RAPID1438). Las tareas van en este orden: localizar y confirmar la causa, reproducir con un test en rojo que ejecute el código de root_cause, corregir la causa y verificar con la suite completa. La baseline se toma al iniciar, ANTES de escribir el test.",
     "run_baseline": "Ejecuta la verificación de baseline antes de escribir cualquier test de reproducción. Si el comando sale en rojo, el repositorio no está sano antes de empezar; arregla la causa o ejecuta rapid abort. Si el repo tiene código pero no tests, crea un test que pase en una tarea, o usa el modo research.",
     "activate": "El baseline fue verificado satisfactoriamente. Activa el run para comenzar la ejecución de tareas.",
-    "implement_task": "Implementa solo la tarea indicada. T001: escribe un test que falle por el bug y regístralo con rapid check --expect fail; la corrección va en la tarea siguiente. Corre los tests con rapid check.",
+    "implement_task": "Implementa solo la tarea indicada. Localizar la causa: confirma root_cause leyendo el código y su historia; no escribas tests ni cambies código todavía. Reproducir: escribe un test que ejecute el código de root_cause (si la causa está en un adaptador, en infraestructura o en la base de datos, un test de integración con los servicios levantados, no uno con dobles del componente defectuoso) y regístralo con rapid check --expect fail. Corregir: cambia el código de root_cause; al cerrar la tarea Rapid OS comprueba que el test de reproducción falla en el árbol del baseline y pasa en el actual (reproduction_holds). Corre los tests con rapid check.",
     "verify": "Ejecuta las verificaciones automáticas de machine gates o capacidades requeridas.",
-    "await_human_approval": "Compuertas de revisión humana pendientes. Espera la aprobación del revisor.",
+    "await_human_approval": "Compuertas de revisión humana pendientes. Entrega nombrando la causa raíz (root_cause), las líneas del diff que la corrigen y, aparte, las defensas adicionales; espera la aprobación del revisor.",
     "finish": "Todas las tareas y compuertas han sido completadas satisfactoriamente. Finaliza el run.",
     "done": "El ciclo de ejecución ha concluido.",
     "blocked": "La ejecución está bloqueada. Revisa la razón o tarea bloqueada y resuelve el impedimento."
