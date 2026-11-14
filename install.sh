@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_URL="https://github.com/alyconr/Rapid-OS.git"
-RAPID_VERSION="v3.2.0-rc.3"
+RAPID_VERSION="v3.2.0-rc.4"
 INSTALL_DIR="$HOME/.rapid-os"
 VENV_DIR="$INSTALL_DIR/.venv"
 BIN_DIR="$HOME/.local/bin"

@@ -8,6 +8,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+---
+
+## [3.2.0rc4] - 2026-11-13 (pre-release)
+
+Fourth release candidate for 3.2.0 (git tag `v3.2.0-rc.4`, PEP 440 version `3.2.0rc4`). The latest stable release is still `v3.1.1`: the README and the installation docs keep documenting it until the final 3.2.0 release, while the installers pin this tag. If you tried rc3, this is what changes:
+
+- **Specs from PowerShell.** A spec whose accents became `?` in the PowerShell 5.1 pipe is refused with `RAPID1415`, and the shortcuts send the spec through a UTF-8 file.
+- **Progress and decisions.** `rapid status` lists the run's tasks and gates. `rapid approve`, rejecting, `rapid finish --merge` and accepting another test command are decided with `[s/N]` instead of typing a phrase.
+- **`gate.tests` proves what ran.** Only the `test_command` that Rapid OS runs itself satisfies it (`rapid check --gate gate.tests`, without a command), and a combined backend and frontend command adds the count of each component.
+- **No PASS without the change.** A run whose tree does not differ from where it started no longer gets PASS (`RAPID1441`).
+- **Bugfix fixes the cause.** A bugfix spec requires `root_cause`, and closing the fix task checks that the run's tests reproduce the bug on the baseline (`RAPID1438`, `RAPID1439`).
+- **Foreign worktrees.** `rapid start` and `rapid next` refuse a worktree that Rapid OS did not create, such as a harness's own isolation (`RAPID1450`).
+
+### Upgrading from rc3
+- A spec or a run already created with `?` instead of accents is not repaired by itself: use it as it is, or create a new revision with `rapid spec revise` from a UTF-8 file.
+- A bugfix spec without `root_cause` that already exists stays valid for its run; new bugfix specs need it.
+- The global shortcuts are updated when you reinstall with `install.ps1` or `install.sh` from the tag, and each project's with `rapid shortcuts install`, so the agent runs the tests with `rapid check` without a command.
+- A run opened with rc.3 that recorded `gate.tests` with another command has to run `rapid check --gate gate.tests` again before `rapid approve`.
+
+### Known issues
+- Outside Claude Code there are no hooks, so nothing stops an agent with a shell from writing to `.rapid-os/` directly. In Claude Code the hooks block it on a best-effort basis.
+- Evidence is not signed: records written directly under `.rapid-os/` can look valid.
+- Research during onboarding arrives in 3.3 (H-37).
+- `rapid finish` does not clean up the session (H-35, H-75).
+- The tree fingerprint counts git's LF to CRLF conversion as a code change (H-76).
+
+### Detailed changes
+
 ### Changed
 - A bugfix fixes the cause, not the symptom (H-67). A bugfix spec requires `root_cause` (`file`, `symbol` or `line`, `how_found`, `explanation`); without it, or with a file that does not exist, `rapid start bugfix` refuses it (`RAPID1438`; `rapid spec create --root-cause-json`). The template locates the cause first, then reproduces it with a red test that runs that code, then fixes it. Closing the fix task runs `test_command` in a temporary worktree with the run's baseline tree plus the new or changed tests: it must fail there (`reproduction_holds` evidence), otherwise the task stays open (`RAPID1439`). In the hand-over `rapid next` shows the cause, the diff lines at it and, apart, the additional defenses (`action.bugfix`), and warns when the fix does not touch the declared cause; the bugfix shortcut names the cause when handing over.
 - Approving without typing phrases (H-59). `rapid approve` no longer asks to type `aprobar <gate>` (`rechazar`, `dispensar`): it shows what is approved (run, gate, acceptance criteria, tasks, and `gate.tests` / `gate.architecture` with their evidence ids) and asks `¿Apruebas <gate>? [s/N]`. `s`, `si`, `sí`, `y`, `yes` approve; `N` or Enter offers to type a reason to reject, and an empty reason leaves everything unchanged (exit 1). Without a gate id it decides the only pending human gate; with several, or from an agent or without a TTY, it lists them as before. `--reject --reason` and `--waive --reason` ask `[s/N]` to confirm. `rapid finish --merge` (`integrar <run-id>`) and `--accept-test-command` (`aceptar comando de tests`) also ask `[s/N]` after saying what will be done (`--merge` shows the run, its verdict, the spec title and its acceptance criteria); Enter cancels with exit 1 (a declined merge used to exit 0). `--merge` now also refuses an agent session or an agent ancestor (`RAPID1310`), like `approve`. The phrase did not stop an agent with a pty; the TTY (`RAPID1310`), the ancestry check, the Claude Code hooks and the recorded reviewer stay.

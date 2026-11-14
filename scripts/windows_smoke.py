@@ -20,6 +20,10 @@ Standard library only. It drives the `rapid` executable of a clean venv, in a te
 8. H-71: in a linked git worktree that is not the worktree of a run (what Codex creates for itself), `rapid next` and
    `rapid start` are refused with RAPID1450 naming the main checkout and write nothing; from the main checkout
    `rapid next` still works.
+9. H-66 and H-68: in a feature run whose test_command is the combined command Rapid OS builds (backend and
+   frontend, from `combine_test_commands` of the installed wheel), `rapid check --gate gate.tests` without a
+   command, run from Windows PowerShell 5.1, adds both summaries and keeps the breakdown per component; and
+   `rapid check --gate gate.tests -- python -c "print('==== 31 passed ====')"` is refused with RAPID1440 and exit 1.
 
 PYTHONUTF8 and PYTHONIOENCODING are removed from the environment, because either of them hides H-29: the point is to
 run with the console code page of a real Windows machine.
@@ -68,6 +72,21 @@ VITEST_LIKE = (
     "      Tests  3 passed (3)\\n'.encode('utf-8')); sys.stdout.flush()"
 )
 SHIM = "@echo off\r\necho Ran 1 test in 0.001s\r\necho.\r\necho OK\r\nexit /b 0\r\n"
+# The two components of a combined test command (H-66): a pytest-like backend and a Vitest-like frontend.
+COMPONENT_SHIMS = {
+    "backend-tests": "@echo off\r\necho ==== 31 passed, 7 skipped in 1.00s ====\r\nexit /b 0\r\n",
+    "frontend-tests": "@echo off\r\necho  Test Files  1 passed (1)\r\necho       Tests  2 passed (2)\r\nexit /b 0\r\n",
+}
+FEATURE_SPEC = {
+    "title": "Booking availability",
+    "mode": "feature",
+    "business_objective": "Reject double bookings",
+    "problem_statement": "Bookings can overlap",
+    "scope": ["bookings"],
+    "acceptance_criteria": ["overlapping bookings are rejected"],
+    "tasks": ["T001: Implement availability control"],
+}
+FAKE_SUMMARY = "print('==== 31 passed ====')"
 
 
 def fail(message: str) -> None:
@@ -105,6 +124,8 @@ def main(argv: list[str]) -> int:
         bin_dir = base / "bin"
         bin_dir.mkdir()
         (bin_dir / "smoke-tests.cmd").write_text(SHIM, encoding="ascii", newline="")
+        for name, shim in COMPONENT_SHIMS.items():
+            (bin_dir / f"{name}.cmd").write_text(shim, encoding="ascii", newline="")
         env = clean_environment(base, bin_dir)
 
         def rapid(*args: str, raw: bytes | None = None, cwd: Path = project) -> str:
@@ -283,6 +304,59 @@ def main(argv: list[str]) -> int:
             fail(f"H-71: the refused commands wrote in the harness worktree:\n{status}")
         rapid("next", "--json")
         print("ok  H-71: a harness worktree is refused with RAPID1450 naming the main checkout")
+
+        # 9. H-66 and H-68: gate.tests from Windows PowerShell 5.1 with the combined test command Rapid OS builds.
+        combined = base / "combined"
+        combined.mkdir()
+        onboard(combined)
+        venv_python = Path(rapid_exe).with_name("python.exe")
+        built = subprocess.run(
+            [str(venv_python), "-c",
+             "import json; from rapid_os.orchestration.setup_conductor import combine_test_commands; "
+             "print(json.dumps(combine_test_commands([['backend-tests'], ['frontend-tests']])))"],
+            env=env, capture_output=True, timeout=120, stdin=subprocess.DEVNULL,
+        )
+        if built.returncode != 0:
+            fail(f"H-66: could not build the combined test command with {venv_python}:\n{built.stderr.decode('utf-8', 'replace')}")
+        config_file = combined / ".rapid-os" / "config.json"
+        config = json.loads(config_file.read_text(encoding="utf-8"))
+        config["test_command"] = json.loads(built.stdout)
+        config_file.write_text(json.dumps(config, indent=2), encoding="utf-8")
+        feature_spec = base / "feature-spec.json"
+        feature_spec.write_text(json.dumps(FEATURE_SPEC), encoding="utf-8")
+        rapid("start", "feature", "--spec-file", str(feature_spec), "--json", cwd=combined)
+        rapid("task", "start", "T001", cwd=combined)
+
+        def in_powershell(command: str) -> subprocess.CompletedProcess:
+            return subprocess.run(
+                ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command + "; exit $LASTEXITCODE"],
+                cwd=combined, env=env, capture_output=True, timeout=180, stdin=subprocess.DEVNULL,
+            )
+
+        gate = in_powershell(f"& {ps_quote(rapid_exe)} check --json --gate gate.tests")
+        gate_out = gate.stdout.decode("utf-8", "replace")
+        if gate.returncode != 0:
+            fail(f"H-66: rapid check --gate gate.tests failed in PowerShell (exit {gate.returncode}):\n{gate_out}\n"
+                 f"{gate.stderr.decode('utf-8', 'replace')}")
+        result = json.loads(gate_out)
+        parts = result.get("components") or []
+        counts = [(Path(str(p["command"])).name, p["passed"], p["skipped"], p["counted"]) for p in parts]
+        if (result.get("passed"), result.get("skipped")) != (33, 7) or counts != [
+            ("backend-tests", 31, 7, True), ("frontend-tests", 2, 0, True)
+        ]:
+            fail(f"H-66: expected 33 passed and 7 skipped from both components, got {result}")
+        if "gate.tests" in result.get("refused_gates", []):
+            fail(f"H-66: the configured test command did not satisfy gate.tests: {result}")
+        print("ok  H-66: gate.tests from PowerShell 5.1: 33 passed, 7 skipped (backend-tests 31+7, frontend-tests 2)")
+
+        fake = in_powershell(
+            f"& {ps_quote(rapid_exe)} check --gate gate.tests -- {ps_quote(sys.executable)} -c \"{FAKE_SUMMARY}\""
+        )
+        fake_err = fake.stderr.decode("utf-8", "replace") + fake.stdout.decode("utf-8", "replace")
+        if fake.returncode != 1 or "RAPID1440" not in fake_err:
+            fail(f"H-68: python -c print(...) for gate.tests was not refused with RAPID1440 and exit 1 "
+                 f"(exit {fake.returncode}):\n{fake_err}")
+        print("ok  H-68: python -c print('==== 31 passed ====') for gate.tests -> RAPID1440, exit 1")
     print("Windows smoke test passed.")
     return 0
 
