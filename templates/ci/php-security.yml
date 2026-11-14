@@ -31,7 +31,10 @@ jobs:
 # endif
 # endif
 
-  static:
+  # Cada escáner va en su propio job: un hallazgo de semgrep no impide que corran los demás y la persona ve
+  # todos los hallazgos de una vez.
+  # Fuentes: https://docs.semgrep.dev/cli-reference , https://semgrep.dev/p/owasp-top-ten
+  semgrep:
     name: Análisis estático (semgrep OWASP Top 10)
     runs-on: ubuntu-latest
     steps:
@@ -46,23 +49,49 @@ jobs:
       - name: semgrep con las reglas OWASP Top 10
         run: semgrep scan --config p/owasp-top-ten --error --metrics=off
 
+  # Una vez por carpeta de componente (backend/, o la raíz en un proyecto de una carpeta): el manifiesto y
+  # el lockfile están ahí.
+  # Fuentes: https://getcomposer.org/doc/03-cli.md#audit ,
+  # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands
   dependencies:
-    name: Dependencias (composer audit)
+    name: Dependencias (composer audit) · ${{ matrix.dir }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: {RAPID_COMPONENT_DIRS}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Comprobar que la carpeta del componente tiene código
+        id: folder
+        env:
+          DIR: ${{ matrix.dir }}
+        run: |
+          if [ -d "$DIR" ] && [ -n "$(find "$DIR" -type f \( -name '*.php' -o -name composer.json -o -name composer.lock \) -not -path '*/node_modules/*' -not -path '*/.git/*' -print -quit)" ]; then
+            echo "audit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Nada que auditar::$DIR no existe o no tiene código PHP todavía: no se auditó ninguna dependencia."
+            echo "Nada que auditar: $DIR no existe o no tiene código PHP todavía." >> "$GITHUB_STEP_SUMMARY"
+            echo "audit=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        if: steps.folder.outputs.audit == 'true'
         with:
           php-version: "8.4"
           tools: composer
       - name: Auditar las dependencias con composer audit
+        if: steps.folder.outputs.audit == 'true'
+        working-directory: ${{ matrix.dir }}
+        env:
+          DIR: ${{ matrix.dir }}
         run: |
           if [ -f composer.lock ]; then
             composer audit
           else
-            echo "Sin composer.lock todavía: nada que auditar."
+            echo "::error title=Faltan las dependencias::$DIR tiene código PHP pero no tiene composer.lock: genéralo y haz commit para que se audite."
+            exit 1
           fi
 
 # if corporate

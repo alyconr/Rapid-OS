@@ -7,4 +7,5 @@
 - **Testing:** Minitest (`bin/rails test`).
 - **Linting:** RuboCop + Brakeman + bundler-audit.
 - **Package manager:** Bundler.
+- **Supply chain:** every public `source` of the `Gemfile` sets a cooldown, `source "https://rubygems.org", cooldown: 7` (Bundler 4.0.13 or later): Bundler does not resolve gem versions published in the last seven days. Without it semgrep `p/owasp-top-ten` fails the security workflow. Source: https://blog.rubygems.org/2026/06/03/cooldown-let-new-gems-be-vetted.html.
 - **Version Control:** Git.

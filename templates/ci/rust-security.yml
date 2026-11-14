@@ -31,8 +31,11 @@ jobs:
 # endif
 # endif
 
-  static:
-    name: Análisis estático (semgrep OWASP Top 10 y clippy)
+  # Cada escáner va en su propio job: un hallazgo de semgrep no impide que corran los demás y la persona ve
+  # todos los hallazgos de una vez.
+  # Fuentes: https://docs.semgrep.dev/cli-reference , https://semgrep.dev/p/owasp-top-ten
+  semgrep:
+    name: Análisis estático (semgrep OWASP Top 10)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -45,29 +48,85 @@ jobs:
         run: python -m pip install semgrep==1.182.1
       - name: semgrep con las reglas OWASP Top 10
         run: semgrep scan --config p/owasp-top-ten --error --metrics=off
+
+  # Una vez por carpeta de componente, en su propio job (no depende de semgrep).
+  # Fuentes: https://doc.rust-lang.org/clippy/usage.html
+  clippy:
+    name: Análisis estático (clippy) · ${{ matrix.dir }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: {RAPID_COMPONENT_DIRS}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Comprobar que la carpeta del componente tiene código
+        id: folder
+        env:
+          DIR: ${{ matrix.dir }}
+        run: |
+          if [ -d "$DIR" ] && [ -n "$(find "$DIR" -type f \( -name '*.rs' -o -name Cargo.toml \) -not -path '*/node_modules/*' -not -path '*/.git/*' -print -quit)" ]; then
+            echo "scan=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Nada que analizar::$DIR no existe o no tiene código Rust todavía: no se analizó nada."
+            echo "Nada que analizar: $DIR no existe o no tiene código Rust todavía." >> "$GITHUB_STEP_SUMMARY"
+            echo "scan=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: clippy (advertencias como errores)
+        if: steps.folder.outputs.scan == 'true'
+        working-directory: ${{ matrix.dir }}
+        env:
+          DIR: ${{ matrix.dir }}
         run: |
           if [ -f Cargo.toml ]; then
             rustup toolchain install stable --profile minimal --component clippy
             cargo clippy --all-targets -- -D warnings
           else
-            echo "Sin Cargo.toml todavía: nada que analizar."
+            echo "::error title=Falta Cargo.toml::$DIR tiene código Rust pero no tiene Cargo.toml: el análisis lo necesita."
+            exit 1
           fi
 
+  # Una vez por carpeta de componente (backend/, o la raíz en un proyecto de una carpeta): el manifiesto y
+  # el lockfile están ahí.
+  # Fuentes: https://github.com/rustsec/rustsec/tree/main/cargo-audit ,
+  # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands
   dependencies:
-    name: Dependencias (cargo audit)
+    name: Dependencias (cargo audit) · ${{ matrix.dir }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: {RAPID_COMPONENT_DIRS}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Comprobar que la carpeta del componente tiene código
+        id: folder
+        env:
+          DIR: ${{ matrix.dir }}
+        run: |
+          if [ -d "$DIR" ] && [ -n "$(find "$DIR" -type f \( -name '*.rs' -o -name Cargo.toml -o -name Cargo.lock \) -not -path '*/node_modules/*' -not -path '*/.git/*' -print -quit)" ]; then
+            echo "audit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Nada que auditar::$DIR no existe o no tiene código Rust todavía: no se auditó ninguna dependencia."
+            echo "Nada que auditar: $DIR no existe o no tiene código Rust todavía." >> "$GITHUB_STEP_SUMMARY"
+            echo "audit=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Auditar las dependencias con cargo audit
+        if: steps.folder.outputs.audit == 'true'
+        working-directory: ${{ matrix.dir }}
+        env:
+          DIR: ${{ matrix.dir }}
         run: |
           if [ -f Cargo.lock ]; then
             cargo install cargo-audit --version 0.22.2 --locked
             cargo audit
           else
-            echo "Sin Cargo.lock todavía: nada que auditar."
+            echo "::error title=Faltan las dependencias::$DIR tiene código Rust pero no tiene Cargo.lock: genéralo y haz commit para que se audite."
+            exit 1
           fi
 
 # if corporate

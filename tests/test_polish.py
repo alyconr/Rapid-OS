@@ -99,7 +99,7 @@ class WorkflowNameTests(unittest.TestCase):
                 (TEMPLATES / "ci" / f"{language}-security.yml").read_text(encoding="utf-8"),
                 archetype="mvp", language=language,
             )
-            self.assertIn(f"\nname: rapid-security ({language})\n", text)
+            self.assertIn(f"\nname: rapid-security-{language}\n", text)
             self.assertEqual(ci_workflow_path(language), f".github/workflows/rapid-security-{language}.yml")
 
     def test_the_two_components_get_two_distinct_names_and_files(self):
@@ -109,7 +109,7 @@ class WorkflowNameTests(unittest.TestCase):
             ), re.MULTILINE).group(1)
             for lang in ("go", "typescript")
         }
-        self.assertEqual(names, {"rapid-security (go)", "rapid-security (typescript)"})
+        self.assertEqual(names, {"rapid-security-go", "rapid-security-typescript"})
 
 
 class ContractRowTests(unittest.TestCase):
