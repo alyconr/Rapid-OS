@@ -1,0 +1,101 @@
+# rapid-os-ci: python sha256=3d236e28e3c7dede21272e6c7afafb0e48d93d335b90c34886a9343159c0c283
+# Escaneos de seguridad de Rapid OS (base de seguridad: docs en .rapid-os/standards/security.md).
+# Lo escribió Rapid OS al cerrar el onboarding de un repositorio vacío: revísalo antes del primer commit.
+# Las acciones están fijadas por SHA completo del commit, con su versión en un comentario.
+name: rapid-security-python
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: Secretos (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Instalar gitleaks 8.30.1 (suma de verificación fijada)
+        run: |
+          curl -sSfL -o gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+      - name: Buscar secretos en el historial
+        run: ./gitleaks git --redact --verbose --exit-code 1
+
+  static:
+    name: Análisis estático (semgrep OWASP Top 10 y bandit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Instalar semgrep y bandit
+        run: python -m pip install semgrep==1.182.1 bandit==1.9.4
+      - name: semgrep con las reglas OWASP Top 10
+        run: semgrep scan --config p/owasp-top-ten --error --metrics=off
+      - name: bandit (severidad media o superior)
+        run: bandit -r . -ll --exclude ./tests,./.venv,./venv,./node_modules
+
+  # Una vez por carpeta de componente (backend/, o la raíz en un proyecto de una carpeta): el manifiesto y el
+  # lockfile están ahí. Con uv.lock se exportan los requisitos fijados con sus hashes y pip-audit los audita
+  # sin resolver de nuevo (`uv audit` existe pero uv lo marca como experimental).
+  # Fuentes: https://github.com/pypa/pip-audit , https://docs.astral.sh/uv/reference/cli/#uv-export ,
+  # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands
+  dependencies:
+    name: Dependencias (pip-audit) · ${{ matrix.dir }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ["backend"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Comprobar que la carpeta del componente tiene código
+        id: folder
+        env:
+          DIR: ${{ matrix.dir }}
+        run: |
+          if [ -d "$DIR" ] && [ -n "$(find "$DIR" -type f \( -name '*.py' -o -name pyproject.toml -o -name requirements.txt -o -name uv.lock \) -not -path '*/.venv/*' -not -path '*/venv/*' -not -path '*/node_modules/*' -not -path '*/.git/*' -print -quit)" ]; then
+            echo "audit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Nada que auditar::$DIR no existe o no tiene código Python todavía: no se auditó ninguna dependencia."
+            echo "Nada que auditar: $DIR no existe o no tiene código Python todavía." >> "$GITHUB_STEP_SUMMARY"
+            echo "audit=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        if: steps.folder.outputs.audit == 'true'
+        with:
+          python-version: "3.12"
+      - name: Auditar las dependencias declaradas
+        if: steps.folder.outputs.audit == 'true'
+        working-directory: ${{ matrix.dir }}
+        env:
+          DIR: ${{ matrix.dir }}
+        run: |
+          if [ ! -f uv.lock ] && [ ! -f requirements.txt ] && [ ! -f pyproject.toml ]; then
+            echo "::error title=Faltan las dependencias::$DIR tiene código Python pero no tiene uv.lock, requirements.txt ni pyproject.toml: declara las dependencias para auditarlas."
+            exit 1
+          fi
+          python -m pip install pip-audit==2.10.1 uv==0.13.8
+          if [ -f uv.lock ]; then
+            uv export --frozen --format requirements.txt --no-emit-project -o "$RUNNER_TEMP/requirements-audit.txt"
+            pip-audit --disable-pip -r "$RUNNER_TEMP/requirements-audit.txt"
+          elif [ -f requirements.txt ]; then
+            pip-audit -r requirements.txt
+          else
+            python -m pip install .
+            pip-audit --skip-editable
+          fi
+

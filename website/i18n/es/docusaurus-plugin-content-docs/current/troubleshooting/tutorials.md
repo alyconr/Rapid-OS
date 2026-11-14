@@ -50,6 +50,16 @@ Errores típicos al trabajar con `/rapid-*`. La guía completa está en [Shortcu
 
 ---
 
+### El workflow de seguridad sale en verde pero dice «Nada que auditar»
+
+- **Causa:** el job de dependencias no encontró código de su lenguaje en la carpeta del componente (`backend/`, `frontend/`, o la raíz en un proyecto de una carpeta): la carpeta todavía no existe o no tiene archivos de código. No se auditó nada. Hasta 3.2.0rc3 el job buscaba el manifiesto y el lockfile solo en la raíz, así que con `fullstack-separated` decía «Sin dependencias declaradas todavía» o «Sin lockfile todavía» y pasaba aunque `backend/` y `frontend/` los tenían.
+- **Solución:** ninguna mientras el repositorio es nuevo. En un proyecto existente ejecuta `rapid doctor`: `RAPID1443` sugiere `rapid setup ci --regenerate`, que pone el workflow al día (uno editado no se pisa: el nuevo queda al lado como `.new`).
+
+### El job de dependencias falla: «tiene código ... pero no tiene ...»
+
+- **Causa:** la carpeta del componente tiene archivos de código pero no tiene manifiesto o lockfile, por ejemplo `frontend tiene package.json pero ningún lockfile`. Sin el lockfile la auditoría no sabe qué versiones se instalan.
+- **Solución:** instala las dependencias en esa carpeta y haz commit del lockfile (`pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`, `uv.lock`, `Cargo.lock`, `Gemfile.lock`, `composer.lock`), o decláralas (`pyproject.toml`, `requirements.txt`, `go.mod`).
+
 ## 1. Problemas de Inicialización y Scanner
 
 ### Error: `RAPID1001` (Project Model Error) o facts incompletos

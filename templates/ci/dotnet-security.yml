@@ -46,26 +46,52 @@ jobs:
       - name: semgrep con las reglas OWASP Top 10
         run: semgrep scan --config p/owasp-top-ten --error --metrics=off
 
+  # Una vez por carpeta de componente (backend/, o la raíz en un proyecto de una carpeta): el manifiesto y
+  # el lockfile están ahí.
+  # Fuentes: https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-package-list ,
+  # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands
   dependencies:
-    name: Dependencias (dotnet package list --vulnerable)
+    name: Dependencias (dotnet package list --vulnerable) · ${{ matrix.dir }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: {RAPID_COMPONENT_DIRS}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Comprobar que la carpeta del componente tiene código
+        id: folder
+        env:
+          DIR: ${{ matrix.dir }}
+        run: |
+          if [ -d "$DIR" ] && [ -n "$(find "$DIR" -type f \( -name '*.cs' -o -name '*.csproj' -o -name '*.sln' -o -name '*.slnx' \) -not -path '*/node_modules/*' -not -path '*/.git/*' -print -quit)" ]; then
+            echo "audit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Nada que auditar::$DIR no existe o no tiene código .NET todavía: no se auditó ninguna dependencia."
+            echo "Nada que auditar: $DIR no existe o no tiene código .NET todavía." >> "$GITHUB_STEP_SUMMARY"
+            echo "audit=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        if: steps.folder.outputs.audit == 'true'
         with:
           dotnet-version: 10.0.x
       - name: Auditar las dependencias (incluidas las transitivas)
+        if: steps.folder.outputs.audit == 'true'
+        working-directory: ${{ matrix.dir }}
+        env:
+          DIR: ${{ matrix.dir }}
         run: |
           if ls ./*.sln ./*.slnx ./*.csproj ./src/*/*.csproj >/dev/null 2>&1; then
-            dotnet package list --vulnerable --include-transitive 2>&1 | tee audit.txt
-            if grep -q "has the following vulnerable packages" audit.txt; then
+            dotnet package list --vulnerable --include-transitive 2>&1 | tee "$RUNNER_TEMP/audit.txt"
+            if grep -q "has the following vulnerable packages" "$RUNNER_TEMP/audit.txt"; then
               echo "Hay paquetes vulnerables." >&2
               exit 1
             fi
           else
-            echo "Sin proyectos .NET todavía: nada que auditar."
+            echo "::error title=Faltan las dependencias::$DIR tiene código .NET pero no tiene una solución ni un proyecto (.sln, .slnx o .csproj): genéralo y haz commit para que se audite."
+            exit 1
           fi
 
 # if corporate

@@ -53,24 +53,50 @@ jobs:
         run: |
           if [ -f go.mod ]; then go vet ./...; else echo "Sin go.mod todavía: nada que analizar."; fi
 
+  # Una vez por carpeta de componente (backend/, o la raíz en un proyecto de una carpeta): el manifiesto y
+  # el lockfile están ahí.
+  # Fuentes: https://go.dev/doc/tutorial/govulncheck ,
+  # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands
   dependencies:
-    name: Dependencias (govulncheck)
+    name: Dependencias (govulncheck) · ${{ matrix.dir }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: {RAPID_COMPONENT_DIRS}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Comprobar que la carpeta del componente tiene código
+        id: folder
+        env:
+          DIR: ${{ matrix.dir }}
+        run: |
+          if [ -d "$DIR" ] && [ -n "$(find "$DIR" -type f \( -name '*.go' -o -name go.mod \) -not -path '*/node_modules/*' -not -path '*/.git/*' -print -quit)" ]; then
+            echo "audit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Nada que auditar::$DIR no existe o no tiene código Go todavía: no se auditó ninguna dependencia."
+            echo "Nada que auditar: $DIR no existe o no tiene código Go todavía." >> "$GITHUB_STEP_SUMMARY"
+            echo "audit=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.folder.outputs.audit == 'true'
         with:
           go-version: stable
           cache: false
       - name: Auditar las dependencias con govulncheck
+        if: steps.folder.outputs.audit == 'true'
+        working-directory: ${{ matrix.dir }}
+        env:
+          DIR: ${{ matrix.dir }}
         run: |
           if [ -f go.mod ]; then
             go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
             govulncheck ./...
           else
-            echo "Sin go.mod todavía: nada que auditar."
+            echo "::error title=Faltan las dependencias::$DIR tiene código Go pero no tiene go.mod: genéralo y haz commit para que se audite."
+            exit 1
           fi
 
 # if corporate

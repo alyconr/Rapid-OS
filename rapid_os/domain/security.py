@@ -7,8 +7,10 @@ Markdown and `# if NAME` / `# endif` in YAML. A region is kept when every enclos
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
-from typing import Collection, Iterable, Mapping
+from typing import Collection, Iterable, Mapping, Sequence
 
 # Stacks whose product is built around models or agents: no question, the AI section applies.
 # (Only the ids of before the component catalog: now a project answers `ai`.)
@@ -166,17 +168,86 @@ def render_ci_workflow(
     primary: bool = True,
     language: str | None = None,
     stack_ids: Iterable[str] = (),
+    dirs: Sequence[str] = (".",),
 ) -> str:
     """The CI workflow: Corporate adds the SBOM and the provenance, and only the first workflow of a
     project scans the secrets (a second language would repeat the same scan). With a `language`,
-    the workflow is named after it so the two of a project do not look alike on GitHub."""
+    the workflow is named after it (`rapid-security-<language>`, like its file) so the workflows of a
+    project do not look alike on GitHub. `dirs` are the folders of the components of that language
+    (`backend`, `frontend`, or `.` for a project in one folder): the jobs that read a manifest or a
+    lockfile run once in each (H-78)."""
     active = {archetype, "primary"} if primary else {archetype}
     # The tests of a BaaS provider's rules run in the workflow of its language (the frontend's).
     active.update(provider for provider in BAAS_PROVIDERS if provider in set(stack_ids))
     body = render_conditionals(template, active)
     if language:
-        body = re.sub(r"^name: rapid-security[ \t]*$", f"name: rapid-security ({language})", body, count=1, flags=re.MULTILINE)
-    return body
+        body = re.sub(r"^name: rapid-security[ \t]*$", f"name: rapid-security-{language}", body, count=1, flags=re.MULTILINE)
+    return body.replace(COMPONENT_DIRS_TOKEN, json.dumps(list(dirs) or ["."]))
+
+
+# The matrix of folders of the jobs that read a manifest or a lockfile.
+COMPONENT_DIRS_TOKEN = "{RAPID_COMPONENT_DIRS}"
+# Components that can live in a folder of their own (fullstack-separated: backend/ and frontend/).
+_FOLDER_COMPONENTS = ("backend", "frontend")
+
+
+def ci_component_dirs(
+    component_stacks: Mapping[str, str], scanned_languages: Collection[str] = ()
+) -> dict[str, list[str]]:
+    """The folders of each CI language, from the components of the topology (setup.json).
+
+    A backend and a frontend with different stacks live in `backend/` and `frontend/`, the same rule as
+    the test command of each component; any other project lives in the root (`.`)."""
+    chosen = {c: s for c, s in component_stacks.items() if c in _FOLDER_COMPONENTS}
+    separate = len(chosen) == 2 and len(set(chosen.values())) == 2
+    found: dict[str, list[str]] = {}
+    ordered = [c for c in ("backend", "frontend") if c in component_stacks] + [
+        c for c in component_stacks if c not in ("backend", "frontend")
+    ]
+    for component in ordered:
+        language = ci_language(component_stacks[component], scanned_languages)
+        if not language:
+            continue
+        folder = component if separate and component in chosen else "."
+        dirs = found.setdefault(language, [])
+        if folder not in dirs:
+            dirs.append(folder)
+    for language, dirs in found.items():
+        if "." in dirs and len(dirs) > 1:  # a BaaS beside a separate frontend: its folder is the frontend's
+            found[language] = [d for d in dirs if d != "."]
+    return found
+
+
+# The first line of a workflow Rapid OS writes: what it is and the SHA-256 of the rest of the file, so a
+# later version can tell a workflow nobody edited (it is replaced) from one the person changed (`.new`).
+CI_STAMP_PREFIX = "# rapid-os-ci:"
+_STAMP = re.compile(r"^# rapid-os-ci: (?P<language>[a-z]+) sha256=(?P<digest>[0-9a-f]{64})\n")
+
+
+def _lf(text: str) -> str:
+    return text.replace("\r\n", "\n")
+
+
+def ci_body_digest(body: str) -> str:
+    return hashlib.sha256(_lf(body).encode("utf-8")).hexdigest()
+
+
+def stamp_ci_workflow(body: str, language: str) -> str:
+    """The workflow with its first line: language and digest of the body."""
+    return f"{CI_STAMP_PREFIX} {language} sha256={ci_body_digest(body)}\n{body}"
+
+
+def ci_workflow_state(text: str, expected: str, legacy_digests: Collection[str] = ()) -> str:
+    """`current` (it is what this version writes), `outdated` (written by Rapid OS and not edited since:
+    it can be replaced), or `edited` (the person changed it, or it was not written by Rapid OS)."""
+    normalized = _lf(text)
+    if normalized == _lf(expected):
+        return "current"
+    stamp = _STAMP.match(normalized)
+    if stamp is not None:
+        body = normalized[stamp.end():]
+        return "outdated" if ci_body_digest(body) == stamp.group("digest") else "edited"
+    return "outdated" if ci_body_digest(normalized) in legacy_digests else "edited"
 
 
 def ci_language(stack_id: str | None, scanned_languages: Collection[str] = ()) -> str | None:

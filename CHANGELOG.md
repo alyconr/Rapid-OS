@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- The security workflow audited nothing and went green (H-78). In a `fullstack-separated` project (python-fastapi in `backend/`, angular with pnpm in `frontend/`) the dependencies jobs looked for the manifest and the lockfile in the root and said "nada que auditar". The workflows Rapid OS writes now run the jobs that read a manifest once per folder of each component of the topology (`setup.json`), with that folder as the working directory: a `uv.lock` is exported with `uv export --frozen` and audited with `pip-audit --disable-pip`; `requirements.txt` and `pyproject.toml` as before; pnpm, npm or yarn by the lockfile of the folder, and the pnpm version from its `package.json`. A folder with code and no manifest or lockfile fails and says what is missing and where; only a folder that does not exist or has no code yet passes, with a `::warning::` that also goes to the job summary. One-folder topologies run in the root, as before. Each workflow is named like its file (`rapid-security-python`, `rapid-security-typescript`) and starts with a `# rapid-os-ci:` stamp (the SHA-256 of its content). `rapid doctor` reports `RAPID1443` for a workflow an earlier version wrote (by its stamp, or by the digests of the workflows of 3.2.0rc1 to rc3) and `rapid setup ci --regenerate` brings it up to date: it replaces an unedited one (copy in `.rapid-os/backups/`) and writes the new one beside an edited one as `.new`.
+
 ---
 
 ## [3.2.0rc4] - 2026-11-13 (pre-release)

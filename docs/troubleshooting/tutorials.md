@@ -59,6 +59,16 @@ Common errors when working with `/rapid-*`. See the complete [Shortcuts by Harne
 - **Cause:** the tree outside `.rapid-os/` is the one the run started from: the change was undone (a file returned to its previous version) after an earlier `rapid finish` had recorded `file_change`. A run that never made the change ends `UNVERIFIED` instead, with its reason. A feature, bugfix, refactor or hardening run does not end in PASS without the change it declares.
 - **Fix:** make the change, run what `rapid next` gives (the test check), approve again and repeat `rapid finish`; or `rapid abort` if the run is not needed. `RAPID1442` is only a warning: the change touches no `affected_path` of the spec, so check that it is the right one.
 
+### The security workflow is green but says "Nada que auditar"
+
+- **Cause:** the dependencies job found no code of its language in the folder of the component (`backend/`, `frontend/`, or the root in a one-folder project): the folder does not exist yet or has no source files. Nothing was audited. In 3.2.0rc3 and earlier the job looked for the manifest and the lockfile only in the root, so with `fullstack-separated` it said "Sin dependencias declaradas todavía" or "Sin lockfile todavía" and passed while `backend/` and `frontend/` had them.
+- **Fix:** nothing, while the repository is new. In an existing project, run `rapid doctor`: `RAPID1443` points to `rapid setup ci --regenerate`, which brings the workflow up to date (an edited workflow is not overwritten; the new one goes beside it as `.new`).
+
+### The dependencies job fails: "tiene código ... pero no tiene ..."
+
+- **Cause:** the folder of the component has source files but no manifest or lockfile, for example `frontend tiene package.json pero ningún lockfile`. Without the lockfile the audit cannot know which versions are installed.
+- **Fix:** install the dependencies in that folder and commit the lockfile (`pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`, `uv.lock`, `Cargo.lock`, `Gemfile.lock`, `composer.lock`), or declare them (`pyproject.toml`, `requirements.txt`, `go.mod`).
+
 ## 1. Scanner and initialization issues
 
 ### `RAPID1001` (Project Model Error) or incomplete facts

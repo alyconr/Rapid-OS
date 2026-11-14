@@ -45,28 +45,50 @@ jobs:
       - name: semgrep con las reglas OWASP Top 10
         run: semgrep scan --config p/owasp-top-ten --error --metrics=off
 
-  # El gestor de paquetes sale del lockfile del proyecto (pnpm-lock.yaml, package-lock.json o yarn.lock).
+  # Una vez por carpeta de componente (frontend/, backend/, o la raíz en un proyecto de una carpeta): el gestor
+  # de paquetes sale del lockfile de esa carpeta (pnpm-lock.yaml, package-lock.json o yarn.lock) y la versión de
+  # pnpm del package.json de esa misma carpeta.
   # Fuentes: https://github.com/pnpm/action-setup , https://pnpm.io/cli/install#--frozen-lockfile ,
   # https://pnpm.io/cli/audit , https://docs.npmjs.com/cli/commands/npm-ci ,
   # https://docs.npmjs.com/cli/commands/npm-audit , https://yarnpkg.com/cli/install ,
-  # https://yarnpkg.com/cli/npm/audit
+  # https://yarnpkg.com/cli/npm/audit ,
+  # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands
   dependencies:
-    name: Dependencias (auditoría del gestor de paquetes)
+    name: Dependencias (auditoría del gestor de paquetes) · ${{ matrix.dir }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: {RAPID_COMPONENT_DIRS}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Detectar el gestor de paquetes por el lockfile
+      - name: Detectar el gestor de paquetes por el lockfile de la carpeta
         id: pm
+        env:
+          DIR: ${{ matrix.dir }}
         run: |
-          if [ -f pnpm-lock.yaml ]; then manager=pnpm
-          elif [ -f package-lock.json ]; then manager=npm
-          elif [ -f yarn.lock ]; then manager=yarn
-          else manager=none; fi
+          code="$(find "$DIR" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' -o -name '*.mjs' -o -name '*.cjs' -o -name '*.vue' -o -name '*.svelte' -o -name '*.astro' -o -name package.json \) -not -path '*/node_modules/*' -not -path '*/.git/*' -print -quit 2>/dev/null || true)"
+          if [ ! -d "$DIR" ] || [ -z "$code" ]; then
+            echo "::warning title=Nada que auditar::$DIR no existe o no tiene código JavaScript/TypeScript todavía: no se auditó ninguna dependencia."
+            echo "Nada que auditar: $DIR no existe o no tiene código JavaScript/TypeScript todavía." >> "$GITHUB_STEP_SUMMARY"
+            echo "manager=none" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -f "$DIR/pnpm-lock.yaml" ]; then manager=pnpm
+          elif [ -f "$DIR/package-lock.json" ]; then manager=npm
+          elif [ -f "$DIR/yarn.lock" ]; then manager=yarn
+          elif [ -f "$DIR/package.json" ]; then
+            echo "::error title=Falta el lockfile::$DIR tiene package.json pero ningún lockfile (pnpm-lock.yaml, package-lock.json o yarn.lock): instala las dependencias en $DIR y haz commit del lockfile."
+            exit 1
+          else
+            echo "::error title=Faltan las dependencias::$DIR tiene código JavaScript/TypeScript pero no tiene package.json ni lockfile: declara las dependencias en $DIR."
+            exit 1
+          fi
           echo "manager=$manager" >> "$GITHUB_OUTPUT"
-          # pnpm/action-setup lee la versión de "packageManager"; sin ese campo, instala pnpm 10.
-          if [ -f package.json ] && grep -q '"packageManager"' package.json; then
+          # pnpm/action-setup lee la versión de "packageManager" del package.json de la carpeta; sin ese campo, instala pnpm 10.
+          if [ -f "$DIR/package.json" ] && grep -q '"packageManager"' "$DIR/package.json"; then
             echo "pnpm_version=" >> "$GITHUB_OUTPUT"
           else
             echo "pnpm_version=10" >> "$GITHUB_OUTPUT"
@@ -75,24 +97,32 @@ jobs:
         if: steps.pm.outputs.manager == 'pnpm'
         with:
           version: ${{ steps.pm.outputs.pnpm_version }}
+          package_json_file: ${{ matrix.dir }}/package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.pm.outputs.manager != 'none'
         with:
           node-version: "lts/*"
       - name: Instalar las dependencias con el lockfile
         if: steps.pm.outputs.manager != 'none'
+        working-directory: ${{ matrix.dir }}
+        env:
+          MANAGER: ${{ steps.pm.outputs.manager }}
         run: |
-          case "${{ steps.pm.outputs.manager }}" in
+          case "$MANAGER" in
             pnpm) pnpm install --frozen-lockfile ;;
             npm) npm ci ;;
             yarn) corepack enable && yarn install --immutable ;;
           esac
       - name: Auditar las dependencias (severidad alta o superior)
+        if: steps.pm.outputs.manager != 'none'
+        working-directory: ${{ matrix.dir }}
+        env:
+          MANAGER: ${{ steps.pm.outputs.manager }}
         run: |
-          case "${{ steps.pm.outputs.manager }}" in
+          case "$MANAGER" in
             pnpm) pnpm audit --audit-level high ;;
             npm) npm audit --audit-level=high ;;
             yarn) yarn npm audit --all --recursive --severity high ;;
-            *) echo "Sin lockfile todavía (pnpm-lock.yaml, package-lock.json o yarn.lock): nada que auditar." ;;
           esac
 
 # if supabase
