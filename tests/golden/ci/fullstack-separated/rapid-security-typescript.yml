@@ -1,4 +1,4 @@
-# rapid-os-ci: typescript sha256=0f607c3bb59ec6399a2f483c6fe448bdc787ce67a4fe00c023c7157b97436a25
+# rapid-os-ci: typescript sha256=0b651e995bcd49e1524b65bbc1038894647e0d30a4da4da774c15f09fbb8efff
 # Escaneos de seguridad de Rapid OS (base de seguridad: docs en .rapid-os/standards/security.md).
 # Lo escribió Rapid OS al cerrar el onboarding de un repositorio vacío: revísalo antes del primer commit.
 # Las acciones están fijadas por SHA completo del commit, con su versión en un comentario.
@@ -14,7 +14,10 @@ permissions:
 
 jobs:
 
-  static:
+  # Cada escáner va en su propio job: un hallazgo de semgrep no impide que corran los demás y la persona ve
+  # todos los hallazgos de una vez.
+  # Fuentes: https://docs.semgrep.dev/cli-reference , https://semgrep.dev/p/owasp-top-ten
+  semgrep:
     name: Análisis estático (semgrep OWASP Top 10)
     runs-on: ubuntu-latest
     steps:

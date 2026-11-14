@@ -64,6 +64,11 @@ Common errors when working with `/rapid-*`. See the complete [Shortcuts by Harne
 - **Cause:** the dependencies job found no code of its language in the folder of the component (`backend/`, `frontend/`, or the root in a one-folder project): the folder does not exist yet or has no source files. Nothing was audited. In 3.2.0rc3 and earlier the job looked for the manifest and the lockfile only in the root, so with `fullstack-separated` it said "Sin dependencias declaradas todavía" or "Sin lockfile todavía" and passed while `backend/` and `frontend/` had them.
 - **Fix:** nothing, while the repository is new. In an existing project, run `rapid doctor`: `RAPID1443` points to `rapid setup ci --regenerate`, which brings the workflow up to date (an edited workflow is not overwritten; the new one goes beside it as `.new`).
 
+### semgrep blocks `pnpm-workspace.yaml` (or `.npmrc`, `.yarnrc.yml`, `pyproject.toml`, `Gemfile`)
+
+- **Cause:** `p/owasp-top-ten` includes rules for the package manager configuration, such as `pnpm-missing-minimum-release-age`, `pnpm-trust-policy` and `pnpm-block-exotic-sub-dependencies`. A project scaffolded without those settings fails the semgrep job on its first push. Up to 3.2.0rc3 bandit ran after semgrep in the same job, so it did not run at all.
+- **Fix:** add the settings of your package manager (table in [the security baseline](../concepts/security-baseline.md#package-manager-settings-that-semgrep-checks)); for pnpm, `minimumReleaseAge: 10080`, `trustPolicy: no-downgrade` and `blockExoticSubdeps: true` in `pnpm-workspace.yaml`. Then run `rapid setup ci --regenerate` so that each scanner has its own job.
+
 ### The dependencies job fails: "tiene código ... pero no tiene ..."
 
 - **Cause:** the folder of the component has source files but no manifest or lockfile, for example `frontend tiene package.json pero ningún lockfile`. Without the lockfile the audit cannot know which versions are installed.

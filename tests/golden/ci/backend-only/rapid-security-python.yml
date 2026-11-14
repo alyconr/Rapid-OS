@@ -1,4 +1,4 @@
-# rapid-os-ci: python sha256=fca67c58038f62f10ad3faf2056ea5f957da300916c3de3560e705a8dc8afe1e
+# rapid-os-ci: python sha256=a82b69b3875a3a1ff6e2f77065046e3aad5d63f6174676c5828358b6969aa2d6
 # Escaneos de seguridad de Rapid OS (base de seguridad: docs en .rapid-os/standards/security.md).
 # Lo escribió Rapid OS al cerrar el onboarding de un repositorio vacío: revísalo antes del primer commit.
 # Las acciones están fijadas por SHA completo del commit, con su versión en un comentario.
@@ -29,8 +29,11 @@ jobs:
       - name: Buscar secretos en el historial
         run: ./gitleaks git --redact --verbose --exit-code 1
 
-  static:
-    name: Análisis estático (semgrep OWASP Top 10 y bandit)
+  # Cada escáner va en su propio job: un hallazgo de semgrep no impide que corran los demás y la persona ve
+  # todos los hallazgos de una vez.
+  # Fuentes: https://docs.semgrep.dev/cli-reference , https://semgrep.dev/p/owasp-top-ten
+  semgrep:
+    name: Análisis estático (semgrep OWASP Top 10)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -39,12 +42,26 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
-      - name: Instalar semgrep y bandit
-        run: python -m pip install semgrep==1.182.1 bandit==1.9.4
+      - name: Instalar semgrep
+        run: python -m pip install semgrep==1.182.1
       - name: semgrep con las reglas OWASP Top 10
         run: semgrep scan --config p/owasp-top-ten --error --metrics=off
+
+  # Fuentes: https://bandit.readthedocs.io/en/latest/man/bandit.html
+  bandit:
+    name: Análisis estático (bandit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Instalar bandit
+        run: python -m pip install bandit==1.9.4
       - name: bandit (severidad media o superior)
-        run: bandit -r . -ll --exclude ./tests,./.venv,./venv,./node_modules
+        run: bandit -r . -ll --exclude '*/tests/*,*/.venv/*,*/venv/*,*/node_modules/*'
 
   # Una vez por carpeta de componente (backend/, o la raíz en un proyecto de una carpeta): el manifiesto y el
   # lockfile están ahí. Con uv.lock se exportan los requisitos fijados con sus hashes y pip-audit los audita

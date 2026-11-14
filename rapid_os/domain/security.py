@@ -141,6 +141,25 @@ def security_regions(stack_id: "str | Iterable[str] | None", engines: Iterable[s
     return frozenset(regions)
 
 
+# Stacks whose package manager has a release-age rule in semgrep `p/owasp-top-ten` (H-77). Every TypeScript stack
+# gets the region of the JavaScript managers (pnpm, npm, Yarn); uv and Bundler have their own.
+UV_STACKS = frozenset({"python-fastapi", "python-api", "python-ai"})
+BUNDLER_STACKS = frozenset({"ruby-rails"})
+
+
+def package_manager_regions(stack_id: "str | Iterable[str] | None") -> frozenset[str]:
+    """The regions of the baseline for the package managers of the project: `node`, `uv`, `bundler`."""
+    ids = {stack_id} if isinstance(stack_id, str) else set(stack_id or ())
+    regions = set()
+    if any(CI_LANGUAGE_BY_STACK.get(item) == "typescript" for item in ids):
+        regions.add("node")
+    if ids & UV_STACKS:
+        regions.add("uv")
+    if ids & BUNDLER_STACKS:
+        regions.add("bundler")
+    return frozenset(regions)
+
+
 def render_security_standard(
     template: str,
     *,
@@ -153,6 +172,7 @@ def render_security_standard(
     only where they apply, and the parts of the data store decided (`engines`: the service engines)."""
     active = {archetype}
     active.update(security_regions(stack_id, engines))
+    active.update(package_manager_regions(stack_id))
     if has_api(stack_id):
         active.add("api")
     if effective_ai(stack_id, ai):

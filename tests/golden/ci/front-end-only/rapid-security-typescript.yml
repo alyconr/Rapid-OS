@@ -1,4 +1,4 @@
-# rapid-os-ci: typescript sha256=2275d75158dbaec9dbc159358827fcaf3655338c17a465f5f11a9f45817ba0d9
+# rapid-os-ci: typescript sha256=555938356b82ba6bce24059c1c348e1439ee44b9ba1d63778b375a6657480d54
 # Escaneos de seguridad de Rapid OS (base de seguridad: docs en .rapid-os/standards/security.md).
 # Lo escribió Rapid OS al cerrar el onboarding de un repositorio vacío: revísalo antes del primer commit.
 # Las acciones están fijadas por SHA completo del commit, con su versión en un comentario.
@@ -29,7 +29,10 @@ jobs:
       - name: Buscar secretos en el historial
         run: ./gitleaks git --redact --verbose --exit-code 1
 
-  static:
+  # Cada escáner va en su propio job: un hallazgo de semgrep no impide que corran los demás y la persona ve
+  # todos los hallazgos de una vez.
+  # Fuentes: https://docs.semgrep.dev/cli-reference , https://semgrep.dev/p/owasp-top-ten
+  semgrep:
     name: Análisis estático (semgrep OWASP Top 10)
     runs-on: ubuntu-latest
     steps:

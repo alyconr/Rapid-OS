@@ -50,7 +50,7 @@ Los ids `python-ai` y `nodejs-ai` (de antes del catálogo por componentes) respo
 Al cerrar el onboarding de un **repositorio vacío**, `rapid setup finish` escribe un workflow por lenguaje, `.github/workflows/rapid-security-<lenguaje>.yml` (por ejemplo `rapid-security-python.yml`), desde `templates/ci/<lenguaje>-security.yml`. En la pestaña Actions cada uno se llama como su archivo, `rapid-security-<lenguaje>` (por ejemplo `rapid-security-python` y `rapid-security-typescript`), así que dos componentes con lenguajes distintos dan dos workflows distinguibles. Un proyecto que ya tiene `rapid-security.yml` (de antes de este cambio) se deja como está y no recibe otros. Corre en `pull_request` y en `push` a `main`:
 
 - **Secretos:** gitleaks (el binario se descarga con su suma de verificación fijada).
-- **Análisis estático:** semgrep con las reglas `p/owasp-top-ten` (funciona en repositorios privados); Python añade bandit.
+- **Análisis estático:** semgrep con las reglas `p/owasp-top-ten` (funciona en repositorios privados); Python añade bandit, Go `go vet`, Rust clippy y Ruby brakeman. Cada escáner corre en su propio job, así que un hallazgo de semgrep nunca detiene a los demás: ves todos los hallazgos en una sola ejecución.
 - **Dependencias:** la auditoría del gestor de paquetes del lenguaje, en la carpeta de cada componente (abajo).
 - **Corporate:** SBOM (`anchore/sbom-action`) y procedencia firmada (`actions/attest-build-provenance`).
 
@@ -77,6 +77,20 @@ Qué pasa en cada carpeta:
 - **La carpeta no existe o todavía no tiene código de ese lenguaje** (un repositorio recién creado): el job pasa y escribe un aviso (`::warning::`) que también sale en el resumen del job: `Nada que auditar: backend no existe o no tiene código Python todavía`. Un job en verde con ese aviso no auditó nada.
 
 Cada workflow empieza con una línea `# rapid-os-ci: <lenguaje> sha256=<digest>`: el SHA-256 del resto del archivo tal como lo escribió Rapid OS. Así una versión posterior sabe si el workflow se editó.
+
+### Ajustes del gestor de paquetes que comprueba semgrep
+
+`p/owasp-top-ten` incluye reglas sobre la configuración de los gestores de paquetes (CWE-829): un proyecto sin antigüedad mínima de versiones falla el job de análisis estático en su primer push. Las plantillas de stack (`tech-stack.md`) y `security.md` piden estos ajustes; si el archivo todavía no existe, créalo con ellos al hacer el scaffold.
+
+| Gestor | Archivo | Ajustes | Desde |
+| --- | --- | --- | --- |
+| pnpm | `pnpm-workspace.yaml` (un solo paquete no necesita el campo `packages`) | `minimumReleaseAge: 10080` (minutos), `trustPolicy: no-downgrade`, `blockExoticSubdeps: true` | pnpm 10.26 |
+| npm | `.npmrc` | `min-release-age=7` (días) | npm 11.10 |
+| Yarn | `.yarnrc.yml` | `npmMinimalAgeGate: "7d"` | Yarn 4.10 |
+| uv | `pyproject.toml`, `[tool.uv]` | `exclude-newer = "7 days"` | uv 0.9.17 |
+| Bundler | `Gemfile` | `source "https://rubygems.org", cooldown: 7` | Bundler 4.0.13 |
+
+Fuentes: [ajustes de pnpm](https://pnpm.io/settings), [configuración de npm](https://docs.npmjs.com/cli/v11/using-npm/config#min-release-age), [configuración de Yarn](https://yarnpkg.com/configuration/yarnrc#npmMinimalAgeGate), [cooldowns de dependencias de uv](https://docs.astral.sh/uv/concepts/resolution/#dependency-cooldowns), [cooldown de RubyGems](https://blog.rubygems.org/2026/06/03/cooldown-let-new-gems-be-vetted.html), [semgrep `p/owasp-top-ten`](https://semgrep.dev/p/owasp-top-ten).
 
 ### Poner al día los workflows de un proyecto existente
 

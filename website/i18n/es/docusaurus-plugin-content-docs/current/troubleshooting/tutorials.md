@@ -55,6 +55,11 @@ Errores típicos al trabajar con `/rapid-*`. La guía completa está en [Shortcu
 - **Causa:** el job de dependencias no encontró código de su lenguaje en la carpeta del componente (`backend/`, `frontend/`, o la raíz en un proyecto de una carpeta): la carpeta todavía no existe o no tiene archivos de código. No se auditó nada. Hasta 3.2.0rc3 el job buscaba el manifiesto y el lockfile solo en la raíz, así que con `fullstack-separated` decía «Sin dependencias declaradas todavía» o «Sin lockfile todavía» y pasaba aunque `backend/` y `frontend/` los tenían.
 - **Solución:** ninguna mientras el repositorio es nuevo. En un proyecto existente ejecuta `rapid doctor`: `RAPID1443` sugiere `rapid setup ci --regenerate`, que pone el workflow al día (uno editado no se pisa: el nuevo queda al lado como `.new`).
 
+### semgrep bloquea `pnpm-workspace.yaml` (o `.npmrc`, `.yarnrc.yml`, `pyproject.toml`, `Gemfile`)
+
+- **Causa:** `p/owasp-top-ten` incluye reglas sobre la configuración del gestor de paquetes, como `pnpm-missing-minimum-release-age`, `pnpm-trust-policy` y `pnpm-block-exotic-sub-dependencies`. Un proyecto creado sin esos ajustes falla el job de semgrep en su primer push. Hasta 3.2.0rc3 bandit corría después de semgrep en el mismo job, así que no llegaba a correr.
+- **Solución:** añade los ajustes de tu gestor de paquetes (tabla en [la base de seguridad](../concepts/security-baseline.md#ajustes-del-gestor-de-paquetes-que-comprueba-semgrep)); con pnpm, `minimumReleaseAge: 10080`, `trustPolicy: no-downgrade` y `blockExoticSubdeps: true` en `pnpm-workspace.yaml`. Después ejecuta `rapid setup ci --regenerate` para que cada escáner tenga su propio job.
+
 ### El job de dependencias falla: «tiene código ... pero no tiene ...»
 
 - **Causa:** la carpeta del componente tiene archivos de código pero no tiene manifiesto o lockfile, por ejemplo `frontend tiene package.json pero ningún lockfile`. Sin el lockfile la auditoría no sabe qué versiones se instalan.

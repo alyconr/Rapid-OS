@@ -50,7 +50,7 @@ Legacy IDs `python-ai` and `nodejs-ai` automatically set `ai: yes`. A `setup.jso
 When onboarding finishes for an **empty repository**, `rapid setup finish` writes a language-specific workflow `.github/workflows/rapid-security-<language>.yml` from `templates/ci/<language>-security.yml`. Each appears in Actions under the same name as its file, `rapid-security-<language>` (for example `rapid-security-python` and `rapid-security-typescript`). A project that already has `rapid-security.yml` is left unchanged and receives no additional workflow. Workflows run on pull requests and pushes to `main`:
 
 - **Secrets:** gitleaks, downloaded with a pinned checksum.
-- **Static analysis:** semgrep with `p/owasp-top-ten` rules; Python also adds bandit.
+- **Static analysis:** semgrep with `p/owasp-top-ten` rules; Python adds bandit, Go `go vet`, Rust clippy and Ruby brakeman. Each scanner runs in a job of its own, so a semgrep finding never stops the others: you see every finding in one run.
 - **Dependencies:** the audit of the language's package manager, in the folder of each component (below).
 - **Corporate:** SBOM (`anchore/sbom-action`) and signed provenance (`actions/attest-build-provenance`).
 
@@ -77,6 +77,20 @@ What happens in each folder:
 - **The folder does not exist or has no code of that language yet** (a repository just created): the job passes and writes a warning (`::warning::`) that also appears in the job summary: `Nada que auditar: backend no existe o no tiene código Python todavía`. A green job with that warning audited nothing.
 
 Each workflow starts with a line `# rapid-os-ci: <language> sha256=<digest>`: the SHA-256 of the rest of the file as Rapid OS wrote it. It tells a later version whether the workflow was edited.
+
+### Package manager settings that semgrep checks
+
+`p/owasp-top-ten` includes rules for the configuration of the package managers (CWE-829): a project without a minimum release age fails the static analysis job on its first push. The stack templates (`tech-stack.md`) and `security.md` ask for these settings; when the file does not exist yet, create it with them when scaffolding.
+
+| Package manager | File | Settings | From |
+| --- | --- | --- | --- |
+| pnpm | `pnpm-workspace.yaml` (a single package needs no `packages` field) | `minimumReleaseAge: 10080` (minutes), `trustPolicy: no-downgrade`, `blockExoticSubdeps: true` | pnpm 10.26 |
+| npm | `.npmrc` | `min-release-age=7` (days) | npm 11.10 |
+| Yarn | `.yarnrc.yml` | `npmMinimalAgeGate: "7d"` | Yarn 4.10 |
+| uv | `pyproject.toml`, `[tool.uv]` | `exclude-newer = "7 days"` | uv 0.9.17 |
+| Bundler | `Gemfile` | `source "https://rubygems.org", cooldown: 7` | Bundler 4.0.13 |
+
+Sources: [pnpm settings](https://pnpm.io/settings), [npm config](https://docs.npmjs.com/cli/v11/using-npm/config#min-release-age), [Yarn configuration](https://yarnpkg.com/configuration/yarnrc#npmMinimalAgeGate), [uv dependency cooldowns](https://docs.astral.sh/uv/concepts/resolution/#dependency-cooldowns), [RubyGems cooldown](https://blog.rubygems.org/2026/06/03/cooldown-let-new-gems-be-vetted.html), [semgrep `p/owasp-top-ten`](https://semgrep.dev/p/owasp-top-ten).
 
 ### Bringing the workflows of an existing project up to date
 
