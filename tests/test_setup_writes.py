@@ -570,7 +570,25 @@ class InitSharesTheSetupTests(unittest.TestCase):
                 l for l in text.strip().split("\n") if not l.startswith(("- **Database:**", "- **ORM:**"))
             )
 
-        for name in ("tech-stack.md", "topology.md", "coding-rules.md", "security.md"):
+        # The supply chain rules follow the package managers of the stacks decided (H-77). `init` decides one stack
+        # (python-ai: uv) and leaves the frontend undecided; setup also decides react-vite (pnpm). Each path writes
+        # the rule of its own managers, and the rest of security.md is the same.
+        uv_rule, js_rule = "- uv no resuelve versiones publicadas", "- El gestor de paquetes JavaScript"
+        self.assertNotIn("frontend", self.state().stacks)
+        self.assertEqual({c: s.id for c, s in read_setup_file(other / ".rapid-os")[0].stacks.items()},
+                         {"backend": "python-fastapi", "frontend": "react-vite"})
+        init_security = standard(self.project, "security.md")
+        setup_security = standard(other, "security.md")
+        self.assertIn(uv_rule, init_security)
+        self.assertNotIn(js_rule, init_security)
+        self.assertIn(uv_rule, setup_security)
+        self.assertIn(js_rule, setup_security)
+
+        def common(text):
+            return "\n".join(line for line in text.split("\n") if not line.startswith(js_rule))
+
+        self.assertEqual(init_security, common(setup_security), "security.md")
+        for name in ("tech-stack.md", "topology.md", "coding-rules.md"):
             self.assertEqual(standard(self.project, name), standard(other, name), name)
         self.assertEqual(
             json.loads((self.project / ".rapid-os" / "config.json").read_text(encoding="utf-8")),
