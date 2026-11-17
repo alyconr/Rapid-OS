@@ -47,14 +47,64 @@ Legacy IDs `python-ai` and `nodejs-ai` automatically set `ai: yes`. A `setup.jso
 
 ## Rapid OS creates the security CI workflow
 
-When onboarding finishes for an **empty repository**, `rapid setup finish` writes a language-specific workflow `.github/workflows/rapid-security-<language>.yml` from `templates/ci/<language>-security.yml`. Each appears in Actions as `rapid-security (<language>)`. A project that already has `rapid-security.yml` is left unchanged and receives no additional workflow. Workflows run on pull requests and pushes to `main`:
+When onboarding finishes for an **empty repository**, `rapid setup finish` writes a language-specific workflow `.github/workflows/rapid-security-<language>.yml` from `templates/ci/<language>-security.yml`. Each appears in Actions under the same name as its file, `rapid-security-<language>` (for example `rapid-security-python` and `rapid-security-typescript`). A project that already has `rapid-security.yml` is left unchanged and receives no additional workflow. Workflows run on pull requests and pushes to `main`:
 
 - **Secrets:** gitleaks, downloaded with a pinned checksum.
-- **Static analysis:** semgrep with `p/owasp-top-ten` rules; Python also adds bandit.
-- **Dependencies:** `pip-audit` for Python or `npm audit --audit-level=high` for TypeScript.
+- **Static analysis:** semgrep with `p/owasp-top-ten` rules; Python adds bandit, Go `go vet`, Rust clippy and Ruby brakeman. Each scanner runs in a job of its own, so a semgrep finding never stops the others: you see every finding in one run.
+- **Dependencies:** the audit of the language's package manager, in the folder of each component (below).
 - **Corporate:** SBOM (`anchore/sbom-action`) and signed provenance (`actions/attest-build-provenance`).
 
 Actions are pinned by full commit SHA, with the version in a comment. Rapid OS never overwrites an existing workflow and does not write this workflow into a repository that already has code. `setup finish` reports the new file (also in `added_files` with `--json`) and asks you to review it before the first commit. Draft review announces it earlier in `planned_files`.
+
+### What the dependencies job audits, per component
+
+The manifest and the lockfile live in the folder of each component. With topology `fullstack-separated` (a backend and a frontend with different stacks) that is `backend/` and `frontend/`; any other topology keeps the whole project in the root. The dependencies job runs once per folder of its language (a matrix over `dir`, named `Dependencias (...) · <folder>`), with that folder as the working directory:
+
+| Language | What it reads in the folder | Command |
+| --- | --- | --- |
+| Python | `uv.lock` | `uv export --frozen --format requirements.txt --no-emit-project -o <file>`, then `pip-audit --disable-pip -r <file>` (the exported requirements are pinned with hashes, so pip-audit does not resolve again). `uv audit` exists but uv marks it experimental. |
+| Python | `requirements.txt` | `pip-audit -r requirements.txt` |
+| Python | `pyproject.toml` without a lock | `pip install .`, then `pip-audit --skip-editable` |
+| TypeScript | `pnpm-lock.yaml`, `package-lock.json` or `yarn.lock` | `pnpm audit --audit-level high`, `npm audit --audit-level=high` or `yarn npm audit --all --recursive --severity high`, after installing with the lockfile. The pnpm version comes from `packageManager` in that folder's `package.json` (pnpm 10 without it). |
+| Go, Rust, Ruby, .NET, PHP | `go.mod`, `Cargo.lock`, `Gemfile.lock`, a `.sln`/`.slnx`/`.csproj`, `composer.lock` | `govulncheck`, `cargo audit`, `bundle-audit`, `dotnet package list --vulnerable`, `composer audit` |
+
+Java and Kotlin use GitHub's dependency review on pull requests, which covers the whole repository.
+
+What happens in each folder:
+
+- **The folder has code and its manifest or lockfile:** the audit runs and fails on a vulnerability.
+- **The folder has code but no manifest or lockfile:** the job fails and says what is missing and where, for example `frontend tiene package.json pero ningún lockfile (pnpm-lock.yaml, package-lock.json o yarn.lock)`.
+- **The folder does not exist or has no code of that language yet** (a repository just created): the job passes and writes a warning (`::warning::`) that also appears in the job summary: `Nada que auditar: backend no existe o no tiene código Python todavía`. A green job with that warning audited nothing.
+
+Each workflow starts with a line `# rapid-os-ci: <language> sha256=<digest>`: the SHA-256 of the rest of the file as Rapid OS wrote it. It tells a later version whether the workflow was edited.
+
+### Package manager settings that semgrep checks
+
+`p/owasp-top-ten` includes rules for the configuration of the package managers (CWE-829): a project without a minimum release age fails the static analysis job on its first push. The stack templates (`tech-stack.md`) and `security.md` ask for these settings; when the file does not exist yet, create it with them when scaffolding.
+
+| Package manager | File | Settings | From |
+| --- | --- | --- | --- |
+| pnpm | `pnpm-workspace.yaml` (a single package needs no `packages` field) | `minimumReleaseAge: 10080` (minutes), `trustPolicy: no-downgrade`, `blockExoticSubdeps: true` | pnpm 10.26 |
+| npm | `.npmrc` | `min-release-age=7` (days) | npm 11.10 |
+| Yarn | `.yarnrc.yml` | `npmMinimalAgeGate: "7d"` | Yarn 4.10 |
+| uv | `pyproject.toml`, `[tool.uv]` | `exclude-newer = "7 days"` | uv 0.9.17 |
+| Bundler | `Gemfile` | `source "https://rubygems.org", cooldown: 7` | Bundler 4.0.13 |
+
+Sources: [pnpm settings](https://pnpm.io/settings), [npm config](https://docs.npmjs.com/cli/v11/using-npm/config#min-release-age), [Yarn configuration](https://yarnpkg.com/configuration/yarnrc#npmMinimalAgeGate), [uv dependency cooldowns](https://docs.astral.sh/uv/concepts/resolution/#dependency-cooldowns), [RubyGems cooldown](https://blog.rubygems.org/2026/06/03/cooldown-let-new-gems-be-vetted.html), [semgrep `p/owasp-top-ten`](https://semgrep.dev/p/owasp-top-ten).
+
+### Bringing the workflows of an existing project up to date
+
+`rapid doctor` compares each `rapid-security-<language>.yml` with what the current version writes for the project's stacks and topology (`.rapid-os/setup.json`):
+
+- **Written by an earlier version and not edited** (its stamp still matches, or, for workflows of 3.2.0rc1 to rc3, which have no stamp, its content is one of the workflows those versions wrote): warning `RAPID1443`.
+- **Edited by the person:** info `RAPID1443`.
+
+```bash
+rapid setup ci                # state of each workflow: current, outdated, edited or missing
+rapid setup ci --regenerate   # write what this version generates
+```
+
+`--regenerate` replaces a workflow nobody edited (the previous copy goes to `.rapid-os/backups/`) and writes a missing one. It never overwrites an edited workflow: the new one is written beside it as `rapid-security-<language>.yml.new` (GitHub does not run it). Compare the two, carry your changes to the new one and rename it to the workflow's name. `rapid setup ci` reads only; `--json` gives `workflows[]` with `file`, `language`, `status` and, with `--regenerate`, `action` (`unchanged`, `replaced`, `written`, `new`) and `written`.
 
 ## Existing projects
 

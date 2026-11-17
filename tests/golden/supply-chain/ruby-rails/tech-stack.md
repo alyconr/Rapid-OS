@@ -1,0 +1,11 @@
+# 💎 TECH STACK: RUBY ON RAILS
+- **Runtime:** Ruby 4.0 (maintained branch; Ruby 3.2 is end of life).
+- **Framework:** Rails 8.1 with packwerk for module boundaries.
+- **Validation:** Active Record validations / form objects.
+- **Testing:** Minitest (`bin/rails test`).
+- **Linting:** RuboCop + Brakeman + bundler-audit.
+- **Package manager:** Bundler.
+- **Supply chain:** every public `source` of the `Gemfile` sets a cooldown, `source "https://rubygems.org", cooldown: 7` (Bundler 4.0.13 or later): Bundler does not resolve gem versions published in the last seven days. Without it semgrep `p/owasp-top-ten` fails the security workflow. Source: https://blog.rubygems.org/2026/06/03/cooldown-let-new-gems-be-vetted.html.
+- **Database:** none (no database service was decided).
+- **Version Control:** Git.
+<!-- rapid-stack: backend=ruby-rails -->

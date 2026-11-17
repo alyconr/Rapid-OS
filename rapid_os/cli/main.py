@@ -1377,6 +1377,43 @@ def _mojibake_diagnostics():
     return found
 
 
+def _ci_workflow_diagnostics():
+    """RAPID1443: a security workflow that this version would write differently (H-78). Warning when an
+    earlier version wrote it and nobody edited it (regenerating replaces it); info when the person edited it
+    (regenerating writes the new one beside it as `.new`). Only workflows that exist are looked at."""
+    from rapid_os.adapters.setup_store import read_setup_file
+    from rapid_os.domain.security import CI_WORKFLOW_PREFIX
+    from rapid_os.orchestration import setup_apply as apply
+
+    workflows_dir = CURRENT_DIR / Path(CI_WORKFLOW_PREFIX).parent
+    if not any(workflows_dir.glob(Path(CI_WORKFLOW_PREFIX).name + "-*.yml")):
+        return []
+    state, _error = read_setup_file(PROJECT_RAPID_DIR)
+    if state is None or not state.stacks:
+        return []
+    try:
+        items = apply.ci_workflows_status(CURRENT_DIR, TEMPLATES_DIR, state)
+    except apply.SetupApplyError:
+        return []
+    found = []
+    for item in items:
+        path = CURRENT_DIR / item["file"]
+        if item["status"] == "outdated":
+            found.append(Diagnostic(
+                WARNING, "RAPID1443",
+                f"{item['file']} lo generó una versión anterior de Rapid OS y no audita lo que esta versión audita "
+                "(dependencias en la carpeta de cada componente, escáneres que no se bloquean entre sí).",
+                path, hint=f"Ejecuta '{CI_REGENERATE_COMMAND}': lo reemplaza (copia en .rapid-os/backups/).",
+            ))
+        elif item["status"] == "edited":
+            found.append(Diagnostic(
+                INFO, "RAPID1443",
+                f"{item['file']} no coincide con el que genera esta versión de Rapid OS y fue editado.",
+                path, hint=f"'{CI_REGENERATE_COMMAND}' no lo pisa: escribe el nuevo al lado como .new para compararlos.",
+            ))
+    return found
+
+
 def _current_archetype():
     """The archetype of the project: the one in `.rapid-os/setup.json`, else read from its coding rules."""
     from rapid_os.adapters.setup_store import read_setup_file
@@ -1439,6 +1476,9 @@ def doctor_command(args):
                     hint=f"Ejecuta 'rapid setup set archetype {_current_archetype()} --refresh' para regenerar security.md y coding-rules.md (queda copia .bak).",
                 )
             )
+
+    if not not_a_project:
+        diagnostics.extend(_ci_workflow_diagnostics())
 
     from rapid_os.core.ancestry import find_agent_ancestor, read_ancestry
 
@@ -3952,7 +3992,7 @@ LOCAL_SERVICES_FILES = ("compose.yaml", ".env.example")
 LOCAL_SERVICES_NOTE = "Servicios locales añadidos por Rapid OS: revísalos antes de levantarlos"
 LOCAL_SERVICES_PLANNED_NOTE = "Rapid OS lo va a escribir en `setup finish` (servicios @now)"
 
-SETUP_SUBCOMMANDS = "next, show, set, stack, doc, review, story, finish"
+SETUP_SUBCOMMANDS = "next, show, set, stack, doc, review, story, finish, ci"
 
 
 def _read_setup_input(source):
@@ -4257,6 +4297,48 @@ def _harness_resolution_text(loaded_cfg):
     )
 
 
+CI_STATUS_TEXT = {
+    "current": "al día",
+    "outdated": "generado por una versión anterior de Rapid OS, sin cambios de la persona",
+    "edited": "editado por la persona (o no lo escribió Rapid OS)",
+    "missing": "no existe",
+}
+CI_REGENERATE_COMMAND = "rapid setup ci --regenerate"
+
+
+def _setup_ci_command(state, project_model, as_json, regenerate):
+    """`rapid setup ci`: the state of the security workflows; with --regenerate, write what this version
+    generates (H-78). An edited workflow is never overwritten: the new one goes beside it as `.new`."""
+    from rapid_os.orchestration import setup_apply as apply
+
+    if regenerate:
+        items = apply.regenerate_ci_workflows(CURRENT_DIR, TEMPLATES_DIR, state, project_model)
+    else:
+        items = apply.ci_workflows_status(CURRENT_DIR, TEMPLATES_DIR, state, project_model)
+    if as_json:
+        print(json.dumps({"workflows": items}, indent=2))
+        return 0
+    if not items:
+        print("El proyecto no tiene workflows de seguridad de Rapid OS (ningún stack con lenguaje de CI).")
+        return 0
+    for item in items:
+        line = f"{item['file']}: {CI_STATUS_TEXT[item['status']]}"
+        action = item.get("action")
+        if action == "replaced":
+            line += " -> reemplazado (copia en .rapid-os/backups/)"
+        elif action == "written":
+            line += " -> escrito"
+        elif action == "new":
+            line += (
+                f" -> no se toca; el nuevo está en {item['written']}: compáralos, lleva tus cambios al nuevo y "
+                "renómbralo al nombre del workflow"
+            )
+        print(line)
+    if not regenerate and any(item["status"] != "current" for item in items):
+        print(f"Ejecuta '{CI_REGENERATE_COMMAND}' para regenerarlos (un workflow editado no se pisa: el nuevo queda al lado como .new).")
+    return 0
+
+
 def _setup_story_command(args):
     """`rapid setup story <ID> --reopen`: untick one story of the brief, the inverse of what `finish` does."""
     from rapid_os.orchestration import setup_apply as apply
@@ -4353,6 +4435,9 @@ def setup_command(args):
         print(f"Agents: {', '.join(state['agents']) or '-'}  Test command: {test_command}")
         print(f"Docs: {docs}")
         return 0
+
+    if action_name == "ci":
+        return _setup_ci_command(snapshot.state, project_model, as_json, getattr(args, "regenerate", False))
 
     def next_action(state):
         return next_setup_action(
@@ -6313,6 +6398,19 @@ def create_parser():
             ".rapid-os/standards, save the config, rebuild the agent files and mark the setup finished. Idempotent."
         ),
     )
+    _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    _sp = setup_sub.add_parser(
+        "ci",
+        help="Show the state of the security workflows; --regenerate writes what this version generates.",
+        description=(
+            "List .github/workflows/rapid-security-<language>.yml with their state: current, outdated (written by "
+            "an earlier version and not edited), edited or missing. With --regenerate, an outdated workflow is "
+            "replaced (copy in .rapid-os/backups/), a missing one is written, and an edited one is not touched: "
+            "the new one goes beside it as <file>.new."
+        ),
+    )
+    _sp.add_argument("--regenerate", action="store_true", help="Write the workflows of this version (never over an edited one).")
     _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
 
     # rapid arch

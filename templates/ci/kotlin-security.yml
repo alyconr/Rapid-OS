@@ -31,7 +31,10 @@ jobs:
 # endif
 # endif
 
-  static:
+  # Cada escáner va en su propio job: un hallazgo de semgrep no impide que corran los demás y la persona ve
+  # todos los hallazgos de una vez.
+  # Fuentes: https://docs.semgrep.dev/cli-reference , https://semgrep.dev/p/owasp-top-ten
+  semgrep:
     name: Análisis estático (semgrep OWASP Top 10)
     runs-on: ubuntu-latest
     steps:

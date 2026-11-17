@@ -7,6 +7,7 @@
 - **Desarrollo local:** Supabase CLI (`supabase init`, `supabase start` con Docker u otro runtime de contenedores, `supabase db reset`); lo ejecuta la persona.
 - **Tipos:** `supabase gen types --lang typescript --local` genera los tipos desde el esquema local.
 - **Testing:** el comando de test del proyecto es el del frontend (`gate.tests` pasa sin Docker). Las políticas y el esquema se prueban con `supabase test db` en el job de CI y, en local, lo ejecuta la persona tras `supabase start`.
+- **Cadena de suministro:** el gestor de paquetes del proyecto no instala versiones publicadas hace menos de siete días: con pnpm, los ajustes de `pnpm-workspace.yaml` de la plantilla del frontend; con npm, `.npmrc` con `min-release-age=7` (días; npm 11.10 o posterior); con Yarn, `.yarnrc.yml` con `npmMinimalAgeGate: "7d"` (Yarn 4.10 o posterior). Sin ellos semgrep `p/owasp-top-ten` falla el workflow de seguridad. Fuentes: https://docs.npmjs.com/cli/v11/using-npm/config#min-release-age, https://yarnpkg.com/configuration/yarnrc#npmMinimalAgeGate.
 - **Version Control:** Git.
 <!-- Fuentes (documentación oficial, verificadas al escribir esta plantilla):
   https://supabase.com/docs/guides/local-development/cli/getting-started

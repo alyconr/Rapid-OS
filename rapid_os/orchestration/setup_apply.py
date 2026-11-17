@@ -48,13 +48,16 @@ from rapid_os.domain.services import (
 )
 from rapid_os.domain.security import (
     CI_WORKFLOW_PATH,
+    ci_component_dirs,
     ci_language,
     ci_languages,
     ci_workflow_path,
+    ci_workflow_state,
     effective_ai,
     has_api,
     is_ai_stack,
     render_ci_workflow,
+    stamp_ci_workflow,
     render_security_standard,
     security_regions,
 )
@@ -1093,19 +1096,20 @@ def planned_ci_workflow(project_root: Path, stack_id: "str | Sequence[str] | Non
     return planned[0][0] if planned else None
 
 
-def _write_ci_workflows(
-    project_root: Path, templates_dir: Path, archetype: str, stack_ids: Sequence[str], scan_model: ProjectModel | None
-) -> list[str]:
-    """Write `.github/workflows/rapid-security-<language>.yml` (one per language) from
-    `templates/ci/<language>-security.yml`.
-
-    Rapid OS writes them, not the agent. Only in an empty repository and never over a workflow that
-    already exists. Returns the paths relative to the project."""
-    written: list[str] = []
-    all_languages = ci_languages(list(stack_ids), scan_model.values("language") if scan_model is not None else ())
-    for path, language in planned_ci_workflows(project_root, stack_ids, scan_model):
+def expected_ci_workflows(
+    templates_dir: Path, state: SetupState, scan_model: ProjectModel | None = None
+) -> list[tuple[str, str, str]]:
+    """`(path, language, content)` of each security workflow this version writes for the project: one per
+    language, the backend's first, with the folders of its components (H-78) and the stamp of its content."""
+    languages_scanned = scan_model.values("language") if scan_model is not None else ()
+    stack_ids = list(state.stack_ids)
+    component_stacks = {component: choice.id for component, choice in state.stacks.items()}
+    dirs_by_language = ci_component_dirs(component_stacks, languages_scanned)
+    all_languages = ci_languages(stack_ids, languages_scanned)
+    workflows: list[tuple[str, str, str]] = []
+    for language in all_languages:
         try:
-            source = resolve_child_path(templates_dir / "ci", f"{language}-security.yml", single_segment=True)
+            source = resolve_child_path(Path(templates_dir) / "ci", f"{language}-security.yml", single_segment=True)
         except ValueError as exc:
             raise _fail("RAPID1413", str(exc)) from exc
         if not source.is_file():
@@ -1113,18 +1117,91 @@ def _write_ci_workflows(
         try:
             body = render_ci_workflow(
                 source.read_text(encoding="utf-8"),
-                archetype=archetype,
+                archetype=state.archetype or "mvp",
                 primary=language == all_languages[0],
                 language=language,
                 stack_ids=stack_ids,
+                dirs=dirs_by_language.get(language, ["."]),
             )
         except (OSError, UnicodeDecodeError) as exc:
             raise _fail("RAPID1413", f"No se pudo leer el workflow de seguridad: {exc}") from exc
+        workflows.append((ci_workflow_path(language), language, stamp_ci_workflow(body, language)))
+    return workflows
+
+
+def _write_ci_workflows(
+    project_root: Path, templates_dir: Path, state: SetupState, scan_model: ProjectModel | None
+) -> list[str]:
+    """Write `.github/workflows/rapid-security-<language>.yml` (one per language) from
+    `templates/ci/<language>-security.yml`.
+
+    Rapid OS writes them, not the agent. Only in an empty repository and never over a workflow that
+    already exists. Returns the paths relative to the project."""
+    planned = {path for path, _language in planned_ci_workflows(project_root, state.stack_ids, scan_model)}
+    written: list[str] = []
+    for path, _language, content in expected_ci_workflows(templates_dir, state, scan_model):
+        if path not in planned:
+            continue
         safe_write_text(
-            Path(project_root) / path, body, encoding="utf-8", backup=False, create_parents=True, allow_overwrite=False
+            Path(project_root) / path, content, encoding="utf-8", backup=False, create_parents=True, allow_overwrite=False
         )
         written.append(path)
     return written
+
+
+def ci_workflows_status(
+    project_root: Path, templates_dir: Path, state: SetupState, scan_model: ProjectModel | None = None
+) -> list[dict[str, str]]:
+    """`{file, language, status}` of each security workflow of the project: `current`, `outdated` (written
+    by an earlier version and not edited: `--regenerate` replaces it), `edited` (changed by the person:
+    `--regenerate` writes the new one beside it as `.new`) or `missing`."""
+    from rapid_os.domain.ci_legacy import LEGACY_CI_DIGESTS
+
+    report = []
+    for path, language, content in expected_ci_workflows(templates_dir, state, scan_model):
+        target = Path(project_root) / path
+        if not target.is_file():
+            status = "missing"
+        else:
+            try:
+                text = target.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                status = "edited"
+            else:
+                status = ci_workflow_state(text, content, LEGACY_CI_DIGESTS)
+        report.append({"file": path, "language": language, "status": status})
+    return report
+
+
+CI_NEW_SUFFIX = ".new"
+
+
+def regenerate_ci_workflows(
+    project_root: Path, templates_dir: Path, state: SetupState, scan_model: ProjectModel | None = None
+) -> list[dict[str, str]]:
+    """`rapid setup ci --regenerate`: write what this version generates. A workflow nobody edited is
+    replaced (its copy goes to `.rapid-os/backups/`); one the person edited is not touched and the new one
+    goes beside it as `<file>.new`; a missing one is written. Returns `{file, language, status, action, written}`."""
+    from rapid_os.adapters.agents.base import AGENT_BACKUP_DIR, AGENT_BACKUPS_KEPT
+
+    expected = {path: content for path, _language, content in expected_ci_workflows(templates_dir, state, scan_model)}
+    results = []
+    for item in ci_workflows_status(project_root, templates_dir, state, scan_model):
+        path, status = item["file"], item["status"]
+        target = Path(project_root) / path
+        if status == "current":
+            action, written = "unchanged", ""
+        elif status == "edited":
+            action, written = "new", path + CI_NEW_SUFFIX
+            safe_write_text(Path(project_root) / written, expected[path], encoding="utf-8", create_parents=True)
+        else:
+            action, written = ("replaced" if status == "outdated" else "written"), path
+            safe_write_text(
+                target, expected[path], encoding="utf-8", create_parents=True, backup=status == "outdated",
+                backup_dir=Path(project_root) / AGENT_BACKUP_DIR, keep_backups=AGENT_BACKUPS_KEPT,
+            )
+        results.append({**item, "action": action, "written": written})
+    return results
 
 
 def render_architecture_standard(text: str, stack_id: str) -> str:
@@ -1331,7 +1408,7 @@ def apply_setup(
             written.append(name)
 
     # CI: the security scans run from the first PR, written by Rapid OS in a new repository.
-    written.extend(_write_ci_workflows(project_root, templates_dir, state.archetype, state.stack_ids, scan_model))
+    written.extend(_write_ci_workflows(project_root, templates_dir, state, scan_model))
 
     # Config
     existing = inspect_project_config_file(config_file)

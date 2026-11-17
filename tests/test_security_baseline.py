@@ -388,8 +388,8 @@ class CiWorkflowTests(Project):
     def test_the_workflow_is_named_after_its_language_also_with_one_component(self):
         self.finish("python-api", ai="no")
         self.assertFalse((self.root / CI_WORKFLOW_PATH).exists())
-        self.assertTrue(self.workflow().read_text("utf-8").startswith("# Escaneos"))
-        self.assertIn("\nname: rapid-security (python)\n", self.workflow().read_text("utf-8"))
+        self.assertTrue(self.workflow().read_text("utf-8").startswith("# rapid-os-ci: python sha256="))
+        self.assertIn("\nname: rapid-security-python\n", self.workflow().read_text("utf-8"))
 
     def test_a_repository_with_code_does_not_get_it(self):
         (self.root / "app").mkdir()
