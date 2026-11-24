@@ -43,12 +43,29 @@ class ApproveContractTests(unittest.TestCase):
                 self.assertIn("RAPID1330", msg)
 
     def test_reason_is_mandatory_for_reject_and_waive(self):
+        from rapid_os.core.ancestry import AncestryResult
+
         for flag in ("reject", "waive"):
-            with self.subTest(flag=flag):
-                code, msg = self.approve("gate.review", **{flag: True})
+            for reason in (None, "", "S"):
+                with self.subTest(flag=flag, reason=reason):
+                    code, msg = self.approve(
+                        "gate.review", is_tty=True, ancestry=AncestryResult(()), reason=reason, **{flag: True}
+                    )
+                    self.assertEqual(code, 1)
+                    self.assertIn(f"RAPID1333 --{flag} necesita un motivo (--reason) que explique la decisión", msg)
+
+    def test_an_agent_gets_rapid1310_before_any_reason_check(self):
+        # Review of PR #126: without --reason, RAPID1333 came before the barriers (in English).
+        from rapid_os.core.ancestry import Ancestor, AncestryResult
+
+        agent = AncestryResult((Ancestor(10, "codex.exe"),))
+        for kwargs in ({"reject": True}, {"waive": True}, {"reject": True, "reason": "S"}):
+            with self.subTest(kwargs=kwargs):
+                code, msg = self.approve("gate.review", is_tty=True, ancestry=agent, **kwargs)
                 self.assertEqual(code, 1)
-                self.assertIn("RAPID1333", msg)
-                self.assertIn("Reason is required" if flag == "reject" else "'--reason' is required", msg)
+                self.assertIn("RAPID1310", msg)
+                code, msg = self.approve("gate.review", is_tty=True, environ={"CLAUDE_CODE_CHILD_SESSION": "1"}, **kwargs)
+                self.assertIn("RAPID1310", msg)
 
     def test_no_tty_fails_with_rapid1310_before_touching_the_ledger(self):
         # No session exists at all: the TTY check still comes first.

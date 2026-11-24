@@ -1150,10 +1150,10 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertEqual(res.returncode, 1)
         self.assertIn("not waivable", res.stderr)
 
-        # Missing reason is the same error as validate_gate_transition's.
+        # Missing reason: RAPID1333 in Spanish, after the TTY and agent barriers (H-81).
         res = self._rapid_tty(["approve", "gate.review", "--waive"], "s")
         self.assertEqual(res.returncode, 1)
-        self.assertIn("non-empty '--reason' is required when waiving", res.stderr)
+        self.assertIn("RAPID1333 --waive necesita un motivo (--reason)", res.stderr)
 
         res = self._rapid_tty(
             ["approve", "gate.review", "--waive", "--reason", "covered by the security audit"],
