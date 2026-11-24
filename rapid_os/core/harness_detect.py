@@ -7,6 +7,11 @@ from rapid_os.core.ancestry import AncestryResult, find_agent_ancestor, read_anc
 from rapid_os.domain.harnesses import validate_harness_id
 
 FALLBACK_HARNESS_ID = "cursor"
+# `RAPID_HARNESS_FROM_ANCESTRY=0` turns off step 3b only (the harness of a run read from the process tree). It is
+# for the test suite, whose CLI subprocesses would otherwise take the harness of whoever runs it (Claude Code,
+# Codex). It never touches the RAPID1310 barrier of approve and the other person-only decisions: that one reads
+# the process tree always (orchestration/lifecycle.human_terminal_refusal).
+ANCESTRY_DETECTION_ENV = "RAPID_HARNESS_FROM_ANCESTRY"
 WARNING_RAPID1300 = (
     "WARNING [RAPID1300]: No harness explicitly provided or detected from environment/config. "
     "Falling back to 'cursor'. Set RAPID_HARNESS=<id>, use --harness <id>, or configure "
@@ -72,12 +77,14 @@ def detect_harness(
         )
 
     # 3b. Process tree: the first recognised agent harness among the ancestors. Unreadable ancestry decides nothing.
-    tree = ancestry() if callable(ancestry) else ancestry
-    if tree is None:
-        tree = read_ancestry()
-    agent = find_agent_ancestor(tree)
-    if agent is not None:
-        return HarnessDetection(harness_id=validate_harness_id(agent.harness), source="ancestry")
+    # An injected tree is always looked at; the real one, unless RAPID_HARNESS_FROM_ANCESTRY=0.
+    if ancestry is not None or str(env.get(ANCESTRY_DETECTION_ENV, "")).strip() != "0":
+        tree = ancestry() if callable(ancestry) else ancestry
+        if tree is None:
+            tree = read_ancestry()
+        agent = find_agent_ancestor(tree)
+        if agent is not None:
+            return HarnessDetection(harness_id=validate_harness_id(agent.harness), source="ancestry")
 
     # 4. Config default_harness
     default_harness = config.get("default_harness")

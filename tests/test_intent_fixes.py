@@ -191,6 +191,34 @@ class ApproveAncestryTests(unittest.TestCase):
         code, msg = self.approve(chain, reject=True, reason="falta validar la entrada")
         self.assertIn("RAPID1310", msg)
 
+    def test_the_harness_detection_switch_does_not_turn_off_the_barrier(self):
+        # RAPID_HARNESS_FROM_ANCESTRY=0 only stops detect_harness from reading the tree; approve, --reject/--waive,
+        # finish --merge and --accept-* keep refusing an agent ancestor.
+        from unittest import mock
+        from rapid_os.orchestration.lifecycle import human_terminal_refusal
+
+        off = {"RAPID_HARNESS_FROM_ANCESTRY": "0"}
+        for chain in (
+            AncestryResult((Ancestor(10, "bash"), Ancestor(20, "claude.exe"))),
+            AncestryResult((Ancestor(10, "powershell.exe"), Ancestor(20, "codex.exe"))),
+        ):
+            with self.subTest(agent=chain.ancestors[-1].name):
+                code, msg = execute_approve(
+                    self.root, self.root / ".rapid-os", "gate.final-verification", is_tty=True, environ=off, ancestry=chain,
+                )
+                self.assertEqual(code, 1)
+                self.assertIn("RAPID1310", msg)
+                code, msg = execute_approve(
+                    self.root, self.root / ".rapid-os", "gate.review", is_tty=True, environ=off, ancestry=chain,
+                    reject=True,
+                )
+                self.assertIn("RAPID1310", msg)
+                self.assertIsNotNone(human_terminal_refusal(off, chain, True, "Merging the run", ""))
+                # The real tree too, read when no tree is handed in.
+                with mock.patch("rapid_os.orchestration.lifecycle.read_ancestry", return_value=chain), \
+                        mock.patch.dict("os.environ", off):
+                    self.assertIn("RAPID1310", human_terminal_refusal(off, None, True, "Human gate approval", ""))
+
     def test_unreadable_ancestry_does_not_reject(self):
         # Falls through to the next check (no active session) instead of RAPID1310.
         code, msg = self.approve(AncestryResult((), "cannot read the parent of pid 1: denied"))

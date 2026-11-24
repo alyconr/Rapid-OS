@@ -32,6 +32,8 @@ Do not rely on CI for this. Since [#107](https://github.com/alyconr/Rapid-OS/pul
 
 Write tests along with the change. If a test module starts driving the CLI end to end, add it to `SLOW_MODULES` in `scripts/test.py`.
 
+The suite gives the same result whether you run it in your own terminal or from an agent such as Claude Code or Codex. Rapid OS reads the harness of a run from its parent processes, so `tests/__init__.py` sets `RAPID_HARNESS_FROM_ANCESTRY=0`, which turns off only that detection for the CLI subprocesses the tests start. The `RAPID1310` barrier of `rapid approve` and the other decisions a person takes in their own terminal ignores this variable and always reads the process tree. Tests that check the process tree pass it in (the `ancestry` parameter of `detect_harness` and `execute_approve`).
+
 ### Goldens
 
 The generated shortcuts are compared with `tests/golden/shortcuts/`. After an intentional change to `templates/shortcuts/`, regenerate them and review the diff:

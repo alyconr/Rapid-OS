@@ -129,6 +129,17 @@ class HarnessDetectTests(unittest.TestCase):
         self.assertEqual(detect_harness("cursor", {}, {}, ancestry=CODEX_TREE).source, "flag")
         self.assertEqual(detect_harness(None, {"RAPID_HARNESS": "vscode"}, {}, ancestry=CODEX_TREE).source, "env")
 
+    def test_the_variable_turns_off_only_the_real_tree(self):
+        from unittest import mock as _mock
+
+        off = {"RAPID_HARNESS_FROM_ANCESTRY": "0"}
+        with _mock.patch("rapid_os.core.harness_detect.read_ancestry", return_value=CODEX_TREE) as real:
+            self.assertEqual(detect_harness(None, off, {}).source, "fallback")
+            real.assert_not_called()
+            self.assertEqual(detect_harness(None, {}, {}).harness_id, "codex")  # without it, the real tree decides
+        # A tree handed in is always looked at.
+        self.assertEqual(detect_harness(None, off, {}, ancestry=CODEX_TREE).harness_id, "codex")
+
     def test_without_an_agent_or_with_unreadable_ancestry_nothing_changes(self):
         for tree in (NO_AGENT, AncestryResult((), "cannot read the parent of pid 1")):
             with self.subTest(tree=tree):
