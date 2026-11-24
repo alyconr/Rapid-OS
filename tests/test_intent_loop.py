@@ -439,10 +439,12 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
         }
         self._rapid("start", "feature", "--spec-file", "-", input_str=json.dumps(spec_payload))
 
-        # Reject without reason -> exit 1
+        # Reject without reason and without a TTY -> exit 1 with RAPID1310: the barriers come before any reason
+        # check (H-81). The missing reason itself (RAPID1333) is tested with a terminal in test_intent_approve_modes.
         reject_fail = self._rapid("approve", "gate.final-verification", "--reject")
         self.assertEqual(reject_fail.returncode, 1)
-        self.assertIn("Reason is required", reject_fail.stderr)
+        self.assertIn("RAPID1310", reject_fail.stderr)
+        self.assertNotIn("RAPID1333", reject_fail.stderr)
 
     def test_approve_rejects_under_claude_code_session(self):
         test_cmd_str = f'"{sys.executable}" -m unittest discover -s tests -t .'
