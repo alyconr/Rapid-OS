@@ -278,13 +278,14 @@ class StepScriptTests(unittest.TestCase):
         return subprocess.run([BASH, str(script)], cwd=self.repo, env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
 
     def test_each_advisory_is_shown_once_in_the_log_and_the_summary(self):
-        # H-86: talleres-rc2, starlette 0.50.0: "Found 10 known vulnerabilities", 5 distinct (each with its PYSEC id
-        # and its GHSA alias from the vulnerability service). The fixture is pip-audit 2.10.1's JSON for that lock.
+        # H-86: talleres-rc2, starlette 0.50.0: "Found 10 known vulnerabilities", 5 distinct (pip-audit 2.10.1 with
+        # the PyPI service returns each id twice, with the same aliases). The fixture is its JSON for that lock.
         result = self.summarize(PIP_AUDIT_STARLETTE)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         summary = self.summary.read_text("utf-8")
         self.assertIn("### pip-audit · backend: 5 avisos distintos", summary)
-        self.assertIn("pip-audit contó 10", summary)
+        self.assertIn("pip-audit contó 10: el servicio de vulnerabilidades devolvió avisos repetidos; aquí aparece "
+                      "cada uno una vez.", summary)
         rows = [line for line in summary.splitlines() if line.startswith("| starlette |")]
         self.assertEqual(len(rows), 5, rows)
         self.assertEqual(len({row.split(" | ")[2] for row in rows}), 5)

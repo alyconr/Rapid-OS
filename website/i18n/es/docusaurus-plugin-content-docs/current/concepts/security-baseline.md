@@ -70,7 +70,7 @@ El manifiesto y el lockfile están en la carpeta de cada componente. Con la topo
 
 Java y Kotlin usan la revisión de dependencias de GitHub en los pull requests, que cubre todo el repositorio.
 
-En Python, pip-audit escribe su resultado en JSON y el paso siguiente, `Avisos de pip-audit (cada uno una vez)`, muestra cada aviso una sola vez, en el log y en el resumen del job (paquete, versión, aviso, alias, corregido en). Los servicios de vulnerabilidades (PyPI y OSV) devuelven un mismo aviso con su id `PYSEC` y con su alias `GHSA`, y pip-audit 2.10.1 lo lista dos veces: con starlette 0.50.0 dice `Found 10 known vulnerabilities` para 5 avisos distintos (H-86). El resumen dice cuántos contó pip-audit. El job sigue fallando ante cualquier vulnerabilidad, con el código de salida de pip-audit.
+En Python, pip-audit escribe su resultado en JSON y el paso siguiente, `Avisos de pip-audit (cada uno una vez)`, muestra cada aviso una sola vez, en el log y en el resumen del job (paquete, versión, aviso, alias, corregido en). pip-audit 2.10.1 con su servicio por defecto (PyPI) devuelve el mismo aviso más de una vez: con starlette 0.50.0 su JSON trae `PYSEC-2026-161` dos veces, con los mismos alias, y dice `Found 10 known vulnerabilities` para 5 avisos distintos (H-86). El resumen dice cuántos contó pip-audit. El job sigue fallando ante cualquier vulnerabilidad, con el código de salida de pip-audit.
 
 Qué pasa en cada carpeta:
 

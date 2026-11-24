@@ -70,7 +70,7 @@ The manifest and the lockfile live in the folder of each component. With topolog
 
 Java and Kotlin use GitHub's dependency review on pull requests, which covers the whole repository.
 
-In Python, pip-audit writes its result as JSON and the next step, `Avisos de pip-audit (cada uno una vez)`, prints each advisory once, in the log and in the job summary (package, version, advisory, aliases, fixed in). The vulnerability services (PyPI and OSV) return the same advisory under its `PYSEC` id and its `GHSA` alias, and pip-audit 2.10.1 lists it twice: with starlette 0.50.0 it says `Found 10 known vulnerabilities` for 5 distinct advisories (H-86). The summary says how many pip-audit counted. The job still fails on any vulnerability, with pip-audit's exit code.
+In Python, pip-audit writes its result as JSON and the next step, `Avisos de pip-audit (cada uno una vez)`, prints each advisory once, in the log and in the job summary (package, version, advisory, aliases, fixed in). pip-audit 2.10.1 with its default service (PyPI) returns the same advisory more than once: with starlette 0.50.0 its JSON has `PYSEC-2026-161` twice, with the same aliases, and it says `Found 10 known vulnerabilities` for 5 distinct advisories (H-86). The summary says how many pip-audit counted. The job still fails on any vulnerability, with pip-audit's exit code.
 
 What happens in each folder:
 

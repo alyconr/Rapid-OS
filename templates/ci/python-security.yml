@@ -68,8 +68,8 @@ jobs:
   # lockfile están ahí. Con uv.lock se exportan los requisitos fijados con sus hashes y pip-audit los audita
   # sin resolver de nuevo (`uv audit` existe pero uv lo marca como experimental). `uv export -o` también vuelca
   # el archivo entero a la salida estándar (observado: cientos de líneas de hashes en el log), así que esa salida
-  # va a /dev/null. Las bases de vulnerabilidades (PyPI y OSV) devuelven un mismo aviso con su id PYSEC y con su
-  # alias GHSA, y pip-audit 2.10.1 lo lista dos veces (observado con starlette 0.50.0: "Found 10 known
+  # va a /dev/null. pip-audit 2.10.1 con su servicio por defecto (PyPI) devuelve el mismo aviso repetido: con
+  # starlette 0.50.0 el JSON trae PYSEC-2026-161 dos veces, con los mismos alias ("Found 10 known
   # vulnerabilities", 5 distintos); pip-audit escribe JSON y el paso siguiente muestra cada aviso una vez.
   # Fuentes: https://github.com/pypa/pip-audit , https://docs.astral.sh/uv/reference/cli/#uv-export ,
   # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands
@@ -153,8 +153,8 @@ jobs:
               else:
                   lines = [f"### pip-audit · {folder}: {len(groups)} avisos distintos", ""]
                   if reported != len(groups):
-                      lines += [f"pip-audit contó {reported}: la base de vulnerabilidades repite un mismo aviso con "
-                                "su id y su alias (PYSEC y GHSA); aquí aparece una vez.", ""]
+                      lines += [f"pip-audit contó {reported}: el servicio de vulnerabilidades devolvió avisos "
+                                "repetidos; aquí aparece cada uno una vez.", ""]
                   lines += ["| Paquete | Versión | Aviso | Alias | Corregido en |", "| --- | --- | --- | --- | --- |"]
                   for group in groups:
                       aliases = ", ".join(sorted(group["names"] - {group["id"]})) or "-"
