@@ -1440,6 +1440,20 @@ def is_yes(answer: str | None) -> bool:
     return answer.strip().strip("'\"“”‘’").strip().lower() in YES_ANSWERS
 
 
+NO_ANSWERS = frozenset({"n", "no"})
+MIN_REASON_LENGTH = 10
+
+
+def is_real_reason(reason: str | None) -> bool:
+    """A reason for `--reject` / `--waive` that explains something (H-81): at least MIN_REASON_LENGTH
+    characters, and not made only of yes/no answers ("S", "si si si si si" or "no, no, no" are not reasons)."""
+    text = str(reason or "").strip()
+    if len(text) < MIN_REASON_LENGTH:
+        return False
+    words = [w.strip("'\"“”‘’.,;:!¡?¿").lower() for w in text.split()]
+    return not all(not w or w in YES_ANSWERS or w in NO_ANSWERS for w in words)
+
+
 def _pending_human_gate_ids(project_rapid_dir: Path, project_root: Path) -> list[str] | None:
     """Pending human gates of the active run that can still be approved (not rejected); None without a run."""
     sess = load_session(project_rapid_dir)
@@ -1597,6 +1611,12 @@ def execute_approve(
         return 1, "RAPID1333 Reason is required (--reason) when rejecting a gate approval."
     if waive and (not reason or not str(reason).strip()):
         return 1, "RAPID1333 A non-empty '--reason' is required when waiving a gate."
+    if (reject or waive) and not is_real_reason(reason):
+        flag = "--reject" if reject else "--waive"
+        return 1, (
+            f"RAPID1333 El motivo de {flag} debe explicar la decisión: al menos {MIN_REASON_LENGTH} caracteres que "
+            f"no sean solo sí/no (recibido: «{str(reason).strip()}»). Nada cambió."
+        )
 
     if environ is not None:
         env_map = environ
@@ -1744,25 +1764,36 @@ def execute_approve(
 
     # The person decides with [s/N] on what they see: the phrase did not stop an agent with a pty (the TTY,
     # the ancestry check, the Claude Code hooks and the recorded reviewer do) and only cost the person work.
+    # H-81: approve only approves. An answer that is not yes (Enter, N, anything else) changes nothing: a stray
+    # "S" typed after an empty answer once became the reason of a rejection. Rejecting is its own command.
     summary = approval_summary(project_root, project_rapid_dir, run_id, gate_id)
     if waive:
-        question = f"¿Dispensas {gate_id} con el motivo «{str(reason).strip()}»? [s/N] "
+        question = (
+            f"Gate:    {gate_id}\nMotivo:  «{str(reason).strip()}»\n"
+            f"Consecuencia: {gate_id} queda dispensado (waived); el veredicto del run será como mucho "
+            "pass_with_waivers.\n"
+            f"¿Dispensas {gate_id} con el motivo «{str(reason).strip()}»? [s/N] "
+        )
     elif reject:
-        question = f"¿Rechazas {gate_id} con el motivo «{str(reason).strip()}»? [s/N] "
+        question = (
+            f"Gate:    {gate_id}\nMotivo:  «{str(reason).strip()}»\n"
+            f"Consecuencia: {gate_id} queda en FAIL para este run; después toca `rapid abort` y un run nuevo "
+            "que atienda el motivo.\n"
+            f"¿Rechazas {gate_id} con el motivo «{str(reason).strip()}»? [s/N] "
+        )
     else:
         question = f"¿Apruebas {gate_id}? [s/N] "
     answer = ask_input(f"{summary}\n{question}")
     if answer is None:
         return 1, no_terminal
     if not is_yes(answer):
-        if waive or reject or reapproval:
+        if waive or reject:
             return 1, f"Sin cambios: {gate_id} sigue como estaba."
-        motive = ask_input("Para rechazarlo escribe el motivo (Enter para salir sin cambios): ")
-        if motive is None:
-            return 1, no_terminal
-        if not motive.strip():
-            return 1, f"Sin cambios: {gate_id} sigue pendiente."
-        reject, reason = True, motive.strip()
+        state_word = "sigue como estaba" if reapproval else "sigue pendiente"
+        return 1, (
+            f"Sin cambios: {gate_id} {state_word} (solo «s» aprueba). Si querías rechazarlo: "
+            f'rapid approve {gate_id} --reject --reason "<motivo>"'
+        )
 
     if waive:
         try:

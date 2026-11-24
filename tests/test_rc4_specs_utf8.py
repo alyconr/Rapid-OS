@@ -485,32 +485,61 @@ class ApproveAsksYesNoTests(Project):
         self.assertEqual(self.reviews()[0].payload["reviewer"], "Ada")
         self.assertEqual(self.gate_disposition(), "acknowledged")
 
-    def test_no_then_a_reason_rejects_with_that_reason(self):
-        code, message, prompts = self.approve("n", "falta validar las fechas", gate_id=self.gate)
-        self.assertEqual(code, 0, message)
-        self.assertEqual(prompts[1], "Para rechazarlo escribe el motivo (Enter para salir sin cambios): ")
-        review = self.reviews()[0]
-        self.assertEqual(review.payload["outcome"], "changes_requested")
-        self.assertEqual(review.payload["reason"], "falta validar las fechas")
-        self.assertEqual(json.loads(rapid(self.root, "next", "--json").stdout)["action"]["command"], ["rapid", "abort"])
+    def test_an_answer_that_is_not_yes_changes_nothing_and_names_the_reject_command(self):
+        # H-81: an empty answer followed by "S" once became a rejection with the reason "S".
+        for answer in ("", "N", "x"):
+            with self.subTest(answer=answer):
+                code, message, prompts = self.approve(answer, "S", gate_id=self.gate)
+                self.assertEqual(code, 1, message)
+                self.assertEqual(len(prompts), 1, prompts)  # no second question
+                self.assertIn("Sin cambios", message)
+                self.assertIn(f'rapid approve {self.gate} --reject --reason "<motivo>"', message)
+                self.assertEqual(self.reviews(), [])
+                self.assertEqual(self.gate_disposition(), "pending")
 
-    def test_enter_twice_leaves_everything_unchanged(self):
-        code, message, _ = self.approve("", "")
-        self.assertEqual(code, 1)
-        self.assertIn("Sin cambios", message)
-        self.assertEqual(self.reviews(), [])
-        self.assertEqual(self.gate_disposition(), "pending")
+    def test_reject_with_a_reason_that_explains_nothing_is_refused(self):
+        for reason in ("S", "", "si si si si si", "no."):
+            with self.subTest(reason=reason):
+                code, message, prompts = self.approve("s", gate_id=self.gate, reject=True, reason=reason)
+                self.assertEqual(code, 1, message)
+                self.assertIn("RAPID1333", message)
+                self.assertEqual(prompts, [])
+                self.assertEqual(self.reviews(), [])
+                self.assertEqual(self.gate_disposition(), "pending")
 
-    def test_explicit_reject_and_waive_only_confirm(self):
-        code, message, prompts = self.approve("N", gate_id=self.gate, reject=True, reason="no cumple")
+    def test_reject_with_a_real_reason_asks_and_shows_the_consequence(self):
+        code, message, prompts = self.approve("N", gate_id=self.gate, reject=True, reason="no cumple el criterio")
         self.assertEqual(code, 1)
         self.assertIn("Sin cambios", message)
         self.assertEqual(len(prompts), 1)  # no second question: the reason is already given
-        self.assertIn(f"¿Rechazas {self.gate} con el motivo «no cumple»? [s/N]", prompts[0])
+        self.assertIn(f"Gate:    {self.gate}", prompts[0])
+        self.assertIn("Motivo:  «no cumple el criterio»", prompts[0])
+        self.assertIn("queda en FAIL para este run; después toca `rapid abort` y un run nuevo", prompts[0])
+        self.assertIn(f"¿Rechazas {self.gate} con el motivo «no cumple el criterio»? [s/N]", prompts[0])
         self.assertEqual(self.reviews(), [])
-        code, message, _ = self.approve("sí", gate_id=self.gate, reject=True, reason="no cumple")
+        self.assertEqual(self.gate_disposition(), "pending")
+        code, message, _ = self.approve("s", gate_id=self.gate, reject=True, reason="no cumple el criterio")
         self.assertEqual(code, 0, message)
-        self.assertEqual(self.reviews()[0].payload["outcome"], "changes_requested")
+        review = self.reviews()[0]
+        self.assertEqual(review.payload["outcome"], "changes_requested")
+        self.assertEqual(review.payload["reason"], "no cumple el criterio")
+        self.assertEqual(json.loads(rapid(self.root, "next", "--json").stdout)["action"]["command"], ["rapid", "abort"])
+
+    def test_reject_has_the_same_barriers_as_approve(self):
+        from rapid_os.core.ancestry import Ancestor, AncestryResult
+        from rapid_os.orchestration.lifecycle import execute_approve
+
+        code, message, prompts = self.approve(gate_id=self.gate, reject=True, reason="no cumple el criterio", is_tty=False)
+        self.assertEqual(code, 1)
+        self.assertIn("RAPID1310", message)
+        code, message = execute_approve(
+            self.root, self.root / ".rapid-os", self.gate, reviewer="Ada", reject=True, reason="no cumple el criterio",
+            is_tty=True, input_func=lambda _p: "s", environ={},
+            ancestry=AncestryResult((Ancestor(10, "claude.exe"),)),
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("RAPID1310", message)
+        self.assertEqual(self.reviews(), [])
 
     def test_without_a_terminal_it_still_only_lists(self):
         code, message, prompts = self.approve(is_tty=False)
@@ -527,7 +556,7 @@ class ApproveAsksYesNoTests(Project):
         from rapid_os.core.ancestry import Ancestor, AncestryResult
         from rapid_os.orchestration.lifecycle import execute_approve
 
-        for flags in ({}, {"reject": True, "reason": "no cumple"}):
+        for flags in ({}, {"reject": True, "reason": "no cumple el criterio"}):
             asked: list[str] = []
             code, message = execute_approve(
                 self.root, self.root / ".rapid-os", self.gate, reviewer="Ada", is_tty=True,

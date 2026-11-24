@@ -1118,7 +1118,7 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertIn("gate.final-verification", listing.stdout)
 
         # Without a TTY every mutating variant fails with RAPID1310.
-        for extra in ((), ("--reject", "--reason", "no"), ("--waive", "--reason", "n/a")):
+        for extra in ((), ("--reject", "--reason", "falta validar la entrada"), ("--waive", "--reason", "cubierto por la auditoría")):
             res = self._rapid("approve", "gate.review", *extra, input_str="")
             self.assertEqual(res.returncode, 1)
             self.assertIn("RAPID1310", res.stderr, extra)
@@ -1136,7 +1136,7 @@ class HardeningLabScenarioTests(LabScenarioBase):
 
         # final-verification is not waivable.
         res = self._rapid_tty(
-            ["approve", "gate.final-verification", "--waive", "--reason", "skip"],
+            ["approve", "gate.final-verification", "--waive", "--reason", "skip this gate for now"],
             "s",
         )
         self.assertEqual(res.returncode, 1)
@@ -1230,7 +1230,7 @@ class HardeningLabScenarioTests(LabScenarioBase):
     def test_the_rejected_gate_also_explains_the_way_out(self):
         self._start("hardening", self.SPEC, "--worktree")
         self.assertEqual(
-            self._rapid_tty(["approve", "gate.review", "--reject", "--reason", "no"], "s").returncode, 0
+            self._rapid_tty(["approve", "gate.review", "--reject", "--reason", "falta validar la entrada"], "s").returncode, 0
         )
         again = self._approve("gate.review")
         self.assertEqual(again.returncode, 1)
