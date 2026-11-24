@@ -1957,7 +1957,8 @@ def execute_abort(
     run_reg = RunRegistry(project_root, project_rapid_dir)
     try:
         current_state = run_reg.get_state(run_id)
-        if not current_state.status.is_terminal:
+        was_terminal = current_state.status.is_terminal
+        if not was_terminal:
             run_reg.transition_status(
                 run_id,
                 RunStatus.CANCELLED,
@@ -1968,7 +1969,20 @@ def execute_abort(
         return 1, f"Error aborting run '{run_id}': {exc}"
 
     clear_session(project_rapid_dir)
-    message = f"Run '{run_id}' cancelado y sesión limpiada."
+    if was_terminal:
+        # H-85: the run had already ended; abort cancelled nothing and must not say it did.
+        try:
+            reports = EvalRegistry(project_root, project_rapid_dir).list_reports(run_id)
+        except Exception:  # the message must never turn a cleanup into an error
+            reports = ()
+        outcome = reports[-1].verdict.value.upper() if reports else current_state.status.value
+        message = (
+            f"El run '{run_id}' ya terminó con {outcome}; solo se limpió la sesión (no se canceló nada). "
+            "Para deshacer lo que integró: git revert de sus commits y un run nuevo "
+            "(guía: docs/guides/undo-approval.md)."
+        )
+    else:
+        message = f"Run '{run_id}' cancelado y sesión limpiada."
     if sess.workspace_path:
         message += (
             f' El worktree "{sess.workspace_path}" (rama rapid/{run_id}) se conserva; si ya no lo necesitas: '

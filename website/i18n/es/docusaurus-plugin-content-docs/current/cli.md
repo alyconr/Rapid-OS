@@ -562,6 +562,8 @@ Cancel the active run and remove the session file.
 
 El worktree de un run se queda en disco: el mensaje da `git worktree remove "<worktree>"` y avisa de que `--force` borra el trabajo del run que no está integrado (H-83).
 
+Sobre un run que ya terminó (`rapid finish` le dio un veredicto), `rapid abort` no cancela nada: solo limpia la sesión y dice `El run '<run-id>' ya terminó con <veredicto>; solo se limpió la sesión (no se canceló nada)`, con el camino para deshacerlo: `git revert` de sus commits y un run nuevo; ver [Deshacer una aprobación](./guides/undo-approval.md) (H-85).
+
 ```bash
 rapid abort [--reason <text>]
 ```
