@@ -32,6 +32,10 @@ class StampTests(unittest.TestCase):
         self.assertEqual(standard_state(older, current), "outdated")
         self.assertEqual(standard_state(older.replace("vieja", "mía"), current), "edited")
         self.assertEqual(standard_state("# Seguridad\n\n- regla vieja\n", current), "unmarked")
+        # The body of this version without the stamp (LF or CRLF): only the stamp is missing.
+        self.assertEqual(standard_state("# Seguridad\n\n- regla uv\n", current), "unstamped")
+        self.assertEqual(standard_state("# Seguridad\r\n\r\n- regla uv\r\n", current), "unstamped")
+        self.assertEqual(standard_state("# Seguridad\n\n- regla uv", current), "unstamped")
 
     def test_strip_gives_back_the_body(self):
         body = "# Reglas\n\n- una\n"
@@ -132,6 +136,26 @@ class DoctorAndRegenerateStandardsTests(GitIsolated):
         self.assertEqual(self.doctor_1444(), [])
         self.rapid("setup", "standards", "--regenerate")
         self.assertIn(strip_standard_stamp(self.security.read_text("utf-8")).strip()[-60:], self.agents_md.read_text("utf-8"))
+
+    def test_an_unstamped_standard_with_this_versions_body_only_gets_the_stamp(self):
+        # Review of PR #126: coding-rules.md of an rc.4 onboarding, equal to the current template but without the
+        # stamp, was a WARNING ("the agent does not see the new rules") and got an identical .new to compare.
+        rules = self.root / ".rapid-os" / "standards" / "coding-rules.md"
+        stamped = rules.read_text("utf-8")
+        body = strip_standard_stamp(stamped)
+        for newline in ("\n", "\r\n"):
+            with self.subTest(newline=repr(newline)):
+                rules.write_bytes(body.replace("\n", newline).encode("utf-8"))
+                self.assertEqual(standard_state(rules.read_text("utf-8"), stamped), "unstamped")
+                diagnostics = [d for d in self.doctor_1444() if "coding-rules.md" in d["message"]]
+                self.assertEqual([d["level"] for d in diagnostics], ["info"], diagnostics)
+                self.assertIn("solo le falta la marca", diagnostics[0]["message"])
+                self.assertEqual(self.standards()[".rapid-os/standards/coding-rules.md"]["status"], "unstamped")
+                item = self.standards("--regenerate")[".rapid-os/standards/coding-rules.md"]
+                self.assertEqual((item["status"], item["action"]), ("unstamped", "stamped"))
+                self.assertFalse(rules.with_name("coding-rules.md.new").exists())
+                self.assertEqual(rules.read_text("utf-8").replace("\r\n", "\n"), stamped.replace("\r\n", "\n"))
+                self.assertEqual(self.doctor_1444(), [])
 
     def test_a_missing_standard_is_written(self):
         rules = self.root / ".rapid-os" / "standards" / "coding-rules.md"

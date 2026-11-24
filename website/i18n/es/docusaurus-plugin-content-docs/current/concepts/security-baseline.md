@@ -118,10 +118,12 @@ compara con lo que escribe la versión actual para el arquetipo y los stacks del
 
 - **Lo escribió una versión anterior y nadie lo editó** (su marca sigue coincidiendo): aviso `RAPID1444`.
 - **Sin marca** (onboarding anterior a 3.2.0rc5, o lo escribió la persona): aviso `RAPID1444`.
+- **Sin marca, pero con el cuerpo que ya escribe esta versión** (solo le falta la marca): información
+  `RAPID1444`; `--regenerate` solo le añade la marca en su sitio, sin `.new`.
 - **La persona lo editó** (con marca, cuerpo cambiado): información `RAPID1444`.
 
 ```bash
-rapid setup standards                # estado de cada estándar: al día, anterior, editado, sin marca o no existe
+rapid setup standards                # estado de cada estándar: al día, anterior, editado, solo sin marca, sin marca o no existe
 rapid setup standards --regenerate   # escribe lo que genera esta versión y regenera AGENTS.md/CLAUDE.md
 ```
 

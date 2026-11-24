@@ -52,13 +52,14 @@ def strip_standard_stamp(text: str) -> str:
 
 def standard_state(text: str, expected: str) -> str:
     """`current` (it is what this version writes), `outdated` (written by Rapid OS and not edited since: it can
-    be replaced), `edited` (stamped, but the person changed the body) or `unmarked` (no stamp: an earlier
-    version, before 3.2.0rc5, or the person wrote it; it is never replaced)."""
+    be replaced), `edited` (stamped, but the person changed the body), `unstamped` (no stamp, but its body is
+    already the one this version writes: only the stamp is missing) or `unmarked` (no stamp and another body:
+    an earlier version, before 3.2.0rc5, or the person wrote it; it is never replaced)."""
     normalized = _lf(text)
     if normalized == _lf(expected):
         return "current"
     match = _STAMP.search(normalized)
     if match is None:
-        return "unmarked"
+        return "unstamped" if _body(normalized) == strip_standard_stamp(_lf(expected)) else "unmarked"
     body = normalized[: match.start()] + ("\n" if match.group(0).startswith("\n") else "")
     return "outdated" if standard_body_digest(body) == match.group("digest") else "edited"

@@ -1110,7 +1110,8 @@ def expected_standards(templates_dir: Path, state: SetupState) -> list[tuple[str
 
 def standards_status(rapid_dir: Path, templates_dir: Path, state: SetupState) -> list[dict[str, str]]:
     """`{file, status}` of each standard Rapid OS writes from a template: `current`, `outdated` (stamped and
-    not edited: `--regenerate` replaces it), `edited` (stamped, changed by the person), `unmarked` (no stamp:
+    not edited: `--regenerate` replaces it), `edited` (stamped, changed by the person), `unstamped` (no stamp but
+    the body of this version: `--regenerate` only adds the stamp), `unmarked` (no stamp:
     an earlier version or the person; `--regenerate` writes the new one beside both as `.new`) or `missing`."""
     report = []
     for rel, content in expected_standards(templates_dir, state):
@@ -1141,6 +1142,10 @@ def regenerate_standards(
         status = item["status"]
         if status == "current":
             action, written = "unchanged", ""
+        elif status == "unstamped":
+            # The body is already this version's: add the stamp in place, nothing to compare.
+            action, written = "stamped", item["file"]
+            safe_write_text(target, expected[rel], encoding="utf-8", create_parents=True)
         elif status in ("edited", "unmarked"):
             action, written = "new", item["file"] + CI_NEW_SUFFIX
             safe_write_text(Path(rapid_dir) / (rel + CI_NEW_SUFFIX), expected[rel], encoding="utf-8", create_parents=True)

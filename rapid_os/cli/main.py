@@ -1462,6 +1462,12 @@ def _standards_diagnostics():
                 "(lo escribió una versión anterior a 3.2.0rc5, o la persona): el agente no ve las reglas nuevas.",
                 path, hint=f"'{STANDARDS_REGENERATE_COMMAND}' no lo pisa: escribe el nuevo al lado como .new para compararlos.",
             ))
+        elif item["status"] == "unstamped":
+            found.append(Diagnostic(
+                INFO, STANDARDS_OUTDATED_CODE,
+                f"{item['file']} ya es el que escribe esta versión de Rapid OS; solo le falta la marca de Rapid OS.",
+                path, hint=f"'{STANDARDS_REGENERATE_COMMAND}' le añade la marca en su sitio (el contenido no cambia).",
+            ))
         elif item["status"] == "edited":
             found.append(Diagnostic(
                 INFO, STANDARDS_OUTDATED_CODE,
@@ -4403,6 +4409,7 @@ STANDARD_STATUS_TEXT = {
     "outdated": "escrito por una versión anterior de Rapid OS, sin cambios de la persona",
     "edited": "editado por la persona",
     "unmarked": "sin la marca de Rapid OS (versión anterior a 3.2.0rc5, o lo escribió la persona)",
+    "unstamped": "igual al de esta versión, solo le falta la marca de Rapid OS",
     "missing": "no existe",
 }
 
@@ -4437,6 +4444,8 @@ def _setup_standards_command(state, as_json, regenerate):
             line += " -> reemplazado (copia en .rapid-os/backups/)"
         elif action == "written":
             line += " -> escrito"
+        elif action == "stamped":
+            line += " -> marca añadida (el contenido no cambia)"
         elif action == "new":
             line += (
                 f" -> no se toca; el nuevo está en {item['written']}: compáralos, lleva tus cambios al nuevo y "

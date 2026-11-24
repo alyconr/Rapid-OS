@@ -118,10 +118,12 @@ current version writes for the project's archetype and stacks:
 
 - **Written by an earlier version and not edited** (its stamp still matches): warning `RAPID1444`.
 - **No stamp** (onboarded before 3.2.0rc5, or written by the person): warning `RAPID1444`.
+- **No stamp, but already the body this version writes** (only the stamp is missing): info `RAPID1444`;
+  `--regenerate` only adds the stamp in place, without a `.new`.
 - **Edited by the person** (stamped, body changed): info `RAPID1444`.
 
 ```bash
-rapid setup standards                # state of each standard: current, outdated, edited, unmarked or missing
+rapid setup standards                # state of each standard: current, outdated, edited, unstamped, unmarked or missing
 rapid setup standards --regenerate   # write what this version generates, then regenerate AGENTS.md/CLAUDE.md
 ```
 
