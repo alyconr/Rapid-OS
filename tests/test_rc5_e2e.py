@@ -3,6 +3,9 @@
 H-83: removing a run's worktree on Windows (`git worktree remove` refused, `--force` failed with "Filename too
 long"). The messages give the command that works once everything is merged, and warn that --force deletes the
 work that is not integrated after an abort or a finish without merge.
+
+H-84: the shortcuts said that integrating needs a commit in the worktree first, and the agent repeated it to the
+person, when `rapid finish --merge` commits on rapid/<run> and merges after the [s/N].
 """
 
 from __future__ import annotations
@@ -45,6 +48,19 @@ class WorktreeRemovalMessagesTests(Project):
         self.assertIn(f'git worktree remove "{workspace}"', out)
         self.assertIn(UNINTEGRATED_FORCE_WARNING, out)
         self.assertNotIn("core.longpaths", out)  # nothing is integrated: no --force command is offered
+
+
+class IntegrationIsFinishMergeTests(unittest.TestCase):
+    def test_the_shortcuts_name_finish_merge_and_no_longer_ask_for_a_commit_first(self):
+        from pathlib import Path
+
+        shortcuts = Path(__file__).resolve().parents[1] / "templates" / "shortcuts"
+        for name in ("rapid-feature", "rapid-hardening", "rapid-refactor", "rapid-research"):
+            with self.subTest(shortcut=name):
+                text = (shortcuts / f"{name}.md").read_text(encoding="utf-8")
+                self.assertNotIn("primero un commit", text)
+                self.assertIn("la integración es `rapid finish --merge`", text)
+                self.assertIn("El commit manual en el worktree solo es el camino de un `rapid finish` sin `--merge`", text)
 
 
 if __name__ == "__main__":

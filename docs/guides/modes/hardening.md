@@ -33,7 +33,7 @@ The agent does not use its harness's own isolation (a Codex worktree, a sandbox 
 
 ### Close and integrate the worktree
 
-At `await_human_approval`, the agent should show the actual worktree path and branch `rapid/<run-id>` and explain that merging requires a commit on that run branch. Do not merge while approval, tasks, or verification are pending. After a `PASS`, `rapid finish` prints the exact manual closure commands only when the worktree is dirty. With `--merge`, it lists the short-format Git status and warns about likely build/cache artifacts before asking for written confirmation; after confirmation it commits and merges, then reports the commit and the removal commands, and leaves removal to you. The manual closure is:
+At `await_human_approval`, the agent should show the actual worktree path and branch `rapid/<run-id>` and explain that integrating is `rapid finish --merge`: after the person's `[s/N]` it commits on `rapid/<run-id>` and merges, so the agent does not ask for a commit first (H-84). The manual commit in the worktree is only the path of a `rapid finish` without `--merge`. Do not merge while approval, tasks, or verification are pending. After a `PASS`, `rapid finish` prints the exact manual closure commands only when the worktree is dirty. With `--merge`, it lists the short-format Git status and warns about likely build/cache artifacts before asking for written confirmation; after confirmation it commits and merges, then reports the commit and the removal commands, and leaves removal to you. The manual closure is:
 
 ```bash
 git -C <worktree> add -A
