@@ -24,6 +24,19 @@ Standard library only. It drives the `rapid` executable of a clean venv, in a te
    frontend, from `combine_test_commands` of the installed wheel), `rapid check --gate gate.tests` without a
    command, run from Windows PowerShell 5.1, adds both summaries and keeps the breakdown per component; and
    `rapid check --gate gate.tests -- python -c "print('==== 31 passed ====')"` is refused with RAPID1440 and exit 1.
+10. H-81: a feature run driven with `rapid next` up to its human gate. `rapid approve <gate>` of the wheel, run from
+   Windows PowerShell 5.1 with "s" piped, is refused with RAPID1310 (no terminal, or an agent among its ancestors).
+   The [s/N] itself cannot be reached from a script through the real executable (that is the barrier), so the
+   wheel's `execute_approve` is called with the barrier inputs injected (a terminal, no agent ancestor) and the
+   answer read from the stdin PowerShell 5.1 pipes: an empty answer and "x" exit 1 with "Sin cambios" and the gate
+   stays pending, with no review recorded.
+11. H-79: an onboarded project whose `.rapid-os/standards/security.md` has no stamp and a body of its own:
+   `rapid doctor --json` (from PowerShell 5.1) reports RAPID1444 for it, and `rapid setup standards --regenerate`
+   writes `security.md.new` (stamped) and leaves the original byte for byte.
+12. H-82: `detect_harness` of the wheel with an injected Windows-like process tree (names only, as the
+   CreateToolhelp32Snapshot reader gives them, read through `read_ancestry` with an injected reader) that ends in
+   `codex.exe` resolves to codex from the ancestry, in a project whose `tools` lists claude and codex. A real Codex
+   is not needed and not used.
 
 PYTHONUTF8 and PYTHONIOENCODING are removed from the environment, because either of them hides H-29: the point is to
 run with the console code page of a real Windows machine.
@@ -90,7 +103,7 @@ FAKE_SUMMARY = "print('==== 31 passed ====')"
 
 
 def fail(message: str) -> None:
-    print(f"FAIL {message}")
+    print(f"FAIL {message}".encode(sys.stdout.encoding or "utf-8", "replace").decode(sys.stdout.encoding or "utf-8"))
     raise SystemExit(1)
 
 
@@ -357,6 +370,135 @@ def main(argv: list[str]) -> int:
             fail(f"H-68: python -c print(...) for gate.tests was not refused with RAPID1440 and exit 1 "
                  f"(exit {fake.returncode}):\n{fake_err}")
         print("ok  H-68: python -c print('==== 31 passed ====') for gate.tests -> RAPID1440, exit 1")
+
+        # 10. H-81: only "s" approves; any other answer changes nothing.
+        approval = base / "approval"
+        approval.mkdir()
+        onboard(approval)
+        (approval / "app.py").write_text("x = 1\n", encoding="utf-8")
+        git(approval, "add", "-A")
+        git(approval, "commit", "-q", "-m", "base")
+        rapid("start", "feature", "--spec-file", str(feature_spec), "--json", cwd=approval)
+        action: dict = {}
+        for _ in range(25):
+            action = json.loads(rapid("next", "--json", cwd=approval))["action"]
+            if action["kind"] == "await_human_approval":
+                break
+            for key in ("command", "after"):
+                if action.get(key):
+                    rapid(*action[key][1:], cwd=approval)
+        else:
+            fail(f"H-81: the run never reached a human gate; last action: {action}")
+        human_gate = action["gate_ids"][0]
+        approval_run = next((approval / ".rapid-os" / "runs").iterdir()).name
+
+        def gate_snapshot() -> tuple[str, int]:
+            gates = json.loads(rapid("status", "--json", cwd=approval))["run"]["gates"]
+            disposition = next(g["disposition"] for g in gates if g["id"] == human_gate)
+            counted = subprocess.run(
+                [str(venv_python), "-c",
+                 "import sys; from pathlib import Path\n"
+                 "from rapid_os.adapters.evidence_registry import EvidenceRegistry\n"
+                 "root = Path.cwd()\n"
+                 "print(sum(e.kind.value == 'review' for e in EvidenceRegistry(root, root / '.rapid-os').list(sys.argv[1])))",
+                 approval_run],
+                cwd=approval, env=env, capture_output=True, timeout=120, stdin=subprocess.DEVNULL,
+            )
+            if counted.returncode != 0:
+                fail(f"H-81: could not count the reviews:\n{counted.stderr.decode('utf-8', 'replace')}")
+            return disposition, int(counted.stdout)
+
+        before = gate_snapshot()
+        if before[0] != "pending":
+            fail(f"H-81: {human_gate} should be pending before approve, is {before[0]}")
+
+        def powershell_in(cwd: Path, script: str) -> subprocess.CompletedProcess:
+            return subprocess.run(
+                ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script + "; exit $LASTEXITCODE"],
+                cwd=cwd, env=env, capture_output=True, timeout=180, stdin=subprocess.DEVNULL,
+            )
+
+        real = powershell_in(approval, f"'s' | & {ps_quote(rapid_exe)} approve {human_gate}")
+        real_out = real.stdout.decode("utf-8", "replace") + real.stderr.decode("utf-8", "replace")
+        if real.returncode != 1 or "RAPID1310" not in real_out or gate_snapshot() != before:
+            fail(f"H-81: rapid approve with a piped 's' was not refused with RAPID1310 (exit {real.returncode}):\n{real_out}")
+        prompt_script = approval.parent / "approve_prompt.py"
+        prompt_script.write_text(
+            "import sys\nfrom pathlib import Path\n"
+            "sys.stdout.reconfigure(encoding='utf-8')  # what the smoke decodes; the answer still comes through PS 5.1\n"
+            "from rapid_os.core.ancestry import AncestryResult\n"
+            "from rapid_os.orchestration.lifecycle import execute_approve\n"
+            "root = Path.cwd()\n"
+            "code, message = execute_approve(root, root / '.rapid-os', sys.argv[1], is_tty=True, environ={},\n"
+            "                                ancestry=AncestryResult(()))\n"
+            "print()\nprint(message)\nraise SystemExit(code)\n",
+            encoding="utf-8",
+        )
+        for label, piped_answer in (("empty", "''"), ("x", "'x'")):
+            answered = powershell_in(
+                approval, f"{piped_answer} | & {ps_quote(venv_python)} {ps_quote(prompt_script)} {human_gate}"
+            )
+            answered_out = answered.stdout.decode("utf-8", "replace") + answered.stderr.decode("utf-8", "replace")
+            if f"¿Apruebas {human_gate}? [s/N]" not in answered_out:
+                fail(f"H-81 ({label}): the [s/N] question was not asked:\n{answered_out}")
+            if answered.returncode != 1 or "Sin cambios" not in answered_out:
+                fail(f"H-81 ({label}): expected exit 1 and 'Sin cambios', got exit {answered.returncode}:\n{answered_out}")
+            if gate_snapshot() != before:
+                fail(f"H-81 ({label}): the gate or the reviews changed: {before} -> {gate_snapshot()}")
+        print(f"ok  H-81: approve {human_gate} with 's' piped -> RAPID1310; an empty answer and 'x' at the [s/N] "
+              "-> exit 1, gate still pending")
+
+        # 11. H-79: a standard without the stamp is reported by doctor and regenerated beside the original.
+        security = project / ".rapid-os" / "standards" / "security.md"
+        from_template = security.read_text(encoding="utf-8")
+        stamp_at = from_template.rfind("<!-- rapid-os-standard:")
+        if stamp_at < 0:
+            fail("H-79: rapid setup finish wrote security.md without the stamp")
+        security.write_text(
+            from_template[:stamp_at].rstrip("\n") + "\n\n- Regla local del equipo, de una versión anterior.\n",
+            encoding="utf-8",
+        )
+        original = security.read_bytes()
+        doctor = powershell_in(project, f"& {ps_quote(rapid_exe)} doctor --json")
+        try:
+            diagnostics = json.loads(doctor.stdout.decode("utf-8"))["diagnostics"]
+        except (ValueError, KeyError) as exc:
+            fail(f"H-79: rapid doctor --json gave no report ({exc}):\n{doctor.stdout.decode('utf-8', 'replace')}"
+                 f"\n{doctor.stderr.decode('utf-8', 'replace')}")
+        flagged = [d for d in diagnostics if d.get("code") == "RAPID1444" and "security.md" in json.dumps(d)]
+        if not flagged:
+            fail(f"H-79: rapid doctor did not report RAPID1444 for security.md: {[d.get('code') for d in diagnostics]}")
+        regenerated = powershell_in(project, f"& {ps_quote(rapid_exe)} setup standards --regenerate")
+        regen_out = regenerated.stdout.decode("utf-8", "replace") + regenerated.stderr.decode("utf-8", "replace")
+        new_file = security.with_name("security.md.new")
+        if regenerated.returncode != 0 or not new_file.is_file():
+            fail(f"H-79: --regenerate did not write security.md.new (exit {regenerated.returncode}):\n{regen_out}")
+        if security.read_bytes() != original:
+            fail("H-79: --regenerate changed the unstamped security.md")
+        if "<!-- rapid-os-standard: security sha256=" not in new_file.read_text(encoding="utf-8"):
+            fail("H-79: security.md.new has no stamp")
+        print("ok  H-79: doctor -> RAPID1444 (security.md without stamp); --regenerate wrote security.md.new, "
+              "original untouched")
+
+        # 12. H-82: a process tree that ends in codex.exe is a codex run.
+        detected = subprocess.run(
+            [str(venv_python), "-c",
+             "import json\n"
+             "from rapid_os.core.ancestry import read_ancestry\n"
+             "from rapid_os.core.harness_detect import detect_harness\n"
+             "tree = {100: (200, 'python.exe'), 200: (300, 'rapid.exe'), 300: (400, 'powershell.exe'),\n"
+             "        400: (0, 'codex.exe')}\n"
+             "ancestry = read_ancestry(100, reader=lambda pid: (*tree[pid], ()))\n"
+             "found = detect_harness(None, {}, {'tools': ['claude', 'codex']}, ancestry=ancestry)\n"
+             "print(json.dumps([found.harness_id, found.source, [a.name for a in ancestry.ancestors]]))"],
+            env=env, capture_output=True, timeout=120, stdin=subprocess.DEVNULL,
+        )
+        if detected.returncode != 0:
+            fail(f"H-82: detect_harness failed:\n{detected.stderr.decode('utf-8', 'replace')}")
+        harness_id, source, chain = json.loads(detected.stdout)
+        if (harness_id, source) != ("codex", "ancestry") or chain[-1] != "codex.exe":
+            fail(f"H-82: expected codex from the ancestry, got {harness_id!r} ({source}) for {chain}")
+        print(f"ok  H-82: {' <- '.join(chain)} -> harness codex (source ancestry)")
     print("Windows smoke test passed.")
     return 0
 
