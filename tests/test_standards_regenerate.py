@@ -110,6 +110,29 @@ class DoctorAndRegenerateStandardsTests(GitIsolated):
         self.assertEqual(self.security.read_text("utf-8"), rc2)
         self.assertTrue(self.security.with_name("security.md.new").is_file())
 
+    def test_after_renaming_the_new_file_the_agent_files_follow_and_doctor_says_so_until_then(self):
+        # Review of PR #126: after renaming security.md.new, AGENTS.md kept the old text and nothing said so.
+        rc2 = strip_standard_stamp(self.security.read_text("utf-8")).replace("uv", "pip")
+        self.security.write_text(rc2, encoding="utf-8")
+        self.rapid("setup", "standards", "--regenerate")  # brings AGENTS.md in line with the rc2 file
+        text = self.rapid("setup", "standards", "--regenerate").stdout
+        self.assertIn(
+            "después de renombrarlo, vuelve a ejecutar `rapid setup standards --regenerate` para regenerar "
+            "AGENTS.md/CLAUDE.md",
+            text,
+        )
+        pending = [d for d in self.doctor_1444() if ".new sigue al lado" in d["message"]]
+        self.assertEqual(len(pending), 1, self.doctor_1444())
+        self.assertEqual(pending[0]["level"], "info")
+        self.assertIn("compáralo y renómbralo, o bórralo", pending[0]["message"])
+
+        new = self.security.with_name("security.md.new")
+        new.replace(self.security)
+        self.assertIn("pip", self.agents_md.read_text("utf-8"))  # still the old standard
+        self.assertEqual(self.doctor_1444(), [])
+        self.rapid("setup", "standards", "--regenerate")
+        self.assertIn(strip_standard_stamp(self.security.read_text("utf-8")).strip()[-60:], self.agents_md.read_text("utf-8"))
+
     def test_a_missing_standard_is_written(self):
         rules = self.root / ".rapid-os" / "standards" / "coding-rules.md"
         rules.unlink()

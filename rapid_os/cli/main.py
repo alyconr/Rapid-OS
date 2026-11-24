@@ -1438,6 +1438,16 @@ def _standards_diagnostics():
     found = []
     for item in items:
         path = CURRENT_DIR / item["file"]
+        pending_new = path.with_name(path.name + ".new")
+        if pending_new.is_file():
+            # The person still has to decide: until the `.new` is renamed and regenerated, the agent reads the old one.
+            found.append(Diagnostic(
+                INFO, STANDARDS_OUTDATED_CODE,
+                f"{item['file']}.new sigue al lado de {item['file']}: compáralo y renómbralo, o bórralo. "
+                "Mientras tanto el agente lee el anterior.",
+                pending_new,
+                hint=f"Después de renombrarlo, ejecuta '{STANDARDS_REGENERATE_COMMAND}' para regenerar AGENTS.md/CLAUDE.md.",
+            ))
         if item["status"] == "outdated":
             found.append(Diagnostic(
                 WARNING, STANDARDS_OUTDATED_CODE,
@@ -4430,7 +4440,8 @@ def _setup_standards_command(state, as_json, regenerate):
         elif action == "new":
             line += (
                 f" -> no se toca; el nuevo está en {item['written']}: compáralos, lleva tus cambios al nuevo y "
-                "renómbralo al nombre del estándar"
+                "renómbralo al nombre del estándar; después de renombrarlo, vuelve a ejecutar "
+                f"`{STANDARDS_REGENERATE_COMMAND}` para regenerar AGENTS.md/CLAUDE.md"
             )
         print(line)
     if regenerate and any(item.get("action") in ("replaced", "written") for item in items):

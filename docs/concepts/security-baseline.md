@@ -127,8 +127,10 @@ rapid setup standards --regenerate   # write what this version generates, then r
 
 `--regenerate` replaces a standard nobody edited (the previous copy goes to `.rapid-os/backups/`) and writes a
 missing one. It never overwrites an edited or unstamped one: the new one is written beside it as `<file>.new`
-(the agent does not read it). Compare the two, carry your changes to the new one and rename it; the next
-`rapid setup standards --regenerate` then regenerates the agent files with it.
+(the agent does not read it). Compare the two, carry your changes to the new one and rename it. After renaming
+it, run `rapid setup standards --regenerate` again: until then `AGENTS.md`/`CLAUDE.md` keep the previous text.
+While a `<file>.new` is left beside a standard, `rapid doctor` says so (info `RAPID1444`: compare it and rename
+it, or delete it).
 
 ## Existing projects
 

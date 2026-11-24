@@ -127,8 +127,10 @@ rapid setup standards --regenerate   # escribe lo que genera esta versión y reg
 
 `--regenerate` reemplaza un estándar que nadie editó (la copia anterior va a `.rapid-os/backups/`) y escribe el que
 falta. Nunca pisa uno editado o sin marca: el nuevo queda al lado como `<archivo>.new` (el agente no lo lee).
-Compáralos, lleva tus cambios al nuevo y renómbralo; el siguiente `rapid setup standards --regenerate` regenera con
-él los archivos del agente.
+Compáralos, lleva tus cambios al nuevo y renómbralo. Después de renombrarlo, vuelve a ejecutar
+`rapid setup standards --regenerate`: hasta entonces `AGENTS.md`/`CLAUDE.md` conservan el texto anterior. Mientras
+quede un `<archivo>.new` al lado de un estándar, `rapid doctor` lo dice (información `RAPID1444`: compáralo y
+renómbralo, o bórralo).
 
 ## Proyectos ya inicializados
 
