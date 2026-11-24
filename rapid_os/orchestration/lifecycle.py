@@ -69,6 +69,7 @@ from rapid_os.orchestration.conductor import (
 )
 from rapid_os.orchestration.playbooks import load_playbook
 from rapid_os.orchestration.git import run_git
+from rapid_os.orchestration.workspace import UNINTEGRATED_FORCE_WARNING
 from rapid_os.orchestration.session import (
     Session,
     clear_session,
@@ -1970,7 +1971,7 @@ def execute_abort(
     message = f"Run '{run_id}' cancelado y sesión limpiada."
     if sess.workspace_path:
         message += (
-            f" El worktree '{sess.workspace_path}' (rama rapid/{run_id}) se conserva; "
-            "elimínalo con 'git worktree remove' cuando ya no lo necesites."
+            f' El worktree "{sess.workspace_path}" (rama rapid/{run_id}) se conserva; si ya no lo necesitas: '
+            f'git worktree remove "{sess.workspace_path}". {UNINTEGRATED_FORCE_WARNING}'
         )
     return 0, message

@@ -560,6 +560,8 @@ Gates:
 ### `rapid abort`
 Cancel the active run and remove the session file.
 
+El worktree de un run se queda en disco: el mensaje da `git worktree remove "<worktree>"` y avisa de que `--force` borra el trabajo del run que no está integrado (H-83).
+
 ```bash
 rapid abort [--reason <text>]
 ```

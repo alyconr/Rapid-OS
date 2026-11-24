@@ -945,8 +945,11 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertIn(f'git -C "{workspace}" add -A', res.stdout)
         self.assertIn(f'git -C "{workspace}" commit -m "{self.SPEC["title"]}"', res.stdout)
         self.assertIn(f'git -C "{self.project}" merge rapid/{run_id}', res.stdout)
-        self.assertIn(f'git worktree remove "{workspace}"', res.stdout)
-        self.assertIn("No uses --force", res.stdout)
+        self.assertIn(f'git -c core.longpaths=true worktree remove --force "{workspace}"', res.stdout)
+        self.assertIn(f"git branch -d rapid/{run_id}", res.stdout)
+        self.assertIn("No uses --force antes del merge: borra el trabajo sin integrar del run.", res.stdout)
+        # H-83: the run ended without merge, so the work is not integrated: --force would delete it.
+        self.assertIn("--force al retirar el worktree borra el trabajo sin integrar", res.stdout)
 
     def test_finish_with_open_task_exits_nonzero(self):
         data = self._start("hardening", self.SPEC, "--worktree")
@@ -1010,7 +1013,10 @@ class HardeningLabScenarioTests(LabScenarioBase):
             (self.project / "profile_mgr.py").read_text(encoding="utf-8"),
             (EXAMPLES / "hardening-lab" / "solution" / "profile_mgr.py").read_text(encoding="utf-8"),
         )
-        self.assertIn("git worktree remove", res.stdout)
+        # H-83: everything is integrated, so the command that works on Windows long paths is safe here.
+        self.assertIn("todo está integrado", res.stdout)
+        self.assertIn(f'git -c core.longpaths=true worktree remove --force "{workspace}"', res.stdout)
+        self.assertIn(f"git branch -d rapid/{run_id}", res.stdout)
 
     def test_finish_merge_decline_reports_pass_and_manual_worktree_closure(self):
         self._git("add", "-A")
@@ -1041,8 +1047,9 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertIn(f'git -C "{workspace}" add -A', res.stdout)
         self.assertIn(f'git -C "{workspace}" commit -m "{self.SPEC["title"]}"', res.stdout)
         self.assertIn(f'git -C "{self.project}" merge rapid/{run_id}', res.stdout)
-        self.assertIn(f'git worktree remove "{workspace}"', res.stdout)
-        self.assertIn("No uses --force", res.stdout)
+        self.assertIn(f'git -c core.longpaths=true worktree remove --force "{workspace}"', res.stdout)
+        self.assertIn(f"git branch -d rapid/{run_id}", res.stdout)
+        self.assertIn("No uses --force antes del merge: borra el trabajo sin integrar del run.", res.stdout)
         self.assertTrue(workspace.is_dir())
 
     def test_finish_merge_failure_reports_pass_and_manual_closure_with_nonzero_exit(self):
@@ -1072,8 +1079,9 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertIn("No se integró:", res.stdout)
         self.assertIn("El run sí quedó terminado", res.stdout)
         self.assertIn(f'git -C "{self.project}" merge rapid/{run_id}', res.stdout)
-        self.assertIn(f'git worktree remove "{workspace}"', res.stdout)
-        self.assertIn("No uses --force", res.stdout)
+        self.assertIn(f'git -c core.longpaths=true worktree remove --force "{workspace}"', res.stdout)
+        self.assertIn(f"git branch -d rapid/{run_id}", res.stdout)
+        self.assertIn("No uses --force antes del merge: borra el trabajo sin integrar del run.", res.stdout)
 
     def test_hardening_lab_runs_inside_an_isolated_worktree(self):
         data = self._start("hardening", self.SPEC, "--worktree")

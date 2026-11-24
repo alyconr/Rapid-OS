@@ -33,16 +33,17 @@ The agent does not use its harness's own isolation (a Codex worktree, a sandbox 
 
 ### Close and integrate the worktree
 
-At `await_human_approval`, the agent should show the actual worktree path and branch `rapid/<run-id>` and explain that merging requires a commit on that run branch. Do not merge while approval, tasks, or verification are pending. After a `PASS`, `rapid finish` prints the exact manual closure commands only when the worktree is dirty. With `--merge`, it lists the short-format Git status and warns about likely build/cache artifacts before asking for written confirmation; after confirmation it commits and merges, then reports the commit and leaves removal to you:
+At `await_human_approval`, the agent should show the actual worktree path and branch `rapid/<run-id>` and explain that merging requires a commit on that run branch. Do not merge while approval, tasks, or verification are pending. After a `PASS`, `rapid finish` prints the exact manual closure commands only when the worktree is dirty. With `--merge`, it lists the short-format Git status and warns about likely build/cache artifacts before asking for written confirmation; after confirmation it commits and merges, then reports the commit and the removal commands, and leaves removal to you. The manual closure is:
 
 ```bash
 git -C <worktree> add -A
 git -C <worktree> commit -m "<spec title>"
 git -C <project> merge rapid/<run-id>
-git worktree remove <worktree>
+git -c core.longpaths=true worktree remove --force "<worktree>"
+git branch -d rapid/<run-id>
 ```
 
-Never use `git worktree remove` with the **--force** option while the worktree has uncommitted changes; it deletes the changes. On Windows, if checkout reports `Filename too long`, run `git config core.longpaths true` in the repository and retry.
+The removal goes only after the merge: before it, **--force** deletes the run's work. After the merge everything is in your branch, so `--force` only removes the untracked files left in the worktree (a plain `git worktree remove` refuses them). `core.longpaths=true` lets Git for Windows delete paths longer than 260 characters (without it, `--force` failed with `Filename too long` and left the folder half deleted; see [Git for Windows: long paths](https://gitforwindows.org/git-cannot-create-a-file-or-directory-with-a-long-path)), and `git branch -d` deletes the branch only when it is fully merged.
 
 The rest of this guide describes the same cycle with v3 commands (**Advanced mode**), useful for CI, debugging, and auditing.
 

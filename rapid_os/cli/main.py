@@ -4920,6 +4920,12 @@ def _story_lines(run_id, verdict, tick=True):
 
 
 def finish_command(args):
+    from rapid_os.orchestration.workspace import (
+        FORCE_BEFORE_MERGE_WARNING,
+        UNINTEGRATED_FORCE_WARNING,
+        integrated_worktree_removal,
+    )
+
     """Execute rapid finish command."""
     from rapid_os.orchestration.actions import NextAction
     from rapid_os.orchestration.lifecycle import (
@@ -5111,31 +5117,34 @@ def finish_command(args):
                             f"No se creó un commit nuevo; se mergeó {short_hash} ({subject}) desde rapid/{run_id} en {source_branch.stdout.strip()}.",
                             file=output,
                         )
-                    print(f'Worktree conservado; retíralo con git worktree remove "{workspace}".', file=output)
+                    print("Worktree conservado; todo está integrado, así que puedes retirarlo con:", file=output)
+                    for line in integrated_worktree_removal(workspace, run_id):
+                        print(f"  {line}", file=output)
                     merge_succeeded = True
                 except Exception as exc:
                     merge_failure_reason = str(exc) or "falló el commit o el merge"
 
         if not merge_succeeded:
+            removal = integrated_worktree_removal(workspace, run_id)
             if merge_commit_created:
                 merge_closure_steps = [
                     f'git -C "{CURRENT_DIR}" merge rapid/{run_id}',
-                    f'git worktree remove "{workspace}"',
+                    *removal,
                 ]
             elif merge_status_lines == []:
                 merge_closure_steps = [
                     "No hay cambios sin commit en el worktree; no hace falta add ni commit.",
                     f'git -C "{CURRENT_DIR}" merge rapid/{run_id}',
-                    f'git worktree remove "{workspace}"',
+                    *removal,
                 ]
             else:
                 merge_closure_steps = [
                     f'git -C "{workspace}" add -A',
                     f'git -C "{workspace}" commit -m "{merge_message}"',
                     f'git -C "{CURRENT_DIR}" merge rapid/{run_id}',
-                    f'git worktree remove "{workspace}"',
+                    *removal,
                 ]
-            merge_closure_steps.append("No uses --force mientras haya cambios: borrarías el trabajo del run.")
+            merge_closure_steps.append(FORCE_BEFORE_MERGE_WARNING)
     elif workspace and workspace.is_dir():
         if merge_requested and code == 0 and result.verdict.value != "pass":
             print(
@@ -5143,6 +5152,7 @@ def finish_command(args):
                 file=output,
             )
         print(f"El trabajo está en {workspace}, rama rapid/{run_id}.", file=output)
+        print(UNINTEGRATED_FORCE_WARNING, file=output)
     if workspace and workspace.is_dir() and report_passes and not merge_requested:
         status = run_git(workspace, "status", "--porcelain")
         if status.returncode == 0 and status.stdout.strip():
@@ -5152,8 +5162,9 @@ def finish_command(args):
             print(f'  git -C "{workspace}" add -A', file=output)
             print(f'  git -C "{workspace}" commit -m "{manual_message}"', file=output)
             print(f'  git -C "{CURRENT_DIR}" merge rapid/{run_id}', file=output)
-            print(f'  git worktree remove "{workspace}"', file=output)
-            print("No uses --force mientras haya cambios: borrarías el trabajo del run.", file=output)
+            for line in integrated_worktree_removal(workspace, run_id):
+                print(f"  {line}", file=output)
+            print(FORCE_BEFORE_MERGE_WARNING, file=output)
 
     quiet = contextlib.redirect_stdout(sys.stderr) if getattr(args, "json", False) else contextlib.nullcontext()
     with quiet:
