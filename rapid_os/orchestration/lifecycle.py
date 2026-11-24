@@ -1612,12 +1612,6 @@ def execute_approve(
         return 1, "RAPID1333 Reason is required (--reason) when rejecting a gate approval."
     if waive and (not reason or not str(reason).strip()):
         return 1, "RAPID1333 A non-empty '--reason' is required when waiving a gate."
-    if (reject or waive) and not is_real_reason(reason):
-        flag = "--reject" if reject else "--waive"
-        return 1, (
-            f"RAPID1333 El motivo de {flag} debe explicar la decisión: al menos {MIN_REASON_LENGTH} caracteres que "
-            f"no sean solo sí/no (recibido: «{str(reason).strip()}»). Nada cambió."
-        )
 
     if environ is not None:
         env_map = environ
@@ -1645,6 +1639,13 @@ def execute_approve(
     )
     if refusal:
         return 1, refusal
+    # After the barriers: an agent gets RAPID1310 whatever reason it passes.
+    if (reject or waive) and not is_real_reason(reason):
+        flag = "--reject" if reject else "--waive"
+        return 1, (
+            f"RAPID1333 El motivo de {flag} debe explicar la decisión: al menos {MIN_REASON_LENGTH} caracteres que "
+            f"no sean solo sí/no (recibido: «{str(reason).strip()}»). Nada cambió."
+        )
     raw_input_func = input_func if input_func is not None else input
     no_terminal = (
         "RAPID1310 Human gate approval requires interactive terminal confirmation (TTY). "
