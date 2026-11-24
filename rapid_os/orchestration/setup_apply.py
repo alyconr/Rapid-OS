@@ -46,6 +46,7 @@ from rapid_os.domain.services import (
     services_now,
     stack_language,
 )
+from rapid_os.domain.standard_stamp import stamp_standard, standard_state
 from rapid_os.domain.security import (
     CI_WORKFLOW_PATH,
     ci_component_dirs,
@@ -977,17 +978,20 @@ def _write_coding_rules(
         raise _fail("RAPID1413", str(exc)) from exc
     if not rules_src.exists():
         return []
+    try:
+        body = stamp_standard(rules_src.read_text(encoding="utf-8"), "coding-rules")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise _fail("RAPID1413", f"No se pudo copiar las reglas de codigo: {exc}") from exc
     if backup_dir is not None:
-        try:
-            body = rules_src.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError) as exc:
-            raise _fail("RAPID1413", f"No se pudo copiar las reglas de codigo: {exc}") from exc
         safe_write_text(
             standards / "coding-rules.md", body, encoding="utf-8", backup=True, backup_dir=backup_dir,
             keep_backups=_backups_kept(),
         )
     else:
-        _copy_template(rules_src, standards / "coding-rules.md", "las reglas de codigo")
+        try:
+            safe_write_text(standards / "coding-rules.md", body, encoding="utf-8", backup=True, create_parents=True)
+        except (OSError, ValueError) as exc:
+            raise _fail("RAPID1413", f"No se pudo copiar las reglas de codigo: {exc}") from exc
     return [standards / "coding-rules.md"]
 
 
@@ -1029,6 +1033,7 @@ def _write_security(
             )
         except (OSError, UnicodeDecodeError) as exc:
             raise _fail("RAPID1413", f"No se pudo leer la base de seguridad: {exc}") from exc
+        body = stamp_standard(body, "security")
         if backup_dir is not None:
             safe_write_text(
                 target, body, encoding="utf-8", create_parents=True, backup=True, backup_dir=backup_dir,
@@ -1068,6 +1073,88 @@ def refresh_archetype_files(
     if project_has_standards(Path(rapid_dir), Path(config_file)):
         warnings = (*warnings, *regenerate_agent_context(Path(project_root), Path(rapid_dir), Path(config_file)))
     return warnings
+
+
+STANDARD_FILES = ("security.md", "coding-rules.md")
+
+
+def expected_standards(templates_dir: Path, state: SetupState) -> list[tuple[str, str]]:
+    """`(path under .rapid-os, content)` of each standard this version writes from a template for the project
+    (H-79), stamped. Only the ones whose template exists and whose decisions (archetype, stack) are taken."""
+    if state.stack is None or state.archetype not in ARCHETYPES:
+        return []
+    templates_dir = Path(templates_dir)
+    expected: list[tuple[str, str]] = []
+    try:
+        baseline = resolve_child_path(templates_dir / SECURITY_TEMPLATE[0], SECURITY_TEMPLATE[1], single_segment=True)
+        rules = resolve_child_path(
+            resolve_child_path(templates_dir / "archetypes", state.archetype, single_segment=True),
+            "coding-rules.md",
+            single_segment=True,
+        )
+    except ValueError as exc:
+        raise _fail("RAPID1413", str(exc)) from exc
+    try:
+        if baseline.is_file():
+            body = render_security_standard(
+                baseline.read_text(encoding="utf-8"), archetype=state.archetype, stack_id=state.stack_ids,
+                ai=effective_ai(state.stack_ids, state.ai), engines=_service_engines(state),
+            )
+            expected.append(("standards/security.md", stamp_standard(body, "security")))
+        if rules.is_file():
+            expected.append(("standards/coding-rules.md", stamp_standard(rules.read_text(encoding="utf-8"), "coding-rules")))
+    except (OSError, UnicodeDecodeError) as exc:
+        raise _fail("RAPID1413", f"No se pudo leer la plantilla de un estándar: {exc}") from exc
+    return expected
+
+
+def standards_status(rapid_dir: Path, templates_dir: Path, state: SetupState) -> list[dict[str, str]]:
+    """`{file, status}` of each standard Rapid OS writes from a template: `current`, `outdated` (stamped and
+    not edited: `--regenerate` replaces it), `edited` (stamped, changed by the person), `unmarked` (no stamp:
+    an earlier version or the person; `--regenerate` writes the new one beside both as `.new`) or `missing`."""
+    report = []
+    for rel, content in expected_standards(templates_dir, state):
+        target = Path(rapid_dir) / rel
+        if not target.is_file():
+            status = "missing"
+        else:
+            try:
+                status = standard_state(target.read_text(encoding="utf-8"), content)
+            except (OSError, UnicodeDecodeError):
+                status = "edited"
+        report.append({"file": f".rapid-os/{rel}", "status": status})
+    return report
+
+
+def regenerate_standards(
+    project_root: Path, rapid_dir: Path, config_file: Path, templates_dir: Path, state: SetupState
+) -> tuple[list[dict[str, str]], tuple[str, ...]]:
+    """`rapid setup standards --regenerate` (H-79): a standard nobody edited is replaced (copy in
+    `.rapid-os/backups/`), a missing one is written, and an edited or unstamped one is not touched: the new
+    one goes beside it as `<file>.new`. Then the agent files are regenerated. Returns the items and warnings."""
+    expected = dict(expected_standards(templates_dir, state))
+    backups = Path(rapid_dir) / "backups"
+    results = []
+    for item in standards_status(rapid_dir, templates_dir, state):
+        rel = item["file"].removeprefix(".rapid-os/")
+        target = Path(rapid_dir) / rel
+        status = item["status"]
+        if status == "current":
+            action, written = "unchanged", ""
+        elif status in ("edited", "unmarked"):
+            action, written = "new", item["file"] + CI_NEW_SUFFIX
+            safe_write_text(Path(rapid_dir) / (rel + CI_NEW_SUFFIX), expected[rel], encoding="utf-8", create_parents=True)
+        else:
+            action, written = ("replaced" if status == "outdated" else "written"), item["file"]
+            safe_write_text(
+                target, expected[rel], encoding="utf-8", create_parents=True, backup=status == "outdated",
+                backup_dir=backups, keep_backups=_backups_kept(),
+            )
+        results.append({**item, "action": action, "written": written})
+    warnings: tuple[str, ...] = ()
+    if project_has_standards(Path(rapid_dir), Path(config_file)):
+        warnings = regenerate_agent_context(Path(project_root), Path(rapid_dir), Path(config_file))
+    return results, warnings
 
 
 def planned_ci_workflows(

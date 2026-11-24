@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
+from rapid_os.domain.standard_stamp import strip_standard_stamp
 from rapid_os.adapters.agents import DEFAULT_AGENT_REGISTRY
 from rapid_os.adapters.project_commands import propose_test_command
 from rapid_os.core.config import inspect_project_config_file
@@ -232,7 +233,7 @@ def _derive_archetype(content: str | None, templates_dir: Path) -> str | None:
         return None
     for archetype in ARCHETYPES:
         template = _read_text(templates_dir / "archetypes" / archetype / "coding-rules.md")
-        if template is not None and template == content:
+        if template is not None and template.replace("\r\n", "\n") == strip_standard_stamp(content).replace("\r\n", "\n"):
             return archetype
     return "custom"
 

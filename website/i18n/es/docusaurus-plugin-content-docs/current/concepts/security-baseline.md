@@ -106,6 +106,28 @@ rapid setup ci --regenerate   # escribe lo que genera esta versión
 
 `--regenerate` reemplaza un workflow que nadie editó (la copia anterior va a `.rapid-os/backups/`) y escribe el que falta. Nunca pisa un workflow editado: el nuevo queda al lado como `rapid-security-<lenguaje>.yml.new` (GitHub no lo ejecuta). Compáralos, lleva tus cambios al nuevo y renómbralo al nombre del workflow. `rapid setup ci` solo lee; con `--json` da `workflows[]` con `file`, `language`, `status` y, con `--regenerate`, `action` (`unchanged`, `replaced`, `written`, `new`) y `written`.
 
+### Poner al día los estándares de un proyecto existente
+
+Un proyecto conserva los `.rapid-os/standards/security.md` y `coding-rules.md` que escribió su onboarding: una
+versión posterior de Rapid OS no los reescribe por su cuenta, así que las reglas nuevas (por ejemplo, las de cadena
+de suministro para pnpm y uv de 3.2.0rc4) no llegan al agente (H-79). Desde 3.2.0rc5 cada uno de esos estándares
+termina con una marca, `<!-- rapid-os-standard: <nombre> sha256=<digest del cuerpo> -->`, y `rapid doctor` los
+compara con lo que escribe la versión actual para el arquetipo y los stacks del proyecto:
+
+- **Lo escribió una versión anterior y nadie lo editó** (su marca sigue coincidiendo): aviso `RAPID1444`.
+- **Sin marca** (onboarding anterior a 3.2.0rc5, o lo escribió la persona): aviso `RAPID1444`.
+- **La persona lo editó** (con marca, cuerpo cambiado): información `RAPID1444`.
+
+```bash
+rapid setup standards                # estado de cada estándar: al día, anterior, editado, sin marca o no existe
+rapid setup standards --regenerate   # escribe lo que genera esta versión y regenera AGENTS.md/CLAUDE.md
+```
+
+`--regenerate` reemplaza un estándar que nadie editó (la copia anterior va a `.rapid-os/backups/`) y escribe el que
+falta. Nunca pisa uno editado o sin marca: el nuevo queda al lado como `<archivo>.new` (el agente no lo lee).
+Compáralos, lleva tus cambios al nuevo y renómbralo; el siguiente `rapid setup standards --regenerate` regenera con
+él los archivos del agente.
+
 ## Proyectos ya inicializados
 
 La regla de `security.md` solo cambia por decisión de la persona. Para un proyecto creado antes de esta base:

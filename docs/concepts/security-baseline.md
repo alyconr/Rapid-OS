@@ -106,6 +106,28 @@ rapid setup ci --regenerate   # write what this version generates
 
 `--regenerate` replaces a workflow nobody edited (the previous copy goes to `.rapid-os/backups/`) and writes a missing one. It never overwrites an edited workflow: the new one is written beside it as `rapid-security-<language>.yml.new` (GitHub does not run it). Compare the two, carry your changes to the new one and rename it to the workflow's name. `rapid setup ci` reads only; `--json` gives `workflows[]` with `file`, `language`, `status` and, with `--regenerate`, `action` (`unchanged`, `replaced`, `written`, `new`) and `written`.
 
+### Bringing the standards of an existing project up to date
+
+A project keeps the `.rapid-os/standards/security.md` and `coding-rules.md` its onboarding wrote: a later version of
+Rapid OS does not rewrite them by itself, so new rules (for example the supply-chain rules for pnpm and uv of
+3.2.0rc4) do not reach the agent (H-79). From 3.2.0rc5 each of those standards ends with a stamp,
+`<!-- rapid-os-standard: <name> sha256=<digest of the body> -->`, and `rapid doctor` compares them with what the
+current version writes for the project's archetype and stacks:
+
+- **Written by an earlier version and not edited** (its stamp still matches): warning `RAPID1444`.
+- **No stamp** (onboarded before 3.2.0rc5, or written by the person): warning `RAPID1444`.
+- **Edited by the person** (stamped, body changed): info `RAPID1444`.
+
+```bash
+rapid setup standards                # state of each standard: current, outdated, edited, unmarked or missing
+rapid setup standards --regenerate   # write what this version generates, then regenerate AGENTS.md/CLAUDE.md
+```
+
+`--regenerate` replaces a standard nobody edited (the previous copy goes to `.rapid-os/backups/`) and writes a
+missing one. It never overwrites an edited or unstamped one: the new one is written beside it as `<file>.new`
+(the agent does not read it). Compare the two, carry your changes to the new one and rename it; the next
+`rapid setup standards --regenerate` then regenerates the agent files with it.
+
 ## Existing projects
 
 Only a person's decision changes `security.md`. To refresh an older project's generated baseline:

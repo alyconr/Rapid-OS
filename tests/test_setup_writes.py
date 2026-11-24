@@ -12,6 +12,7 @@ from argparse import Namespace
 from pathlib import Path
 from unittest.mock import patch
 
+from rapid_os.domain.standard_stamp import strip_standard_stamp
 from rapid_os.adapters.setup_store import read_setup_file
 from rapid_os.cli import main as cli_main
 from rapid_os.domain.project_docs import DRAFT_BANNER, body_sha256, parse_doc_frontmatter
@@ -562,7 +563,8 @@ class InitSharesTheSetupTests(unittest.TestCase):
             rapid(other, "setup", "doc", doc_id, "--skip")
         self.assertEqual(rapid(other, "setup", "finish").returncode, 0)
         def standard(root, name):
-            text = (root / ".rapid-os" / "standards" / name).read_text(encoding="utf-8")
+            # The stamp (H-79) carries the digest of the whole body, which differs with the JS rule.
+            text = strip_standard_stamp((root / ".rapid-os" / "standards" / name).read_text(encoding="utf-8"))
             # The database lines follow the services decision (setup) or the template (init).
             if name == "tech-stack.md":
                 text = text.split("\n\n# ")[0]  # `init` takes one stack: compare the backend's block
