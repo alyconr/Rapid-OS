@@ -77,9 +77,17 @@ def validate_hardening_findings(
             )
         reference = str(finding["standard_ref"]).strip()
         if reference.casefold() not in by_key:
+            # H-80: with the suggestions joined by commas, a rejected 'OWASP A03:2025, CWE-1104' (two citations)
+            # looked like it was among them. One citation per finding; the suggestions one per line, quoted.
             similar = _similar(reference, citations)
-            hint = f"; citas parecidas: {', '.join(similar)}" if similar else ""
-            return invalid(
-                f"standard_ref {finding['standard_ref']!r} no es una cita completa de {security_file}{hint}"
+            several = "," in reference and all(part.strip().casefold() in by_key for part in reference.split(","))
+            message = (
+                f"standard_ref «{reference}» no es una cita de {security_file.as_posix()}. standard_ref es una sola "
+                "cita, escrita tal como aparece en security.md (un elemento entre corchetes)."
             )
+            if several:
+                message += " Aquí hay varias citas separadas por comas: elige una."
+            if similar:
+                message += "\nCitas parecidas (usa una, tal cual):" + "".join(f"\n  «{c}»" for c in similar)
+            return invalid(message)
     return None
