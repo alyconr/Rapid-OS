@@ -478,7 +478,9 @@ class ApproveAsksYesNoTests(Project):
         self.assertIn(f"Gate:  {self.gate}", summary)
         self.assertIn("  - La reserva queda guardada", summary)
         self.assertIn("Tareas: 1/1 terminadas", summary)
-        self.assertRegex(summary, r"gate\.tests \[(pass|pending · última evidencia: PASS)\]  \(evidencia: E\d+")
+        # gate.tests is acknowledged by `rapid finish`: before it, a PASS on the current tree reads as such.
+        self.assertRegex(summary, r"gate\.tests (\[pass\]  \(evidencia: E\d+|PASS \(E\d+[^)]*\), se registra en finish)")
+        self.assertNotIn("gate.tests [pending · última evidencia: PASS]", summary)
         self.assertTrue(summary.endswith(f"¿Apruebas {self.gate}? [s/N] "), summary)
         self.assertNotIn("Escribe la frase", summary)
         self.assertEqual([r.payload["outcome"] for r in self.reviews()], ["approved"])

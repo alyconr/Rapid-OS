@@ -506,7 +506,7 @@ rapid approve <gate-id> --waive --reason <text> [--reviewer <name>]
 rapid approve <gate-id> --reject --reason <text> [--reviewer <name>]
 ```
 
-Deciding (H-59): before asking, `rapid approve` prints what is being approved: the run, the gate, the acceptance criteria of the run's spec revision, the tasks with their state and evidence, and the result of `gate.tests` and `gate.architecture` with their evidence ids. Then it asks `¿Apruebas <gate-id>? [s/N]`:
+Deciding (H-59): before asking, `rapid approve` prints what is being approved: the run, the gate, the acceptance criteria of the run's spec revision, the tasks with their state and evidence, and the result of `gate.tests` and `gate.architecture` with their evidence ids. These machine gates are acknowledged by `rapid finish`, so before it a passing one reads `gate.tests PASS (E013), se registra en finish` (approving already requires that check to be on the current code). Then it asks `¿Apruebas <gate-id>? [s/N]`:
 
 - `s`, `si`, `sí`, `y` or `yes` approves.
 - Any other answer (`n`, an empty Enter, anything else) changes nothing and exits 1 with `Sin cambios: <gate-id> sigue pendiente (solo «s» aprueba). Si querías rechazarlo: rapid approve <gate-id> --reject --reason "<motivo>"`. `rapid approve` without `--reject` only approves or does nothing: it no longer asks for a reason (H-81: an empty answer followed by a stray `S` once became a rejection with the reason `S`).

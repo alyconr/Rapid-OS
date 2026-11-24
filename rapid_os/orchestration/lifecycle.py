@@ -1493,7 +1493,13 @@ def approval_summary(project_root: Path, project_rapid_dir: Path, run_id: str, g
         lines.extend(f"  {t['id']} [{t['status']}] {t['title']}{evidence_note(t)}" for t in tasks)
         for gate in progress["gates"]:
             if gate["id"] in ("gate.tests", ARCHITECTURE_GATE_ID):
-                lines.append(f"{gate['id']} [{gate_label(gate)}]{evidence_note(gate)}")
+                if gate.get("status") == "pending" and gate.get("last_evidence_result") == "PASS":
+                    # A machine gate is acknowledged by `rapid finish` (step 3.b); approving already requires its
+                    # last check to be on the current tree (RAPID1433/RAPID1432), so this PASS is what is approved.
+                    ids = ", ".join(gate.get("evidence_ids") or []) or "evidencia"
+                    lines.append(f"{gate['id']} PASS ({ids}), se registra en finish")
+                else:
+                    lines.append(f"{gate['id']} [{gate_label(gate)}]{evidence_note(gate)}")
     except Exception as exc:  # the summary informs; it never blocks the decision
         lines.append(f"(no se pudo armar el resumen completo: {exc})")
     return "\n".join(lines)
