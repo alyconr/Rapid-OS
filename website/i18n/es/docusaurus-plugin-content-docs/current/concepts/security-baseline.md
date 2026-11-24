@@ -62,13 +62,15 @@ El manifiesto y el lockfile están en la carpeta de cada componente. Con la topo
 
 | Lenguaje | Qué lee en la carpeta | Comando |
 | --- | --- | --- |
-| Python | `uv.lock` | `uv export --frozen --format requirements.txt --no-emit-project -o <archivo>` y después `pip-audit --disable-pip -r <archivo>` (los requisitos exportados van fijados con sus hashes, así que pip-audit no vuelve a resolver). `uv audit` existe, pero uv lo marca como experimental. |
+| Python | `uv.lock` | `uv export --frozen --format requirements.txt --no-emit-project -o <archivo>` (su salida estándar, el mismo archivo otra vez, va a `/dev/null`) y después `pip-audit --disable-pip -r <archivo>` (los requisitos exportados van fijados con sus hashes, así que pip-audit no vuelve a resolver). `uv audit` existe, pero uv lo marca como experimental. |
 | Python | `requirements.txt` | `pip-audit -r requirements.txt` |
 | Python | `pyproject.toml` sin lock | `pip install .` y después `pip-audit --skip-editable` |
 | TypeScript | `pnpm-lock.yaml`, `package-lock.json` o `yarn.lock` | `pnpm audit --audit-level high`, `npm audit --audit-level=high` o `yarn npm audit --all --recursive --severity high`, tras instalar con el lockfile. La versión de pnpm sale de `packageManager` en el `package.json` de esa carpeta (pnpm 10 si no lo tiene). |
 | Go, Rust, Ruby, .NET, PHP | `go.mod`, `Cargo.lock`, `Gemfile.lock`, un `.sln`/`.slnx`/`.csproj`, `composer.lock` | `govulncheck`, `cargo audit`, `bundle-audit`, `dotnet package list --vulnerable`, `composer audit` |
 
 Java y Kotlin usan la revisión de dependencias de GitHub en los pull requests, que cubre todo el repositorio.
+
+En Python, pip-audit escribe su resultado en JSON y el paso siguiente, `Avisos de pip-audit (cada uno una vez)`, muestra cada aviso una sola vez, en el log y en el resumen del job (paquete, versión, aviso, alias, corregido en). pip-audit 2.10.1 con su servicio por defecto (PyPI) devuelve el mismo aviso más de una vez: con starlette 0.50.0 su JSON trae `PYSEC-2026-161` dos veces, con los mismos alias, y dice `Found 10 known vulnerabilities` para 5 avisos distintos (H-86). El resumen dice cuántos contó pip-audit. El job sigue fallando ante cualquier vulnerabilidad, con el código de salida de pip-audit.
 
 Qué pasa en cada carpeta:
 
@@ -105,6 +107,32 @@ rapid setup ci --regenerate   # escribe lo que genera esta versión
 ```
 
 `--regenerate` reemplaza un workflow que nadie editó (la copia anterior va a `.rapid-os/backups/`) y escribe el que falta. Nunca pisa un workflow editado: el nuevo queda al lado como `rapid-security-<lenguaje>.yml.new` (GitHub no lo ejecuta). Compáralos, lleva tus cambios al nuevo y renómbralo al nombre del workflow. `rapid setup ci` solo lee; con `--json` da `workflows[]` con `file`, `language`, `status` y, con `--regenerate`, `action` (`unchanged`, `replaced`, `written`, `new`) y `written`.
+
+### Poner al día los estándares de un proyecto existente
+
+Un proyecto conserva los `.rapid-os/standards/security.md` y `coding-rules.md` que escribió su onboarding: una
+versión posterior de Rapid OS no los reescribe por su cuenta, así que las reglas nuevas (por ejemplo, las de cadena
+de suministro para pnpm y uv de 3.2.0rc4) no llegan al agente (H-79). Desde 3.2.0rc5 cada uno de esos estándares
+termina con una marca, `<!-- rapid-os-standard: <nombre> sha256=<digest del cuerpo> -->`, y `rapid doctor` los
+compara con lo que escribe la versión actual para el arquetipo y los stacks del proyecto:
+
+- **Lo escribió una versión anterior y nadie lo editó** (su marca sigue coincidiendo): aviso `RAPID1444`.
+- **Sin marca** (onboarding anterior a 3.2.0rc5, o lo escribió la persona): aviso `RAPID1444`.
+- **Sin marca, pero con el cuerpo que ya escribe esta versión** (solo le falta la marca): información
+  `RAPID1444`; `--regenerate` solo le añade la marca en su sitio, sin `.new`.
+- **La persona lo editó** (con marca, cuerpo cambiado): información `RAPID1444`.
+
+```bash
+rapid setup standards                # estado de cada estándar: al día, anterior, editado, solo sin marca, sin marca o no existe
+rapid setup standards --regenerate   # escribe lo que genera esta versión y regenera AGENTS.md/CLAUDE.md
+```
+
+`--regenerate` reemplaza un estándar que nadie editó (la copia anterior va a `.rapid-os/backups/`) y escribe el que
+falta. Nunca pisa uno editado o sin marca: el nuevo queda al lado como `<archivo>.new` (el agente no lo lee).
+Compáralos, lleva tus cambios al nuevo y renómbralo. Después de renombrarlo, vuelve a ejecutar
+`rapid setup standards --regenerate`: hasta entonces `AGENTS.md`/`CLAUDE.md` conservan el texto anterior. Mientras
+quede un `<archivo>.new` al lado de un estándar, `rapid doctor` lo dice (información `RAPID1444`: compáralo y
+renómbralo, o bórralo).
 
 ## Proyectos ya inicializados
 

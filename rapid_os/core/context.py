@@ -22,6 +22,7 @@ def compose_project_context(
     # Lazy: the adapters import this package.
     from rapid_os.adapters.project_docs import load_project_docs
     from rapid_os.domain.setup import SETUP_DOC_ORDER
+    from rapid_os.domain.standard_stamp import strip_standard_stamp
 
     standards_dir = project_rapid_dir / "standards"
     full_context = ""
@@ -35,7 +36,8 @@ def compose_project_context(
             full_context += (
                 f"\n### 🛑 {filename.replace('.md', '').upper().replace('-', ' ')}\n"
             )
-            full_context += path.read_text(encoding="utf-8") + "\n"
+            # The stamp of a standard (H-79) is for Rapid OS, not for the agent.
+            full_context += strip_standard_stamp(path.read_text(encoding="utf-8")) + "\n"
 
     for doc_id in SETUP_DOC_ORDER:
         doc = docs.managed.get(doc_id) or docs.skipped.get(doc_id)

@@ -171,8 +171,8 @@ Aprobar un gate humano exige estas comprobaciones, de la más barata a la más f
 
 1. **TTY:** sin terminal interactiva falla con `RAPID1310` (un EOF durante la confirmación se trata igual).
 2. **Marcador de sesión:** `CLAUDE_CODE_CHILD_SESSION=1` rechaza la ejecución.
-3. **Ascendencia:** si algún proceso ancestro es el binario de Claude Code (`claude`/`claude.exe`), falla con `RAPID1310` aunque haya TTY y no queden variables.
-4. **Confirmación:** tras un resumen de lo que se aprueba (run, gate, criterios de aceptación, tareas, `gate.tests` y `gate.architecture`), pregunta `¿Apruebas <gate-id>? [s/N]` (`¿Dispensas …?` con `--waive`, `¿Rechazas …?` con `--reject`). Si respondes `N`, ofrece escribir un motivo para rechazarlo; Enter no cambia nada.
+3. **Ascendencia:** si algún proceso ancestro es un harness de agente (Claude Code: `claude`/`claude.exe`; Codex: `codex`/`codex.exe`), falla con `RAPID1310` aunque haya TTY y no queden variables.
+4. **Confirmación:** tras un resumen de lo que se aprueba (run, gate, criterios de aceptación, tareas, `gate.tests` y `gate.architecture`), pregunta `¿Apruebas <gate-id>? [s/N]` (`¿Dispensas …?` con `--waive`, `¿Rechazas …?` con `--reject`). Cualquier respuesta que no sea sí (`N`, Enter, otra cosa) no cambia nada y da el comando para rechazarlo: `rapid approve <gate-id> --reject --reason "<motivo>"`.
 5. **Hooks de Claude Code (opcionales):** `PreToolUse` deniega al agente `rapid approve`, `rapid abort`, `rapid run gate`, `rapid evidence add` y la edición de `.rapid-os/`, y deniega quitar las variables de sesión.
 6. **Evidencia:** la aprobación queda como `review` con productor `user`; el evaluador no acepta la de un `harness:*` (ruleset v2).
 

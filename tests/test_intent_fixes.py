@@ -57,11 +57,27 @@ class MatchAgentTests(unittest.TestCase):
             Ancestor(1, "claudette.exe"),
             Ancestor(1, "node", ("node", "server.js")),
             Ancestor(1, "cursor"),
-            Ancestor(1, "codex"),  # not confirmed: deliberately not matched
+            Ancestor(1, "codex-notes"),
+            Ancestor(1, "vim", ("vim", "notes/.codex/packages.md")),
         )
         for ancestor in cases:
             with self.subTest(ancestor=ancestor):
                 self.assertIsNone(match_agent(ancestor))
+
+    def test_codex_processes_are_recognised(self):
+        # H-82: the chain observed on Windows (talleres-rc2) and the npm CLI of the Codex README.
+        observed = "C:\\Users\\alyco\\.codex\\packages\\app-server-daemon\\releases\\0.170.0-x86_64-pc-windows-msvc\\bin\\codex.exe"
+        cases = (
+            Ancestor(1, "codex"),
+            Ancestor(1, "codex.exe"),
+            Ancestor(1, "CODEX.EXE"),
+            Ancestor(1, "x", (observed, "app-server", "--listen", "unix://", "--managed-daemon")),
+            Ancestor(1, "x", ("/home/u/.codex/packages/app-server-daemon/releases/0.170.0/bin/x",)),
+            Ancestor(1, "node", ("node", "/usr/lib/node_modules/@openai/codex/bin/codex.js")),
+        )
+        for ancestor in cases:
+            with self.subTest(ancestor=ancestor):
+                self.assertEqual(match_agent(ancestor), "codex")
 
     def test_nearest_agent_ancestor_wins(self):
         chain = AncestryResult((Ancestor(10, "bash"), Ancestor(20, "claude"), Ancestor(30, "claude")))
@@ -157,6 +173,51 @@ class ApproveAncestryTests(unittest.TestCase):
         self.assertIn("RAPID1310", msg)
         self.assertIn("agent harness", msg)
         self.assertIn("pid 20", msg)
+
+    def test_codex_ancestor_is_refused_everywhere_a_person_must_decide(self):
+        # H-82: the Windows snapshot gives only the name; the chain observed under Codex.
+        from rapid_os.orchestration.lifecycle import human_terminal_refusal
+
+        chain = AncestryResult((Ancestor(10, "powershell.exe"), Ancestor(20, "codex.exe")))
+        code, msg = self.approve(chain)
+        self.assertEqual(code, 1)
+        self.assertIn("RAPID1310", msg)
+        self.assertIn("codex", msg)
+        for what in ("Human gate approval", "Merging the run", "Accepting another test command"):
+            with self.subTest(what=what):
+                refusal = human_terminal_refusal({}, chain, True, what, "")
+                self.assertIsNotNone(refusal)
+                self.assertTrue(refusal.startswith(f"RAPID1310 {what}"), refusal)
+        code, msg = self.approve(chain, reject=True, reason="falta validar la entrada")
+        self.assertIn("RAPID1310", msg)
+
+    def test_the_harness_detection_switch_does_not_turn_off_the_barrier(self):
+        # RAPID_HARNESS_FROM_ANCESTRY=0 only stops detect_harness from reading the tree; approve, --reject/--waive,
+        # finish --merge and --accept-* keep refusing an agent ancestor.
+        from unittest import mock
+        from rapid_os.orchestration.lifecycle import human_terminal_refusal
+
+        off = {"RAPID_HARNESS_FROM_ANCESTRY": "0"}
+        for chain in (
+            AncestryResult((Ancestor(10, "bash"), Ancestor(20, "claude.exe"))),
+            AncestryResult((Ancestor(10, "powershell.exe"), Ancestor(20, "codex.exe"))),
+        ):
+            with self.subTest(agent=chain.ancestors[-1].name):
+                code, msg = execute_approve(
+                    self.root, self.root / ".rapid-os", "gate.final-verification", is_tty=True, environ=off, ancestry=chain,
+                )
+                self.assertEqual(code, 1)
+                self.assertIn("RAPID1310", msg)
+                code, msg = execute_approve(
+                    self.root, self.root / ".rapid-os", "gate.review", is_tty=True, environ=off, ancestry=chain,
+                    reject=True,
+                )
+                self.assertIn("RAPID1310", msg)
+                self.assertIsNotNone(human_terminal_refusal(off, chain, True, "Merging the run", ""))
+                # The real tree too, read when no tree is handed in.
+                with mock.patch("rapid_os.orchestration.lifecycle.read_ancestry", return_value=chain), \
+                        mock.patch.dict("os.environ", off):
+                    self.assertIn("RAPID1310", human_terminal_refusal(off, None, True, "Human gate approval", ""))
 
     def test_unreadable_ancestry_does_not_reject(self):
         # Falls through to the next check (no active session) instead of RAPID1310.

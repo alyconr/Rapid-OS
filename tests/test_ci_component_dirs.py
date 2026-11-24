@@ -20,6 +20,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -38,6 +39,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TEMPLATES = ROOT / "templates"
 GOLDEN = ROOT / "tests" / "golden" / "ci"
 RC3_PYTHON = ROOT / "tests" / "fixtures" / "ci" / "rc3-python-security.yml"
+PIP_AUDIT_STARLETTE = ROOT / "tests" / "fixtures" / "ci" / "pip-audit-starlette-0.50.0.json"
 DOCS = ("brief", "business", "data-model", "architecture", "deployment")
 
 
@@ -102,9 +104,11 @@ class ComponentFoldersTests(unittest.TestCase):
         self.assertEqual(matrix_dirs(typescript), [["frontend"]])
         self.assertIn("working-directory: ${{ matrix.dir }}", python)
         self.assertIn(
-            'uv export --frozen --format requirements.txt --no-emit-project -o "$RUNNER_TEMP/requirements-audit.txt"', python
+            'uv export --frozen --format requirements.txt --no-emit-project -o "$RUNNER_TEMP/requirements-audit.txt"'
+            " > /dev/null",
+            python,
         )
-        self.assertIn('pip-audit --disable-pip -r "$RUNNER_TEMP/requirements-audit.txt"', python)
+        self.assertIn('pip-audit --disable-pip -r "$RUNNER_TEMP/requirements-audit.txt" -f json -o "$report"', python)
         self.assertIn("package_json_file: ${{ matrix.dir }}/package.json", typescript)
         self.assertIn("pnpm audit --audit-level high", typescript)
         self.assertNotIn("{RAPID_COMPONENT_DIRS}", python + typescript)
@@ -233,7 +237,66 @@ class StepScriptTests(unittest.TestCase):
         self.assertEqual(
             calls[1], f"uv export --frozen --format requirements.txt --no-emit-project -o {self.base}/requirements-audit.txt"
         )
-        self.assertEqual(calls[2], f"pip-audit --disable-pip -r {self.base}/requirements-audit.txt")
+        self.assertEqual(
+            calls[2], f"pip-audit --disable-pip -r {self.base}/requirements-audit.txt -f json -o {self.base}/pip-audit.json"
+        )
+
+    def test_the_export_does_not_dump_the_requirements_into_the_log(self):
+        # H-86: `uv export -o` also writes the whole file (hundreds of lines of hashes) to stdout.
+        (self.bin / "uv").write_text(
+            '#!/usr/bin/env bash\necho "uv $*" >> "$CALLS"\nfor i in $(seq 1 50); do echo "    --hash=sha256:$i"; done\n',
+            encoding="utf-8", newline="\n",
+        )
+        self.write("backend/app/main.py")
+        self.write("backend/pyproject.toml", "[project]\nname = 'x'\n")
+        self.write("backend/uv.lock")
+        audit = self.run_step(self.python, "Auditar las dependencias declaradas", "backend", cwd=self.repo / "backend")
+        self.assertEqual(audit.returncode, 0, audit.stdout + audit.stderr)
+        self.assertNotIn("--hash=sha256", audit.stdout)
+
+    def summarize(self, report: Path | None) -> subprocess.CompletedProcess:
+        """The summary step with the real python (not the stub): it reads RUNNER_TEMP/pip-audit.json."""
+        for path in (self.summary,):
+            path.write_text("", encoding="utf-8")
+        target = self.base / "pip-audit.json"
+        if report is not None:
+            shutil.copyfile(report, target)
+        elif target.exists():
+            target.unlink()
+        script = self.base / "summary.sh"
+        script.write_text(step_script(self.python, "Avisos de pip-audit (cada uno una vez)"), encoding="utf-8", newline="\n")
+        python_dir = str(Path(sys.executable).parent)
+        shim = self.base / "realbin"
+        shim.mkdir(exist_ok=True)
+        (shim / "python").write_text(f'#!/usr/bin/env bash\nexec "{Path(sys.executable).as_posix()}" "$@"\n', encoding="utf-8", newline="\n")
+        (shim / "python").chmod(0o755)
+        env = {
+            **os.environ, "DIR": "backend", "GITHUB_STEP_SUMMARY": str(self.summary), "RUNNER_TEMP": str(self.base),
+            "PYTHONIOENCODING": "utf-8",  # the runner is Ubuntu (UTF-8); a Windows Python would write cp1252
+            "PATH": str(shim) + os.pathsep + python_dir + os.pathsep + os.environ.get("PATH", ""),
+        }
+        return subprocess.run([BASH, str(script)], cwd=self.repo, env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+
+    def test_each_advisory_is_shown_once_in_the_log_and_the_summary(self):
+        # H-86: talleres-rc2, starlette 0.50.0: "Found 10 known vulnerabilities", 5 distinct (pip-audit 2.10.1 with
+        # the PyPI service returns each id twice, with the same aliases). The fixture is its JSON for that lock.
+        result = self.summarize(PIP_AUDIT_STARLETTE)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        summary = self.summary.read_text("utf-8")
+        self.assertIn("### pip-audit · backend: 5 avisos distintos", summary)
+        self.assertIn("pip-audit contó 10: el servicio de vulnerabilidades devolvió avisos repetidos; aquí aparece "
+                      "cada uno una vez.", summary)
+        rows = [line for line in summary.splitlines() if line.startswith("| starlette |")]
+        self.assertEqual(len(rows), 5, rows)
+        self.assertEqual(len({row.split(" | ")[2] for row in rows}), 5)
+        self.assertIn("| starlette | 0.50.0 | PYSEC-2026-161 | CVE-2026-48710, GHSA-86qp-5c8j-p5mr, X41-2026-002 | 1.0.1 |", summary)
+        self.assertIn("5 avisos distintos", result.stdout)
+
+    def test_no_advisories_and_no_report_are_said_plainly(self):
+        clean = self.base / "clean.json"
+        clean.write_text('{"dependencies": [{"name": "x", "version": "1", "vulns": []}], "fixes": []}', encoding="utf-8")
+        self.assertIn("pip-audit · backend: ningún aviso conocido.", self.summarize(clean).stdout)
+        self.assertIn("no dejó resultados", self.summarize(None).stdout)
 
     def test_requirements_txt_is_audited_as_before(self):
         self.write("backend/requirements.txt", "fastapi==0.1\n")

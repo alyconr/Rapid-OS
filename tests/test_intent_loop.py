@@ -439,10 +439,12 @@ class IntentLoopAcceptanceTests(unittest.TestCase):
         }
         self._rapid("start", "feature", "--spec-file", "-", input_str=json.dumps(spec_payload))
 
-        # Reject without reason -> exit 1
+        # Reject without reason and without a TTY -> exit 1 with RAPID1310: the barriers come before any reason
+        # check (H-81). The missing reason itself (RAPID1333) is tested with a terminal in test_intent_approve_modes.
         reject_fail = self._rapid("approve", "gate.final-verification", "--reject")
         self.assertEqual(reject_fail.returncode, 1)
-        self.assertIn("Reason is required", reject_fail.stderr)
+        self.assertIn("RAPID1310", reject_fail.stderr)
+        self.assertNotIn("RAPID1333", reject_fail.stderr)
 
     def test_approve_rejects_under_claude_code_session(self):
         test_cmd_str = f'"{sys.executable}" -m unittest discover -s tests -t .'
@@ -945,8 +947,11 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertIn(f'git -C "{workspace}" add -A', res.stdout)
         self.assertIn(f'git -C "{workspace}" commit -m "{self.SPEC["title"]}"', res.stdout)
         self.assertIn(f'git -C "{self.project}" merge rapid/{run_id}', res.stdout)
-        self.assertIn(f'git worktree remove "{workspace}"', res.stdout)
-        self.assertIn("No uses --force", res.stdout)
+        self.assertIn(f'git -c core.longpaths=true worktree remove --force "{workspace}"', res.stdout)
+        self.assertIn(f"git branch -d rapid/{run_id}", res.stdout)
+        self.assertIn("No uses --force antes del merge: borra el trabajo sin integrar del run.", res.stdout)
+        # H-83: the run ended without merge, so the work is not integrated: --force would delete it.
+        self.assertIn("--force al retirar el worktree borra el trabajo sin integrar", res.stdout)
 
     def test_finish_with_open_task_exits_nonzero(self):
         data = self._start("hardening", self.SPEC, "--worktree")
@@ -1010,7 +1015,10 @@ class HardeningLabScenarioTests(LabScenarioBase):
             (self.project / "profile_mgr.py").read_text(encoding="utf-8"),
             (EXAMPLES / "hardening-lab" / "solution" / "profile_mgr.py").read_text(encoding="utf-8"),
         )
-        self.assertIn("git worktree remove", res.stdout)
+        # H-83: everything is integrated, so the command that works on Windows long paths is safe here.
+        self.assertIn("todo está integrado", res.stdout)
+        self.assertIn(f'git -c core.longpaths=true worktree remove --force "{workspace}"', res.stdout)
+        self.assertIn(f"git branch -d rapid/{run_id}", res.stdout)
 
     def test_finish_merge_decline_reports_pass_and_manual_worktree_closure(self):
         self._git("add", "-A")
@@ -1041,8 +1049,9 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertIn(f'git -C "{workspace}" add -A', res.stdout)
         self.assertIn(f'git -C "{workspace}" commit -m "{self.SPEC["title"]}"', res.stdout)
         self.assertIn(f'git -C "{self.project}" merge rapid/{run_id}', res.stdout)
-        self.assertIn(f'git worktree remove "{workspace}"', res.stdout)
-        self.assertIn("No uses --force", res.stdout)
+        self.assertIn(f'git -c core.longpaths=true worktree remove --force "{workspace}"', res.stdout)
+        self.assertIn(f"git branch -d rapid/{run_id}", res.stdout)
+        self.assertIn("No uses --force antes del merge: borra el trabajo sin integrar del run.", res.stdout)
         self.assertTrue(workspace.is_dir())
 
     def test_finish_merge_failure_reports_pass_and_manual_closure_with_nonzero_exit(self):
@@ -1072,8 +1081,9 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertIn("No se integró:", res.stdout)
         self.assertIn("El run sí quedó terminado", res.stdout)
         self.assertIn(f'git -C "{self.project}" merge rapid/{run_id}', res.stdout)
-        self.assertIn(f'git worktree remove "{workspace}"', res.stdout)
-        self.assertIn("No uses --force", res.stdout)
+        self.assertIn(f'git -c core.longpaths=true worktree remove --force "{workspace}"', res.stdout)
+        self.assertIn(f"git branch -d rapid/{run_id}", res.stdout)
+        self.assertIn("No uses --force antes del merge: borra el trabajo sin integrar del run.", res.stdout)
 
     def test_hardening_lab_runs_inside_an_isolated_worktree(self):
         data = self._start("hardening", self.SPEC, "--worktree")
@@ -1118,7 +1128,7 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertIn("gate.final-verification", listing.stdout)
 
         # Without a TTY every mutating variant fails with RAPID1310.
-        for extra in ((), ("--reject", "--reason", "no"), ("--waive", "--reason", "n/a")):
+        for extra in ((), ("--reject", "--reason", "falta validar la entrada"), ("--waive", "--reason", "cubierto por la auditoría")):
             res = self._rapid("approve", "gate.review", *extra, input_str="")
             self.assertEqual(res.returncode, 1)
             self.assertIn("RAPID1310", res.stderr, extra)
@@ -1136,16 +1146,16 @@ class HardeningLabScenarioTests(LabScenarioBase):
 
         # final-verification is not waivable.
         res = self._rapid_tty(
-            ["approve", "gate.final-verification", "--waive", "--reason", "skip"],
+            ["approve", "gate.final-verification", "--waive", "--reason", "skip this gate for now"],
             "s",
         )
         self.assertEqual(res.returncode, 1)
         self.assertIn("not waivable", res.stderr)
 
-        # Missing reason is the same error as validate_gate_transition's.
+        # Missing reason: RAPID1333 in Spanish, after the TTY and agent barriers (H-81).
         res = self._rapid_tty(["approve", "gate.review", "--waive"], "s")
         self.assertEqual(res.returncode, 1)
-        self.assertIn("non-empty '--reason' is required when waiving", res.stderr)
+        self.assertIn("RAPID1333 --waive necesita un motivo (--reason)", res.stderr)
 
         res = self._rapid_tty(
             ["approve", "gate.review", "--waive", "--reason", "covered by the security audit"],
@@ -1217,10 +1227,14 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertNotIn("Siguiente: `rapid finish`", first.stdout)
         last = self._approve("gate.final-verification")
         self.assertEqual(last.returncode, 0, last.stderr)
+        # H-88: this run has a worktree, so a plain `rapid finish` would leave the change uncommitted in it.
+        run_id = self._session()["active_run_id"]
         self.assertIn(
-            "Siguiente: `rapid finish` (o /rapid-next en tu agente). Tras finish el run ya no se puede cancelar",
+            f"Siguiente: `rapid finish --merge` (hace el commit en rapid/{run_id} y el merge tras tu [s/N]). "
+            "Tras finish el run ya no se puede cancelar",
             last.stdout,
         )
+        self.assertNotIn("Siguiente: `rapid finish` (", last.stdout)
         again = self._approve("gate.final-verification")
         self.assertEqual(again.returncode, 1)
         self.assertIn("RAPID1332", again.stderr)
@@ -1230,7 +1244,7 @@ class HardeningLabScenarioTests(LabScenarioBase):
     def test_the_rejected_gate_also_explains_the_way_out(self):
         self._start("hardening", self.SPEC, "--worktree")
         self.assertEqual(
-            self._rapid_tty(["approve", "gate.review", "--reject", "--reason", "no"], "s").returncode, 0
+            self._rapid_tty(["approve", "gate.review", "--reject", "--reason", "falta validar la entrada"], "s").returncode, 0
         )
         again = self._approve("gate.review")
         self.assertEqual(again.returncode, 1)

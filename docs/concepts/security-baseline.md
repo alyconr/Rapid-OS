@@ -62,13 +62,15 @@ The manifest and the lockfile live in the folder of each component. With topolog
 
 | Language | What it reads in the folder | Command |
 | --- | --- | --- |
-| Python | `uv.lock` | `uv export --frozen --format requirements.txt --no-emit-project -o <file>`, then `pip-audit --disable-pip -r <file>` (the exported requirements are pinned with hashes, so pip-audit does not resolve again). `uv audit` exists but uv marks it experimental. |
+| Python | `uv.lock` | `uv export --frozen --format requirements.txt --no-emit-project -o <file>` (its standard output, the same file again, goes to `/dev/null`), then `pip-audit --disable-pip -r <file>` (the exported requirements are pinned with hashes, so pip-audit does not resolve again). `uv audit` exists but uv marks it experimental. |
 | Python | `requirements.txt` | `pip-audit -r requirements.txt` |
 | Python | `pyproject.toml` without a lock | `pip install .`, then `pip-audit --skip-editable` |
 | TypeScript | `pnpm-lock.yaml`, `package-lock.json` or `yarn.lock` | `pnpm audit --audit-level high`, `npm audit --audit-level=high` or `yarn npm audit --all --recursive --severity high`, after installing with the lockfile. The pnpm version comes from `packageManager` in that folder's `package.json` (pnpm 10 without it). |
 | Go, Rust, Ruby, .NET, PHP | `go.mod`, `Cargo.lock`, `Gemfile.lock`, a `.sln`/`.slnx`/`.csproj`, `composer.lock` | `govulncheck`, `cargo audit`, `bundle-audit`, `dotnet package list --vulnerable`, `composer audit` |
 
 Java and Kotlin use GitHub's dependency review on pull requests, which covers the whole repository.
+
+In Python, pip-audit writes its result as JSON and the next step, `Avisos de pip-audit (cada uno una vez)`, prints each advisory once, in the log and in the job summary (package, version, advisory, aliases, fixed in). pip-audit 2.10.1 with its default service (PyPI) returns the same advisory more than once: with starlette 0.50.0 its JSON has `PYSEC-2026-161` twice, with the same aliases, and it says `Found 10 known vulnerabilities` for 5 distinct advisories (H-86). The summary says how many pip-audit counted. The job still fails on any vulnerability, with pip-audit's exit code.
 
 What happens in each folder:
 
@@ -105,6 +107,32 @@ rapid setup ci --regenerate   # write what this version generates
 ```
 
 `--regenerate` replaces a workflow nobody edited (the previous copy goes to `.rapid-os/backups/`) and writes a missing one. It never overwrites an edited workflow: the new one is written beside it as `rapid-security-<language>.yml.new` (GitHub does not run it). Compare the two, carry your changes to the new one and rename it to the workflow's name. `rapid setup ci` reads only; `--json` gives `workflows[]` with `file`, `language`, `status` and, with `--regenerate`, `action` (`unchanged`, `replaced`, `written`, `new`) and `written`.
+
+### Bringing the standards of an existing project up to date
+
+A project keeps the `.rapid-os/standards/security.md` and `coding-rules.md` its onboarding wrote: a later version of
+Rapid OS does not rewrite them by itself, so new rules (for example the supply-chain rules for pnpm and uv of
+3.2.0rc4) do not reach the agent (H-79). From 3.2.0rc5 each of those standards ends with a stamp,
+`<!-- rapid-os-standard: <name> sha256=<digest of the body> -->`, and `rapid doctor` compares them with what the
+current version writes for the project's archetype and stacks:
+
+- **Written by an earlier version and not edited** (its stamp still matches): warning `RAPID1444`.
+- **No stamp** (onboarded before 3.2.0rc5, or written by the person): warning `RAPID1444`.
+- **No stamp, but already the body this version writes** (only the stamp is missing): info `RAPID1444`;
+  `--regenerate` only adds the stamp in place, without a `.new`.
+- **Edited by the person** (stamped, body changed): info `RAPID1444`.
+
+```bash
+rapid setup standards                # state of each standard: current, outdated, edited, unstamped, unmarked or missing
+rapid setup standards --regenerate   # write what this version generates, then regenerate AGENTS.md/CLAUDE.md
+```
+
+`--regenerate` replaces a standard nobody edited (the previous copy goes to `.rapid-os/backups/`) and writes a
+missing one. It never overwrites an edited or unstamped one: the new one is written beside it as `<file>.new`
+(the agent does not read it). Compare the two, carry your changes to the new one and rename it. After renaming
+it, run `rapid setup standards --regenerate` again: until then `AGENTS.md`/`CLAUDE.md` keep the previous text.
+While a `<file>.new` is left beside a standard, `rapid doctor` says so (info `RAPID1444`: compare it and rename
+it, or delete it).
 
 ## Existing projects
 

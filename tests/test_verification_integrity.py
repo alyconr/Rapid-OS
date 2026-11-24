@@ -315,7 +315,7 @@ class H27ChangedAfterTheLastCheckTests(Project):
         (self.root / "app.py").write_text("x = 5\n", encoding="utf-8")
         code = (
             "import sys, unittest.mock as mock, rapid_os.cli.main as m; "
-            f"sys.argv = ['rapid', 'approve', '{gate}', '--reject', '--reason', 'no']; "
+            f"sys.argv = ['rapid', 'approve', '{gate}', '--reject', '--reason', 'falta validar la entrada']; "
             "mock.patch('sys.stdin.isatty', return_value=True).start(); "
             "mock.patch('rapid_os.orchestration.lifecycle.stdin_is_windows_nul', return_value=False).start(); "
             "mock.patch('rapid_os.orchestration.lifecycle.read_ancestry', "

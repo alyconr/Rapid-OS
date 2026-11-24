@@ -73,7 +73,7 @@ Las dos variantes leen la misma carpeta (`.agents/skills/` del proyecto, y `~/.a
 3. Comprueba que `rapid` esté en el `PATH` de esa terminal (`rapid --version`): el skill le pide a Codex ejecutarlo.
 4. Si actualizaste Rapid OS o los instalaste con Codex abierto, reinicia la sesión de Codex.
 
-`$rapid-approve` **no aprueba**: muestra los gates pendientes y la evidencia, y te da el comando para tu terminal. `rapid approve` exige una terminal interactiva tuya y falla con `RAPID1310` si lo lanza un agente. El archivo `AGENTS.md` generado por `rapid init` sigue aportando el contexto del proyecto.
+`$rapid-approve` **no aprueba**: muestra los gates pendientes y la evidencia, y te da el comando para tu terminal. `rapid approve` exige una terminal interactiva tuya y falla con `RAPID1310` si lo lanza un agente: Rapid OS reconoce a Codex entre los procesos padre (`codex.exe`, `~/.codex/packages/`), no solo por la falta de TTY, y también lo usa para registrar `codex` como harness del run. El archivo `AGENTS.md` generado por `rapid init` sigue aportando el contexto del proyecto.
 
 ---
 

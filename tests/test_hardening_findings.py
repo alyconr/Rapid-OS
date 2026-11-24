@@ -85,9 +85,22 @@ class HardeningFindingValidationTests(unittest.TestCase):
             "[" + ", ".join(f"OWASP A0{n}:2025" for n in range(1, 9)) + "]", encoding="utf-8"
         )
         error = validate_hardening_findings([{**VALID, "standard_ref": "2025"}], self.security)
-        listed = [part for part in error.split("citas parecidas: ")[1].split(", ")]
+        listed = error.split("Citas parecidas (usa una, tal cual):\n")[1].split("\n")
         self.assertEqual(len(listed), 5)
-        self.assertTrue(all(item.startswith("OWASP A0") for item in listed))
+        self.assertTrue(all(item.startswith("  «OWASP A0") and item.endswith("»") for item in listed), listed)
+
+    def test_two_citations_in_one_standard_ref_are_explained(self):
+        # H-80: 'OWASP A03:2025, CWE-1104' was rejected and the suggestions, joined by commas, looked like they
+        # contained it; the agent ended up citing another norm.
+        self.security.write_text("[OWASP A03:2025, CWE-1104, OWASP A06:2025]", encoding="utf-8")
+        error = validate_hardening_findings([{**VALID, "standard_ref": "OWASP A03:2025, CWE-1104"}], self.security)
+        self.assertIn("RAPID1343", error)
+        self.assertIn("standard_ref es una sola cita, escrita tal como aparece en security.md", error)
+        self.assertIn("varias citas separadas por comas: elige una", error)
+        lines = error.split("\n")
+        self.assertIn("  «OWASP A03:2025»", lines)
+        self.assertIn("  «CWE-1104»", lines)
+        self.assertNotIn("  «OWASP A03:2025, CWE-1104»", lines)
 
 
 if __name__ == "__main__":

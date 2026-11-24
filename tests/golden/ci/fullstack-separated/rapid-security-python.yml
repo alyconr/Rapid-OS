@@ -1,4 +1,4 @@
-# rapid-os-ci: python sha256=e2e8a8bced48640574759af89d1ee4b606e1dbcbd74f7080fe79519c108c87da
+# rapid-os-ci: python sha256=35f0a3de3bc2d92cf61e299fa931bac1cee0435d6bdf9bb936030daeaae7b75b
 # Escaneos de seguridad de Rapid OS (base de seguridad: docs en .rapid-os/standards/security.md).
 # Lo escribió Rapid OS al cerrar el onboarding de un repositorio vacío: revísalo antes del primer commit.
 # Las acciones están fijadas por SHA completo del commit, con su versión en un comentario.
@@ -65,7 +65,11 @@ jobs:
 
   # Una vez por carpeta de componente (backend/, o la raíz en un proyecto de una carpeta): el manifiesto y el
   # lockfile están ahí. Con uv.lock se exportan los requisitos fijados con sus hashes y pip-audit los audita
-  # sin resolver de nuevo (`uv audit` existe pero uv lo marca como experimental).
+  # sin resolver de nuevo (`uv audit` existe pero uv lo marca como experimental). `uv export -o` también vuelca
+  # el archivo entero a la salida estándar (observado: cientos de líneas de hashes en el log), así que esa salida
+  # va a /dev/null. pip-audit 2.10.1 con su servicio por defecto (PyPI) devuelve el mismo aviso repetido: con
+  # starlette 0.50.0 el JSON trae PYSEC-2026-161 dos veces, con los mismos alias ("Found 10 known
+  # vulnerabilities", 5 distintos); pip-audit escribe JSON y el paso siguiente muestra cada aviso una vez.
   # Fuentes: https://github.com/pypa/pip-audit , https://docs.astral.sh/uv/reference/cli/#uv-export ,
   # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands
   dependencies:
@@ -106,13 +110,59 @@ jobs:
             exit 1
           fi
           python -m pip install pip-audit==2.10.1 uv==0.13.8
+          report="$RUNNER_TEMP/pip-audit.json"
           if [ -f uv.lock ]; then
-            uv export --frozen --format requirements.txt --no-emit-project -o "$RUNNER_TEMP/requirements-audit.txt"
-            pip-audit --disable-pip -r "$RUNNER_TEMP/requirements-audit.txt"
+            uv export --frozen --format requirements.txt --no-emit-project -o "$RUNNER_TEMP/requirements-audit.txt" > /dev/null
+            pip-audit --disable-pip -r "$RUNNER_TEMP/requirements-audit.txt" -f json -o "$report"
           elif [ -f requirements.txt ]; then
-            pip-audit -r requirements.txt
+            pip-audit -r requirements.txt -f json -o "$report"
           else
             python -m pip install .
-            pip-audit --skip-editable
+            pip-audit --skip-editable -f json -o "$report"
           fi
+      - name: Avisos de pip-audit (cada uno una vez)
+        if: ${{ always() && steps.folder.outputs.audit == 'true' }}
+        env:
+          DIR: ${{ matrix.dir }}
+        run: |
+          python - <<'PY'
+          import json, os
+          path = os.path.join(os.environ["RUNNER_TEMP"], "pip-audit.json")
+          folder = os.environ.get("DIR", ".")
+          if not os.path.isfile(path):
+              lines = [f"pip-audit · {folder}: no dejó resultados (falló antes de auditar; mira el paso anterior)."]
+          else:
+              with open(path, encoding="utf-8") as handle:
+                  data = json.load(handle)
+              groups, reported = [], 0
+              for dep in data.get("dependencies", []):
+                  for vuln in dep.get("vulns", []):
+                      reported += 1
+                      names = {vuln.get("id", "")} | set(vuln.get("aliases") or [])
+                      key = (dep.get("name", ""), dep.get("version", ""))
+                      for group in groups:
+                          if group["key"] == key and group["names"] & names:
+                              group["names"] |= names
+                              break
+                      else:
+                          groups.append({"key": key, "id": vuln.get("id", ""), "names": names,
+                                         "fix": ", ".join(vuln.get("fix_versions") or []) or "-"})
+              if not groups:
+                  lines = [f"pip-audit · {folder}: ningún aviso conocido."]
+              else:
+                  lines = [f"### pip-audit · {folder}: {len(groups)} avisos distintos", ""]
+                  if reported != len(groups):
+                      lines += [f"pip-audit contó {reported}: el servicio de vulnerabilidades devolvió avisos "
+                                "repetidos; aquí aparece cada uno una vez.", ""]
+                  lines += ["| Paquete | Versión | Aviso | Alias | Corregido en |", "| --- | --- | --- | --- | --- |"]
+                  for group in groups:
+                      aliases = ", ".join(sorted(group["names"] - {group["id"]})) or "-"
+                      lines.append(f"| {group['key'][0]} | {group['key'][1]} | {group['id']} | {aliases} | {group['fix']} |")
+          text = "\n".join(lines) + "\n"
+          print(text)
+          summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary:
+              with open(summary, "a", encoding="utf-8") as handle:
+                  handle.write(text)
+          PY
 

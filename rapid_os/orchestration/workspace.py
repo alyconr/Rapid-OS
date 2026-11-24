@@ -188,3 +188,25 @@ def foreign_worktree_message(cwd: Path) -> str | None:
         f"(cd \"{main}\"). Si el run exige un workspace aislado, lo crea Rapid OS con "
         f"'rapid start --resume --worktree'; no uses el worktree del harness. Esto no escribió nada."
     )
+
+
+# H-83: removing a run's worktree on Windows. `git worktree remove` refuses an unclean worktree (untracked files
+# included) unless `--force` is used (https://git-scm.com/docs/git-worktree), and with --force it failed with
+# "Filename too long" in talleres-rc2, leaving the worktree unregistered and the folder half deleted. Git for
+# Windows disables long paths by default and enables them with `core.longpaths`
+# (https://gitforwindows.org/git-cannot-create-a-file-or-directory-with-a-long-path); `git -c <name>=<value>`
+# sets it for that one command (https://git-scm.com/docs/git). `git branch -d` deletes the branch only when it is
+# fully merged (https://git-scm.com/docs/git-branch), so it cannot lose the run's commits.
+UNINTEGRATED_FORCE_WARNING = (
+    "Ojo: --force al retirar el worktree borra el trabajo sin integrar del run; intégralo antes "
+    "(rapid finish --merge o git merge)."
+)
+FORCE_BEFORE_MERGE_WARNING = "No uses --force antes del merge: borra el trabajo sin integrar del run."
+
+
+def integrated_worktree_removal(workspace: Path | str, run_id: str) -> list[str]:
+    """The commands that remove a run's worktree once its work is merged (they work with long paths on Windows)."""
+    return [
+        f'git -c core.longpaths=true worktree remove --force "{workspace}"',
+        f"git branch -d rapid/{run_id}",
+    ]

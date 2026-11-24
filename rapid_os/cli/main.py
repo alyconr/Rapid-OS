@@ -1414,6 +1414,69 @@ def _ci_workflow_diagnostics():
     return found
 
 
+STANDARDS_REGENERATE_COMMAND = "rapid setup standards --regenerate"
+STANDARDS_OUTDATED_CODE = "RAPID1444"
+
+
+def _standards_diagnostics():
+    """RAPID1444: a standard (security.md, coding-rules.md) that this version would write differently (H-79).
+    Warning when Rapid OS wrote it and nobody edited it (regenerating replaces it) or when it has no stamp (an
+    earlier version wrote it before the stamp, or the person did; regenerating writes the new one as `.new`);
+    info when the person edited a stamped one. Only standards that exist are looked at."""
+    from rapid_os.adapters.setup_store import read_setup_file
+    from rapid_os.orchestration import setup_apply as apply
+
+    if not (PROJECT_RAPID_DIR / "standards").is_dir():
+        return []
+    state, _error = read_setup_file(PROJECT_RAPID_DIR)
+    if state is None:
+        return []
+    try:
+        items = apply.standards_status(PROJECT_RAPID_DIR, TEMPLATES_DIR, state)
+    except apply.SetupApplyError:
+        return []
+    found = []
+    for item in items:
+        path = CURRENT_DIR / item["file"]
+        pending_new = path.with_name(path.name + ".new")
+        if pending_new.is_file():
+            # The person still has to decide: until the `.new` is renamed and regenerated, the agent reads the old one.
+            found.append(Diagnostic(
+                INFO, STANDARDS_OUTDATED_CODE,
+                f"{item['file']}.new sigue al lado de {item['file']}: compáralo y renómbralo, o bórralo. "
+                "Mientras tanto el agente lee el anterior.",
+                pending_new,
+                hint=f"Después de renombrarlo, ejecuta '{STANDARDS_REGENERATE_COMMAND}' para regenerar AGENTS.md/CLAUDE.md.",
+            ))
+        if item["status"] == "outdated":
+            found.append(Diagnostic(
+                WARNING, STANDARDS_OUTDATED_CODE,
+                f"{item['file']} lo escribió una versión anterior de Rapid OS y esta versión lo escribiría distinto "
+                "(por ejemplo, reglas de cadena de suministro nuevas): el agente no las ve.",
+                path, hint=f"Ejecuta '{STANDARDS_REGENERATE_COMMAND}': lo reemplaza (copia en .rapid-os/backups/) y regenera AGENTS.md/CLAUDE.md.",
+            ))
+        elif item["status"] == "unmarked":
+            found.append(Diagnostic(
+                WARNING, STANDARDS_OUTDATED_CODE,
+                f"{item['file']} no coincide con el que escribe esta versión de Rapid OS y no lleva la marca de Rapid OS "
+                "(lo escribió una versión anterior a 3.2.0rc5, o la persona): el agente no ve las reglas nuevas.",
+                path, hint=f"'{STANDARDS_REGENERATE_COMMAND}' no lo pisa: escribe el nuevo al lado como .new para compararlos.",
+            ))
+        elif item["status"] == "unstamped":
+            found.append(Diagnostic(
+                INFO, STANDARDS_OUTDATED_CODE,
+                f"{item['file']} ya es el que escribe esta versión de Rapid OS; solo le falta la marca de Rapid OS.",
+                path, hint=f"'{STANDARDS_REGENERATE_COMMAND}' le añade la marca en su sitio (el contenido no cambia).",
+            ))
+        elif item["status"] == "edited":
+            found.append(Diagnostic(
+                INFO, STANDARDS_OUTDATED_CODE,
+                f"{item['file']} no coincide con el que escribe esta versión de Rapid OS y fue editado.",
+                path, hint=f"'{STANDARDS_REGENERATE_COMMAND}' no lo pisa: escribe el nuevo al lado como .new para compararlos.",
+            ))
+    return found
+
+
 def _current_archetype():
     """The archetype of the project: the one in `.rapid-os/setup.json`, else read from its coding rules."""
     from rapid_os.adapters.setup_store import read_setup_file
@@ -1479,6 +1542,7 @@ def doctor_command(args):
 
     if not not_a_project:
         diagnostics.extend(_ci_workflow_diagnostics())
+        diagnostics.extend(_standards_diagnostics())
 
     from rapid_os.core.ancestry import find_agent_ancestor, read_ancestry
 
@@ -3992,7 +4056,7 @@ LOCAL_SERVICES_FILES = ("compose.yaml", ".env.example")
 LOCAL_SERVICES_NOTE = "Servicios locales añadidos por Rapid OS: revísalos antes de levantarlos"
 LOCAL_SERVICES_PLANNED_NOTE = "Rapid OS lo va a escribir en `setup finish` (servicios @now)"
 
-SETUP_SUBCOMMANDS = "next, show, set, stack, doc, review, story, finish, ci"
+SETUP_SUBCOMMANDS = "next, show, set, stack, doc, review, story, finish, ci, standards"
 
 
 def _read_setup_input(source):
@@ -4292,8 +4356,9 @@ def _harness_resolution_text(loaded_cfg):
     chosen = f"Agents chosen in 'tools': {', '.join(tools)}. " if tools else ""
     return (
         f"{chosen}The harness of a command is resolved in this order: --harness, RAPID_HARNESS, the Claude Code "
-        "marker (CLAUDE_CODE_CHILD_SESSION), default_harness, a single entry in 'tools'; only when none applies "
-        "does it fall back to cursor"
+        "marker (CLAUDE_CODE_CHILD_SESSION), the agent among the parent processes (Claude Code, Codex), "
+        "default_harness, a single entry in 'tools'; with several in 'tools' and nothing else to decide, the first "
+        "of 'tools' (RAPID1300); cursor only when 'tools' is empty"
     )
 
 
@@ -4336,6 +4401,65 @@ def _setup_ci_command(state, project_model, as_json, regenerate):
         print(line)
     if not regenerate and any(item["status"] != "current" for item in items):
         print(f"Ejecuta '{CI_REGENERATE_COMMAND}' para regenerarlos (un workflow editado no se pisa: el nuevo queda al lado como .new).")
+    return 0
+
+
+STANDARD_STATUS_TEXT = {
+    "current": "al día",
+    "outdated": "escrito por una versión anterior de Rapid OS, sin cambios de la persona",
+    "edited": "editado por la persona",
+    "unmarked": "sin la marca de Rapid OS (versión anterior a 3.2.0rc5, o lo escribió la persona)",
+    "unstamped": "igual al de esta versión, solo le falta la marca de Rapid OS",
+    "missing": "no existe",
+}
+
+
+def _setup_standards_command(state, as_json, regenerate):
+    """`rapid setup standards`: the state of the standards Rapid OS writes from templates; with --regenerate,
+    write what this version generates (H-79). An edited or unstamped standard is never overwritten."""
+    from rapid_os.orchestration import setup_apply as apply
+
+    warnings: tuple[str, ...] = ()
+    if regenerate:
+        # Writing the agent files reports each one on stdout: with --json that goes to stderr.
+        quiet = contextlib.redirect_stdout(sys.stderr) if as_json else contextlib.nullcontext()
+        with quiet:
+            items, warnings = apply.regenerate_standards(
+                CURRENT_DIR, PROJECT_RAPID_DIR, CONFIG_FILE, TEMPLATES_DIR, state
+            )
+    else:
+        items = apply.standards_status(PROJECT_RAPID_DIR, TEMPLATES_DIR, state)
+    for warning in warnings:
+        print(f"WARNING: {warning}", file=sys.stderr)
+    if as_json:
+        print(json.dumps({"standards": items}, indent=2))
+        return 0
+    if not items:
+        print("Sin estándares que regenerar: faltan el stack o el arquetipo (rapid setup).")
+        return 0
+    for item in items:
+        line = f"{item['file']}: {STANDARD_STATUS_TEXT[item['status']]}"
+        action = item.get("action")
+        if action == "replaced":
+            line += " -> reemplazado (copia en .rapid-os/backups/)"
+        elif action == "written":
+            line += " -> escrito"
+        elif action == "stamped":
+            line += " -> marca añadida (el contenido no cambia)"
+        elif action == "new":
+            line += (
+                f" -> no se toca; el nuevo está en {item['written']}: compáralos, lleva tus cambios al nuevo y "
+                "renómbralo al nombre del estándar; después de renombrarlo, vuelve a ejecutar "
+                f"`{STANDARDS_REGENERATE_COMMAND}` para regenerar AGENTS.md/CLAUDE.md"
+            )
+        print(line)
+    if regenerate and any(item.get("action") in ("replaced", "written") for item in items):
+        print("AGENTS.md / CLAUDE.md regenerados con los estándares nuevos.")
+    if not regenerate and any(item["status"] != "current" for item in items):
+        print(
+            f"Ejecuta '{STANDARDS_REGENERATE_COMMAND}' para regenerarlos (uno editado o sin marca no se pisa: el "
+            "nuevo queda al lado como .new)."
+        )
     return 0
 
 
@@ -4438,6 +4562,8 @@ def setup_command(args):
 
     if action_name == "ci":
         return _setup_ci_command(snapshot.state, project_model, as_json, getattr(args, "regenerate", False))
+    if action_name == "standards":
+        return _setup_standards_command(snapshot.state, as_json, getattr(args, "regenerate", False))
 
     def next_action(state):
         return next_setup_action(
@@ -4814,6 +4940,12 @@ def _story_lines(run_id, verdict, tick=True):
 
 
 def finish_command(args):
+    from rapid_os.orchestration.workspace import (
+        FORCE_BEFORE_MERGE_WARNING,
+        UNINTEGRATED_FORCE_WARNING,
+        integrated_worktree_removal,
+    )
+
     """Execute rapid finish command."""
     from rapid_os.orchestration.actions import NextAction
     from rapid_os.orchestration.lifecycle import (
@@ -5005,31 +5137,34 @@ def finish_command(args):
                             f"No se creó un commit nuevo; se mergeó {short_hash} ({subject}) desde rapid/{run_id} en {source_branch.stdout.strip()}.",
                             file=output,
                         )
-                    print(f'Worktree conservado; retíralo con git worktree remove "{workspace}".', file=output)
+                    print("Worktree conservado; todo está integrado, así que puedes retirarlo con:", file=output)
+                    for line in integrated_worktree_removal(workspace, run_id):
+                        print(f"  {line}", file=output)
                     merge_succeeded = True
                 except Exception as exc:
                     merge_failure_reason = str(exc) or "falló el commit o el merge"
 
         if not merge_succeeded:
+            removal = integrated_worktree_removal(workspace, run_id)
             if merge_commit_created:
                 merge_closure_steps = [
                     f'git -C "{CURRENT_DIR}" merge rapid/{run_id}',
-                    f'git worktree remove "{workspace}"',
+                    *removal,
                 ]
             elif merge_status_lines == []:
                 merge_closure_steps = [
                     "No hay cambios sin commit en el worktree; no hace falta add ni commit.",
                     f'git -C "{CURRENT_DIR}" merge rapid/{run_id}',
-                    f'git worktree remove "{workspace}"',
+                    *removal,
                 ]
             else:
                 merge_closure_steps = [
                     f'git -C "{workspace}" add -A',
                     f'git -C "{workspace}" commit -m "{merge_message}"',
                     f'git -C "{CURRENT_DIR}" merge rapid/{run_id}',
-                    f'git worktree remove "{workspace}"',
+                    *removal,
                 ]
-            merge_closure_steps.append("No uses --force mientras haya cambios: borrarías el trabajo del run.")
+            merge_closure_steps.append(FORCE_BEFORE_MERGE_WARNING)
     elif workspace and workspace.is_dir():
         if merge_requested and code == 0 and result.verdict.value != "pass":
             print(
@@ -5037,6 +5172,7 @@ def finish_command(args):
                 file=output,
             )
         print(f"El trabajo está en {workspace}, rama rapid/{run_id}.", file=output)
+        print(UNINTEGRATED_FORCE_WARNING, file=output)
     if workspace and workspace.is_dir() and report_passes and not merge_requested:
         status = run_git(workspace, "status", "--porcelain")
         if status.returncode == 0 and status.stdout.strip():
@@ -5046,8 +5182,9 @@ def finish_command(args):
             print(f'  git -C "{workspace}" add -A', file=output)
             print(f'  git -C "{workspace}" commit -m "{manual_message}"', file=output)
             print(f'  git -C "{CURRENT_DIR}" merge rapid/{run_id}', file=output)
-            print(f'  git worktree remove "{workspace}"', file=output)
-            print("No uses --force mientras haya cambios: borrarías el trabajo del run.", file=output)
+            for line in integrated_worktree_removal(workspace, run_id):
+                print(f"  {line}", file=output)
+            print(FORCE_BEFORE_MERGE_WARNING, file=output)
 
     quiet = contextlib.redirect_stdout(sys.stderr) if getattr(args, "json", False) else contextlib.nullcontext()
     with quiet:
@@ -6411,6 +6548,20 @@ def create_parser():
         ),
     )
     _sp.add_argument("--regenerate", action="store_true", help="Write the workflows of this version (never over an edited one).")
+    _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
+
+    _sp = setup_sub.add_parser(
+        "standards",
+        help="Show the state of .rapid-os/standards/security.md and coding-rules.md; --regenerate writes this version's.",
+        description=(
+            "List the standards Rapid OS writes from templates with their state: current, outdated (written by an "
+            "earlier version and not edited), edited, unmarked (no Rapid OS stamp: before 3.2.0rc5, or written by "
+            "the person) or missing. With --regenerate, an outdated standard is replaced (copy in "
+            ".rapid-os/backups/), a missing one is written, an edited or unmarked one is not touched (the new one "
+            "goes beside it as <file>.new), and AGENTS.md/CLAUDE.md are regenerated."
+        ),
+    )
+    _sp.add_argument("--regenerate", action="store_true", help="Write the standards of this version (never over an edited or unmarked one).")
     _sp.add_argument("--json", action="store_true", help="Emit JSON output.")
 
     # rapid arch

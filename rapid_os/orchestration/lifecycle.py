@@ -69,6 +69,7 @@ from rapid_os.orchestration.conductor import (
 )
 from rapid_os.orchestration.playbooks import load_playbook
 from rapid_os.orchestration.git import run_git
+from rapid_os.orchestration.workspace import UNINTEGRATED_FORCE_WARNING
 from rapid_os.orchestration.session import (
     Session,
     clear_session,
@@ -1440,6 +1441,20 @@ def is_yes(answer: str | None) -> bool:
     return answer.strip().strip("'\"“”‘’").strip().lower() in YES_ANSWERS
 
 
+NO_ANSWERS = frozenset({"n", "no"})
+MIN_REASON_LENGTH = 10
+
+
+def is_real_reason(reason: str | None) -> bool:
+    """A reason for `--reject` / `--waive` that explains something (H-81): at least MIN_REASON_LENGTH
+    characters, and not made only of yes/no answers ("S", "si si si si si" or "no, no, no" are not reasons)."""
+    text = str(reason or "").strip()
+    if len(text) < MIN_REASON_LENGTH:
+        return False
+    words = [w.strip("'\"“”‘’.,;:!¡?¿").lower() for w in text.split()]
+    return not all(not w or w in YES_ANSWERS or w in NO_ANSWERS for w in words)
+
+
 def _pending_human_gate_ids(project_rapid_dir: Path, project_root: Path) -> list[str] | None:
     """Pending human gates of the active run that can still be approved (not rejected); None without a run."""
     sess = load_session(project_rapid_dir)
@@ -1478,7 +1493,13 @@ def approval_summary(project_root: Path, project_rapid_dir: Path, run_id: str, g
         lines.extend(f"  {t['id']} [{t['status']}] {t['title']}{evidence_note(t)}" for t in tasks)
         for gate in progress["gates"]:
             if gate["id"] in ("gate.tests", ARCHITECTURE_GATE_ID):
-                lines.append(f"{gate['id']} [{gate_label(gate)}]{evidence_note(gate)}")
+                if gate.get("status") == "pending" and gate.get("last_evidence_result") == "PASS":
+                    # A machine gate is acknowledged by `rapid finish` (step 3.b); approving already requires its
+                    # last check to be on the current tree (RAPID1433/RAPID1432), so this PASS is what is approved.
+                    ids = ", ".join(gate.get("evidence_ids") or []) or "evidencia"
+                    lines.append(f"{gate['id']} PASS ({ids}), se registra en finish")
+                else:
+                    lines.append(f"{gate['id']} [{gate_label(gate)}]{evidence_note(gate)}")
     except Exception as exc:  # the summary informs; it never blocks the decision
         lines.append(f"(no se pudo armar el resumen completo: {exc})")
     return "\n".join(lines)
@@ -1569,6 +1590,17 @@ AFTER_LAST_APPROVAL = (
 )
 
 
+def after_last_approval(sess) -> str:
+    """What comes after the last approval (H-88). With a worktree, a plain `rapid finish` leaves the change
+    uncommitted in it (observed in talleres-rc2): the step that integrates it is `rapid finish --merge`."""
+    if sess is not None and getattr(sess, "workspace_path", None):
+        return (
+            f"Siguiente: `rapid finish --merge` (hace el commit en rapid/{sess.active_run_id} y el merge tras tu "
+            "[s/N]). Tras finish el run ya no se puede cancelar."
+        )
+    return AFTER_LAST_APPROVAL
+
+
 def execute_approve(
     project_root: Path,
     project_rapid_dir: Path,
@@ -1593,10 +1625,6 @@ def execute_approve(
         return 1, "RAPID1330 '--reject' and '--waive' cannot be combined."
     if (reject or waive) and not gate_id:
         return 1, "RAPID1330 '--reject' and '--waive' require a gate id (see 'rapid approve')."
-    if reject and (not reason or not str(reason).strip()):
-        return 1, "RAPID1333 Reason is required (--reason) when rejecting a gate approval."
-    if waive and (not reason or not str(reason).strip()):
-        return 1, "RAPID1333 A non-empty '--reason' is required when waiving a gate."
 
     if environ is not None:
         env_map = environ
@@ -1624,6 +1652,14 @@ def execute_approve(
     )
     if refusal:
         return 1, refusal
+    # After the barriers: an agent gets RAPID1310 whatever reason it passes, or none. One message for a
+    # missing reason and for one that explains nothing.
+    if (reject or waive) and not is_real_reason(reason):
+        flag = "--reject" if reject else "--waive"
+        return 1, (
+            f"RAPID1333 {flag} necesita un motivo (--reason) que explique la decisión: al menos {MIN_REASON_LENGTH} "
+            f"caracteres que no sean solo sí/no (recibido: «{str(reason or '').strip()}»). Nada cambió."
+        )
     raw_input_func = input_func if input_func is not None else input
     no_terminal = (
         "RAPID1310 Human gate approval requires interactive terminal confirmation (TTY). "
@@ -1744,25 +1780,36 @@ def execute_approve(
 
     # The person decides with [s/N] on what they see: the phrase did not stop an agent with a pty (the TTY,
     # the ancestry check, the Claude Code hooks and the recorded reviewer do) and only cost the person work.
+    # H-81: approve only approves. An answer that is not yes (Enter, N, anything else) changes nothing: a stray
+    # "S" typed after an empty answer once became the reason of a rejection. Rejecting is its own command.
     summary = approval_summary(project_root, project_rapid_dir, run_id, gate_id)
     if waive:
-        question = f"¿Dispensas {gate_id} con el motivo «{str(reason).strip()}»? [s/N] "
+        question = (
+            f"Gate:    {gate_id}\nMotivo:  «{str(reason).strip()}»\n"
+            f"Consecuencia: {gate_id} queda dispensado (waived); el veredicto del run será como mucho "
+            "pass_with_waivers.\n"
+            f"¿Dispensas {gate_id} con el motivo «{str(reason).strip()}»? [s/N] "
+        )
     elif reject:
-        question = f"¿Rechazas {gate_id} con el motivo «{str(reason).strip()}»? [s/N] "
+        question = (
+            f"Gate:    {gate_id}\nMotivo:  «{str(reason).strip()}»\n"
+            f"Consecuencia: {gate_id} queda en FAIL para este run; después toca `rapid abort` y un run nuevo "
+            "que atienda el motivo.\n"
+            f"¿Rechazas {gate_id} con el motivo «{str(reason).strip()}»? [s/N] "
+        )
     else:
         question = f"¿Apruebas {gate_id}? [s/N] "
     answer = ask_input(f"{summary}\n{question}")
     if answer is None:
         return 1, no_terminal
     if not is_yes(answer):
-        if waive or reject or reapproval:
+        if waive or reject:
             return 1, f"Sin cambios: {gate_id} sigue como estaba."
-        motive = ask_input("Para rechazarlo escribe el motivo (Enter para salir sin cambios): ")
-        if motive is None:
-            return 1, no_terminal
-        if not motive.strip():
-            return 1, f"Sin cambios: {gate_id} sigue pendiente."
-        reject, reason = True, motive.strip()
+        state_word = "sigue como estaba" if reapproval else "sigue pendiente"
+        return 1, (
+            f"Sin cambios: {gate_id} {state_word} (solo «s» aprueba). Si querías rechazarlo: "
+            f'rapid approve {gate_id} --reject --reason "<motivo>"'
+        )
 
     if waive:
         try:
@@ -1815,7 +1862,7 @@ def execute_approve(
     if reject:
         return 0, f"Gate '{gate_id}' rechazado (changes_requested). Ejecuta 'rapid abort' e inicia un run nuevo."
     if reapproval:
-        return 0, f"Gate '{gate_id}' aprobado de nuevo sobre el código actual.\n{AFTER_LAST_APPROVAL}"
+        return 0, f"Gate '{gate_id}' aprobado de nuevo sobre el código actual.\n{after_last_approval(sess)}"
 
     try:
         run_reg.transition_gate(
@@ -1836,7 +1883,7 @@ def execute_approve(
     except Exception:  # the hint must never turn an approval into an error
         still_pending = ["?"]
     if not still_pending:
-        message += f"\n{AFTER_LAST_APPROVAL}"
+        message += f"\n{after_last_approval(sess)}"
     return 0, message
 
 
@@ -1925,7 +1972,8 @@ def execute_abort(
     run_reg = RunRegistry(project_root, project_rapid_dir)
     try:
         current_state = run_reg.get_state(run_id)
-        if not current_state.status.is_terminal:
+        was_terminal = current_state.status.is_terminal
+        if not was_terminal:
             run_reg.transition_status(
                 run_id,
                 RunStatus.CANCELLED,
@@ -1936,10 +1984,23 @@ def execute_abort(
         return 1, f"Error aborting run '{run_id}': {exc}"
 
     clear_session(project_rapid_dir)
-    message = f"Run '{run_id}' cancelado y sesión limpiada."
+    if was_terminal:
+        # H-85: the run had already ended; abort cancelled nothing and must not say it did.
+        try:
+            reports = EvalRegistry(project_root, project_rapid_dir).list_reports(run_id)
+        except Exception:  # the message must never turn a cleanup into an error
+            reports = ()
+        outcome = reports[-1].verdict.value.upper() if reports else current_state.status.value
+        message = (
+            f"El run '{run_id}' ya terminó con {outcome}; solo se limpió la sesión (no se canceló nada). "
+            "Para deshacer lo que integró: git revert de sus commits y un run nuevo "
+            "(guía: docs/guides/undo-approval.md)."
+        )
+    else:
+        message = f"Run '{run_id}' cancelado y sesión limpiada."
     if sess.workspace_path:
         message += (
-            f" El worktree '{sess.workspace_path}' (rama rapid/{run_id}) se conserva; "
-            "elimínalo con 'git worktree remove' cuando ya no lo necesites."
+            f' El worktree "{sess.workspace_path}" (rama rapid/{run_id}) se conserva; si ya no lo necesitas: '
+            f'git worktree remove "{sess.workspace_path}". {UNINTEGRATED_FORCE_WARNING}'
         )
     return 0, message

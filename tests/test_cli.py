@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from rapid_os.cli import main as cli_main
+from rapid_os.domain.standard_stamp import strip_standard_stamp
 from rapid_os.cli.main import create_parser, parse_agent_selection, refine_standard
 from rapid_os.core.text import read_text_best_effort
 
@@ -337,7 +338,7 @@ class CliArchetypeAndHardeningTests(unittest.TestCase):
 
             standards = project / ".rapid-os" / "standards"
             self.assertEqual(
-                (standards / "coding-rules.md").read_text(encoding="utf-8"),
+                strip_standard_stamp((standards / "coding-rules.md").read_text(encoding="utf-8")).rstrip("\n"),
                 "corporate coding rules",
             )
             security = (standards / "security.md").read_text(encoding="utf-8")
@@ -372,7 +373,7 @@ class CliArchetypeAndHardeningTests(unittest.TestCase):
 
             standards = project / ".rapid-os" / "standards"
             self.assertEqual(
-                (standards / "coding-rules.md").read_text(encoding="utf-8"),
+                strip_standard_stamp((standards / "coding-rules.md").read_text(encoding="utf-8")).rstrip("\n"),
                 "mvp coding rules",
             )
             self.assertIn("ASVS 5.0.0 nivel L1", (standards / "security.md").read_text(encoding="utf-8"))
@@ -406,7 +407,7 @@ class CliArchetypeAndHardeningTests(unittest.TestCase):
 
             standards = project / ".rapid-os" / "standards"
             self.assertEqual(
-                (standards / "coding-rules.md").read_text(encoding="utf-8"),
+                strip_standard_stamp((standards / "coding-rules.md").read_text(encoding="utf-8")).rstrip("\n"),
                 "corporate coding rules",
             )
             self.assertIn("ASVS 5.0.0 nivel L2", (standards / "security.md").read_text(encoding="utf-8"))

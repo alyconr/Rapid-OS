@@ -15,7 +15,13 @@ Harnesses recognised (only what is confirmed in the official documentation or in
   macOS and Linux the process may be named after the version while argv[0] is `claude`), the npm
   package `@anthropic-ai/claude-code` and its per-platform binary packages. On Windows the real
   process observed under the VS Code extension is `.../native-binary/claude.exe`.
-Codex and Cursor are deliberately not listed: their process names were not confirmed.
+- Codex (H-82): the `codex` / `codex.exe` binary. https://github.com/openai/codex (README, read
+  2026-11-24) installs the CLI with `npm install -g @openai/codex` (or the standalone installers) and
+  runs it as `codex`. Observed on Windows (talleres-rc2, 2026-11-18): the process chain of a command
+  Codex launched ends in `C:\\Users\\<user>\\.codex\\packages\\app-server-daemon\\releases\\
+  0.170.0-x86_64-pc-windows-msvc\\bin\\codex.exe app-server --listen unix:// ... --managed-daemon`,
+  parent of a `powershell.exe -Command`; hence the `/.codex/packages/` path marker.
+Cursor is deliberately not listed: its process names were not confirmed.
 """
 
 from __future__ import annotations
@@ -30,11 +36,13 @@ from typing import Callable
 MAX_DEPTH = 32
 
 # argv[0] basename / process name of the harness binary.
-_AGENT_NAMES = {"claude": "claude"}
-# Documented install locations, searched in the first two arguments (argv[0] and argv[1]).
+_AGENT_NAMES = {"claude": "claude", "codex": "codex"}
+# Documented or observed install locations, searched in the first two arguments (argv[0] and argv[1]).
 _AGENT_PATH_MARKERS = (
     ("@anthropic-ai/claude-code", "claude"),
     ("/.local/share/claude/versions/", "claude"),
+    ("@openai/codex", "codex"),
+    ("/.codex/packages/", "codex"),
 )
 
 
@@ -69,7 +77,7 @@ def match_agent(ancestor: Ancestor) -> str | None:
     if ancestor.args and _base(ancestor.args[0]) in _AGENT_NAMES:
         return _AGENT_NAMES[_base(ancestor.args[0])]
     for token in ancestor.args[:2]:
-        normalized = token.replace("\\", "/")
+        normalized = token.replace("\\", "/").lower()
         for marker, harness in _AGENT_PATH_MARKERS:
             if marker in normalized:
                 return harness
