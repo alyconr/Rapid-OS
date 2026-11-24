@@ -62,13 +62,15 @@ The manifest and the lockfile live in the folder of each component. With topolog
 
 | Language | What it reads in the folder | Command |
 | --- | --- | --- |
-| Python | `uv.lock` | `uv export --frozen --format requirements.txt --no-emit-project -o <file>`, then `pip-audit --disable-pip -r <file>` (the exported requirements are pinned with hashes, so pip-audit does not resolve again). `uv audit` exists but uv marks it experimental. |
+| Python | `uv.lock` | `uv export --frozen --format requirements.txt --no-emit-project -o <file>` (its standard output, the same file again, goes to `/dev/null`), then `pip-audit --disable-pip -r <file>` (the exported requirements are pinned with hashes, so pip-audit does not resolve again). `uv audit` exists but uv marks it experimental. |
 | Python | `requirements.txt` | `pip-audit -r requirements.txt` |
 | Python | `pyproject.toml` without a lock | `pip install .`, then `pip-audit --skip-editable` |
 | TypeScript | `pnpm-lock.yaml`, `package-lock.json` or `yarn.lock` | `pnpm audit --audit-level high`, `npm audit --audit-level=high` or `yarn npm audit --all --recursive --severity high`, after installing with the lockfile. The pnpm version comes from `packageManager` in that folder's `package.json` (pnpm 10 without it). |
 | Go, Rust, Ruby, .NET, PHP | `go.mod`, `Cargo.lock`, `Gemfile.lock`, a `.sln`/`.slnx`/`.csproj`, `composer.lock` | `govulncheck`, `cargo audit`, `bundle-audit`, `dotnet package list --vulnerable`, `composer audit` |
 
 Java and Kotlin use GitHub's dependency review on pull requests, which covers the whole repository.
+
+In Python, pip-audit writes its result as JSON and the next step, `Avisos de pip-audit (cada uno una vez)`, prints each advisory once, in the log and in the job summary (package, version, advisory, aliases, fixed in). The vulnerability services (PyPI and OSV) return the same advisory under its `PYSEC` id and its `GHSA` alias, and pip-audit 2.10.1 lists it twice: with starlette 0.50.0 it says `Found 10 known vulnerabilities` for 5 distinct advisories (H-86). The summary says how many pip-audit counted. The job still fails on any vulnerability, with pip-audit's exit code.
 
 What happens in each folder:
 

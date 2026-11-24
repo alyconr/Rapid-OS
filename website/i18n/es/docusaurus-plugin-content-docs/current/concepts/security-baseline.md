@@ -62,13 +62,15 @@ El manifiesto y el lockfile están en la carpeta de cada componente. Con la topo
 
 | Lenguaje | Qué lee en la carpeta | Comando |
 | --- | --- | --- |
-| Python | `uv.lock` | `uv export --frozen --format requirements.txt --no-emit-project -o <archivo>` y después `pip-audit --disable-pip -r <archivo>` (los requisitos exportados van fijados con sus hashes, así que pip-audit no vuelve a resolver). `uv audit` existe, pero uv lo marca como experimental. |
+| Python | `uv.lock` | `uv export --frozen --format requirements.txt --no-emit-project -o <archivo>` (su salida estándar, el mismo archivo otra vez, va a `/dev/null`) y después `pip-audit --disable-pip -r <archivo>` (los requisitos exportados van fijados con sus hashes, así que pip-audit no vuelve a resolver). `uv audit` existe, pero uv lo marca como experimental. |
 | Python | `requirements.txt` | `pip-audit -r requirements.txt` |
 | Python | `pyproject.toml` sin lock | `pip install .` y después `pip-audit --skip-editable` |
 | TypeScript | `pnpm-lock.yaml`, `package-lock.json` o `yarn.lock` | `pnpm audit --audit-level high`, `npm audit --audit-level=high` o `yarn npm audit --all --recursive --severity high`, tras instalar con el lockfile. La versión de pnpm sale de `packageManager` en el `package.json` de esa carpeta (pnpm 10 si no lo tiene). |
 | Go, Rust, Ruby, .NET, PHP | `go.mod`, `Cargo.lock`, `Gemfile.lock`, un `.sln`/`.slnx`/`.csproj`, `composer.lock` | `govulncheck`, `cargo audit`, `bundle-audit`, `dotnet package list --vulnerable`, `composer audit` |
 
 Java y Kotlin usan la revisión de dependencias de GitHub en los pull requests, que cubre todo el repositorio.
+
+En Python, pip-audit escribe su resultado en JSON y el paso siguiente, `Avisos de pip-audit (cada uno una vez)`, muestra cada aviso una sola vez, en el log y en el resumen del job (paquete, versión, aviso, alias, corregido en). Los servicios de vulnerabilidades (PyPI y OSV) devuelven un mismo aviso con su id `PYSEC` y con su alias `GHSA`, y pip-audit 2.10.1 lo lista dos veces: con starlette 0.50.0 dice `Found 10 known vulnerabilities` para 5 avisos distintos (H-86). El resumen dice cuántos contó pip-audit. El job sigue fallando ante cualquier vulnerabilidad, con el código de salida de pip-audit.
 
 Qué pasa en cada carpeta:
 
