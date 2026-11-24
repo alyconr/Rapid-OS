@@ -4292,8 +4292,9 @@ def _harness_resolution_text(loaded_cfg):
     chosen = f"Agents chosen in 'tools': {', '.join(tools)}. " if tools else ""
     return (
         f"{chosen}The harness of a command is resolved in this order: --harness, RAPID_HARNESS, the Claude Code "
-        "marker (CLAUDE_CODE_CHILD_SESSION), default_harness, a single entry in 'tools'; only when none applies "
-        "does it fall back to cursor"
+        "marker (CLAUDE_CODE_CHILD_SESSION), the agent among the parent processes (Claude Code, Codex), "
+        "default_harness, a single entry in 'tools'; with several in 'tools' and nothing else to decide, the first "
+        "of 'tools' (RAPID1300); cursor only when 'tools' is empty"
     )
 
 

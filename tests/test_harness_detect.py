@@ -2,11 +2,32 @@ from __future__ import annotations
 
 import unittest
 
+from unittest import mock
+
+from rapid_os.core.ancestry import Ancestor, AncestryResult
 from rapid_os.core.harness_detect import HarnessDetection, detect_harness
 from rapid_os.domain.capabilities import HarnessIdentityError
 
+NO_AGENT = AncestryResult((Ancestor(10, "bash.exe"), Ancestor(11, "explorer.exe")))
+CODEX_TREE = AncestryResult((
+    Ancestor(10, "powershell.exe"),
+    Ancestor(
+        11,
+        "codex.exe",
+        ("C:\\Users\\u\\.codex\\packages\\app-server-daemon\\releases\\0.170.0-x86_64-pc-windows-msvc\\bin\\codex.exe",
+         "app-server", "--managed-daemon"),
+    ),
+))
+CLAUDE_TREE = AncestryResult((Ancestor(10, "bash.exe"), Ancestor(11, "claude.exe")))
+
 
 class HarnessDetectTests(unittest.TestCase):
+    def setUp(self):
+        # The tests decide the process tree: the runner's own (an agent, `timeout`) must not leak in.
+        patcher = mock.patch("rapid_os.core.harness_detect.read_ancestry", return_value=NO_AGENT)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_explicit_flag_takes_highest_precedence(self):
         detection = detect_harness(
             explicit="claude",
@@ -80,12 +101,41 @@ class HarnessDetectTests(unittest.TestCase):
         )
         self.assertEqual((detection.harness_id, detection.source), ("claude", "config"))
 
-    def test_several_tools_fall_back_and_the_warning_lists_them(self):
+    def test_several_tools_fall_back_to_the_first_of_tools_with_rapid1300(self):
+        # H-82: with tools = codex,claude a Codex run ended up as 'cursor', a harness the project did not choose.
         detection = detect_harness(explicit=None, env={}, config={"tools": ["codex", "claude"]})
-        self.assertEqual(detection.harness_id, "cursor")
+        self.assertEqual(detection.harness_id, "codex")
         self.assertEqual(detection.source, "fallback")
         self.assertIn("RAPID1300", detection.warning)
         self.assertIn("codex, claude", detection.warning)
+        self.assertIn("using 'codex', the first one", detection.warning)
+
+    def test_the_codex_process_tree_decides_the_harness(self):
+        for config in ({}, {"tools": ["codex", "claude"]}, {"default_harness": "cursor"}):
+            with self.subTest(config=config):
+                detection = detect_harness(explicit=None, env={}, config=config, ancestry=CODEX_TREE)
+                self.assertEqual((detection.harness_id, detection.source), ("codex", "ancestry"))
+                self.assertIsNone(detection.warning)
+
+    def test_the_claude_code_tree_and_marker_work_as_before(self):
+        detection = detect_harness(explicit=None, env={}, config={"tools": ["codex"]}, ancestry=CLAUDE_TREE)
+        self.assertEqual((detection.harness_id, detection.source), ("claude", "ancestry"))
+        detection = detect_harness(
+            explicit=None, env={"CLAUDE_CODE_CHILD_SESSION": "1"}, config={}, ancestry=CODEX_TREE
+        )
+        self.assertEqual((detection.harness_id, detection.source), ("claude", "marker"))
+
+    def test_flag_and_rapid_harness_still_win_over_the_tree(self):
+        self.assertEqual(detect_harness("cursor", {}, {}, ancestry=CODEX_TREE).source, "flag")
+        self.assertEqual(detect_harness(None, {"RAPID_HARNESS": "vscode"}, {}, ancestry=CODEX_TREE).source, "env")
+
+    def test_without_an_agent_or_with_unreadable_ancestry_nothing_changes(self):
+        for tree in (NO_AGENT, AncestryResult((), "cannot read the parent of pid 1")):
+            with self.subTest(tree=tree):
+                detection = detect_harness(None, {}, {"default_harness": "antigravity"}, ancestry=tree)
+                self.assertEqual((detection.harness_id, detection.source), ("antigravity", "config"))
+                detection = detect_harness(None, {}, {}, ancestry=tree)
+                self.assertEqual((detection.harness_id, detection.source), ("cursor", "fallback"))
 
     def test_unknown_or_malformed_tools_are_ignored(self):
         for tools in (["nope"], "codex", [1, None], []):

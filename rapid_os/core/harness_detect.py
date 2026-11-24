@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping
+from typing import Callable, Mapping
 
+from rapid_os.core.ancestry import AncestryResult, find_agent_ancestor, read_ancestry
 from rapid_os.domain.harnesses import validate_harness_id
 
 FALLBACK_HARNESS_ID = "cursor"
@@ -26,6 +27,7 @@ def detect_harness(
     explicit: str | None,
     env: Mapping[str, str],
     config: Mapping,
+    ancestry: AncestryResult | Callable[[], AncestryResult] | None = None,
 ) -> HarnessDetection:
     """Detect the target coding harness using strict precedence:
 
@@ -34,9 +36,14 @@ def detect_harness(
     3. Official harness environment markers:
        - CLAUDE_CODE_CHILD_SESSION == "1" -> 'claude' (Claude Code official documentation:
          exported to Bash tool commands and hooks; see https://code.claude.com/docs/en/env-vars)
+    3b. The process tree (source 'ancestry', H-82): the nearest ancestor that is a recognised agent
+       harness (core/ancestry.py: Claude Code, Codex). A run Codex started once ended up as 'cursor'.
+       `ancestry` is the tree to look at (a result or a function returning it); None reads this process's.
     4. Project config 'default_harness' from .rapid-os/config.json
     4b. Project config 'tools' naming exactly one supported harness (source 'config_tools')
-    5. Fallback 'cursor' with WARNING RAPID1300 (it lists the harnesses of 'tools', if any)
+    5. Fallback with WARNING RAPID1300: the first supported harness of 'tools' when it lists several
+       (source 'fallback'; the warning says which one was taken and how to choose); 'cursor' only when
+       'tools' names none. A harness the project did not choose is never picked.
 
     Codex has no marker here: its documentation (https://developers.openai.com/codex/environment-variables)
     lists only variables for Codex itself (CODEX_HOME, CODEX_API_KEY); CODEX_THREAD_ID, which it adds
@@ -64,6 +71,14 @@ def detect_harness(
             source="marker",
         )
 
+    # 3b. Process tree: the first recognised agent harness among the ancestors. Unreadable ancestry decides nothing.
+    tree = ancestry() if callable(ancestry) else ancestry
+    if tree is None:
+        tree = read_ancestry()
+    agent = find_agent_ancestor(tree)
+    if agent is not None:
+        return HarnessDetection(harness_id=validate_harness_id(agent.harness), source="ancestry")
+
     # 4. Config default_harness
     default_harness = config.get("default_harness")
     if default_harness is not None and str(default_harness).strip():
@@ -75,17 +90,19 @@ def detect_harness(
     if len(listed) == 1:
         return HarnessDetection(harness_id=listed[0], source="config_tools")
 
-    # 5. Fallback to cursor with warning
-    warning = WARNING_RAPID1300
+    # 5. Fallback with warning: never a harness the project did not choose (H-82).
     if listed:
-        warning += (
-            f" The project's 'tools' lists {', '.join(listed)}: "
-            "pick the one you are working in."
+        warning = (
+            f"WARNING [RAPID1300]: No harness explicitly provided or detected from environment, process tree "
+            f"or config. The project's 'tools' lists {', '.join(listed)}: using '{listed[0]}', the first one. "
+            "If you work in another, set RAPID_HARNESS=<id>, use --harness <id>, or configure 'default_harness' "
+            "in .rapid-os/config.json."
         )
+        return HarnessDetection(harness_id=listed[0], source="fallback", warning=warning)
     return HarnessDetection(
         harness_id=FALLBACK_HARNESS_ID,
         source="fallback",
-        warning=warning,
+        warning=WARNING_RAPID1300,
     )
 
 

@@ -9,6 +9,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from rapid_os.core.ancestry import AncestryResult
 from rapid_os.cli import main as cli_main
 from rapid_os.domain.validation import validate_project
 
@@ -34,6 +35,8 @@ def _run_cli(args: list[str], cwd: Path | None = None, env: dict[str, str] | Non
         patch.object(cli_main, "PROJECT_RAPID_DIR", rapid_dir),
         patch.object(cli_main, "CONFIG_FILE", config_file),
         patch.dict(os.environ, clean_base_env, clear=True),
+        # The process tree of the runner (an agent, `timeout`) must not decide the harness of these tests.
+        patch("rapid_os.core.harness_detect.read_ancestry", return_value=AncestryResult(())),
         contextlib.redirect_stdout(stdout),
         contextlib.redirect_stderr(stderr),
     ):
