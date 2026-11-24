@@ -1225,10 +1225,14 @@ class HardeningLabScenarioTests(LabScenarioBase):
         self.assertNotIn("Siguiente: `rapid finish`", first.stdout)
         last = self._approve("gate.final-verification")
         self.assertEqual(last.returncode, 0, last.stderr)
+        # H-88: this run has a worktree, so a plain `rapid finish` would leave the change uncommitted in it.
+        run_id = self._session()["active_run_id"]
         self.assertIn(
-            "Siguiente: `rapid finish` (o /rapid-next en tu agente). Tras finish el run ya no se puede cancelar",
+            f"Siguiente: `rapid finish --merge` (hace el commit en rapid/{run_id} y el merge tras tu [s/N]). "
+            "Tras finish el run ya no se puede cancelar",
             last.stdout,
         )
+        self.assertNotIn("Siguiente: `rapid finish` (", last.stdout)
         again = self._approve("gate.final-verification")
         self.assertEqual(again.returncode, 1)
         self.assertIn("RAPID1332", again.stderr)

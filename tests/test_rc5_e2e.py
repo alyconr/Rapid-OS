@@ -8,6 +8,9 @@ H-84: the shortcuts said that integrating needs a commit in the worktree first, 
 person, when `rapid finish --merge` commits on rapid/<run> and merges after the [s/N].
 
 H-85: `rapid abort` on a run that had already ended said "cancelado y sesión limpiada" without cancelling anything.
+
+H-88: after the last approval Rapid said "Siguiente: `rapid finish`" even when the run had a worktree; with one, the
+next step is `rapid finish --merge`. The worktree case is in test_intent_loop (hardening lab with --worktree).
 """
 
 from __future__ import annotations
@@ -95,6 +98,36 @@ class AbortAFinishedRunTests(Project):
         self.assertFalse(session_file.exists())
         status = json.loads(rapid(self.root, "status", "--json").stdout)
         self.assertNotEqual((status.get("run") or {}).get("status"), "cancelled")
+
+
+class AfterTheLastApprovalTests(Project):
+    def test_without_a_worktree_the_next_step_is_still_rapid_finish(self):
+        from rapid_os.core.ancestry import AncestryResult
+        from rapid_os.orchestration.lifecycle import AFTER_LAST_APPROVAL, execute_approve
+
+        started = rapid(self.root, "start", "feature", "--spec-file", "-", "--json", stdin=json.dumps(spec(), ensure_ascii=False))
+        self.assertEqual(started.returncode, 0, started.stderr)
+        (self.root / "app.py").write_text("x = 2\n", encoding="utf-8")
+        messages = []
+        for gate in drive_to_approval(self, self.root)["gate_ids"]:
+            code, message = execute_approve(
+                self.root, self.root / ".rapid-os", gate, reviewer="Ada", is_tty=True,
+                input_func=lambda _prompt: "s", environ={}, ancestry=AncestryResult(()),
+            )
+            self.assertEqual(code, 0, message)
+            messages.append(message)
+        self.assertIn(AFTER_LAST_APPROVAL, messages[-1])
+        self.assertNotIn("--merge", messages[-1])
+
+    def test_the_shortcuts_say_finish_merge_with_a_worktree(self):
+        from pathlib import Path
+
+        shortcuts = Path(__file__).resolve().parents[1] / "templates" / "shortcuts"
+        next_text = (shortcuts / "rapid-next.md").read_text(encoding="utf-8")
+        self.assertIn("Si el run tiene worktree (`action.workspace_path`), después de la última aprobación el "
+                      "siguiente paso es `rapid finish --merge`", next_text)
+        self.assertIn("Tras la última aprobación, si el run tiene worktree el siguiente paso es `rapid finish --merge`",
+                      (shortcuts / "rapid-approve.md").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

@@ -1584,6 +1584,17 @@ AFTER_LAST_APPROVAL = (
 )
 
 
+def after_last_approval(sess) -> str:
+    """What comes after the last approval (H-88). With a worktree, a plain `rapid finish` leaves the change
+    uncommitted in it (observed in talleres-rc2): the step that integrates it is `rapid finish --merge`."""
+    if sess is not None and getattr(sess, "workspace_path", None):
+        return (
+            f"Siguiente: `rapid finish --merge` (hace el commit en rapid/{sess.active_run_id} y el merge tras tu "
+            "[s/N]). Tras finish el run ya no se puede cancelar."
+        )
+    return AFTER_LAST_APPROVAL
+
+
 def execute_approve(
     project_root: Path,
     project_rapid_dir: Path,
@@ -1848,7 +1859,7 @@ def execute_approve(
     if reject:
         return 0, f"Gate '{gate_id}' rechazado (changes_requested). Ejecuta 'rapid abort' e inicia un run nuevo."
     if reapproval:
-        return 0, f"Gate '{gate_id}' aprobado de nuevo sobre el código actual.\n{AFTER_LAST_APPROVAL}"
+        return 0, f"Gate '{gate_id}' aprobado de nuevo sobre el código actual.\n{after_last_approval(sess)}"
 
     try:
         run_reg.transition_gate(
@@ -1869,7 +1880,7 @@ def execute_approve(
     except Exception:  # the hint must never turn an approval into an error
         still_pending = ["?"]
     if not still_pending:
-        message += f"\n{AFTER_LAST_APPROVAL}"
+        message += f"\n{after_last_approval(sess)}"
     return 0, message
 
 
