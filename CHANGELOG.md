@@ -8,9 +8,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+---
+
+## [3.2.0rc5] - 2026-11-24 (pre-release)
+
+Fifth and last release candidate for 3.2.0 (git tag `v3.2.0-rc.5`, PEP 440 version `3.2.0rc5`). It brings no new features: only fixes from the end-to-end run of rc4. The latest stable release is still `v3.1.1`: the README and the installation docs keep documenting it until the final 3.2.0 release, while the installers pin this tag. If you tried rc4, this is what changes:
+
+- **`rapid approve` only approves.** Any answer that is not `s` changes nothing. Rejecting or waiving is `--reject`/`--waive` with a real reason (`--reason`) and their own confirmation.
+- **Codex is recognized in the process tree.** Its runs are recorded as `codex`, and `rapid approve`, `rapid finish --merge` and the `--accept-*` options refuse it with `RAPID1310`. The default harness is no longer one the project did not choose.
+- **Standards follow the version.** `security.md` and `coding-rules.md` carry a stamp; `rapid doctor` reports the outdated ones (`RAPID1444`) and `rapid setup standards --regenerate` brings them up to date.
+- **Integrating is `rapid finish --merge`.** After the last approval of a run with a worktree, that is the next step, and the shortcuts no longer ask for a manual commit first.
+- **Clearer messages.** `RAPID1343` (`standard_ref` is a single citation), `rapid abort` on a run that already ended, and removing the worktree on Windows (`core.longpaths`).
+- **Python dependencies job.** It no longer dumps the requirements file to the log and summarizes each pip-audit advisory once.
+
 ### Upgrading from rc4
-- The standards of an existing project (`.rapid-os/standards/security.md` and `coding-rules.md`) are not updated by themselves (H-79). After updating, run `rapid doctor`: it reports `RAPID1444` for each standard this version writes differently. Then run `rapid setup standards --regenerate`: it replaces the ones nobody edited (copy in `.rapid-os/backups/`), writes the new one beside an edited one, or one written before this version (no stamp, as in every project onboarded with rc4 or earlier), as `<file>.new`, and regenerates `AGENTS.md`/`CLAUDE.md`. Compare each `.new` with yours, keep your changes in the new one and rename it, then run the command again so the agent files take it (until then `rapid doctor` reports the `.new` left beside the standard). A standard without stamp whose content is already this version's only gets the stamp, without a `.new`.
-- The security workflows change again (H-86): `rapid doctor` reports them with `RAPID1443` and `rapid setup ci --regenerate` updates them, as in rc4.
+- After reinstalling, run `rapid doctor` and `rapid setup standards --regenerate` in each project. A project onboarded before rc.5 has standards without the stamp: the ones equal to this version only get the stamp; the ones that differ get `<file>.new` beside them. Compare it with yours, keep your changes in the new one, rename it and run `--regenerate` again so `AGENTS.md`/`CLAUDE.md` take it (until then `rapid doctor` reports the `.new` left beside the standard). The ones nobody edited and that carry an older stamp are replaced, with a copy in `.rapid-os/backups/`.
+- Run `rapid setup ci --regenerate` for the change of the pip-audit job: `rapid doctor` reports the security workflows with `RAPID1443`, as in rc4.
+- The global shortcuts are updated when you reinstall with `install.ps1` or `install.sh` from the tag, and each project's with `rapid shortcuts install`.
+- A project whose `tools` lists several agents and has no `default_harness` no longer falls back to `cursor`: it takes the first one of `tools`, with `RAPID1300` (or the one the process tree detects). Set `default_harness` in `.rapid-os/config.json` if you want another one.
+- If you rejected by answering `N` and typing the reason, use `rapid approve <gate> --reject --reason "<motivo>"` now.
+
+### Known issues
+- Outside Claude Code there are no hooks, so nothing stops an agent with a shell from writing to `.rapid-os/` directly. In Claude Code the hooks block it on a best-effort basis.
+- Evidence is not signed: records written directly under `.rapid-os/` can look valid.
+- Research during onboarding arrives in 3.3 (H-37).
+- `rapid finish` does not clean up the session (H-35, H-75).
+- The tree fingerprint counts git's LF to CRLF conversion as a code change (H-76).
+- `gate.tests` passes with the integration tests skipped, because `rapid check` does not load `.env` (H-87).
+
+### Detailed changes
 
 ### Fixed
 - A "yes" ended in a rejection (H-81). In `rapid approve gate.review` the answer to `¿Apruebas gate.review? [s/N]` arrived empty, approve asked for a rejection reason and took a stray `S` as that reason: the gate stayed `changes_requested` and the run could only be aborted. `rapid approve` without `--reject` now only approves or does nothing: any answer that is not yes (Enter, `N`, anything else) changes nothing, exits 1 and names `rapid approve <gate> --reject --reason "<motivo>"`. `--reject` and `--waive` refuse with `RAPID1333` a missing reason, one under 10 characters or one made only of yes/no answers, always after the TTY and agent barriers (an agent gets `RAPID1310`, with or without a reason), and their own `[s/N]` shows the gate, the reason and the consequence (`FAIL`, `rapid abort` and a new run for a rejection). The shortcuts no longer say that a reason can be typed after `N`.
